@@ -12,6 +12,7 @@ import VendorsPage from "@/pages/VendorsPage";
 import ProjectsPage from "@/pages/ProjectsPage";
 import QuotesPage from "@/pages/QuotesPage";
 import TemplatesPage from "@/pages/TemplatesPage";
+import ImportPage from "@/pages/ImportPage";
 import SettingsPage from "@/pages/SettingsPage";
 
 function Router() {
@@ -22,6 +23,7 @@ function Router() {
       <Route path="/vendors" component={VendorsPage} />
       <Route path="/quotes" component={QuotesPage} />
       <Route path="/templates" component={TemplatesPage} />
+      <Route path="/import" component={ImportPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -37,6 +37,11 @@ const mainItems: NavigationItem[] = [
     title: "Comparative Quotes",
     url: "/quotes",
     icon: BarChart3,
+  },
+  {
+    title: "Import Quotes",
+    url: "/import",
+    icon: Upload,
   },
 ];
 

@@ -67,6 +67,22 @@ export interface IStorage {
   createQuoteTemplate(template: InsertQuoteTemplate): Promise<QuoteTemplate>;
   updateQuoteTemplate(id: string, template: Partial<InsertQuoteTemplate>): Promise<QuoteTemplate | undefined>;
   deleteQuoteTemplate(id: string): Promise<boolean>;
+  
+  // BOQ (Bill of Quantities)
+  getBOQByProjectVendor(projectVendorId: string): Promise<Boq[]>;
+  getBOQ(id: string): Promise<Boq | undefined>;
+  createBOQ(boq: InsertBoq): Promise<Boq>;
+  createBOQBatch(boqs: InsertBoq[]): Promise<Boq[]>;
+  updateBOQ(id: string, boq: Partial<InsertBoq>): Promise<Boq | undefined>;
+  deleteBOQ(id: string): Promise<boolean>;
+  deleteBOQByProjectVendor(projectVendorId: string): Promise<boolean>;
+  
+  // Quote Files
+  getQuoteFilesByProjectVendor(projectVendorId: string): Promise<QuoteFile[]>;
+  getQuoteFile(id: string): Promise<QuoteFile | undefined>;
+  createQuoteFile(quoteFile: InsertQuoteFile): Promise<QuoteFile>;
+  updateQuoteFile(id: string, quoteFile: Partial<InsertQuoteFile>): Promise<QuoteFile | undefined>;
+  deleteQuoteFile(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -76,6 +92,8 @@ export class MemStorage implements IStorage {
   private projects: Map<string, Project>;
   private projectVendors: Map<string, ProjectVendor>;
   private quoteTemplates: Map<string, QuoteTemplate>;
+  private boq: Map<string, Boq>;
+  private quoteFiles: Map<string, QuoteFile>;
 
   constructor() {
     this.users = new Map();
@@ -84,9 +102,14 @@ export class MemStorage implements IStorage {
     this.projects = new Map();
     this.projectVendors = new Map();
     this.quoteTemplates = new Map();
+    this.boq = new Map();
+    this.quoteFiles = new Map();
     
     // Initialize with predefined categories
     this.initializePredefinedCategories();
+    
+    // Initialize with sample data for testing
+    this.initializeSampleData();
   }
 
   private initializePredefinedCategories() {
@@ -119,6 +142,103 @@ export class MemStorage implements IStorage {
         isActive: true,
       };
       this.vendorCategories.set(id, vendorCategory);
+    });
+  }
+
+  private initializeSampleData() {
+    // Sample Projects
+    const sampleProjects = [
+      {
+        id: randomUUID(),
+        projectName: "City Center Mall Renovation",
+        clientName: "Metro Development Corp",
+        startDate: "2024-01-15",
+        endDate: "2024-06-30"
+      },
+      {
+        id: randomUUID(),
+        projectName: "Hospital Wing Construction",
+        clientName: "Regional Medical Center", 
+        startDate: "2024-03-01",
+        endDate: null
+      },
+      {
+        id: randomUUID(),
+        projectName: "Office Complex Expansion",
+        clientName: "TechCorp Industries",
+        startDate: "2024-02-01",
+        endDate: "2024-08-15"
+      },
+      {
+        id: randomUUID(),
+        projectName: "Residential Tower Development",
+        clientName: "Skyline Properties",
+        startDate: "2024-04-01",
+        endDate: "2024-12-31"
+      }
+    ];
+
+    sampleProjects.forEach(project => {
+      this.projects.set(project.id, project);
+    });
+
+    // Get some category IDs for vendors
+    const categories = Array.from(this.vendorCategories.values());
+    const civilCat = categories.find(cat => cat.name === "Civil");
+    const electricalCat = categories.find(cat => cat.name === "Electrical");
+    const plumbingCat = categories.find(cat => cat.name === "Plumbing");
+
+    // Sample Vendors
+    const sampleVendors = [
+      {
+        id: randomUUID(),
+        name: "ABC Construction Ltd",
+        categoryId: civilCat?.id || categories[0]?.id || "category-1",
+        contactPerson: "John Smith",
+        phone: "+91-9876543210",
+        email: "john@abcconstruction.com",
+        notes: "Specializes in commercial construction"
+      },
+      {
+        id: randomUUID(),
+        name: "ElectroTech Solutions",
+        categoryId: electricalCat?.id || categories[1]?.id || "category-2",
+        contactPerson: "Sarah Wilson",
+        phone: "+91-9876543211",
+        email: "sarah@electrotech.com",
+        notes: "Expert in industrial electrical systems"
+      },
+      {
+        id: randomUUID(),
+        name: "BuildRight Corp",
+        categoryId: civilCat?.id || categories[0]?.id || "category-1",
+        contactPerson: "Mike Johnson",
+        phone: "+91-9876543212",
+        email: "mike@buildright.com",
+        notes: "Residential and commercial construction"
+      },
+      {
+        id: randomUUID(),
+        name: "PowerPro Electric",
+        categoryId: electricalCat?.id || categories[1]?.id || "category-2",
+        contactPerson: "Lisa Chen",
+        phone: "+91-9876543213",
+        email: "lisa@powerpro.com",
+        notes: "Electrical installations and maintenance"
+      },
+      {
+        id: randomUUID(),
+        name: "AquaFlow Plumbing",
+        categoryId: plumbingCat?.id || categories[2]?.id || "category-3",
+        contactPerson: "David Brown",
+        phone: "+91-9876543214",
+        email: "david@aquaflow.com",
+        notes: "Complete plumbing solutions"
+      }
+    ];
+
+    sampleVendors.forEach(vendor => {
+      this.vendors.set(vendor.id, vendor);
     });
   }
 
@@ -378,6 +498,105 @@ export class MemStorage implements IStorage {
 
   async deleteQuoteTemplate(id: string): Promise<boolean> {
     return this.quoteTemplates.delete(id);
+  }
+
+  // BOQ (Bill of Quantities) methods
+  async getBOQByProjectVendor(projectVendorId: string): Promise<Boq[]> {
+    return Array.from(this.boq.values()).filter(
+      boq => boq.projectVendorId === projectVendorId
+    );
+  }
+
+  async getBOQ(id: string): Promise<Boq | undefined> {
+    return this.boq.get(id);
+  }
+
+  async createBOQ(insertBoq: InsertBoq): Promise<Boq> {
+    const id = randomUUID();
+    const boq: Boq = { 
+      ...insertBoq, 
+      id,
+      category: insertBoq.category || null,
+      itemCode: insertBoq.itemCode || null,
+      specifications: insertBoq.specifications || null
+    };
+    this.boq.set(id, boq);
+    return boq;
+  }
+
+  async createBOQBatch(boqs: InsertBoq[]): Promise<Boq[]> {
+    const createdBOQs: Boq[] = [];
+    for (const insertBoq of boqs) {
+      const created = await this.createBOQ(insertBoq);
+      createdBOQs.push(created);
+    }
+    return createdBOQs;
+  }
+
+  async updateBOQ(id: string, updates: Partial<InsertBoq>): Promise<Boq | undefined> {
+    const existing = this.boq.get(id);
+    if (!existing) return undefined;
+    
+    const updated = { ...existing, ...updates };
+    this.boq.set(id, updated);
+    return updated;
+  }
+
+  async deleteBOQ(id: string): Promise<boolean> {
+    return this.boq.delete(id);
+  }
+
+  async deleteBOQByProjectVendor(projectVendorId: string): Promise<boolean> {
+    const boqItems = Array.from(this.boq.values()).filter(
+      boq => boq.projectVendorId === projectVendorId
+    );
+    
+    let deletedCount = 0;
+    for (const boq of boqItems) {
+      if (this.boq.delete(boq.id)) {
+        deletedCount++;
+      }
+    }
+    
+    return deletedCount > 0;
+  }
+
+  // Quote Files methods
+  async getQuoteFilesByProjectVendor(projectVendorId: string): Promise<QuoteFile[]> {
+    return Array.from(this.quoteFiles.values()).filter(
+      file => file.projectVendorId === projectVendorId
+    );
+  }
+
+  async getQuoteFile(id: string): Promise<QuoteFile | undefined> {
+    return this.quoteFiles.get(id);
+  }
+
+  async createQuoteFile(insertQuoteFile: InsertQuoteFile): Promise<QuoteFile> {
+    const id = randomUUID();
+    const quoteFile: QuoteFile = { 
+      ...insertQuoteFile, 
+      id,
+      fileSize: insertQuoteFile.fileSize || null,
+      externalStorageProvider: insertQuoteFile.externalStorageProvider || null,
+      externalFileId: insertQuoteFile.externalFileId || null,
+      uploadedAt: new Date()
+    };
+    this.quoteFiles.set(id, quoteFile);
+    return quoteFile;
+  }
+
+  async updateQuoteFile(id: string, updates: Partial<InsertQuoteFile>): Promise<QuoteFile | undefined> {
+    const existing = this.quoteFiles.get(id);
+    if (!existing) return undefined;
+    
+    const updated = { ...existing, ...updates };
+    this.quoteFiles.set(id, updated);
+    return updated;
+  }
+
+  async deleteQuoteFile(id: string): Promise<boolean> {
+    return this.quoteFiles.delete(id);
   }
 }
 
