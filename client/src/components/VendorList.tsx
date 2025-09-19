@@ -4,14 +4,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
 import VendorCard from "./VendorCard";
-import { Search, Plus, Filter, ChevronRight } from "lucide-react";
+import { Search, Plus, Filter, ChevronRight, FolderPlus } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { z } from "zod";
+import { createInsertSchema } from "drizzle-zod";
+import { vendorCategories } from "@shared/schema";
 import type { Vendor, VendorCategory } from "@shared/schema";
 
 interface CategoryWithChildren extends VendorCategory {
   children: CategoryWithChildren[];
   level: number;
 }
+
+const baseInsertSchema = createInsertSchema(vendorCategories);
+const subcategoryFormSchema = baseInsertSchema.extend({
+  parentId: z.string().min(1, "Parent category is required"),
+}).omit({ id: true });
+
+type SubcategoryFormData = z.infer<typeof subcategoryFormSchema>;
 
 interface VendorListProps {
   vendors: Vendor[];
@@ -24,6 +42,19 @@ interface VendorListProps {
 export default function VendorList({ vendors, categories, onAddVendor, onEditVendor, onDeleteVendor }: VendorListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [isSubcategoryDialogOpen, setIsSubcategoryDialogOpen] = useState(false);
+  
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const subcategoryForm = useForm<SubcategoryFormData>({
+    resolver: zodResolver(subcategoryFormSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      parentId: "",
+    },
+  });
 
   const handleSearch = (value: string) => {
     setSearchTerm(value);
@@ -37,7 +68,41 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
 
   const handleAddVendor = () => {
     console.log('Add vendor clicked');
+    console.log('Add vendor - would open form modal');
     onAddVendor?.();
+  };
+
+  // Create subcategory mutation
+  const createSubcategoryMutation = useMutation({
+    mutationFn: async (data: SubcategoryFormData) => {
+      return apiRequest('POST', '/api/vendor-categories', {
+        name: data.name,
+        description: data.description || null,
+        parentId: data.parentId,
+        isActive: true,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/vendor-categories/tree'] });
+      setIsSubcategoryDialogOpen(false);
+      subcategoryForm.reset();
+      toast({
+        title: "Success",
+        description: "Subcategory created successfully",
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to create subcategory:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create subcategory. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCreateSubcategory = (data: SubcategoryFormData) => {
+    createSubcategoryMutation.mutate(data);
   };
 
   // Helper function to build category tree structure
@@ -156,10 +221,106 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
             Manage your vendor database by category
           </p>
         </div>
-        <Button onClick={handleAddVendor} data-testid="button-add-vendor">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Vendor
-        </Button>
+        <div className="flex gap-2">
+          <Dialog open={isSubcategoryDialogOpen} onOpenChange={setIsSubcategoryDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" data-testid="button-add-subcategory">
+                <FolderPlus className="h-4 w-4 mr-2" />
+                Add Subcategory
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create New Subcategory</DialogTitle>
+              </DialogHeader>
+              <Form {...subcategoryForm}>
+                <form onSubmit={subcategoryForm.handleSubmit(handleCreateSubcategory)} className="space-y-4">
+                  <FormField
+                    control={subcategoryForm.control}
+                    name="parentId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Parent Category</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-parent-category">
+                              <SelectValue placeholder="Select parent category" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {categories
+                              .filter(cat => !cat.parentId) // Only show main categories
+                              .map(category => (
+                                <SelectItem key={category.id} value={category.id}>
+                                  {category.name}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={subcategoryForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Subcategory Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., Residential Electrical"
+                            data-testid="input-subcategory-name"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={subcategoryForm.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description (Optional)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Brief description of the subcategory"
+                            data-testid="textarea-subcategory-description"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsSubcategoryDialogOpen(false)}
+                      data-testid="button-cancel-subcategory"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={createSubcategoryMutation.isPending}
+                      data-testid="button-submit-subcategory"
+                    >
+                      {createSubcategoryMutation.isPending ? "Creating..." : "Create Subcategory"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+          <Button onClick={handleAddVendor} data-testid="button-add-vendor">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Vendor
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
