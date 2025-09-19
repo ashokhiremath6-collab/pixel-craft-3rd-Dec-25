@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useQuery } from "@tanstack/react-query";
 import { Search, Plus, FileText, Download, Edit, Trash2, ChevronRight } from "lucide-react";
 import type { VendorCategory, QuoteTemplate } from "@shared/schema";
+import { AddTemplateDialog } from "@/components/AddTemplateDialog";
 
 interface CategoryWithChildren extends VendorCategory {
   children: CategoryWithChildren[];
@@ -16,6 +17,7 @@ interface CategoryWithChildren extends VendorCategory {
 export default function TemplatesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   // Fetch vendor categories for hierarchical filtering
   const { 
@@ -160,7 +162,11 @@ export default function TemplatesPage() {
             Manage quote templates for different vendor categories
           </p>
         </div>
-        <Button data-testid="button-add-template" className="flex items-center gap-2">
+        <Button 
+          onClick={() => setAddDialogOpen(true)}
+          data-testid="button-add-template" 
+          className="flex items-center gap-2"
+        >
           <Plus className="h-4 w-4" />
           Add Template
         </Button>
@@ -327,6 +333,11 @@ export default function TemplatesPage() {
           </p>
         </div>
       )}
+
+      <AddTemplateDialog 
+        open={addDialogOpen} 
+        onOpenChange={setAddDialogOpen} 
+      />
     </div>
   );
 }
