@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -9,7 +9,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 
 interface NavigationItem {
   title: string;
@@ -17,16 +17,11 @@ interface NavigationItem {
   icon: typeof Home;
 }
 
-const items: NavigationItem[] = [
+const mainItems: NavigationItem[] = [
   {
     title: "Dashboard",
     url: "/",
     icon: Home,
-  },
-  {
-    title: "Vendors by Category",
-    url: "/vendors",
-    icon: Users,
   },
   {
     title: "Projects",
@@ -34,10 +29,26 @@ const items: NavigationItem[] = [
     icon: Building2,
   },
   {
+    title: "Vendors by Category",
+    url: "/vendors",
+    icon: Users,
+  },
+  {
     title: "Comparative Quotes",
     url: "/quotes",
     icon: BarChart3,
   },
+];
+
+const templateItems: NavigationItem[] = [
+  {
+    title: "Quote Templates",
+    url: "/templates",
+    icon: FileText,
+  },
+];
+
+const settingsItems: NavigationItem[] = [
   {
     title: "Settings",
     url: "/settings",
@@ -55,17 +66,61 @@ export function AppSidebar() {
           <SidebarGroupLabel>Vendor Management</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     asChild
                     data-active={location === item.url}
                     data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
                   >
-                    <a href={item.url}>
+                    <Link href={item.url}>
                       <item.icon />
                       <span>{item.title}</span>
-                    </a>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Templates</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {templateItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton 
+                    asChild
+                    data-active={location === item.url}
+                    data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Configuration</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {settingsItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton 
+                    asChild
+                    data-active={location === item.url}
+                    data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

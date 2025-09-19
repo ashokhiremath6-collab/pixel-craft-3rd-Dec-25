@@ -11,15 +11,17 @@ import DashboardPage from "@/pages/DashboardPage";
 import VendorsPage from "@/pages/VendorsPage";
 import ProjectsPage from "@/pages/ProjectsPage";
 import QuotesPage from "@/pages/QuotesPage";
+import TemplatesPage from "@/pages/TemplatesPage";
 import SettingsPage from "@/pages/SettingsPage";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={DashboardPage} />
-      <Route path="/vendors" component={VendorsPage} />
       <Route path="/projects" component={ProjectsPage} />
+      <Route path="/vendors" component={VendorsPage} />
       <Route path="/quotes" component={QuotesPage} />
+      <Route path="/templates" component={TemplatesPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>
