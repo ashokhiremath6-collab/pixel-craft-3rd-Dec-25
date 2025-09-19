@@ -16,7 +16,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { createInsertSchema } from "drizzle-zod";
-import { vendorCategories } from "@shared/schema";
+import { vendorCategories, insertVendorSchema } from "@shared/schema";
 import type { Vendor, VendorCategory } from "@shared/schema";
 
 interface CategoryWithChildren extends VendorCategory {
@@ -29,7 +29,12 @@ const subcategoryFormSchema = baseInsertSchema.extend({
   parentId: z.string().min(1, "Parent category is required"),
 }).omit({ id: true });
 
+const vendorFormSchema = insertVendorSchema.extend({
+  categoryId: z.string().min(1, "Category is required"),
+});
+
 type SubcategoryFormData = z.infer<typeof subcategoryFormSchema>;
+type VendorFormData = z.infer<typeof vendorFormSchema>;
 
 interface VendorListProps {
   vendors: Vendor[];
@@ -43,6 +48,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isSubcategoryDialogOpen, setIsSubcategoryDialogOpen] = useState(false);
+  const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -53,6 +59,18 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       name: "",
       description: "",
       parentId: "",
+    },
+  });
+  
+  const vendorForm = useForm<VendorFormData>({
+    resolver: zodResolver(vendorFormSchema),
+    defaultValues: {
+      name: "",
+      categoryId: "",
+      contactPerson: "",
+      phone: "",
+      email: "",
+      notes: "",
     },
   });
 
@@ -68,8 +86,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
 
   const handleAddVendor = () => {
     console.log('Add vendor clicked');
-    console.log('Add vendor - would open form modal');
-    onAddVendor?.();
+    setIsVendorDialogOpen(true);
   };
 
   // Create subcategory mutation
@@ -103,6 +120,41 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
 
   const handleCreateSubcategory = (data: SubcategoryFormData) => {
     createSubcategoryMutation.mutate(data);
+  };
+
+  // Create vendor mutation
+  const createVendorMutation = useMutation({
+    mutationFn: async (data: VendorFormData) => {
+      return apiRequest('POST', '/api/vendors', {
+        name: data.name,
+        categoryId: data.categoryId,
+        contactPerson: data.contactPerson,
+        phone: data.phone,
+        email: data.email,
+        notes: data.notes || null,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
+      setIsVendorDialogOpen(false);
+      vendorForm.reset();
+      toast({
+        title: "Success",
+        description: "Vendor created successfully",
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to create vendor:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create vendor. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCreateVendor = (data: VendorFormData) => {
+    createVendorMutation.mutate(data);
   };
 
   // Helper function to build category tree structure
@@ -289,6 +341,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                             placeholder="Brief description of the subcategory"
                             data-testid="textarea-subcategory-description"
                             {...field}
+                            value={field.value || ""}
                           />
                         </FormControl>
                         <FormMessage />
@@ -316,10 +369,160 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
               </Form>
             </DialogContent>
           </Dialog>
-          <Button onClick={handleAddVendor} data-testid="button-add-vendor">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Vendor
-          </Button>
+          <Dialog open={isVendorDialogOpen} onOpenChange={setIsVendorDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleAddVendor} data-testid="button-add-vendor">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Vendor
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Add New Vendor</DialogTitle>
+              </DialogHeader>
+              <Form {...vendorForm}>
+                <form onSubmit={vendorForm.handleSubmit(handleCreateVendor)} className="space-y-4">
+                  <FormField
+                    control={vendorForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Vendor Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., ABC Construction Ltd"
+                            data-testid="input-vendor-name"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={vendorForm.control}
+                    name="categoryId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Category</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-vendor-category">
+                              <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {flatCategories.map(category => (
+                              <SelectItem key={category.id} value={category.id}>
+                                <div className="flex items-center">
+                                  {category.level > 0 && (
+                                    <span style={{ marginLeft: `${category.level * 16}px` }} className="text-muted-foreground">
+                                      <ChevronRight className="h-3 w-3 inline mr-1" />
+                                    </span>
+                                  )}
+                                  {category.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                      control={vendorForm.control}
+                      name="contactPerson"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Contact Person</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g., John Doe"
+                              data-testid="input-contact-person"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={vendorForm.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g., +91 98765 43210"
+                              data-testid="input-vendor-phone"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={vendorForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="e.g., contact@abcconstruction.com"
+                            data-testid="input-vendor-email"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={vendorForm.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Notes (Optional)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Additional notes about the vendor"
+                            data-testid="textarea-vendor-notes"
+                            {...field}
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsVendorDialogOpen(false)}
+                      data-testid="button-cancel-vendor"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={createVendorMutation.isPending}
+                      data-testid="button-submit-vendor"
+                    >
+                      {createVendorMutation.isPending ? "Creating..." : "Create Vendor"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
