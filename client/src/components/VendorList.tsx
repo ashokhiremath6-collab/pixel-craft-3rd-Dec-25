@@ -5,8 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import VendorCard from "./VendorCard";
-import { Search, Plus, Filter } from "lucide-react";
+import { Search, Plus, Filter, ChevronRight } from "lucide-react";
 import type { Vendor, VendorCategory } from "@shared/schema";
+
+interface CategoryWithChildren extends VendorCategory {
+  children: CategoryWithChildren[];
+  level: number;
+}
 
 interface VendorListProps {
   vendors: Vendor[];
@@ -35,27 +40,109 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
     onAddVendor?.();
   };
 
-  // Create a map of categoryId to category name for easy lookup
-  const categoryMap = categories.reduce((acc, cat) => {
-    acc[cat.id] = cat.name;
-    return acc;
-  }, {} as Record<string, string>);
+  // Helper function to build category tree structure
+  const buildCategoryTree = (categories: VendorCategory[]): CategoryWithChildren[] => {
+    const categoryMap = new Map<string, CategoryWithChildren>();
+    const rootCategories: CategoryWithChildren[] = [];
 
-  // Filter vendors
+    // First pass: create all categories with children arrays
+    categories.forEach(cat => {
+      categoryMap.set(cat.id, { ...cat, children: [], level: 0 });
+    });
+
+    // Second pass: organize into tree structure and set levels
+    categories.forEach(cat => {
+      const categoryWithChildren = categoryMap.get(cat.id)!;
+      
+      if (cat.parentId) {
+        const parent = categoryMap.get(cat.parentId);
+        if (parent) {
+          categoryWithChildren.level = parent.level + 1;
+          parent.children.push(categoryWithChildren);
+        }
+      } else {
+        rootCategories.push(categoryWithChildren);
+      }
+    });
+
+    return rootCategories;
+  };
+
+  // Helper function to flatten tree for easy lookup
+  const flattenCategoryTree = (tree: CategoryWithChildren[]): CategoryWithChildren[] => {
+    const result: CategoryWithChildren[] = [];
+    
+    const traverse = (nodes: CategoryWithChildren[]) => {
+      nodes.forEach(node => {
+        result.push(node);
+        traverse(node.children);
+      });
+    };
+    
+    traverse(tree);
+    return result;
+  };
+
+  // Build category tree and flatten for select options
+  const categoryTree = buildCategoryTree(categories);
+  const flatCategories = flattenCategoryTree(categoryTree);
+
+  // Create a map of categoryId to category for easy lookup
+  const categoryMap = categories.reduce((acc, cat) => {
+    acc[cat.id] = cat;
+    return acc;
+  }, {} as Record<string, VendorCategory>);
+
+  // Helper function to get all descendant category IDs
+  const getCategoryWithDescendants = (categoryId: string): string[] => {
+    const result = [categoryId];
+    const category = flatCategories.find(cat => cat.id === categoryId);
+    
+    if (category) {
+      const addDescendants = (cat: CategoryWithChildren) => {
+        cat.children.forEach(child => {
+          result.push(child.id);
+          addDescendants(child);
+        });
+      };
+      addDescendants(category);
+    }
+    
+    return result;
+  };
+
+  // Filter vendors with hierarchical support
   const filteredVendors = vendors.filter(vendor => {
     const matchesSearch = vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          vendor.contactPerson.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === "all" || vendor.categoryId === selectedCategory;
+    
+    // For hierarchical filtering, include vendors from selected category and all its descendants
+    let matchesCategory = selectedCategory === "all";
+    if (!matchesCategory && selectedCategory !== "all") {
+      const categoryIds = getCategoryWithDescendants(selectedCategory);
+      matchesCategory = categoryIds.includes(vendor.categoryId);
+    }
+    
     return matchesSearch && matchesCategory;
   });
 
-  // Group vendors by category
+  // Group vendors by category with hierarchical display
   const vendorsByCategory = filteredVendors.reduce((acc, vendor) => {
-    const categoryName = categoryMap[vendor.categoryId] || 'Unknown';
-    if (!acc[categoryName]) {
-      acc[categoryName] = [];
+    const category = categoryMap[vendor.categoryId];
+    let categoryDisplayName = category?.name || 'Unknown';
+    
+    // Add parent category context for subcategories
+    if (category?.parentId) {
+      const parentCategory = categoryMap[category.parentId];
+      if (parentCategory) {
+        categoryDisplayName = `${parentCategory.name} > ${category.name}`;
+      }
     }
-    acc[categoryName].push(vendor);
+    
+    if (!acc[categoryDisplayName]) {
+      acc[categoryDisplayName] = [];
+    }
+    acc[categoryDisplayName].push(vendor);
     return acc;
   }, {} as Record<string, Vendor[]>);
 
@@ -103,9 +190,16 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {categories.map(category => (
+                {flatCategories.map(category => (
                   <SelectItem key={category.id} value={category.id}>
-                    {category.name}
+                    <div className="flex items-center">
+                      {category.level > 0 && (
+                        <span style={{ marginLeft: `${category.level * 16}px` }} className="text-muted-foreground">
+                          <ChevronRight className="h-3 w-3 inline mr-1" />
+                        </span>
+                      )}
+                      {category.name}
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -121,7 +215,17 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
         </span>
         {selectedCategory !== "all" && (
           <Badge variant="secondary" data-testid="badge-active-filter">
-            {categoryMap[selectedCategory] || selectedCategory}
+            {(() => {
+              const category = categoryMap[selectedCategory];
+              if (!category) return selectedCategory;
+              
+              // Show hierarchical name for active filter
+              if (category.parentId) {
+                const parentCategory = categoryMap[category.parentId];
+                return parentCategory ? `${parentCategory.name} > ${category.name}` : category.name;
+              }
+              return category.name;
+            })()}
           </Badge>
         )}
       </div>

@@ -20,6 +20,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Hierarchical category endpoints - MUST come before /:id to avoid conflicts
+  app.get("/api/vendor-categories/tree", async (req, res) => {
+    try {
+      const tree = await storage.getCategoryTree();
+      res.json(tree);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch category tree" });
+    }
+  });
+
+  app.get("/api/vendor-categories/:id/children", async (req, res) => {
+    try {
+      const children = await storage.getChildCategories(req.params.id);
+      res.json(children);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch child categories" });
+    }
+  });
+
+  app.get("/api/vendor-categories/:id/descendants", async (req, res) => {
+    try {
+      const descendants = await storage.getCategoryWithDescendants(req.params.id);
+      res.json(descendants);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch category descendants" });
+    }
+  });
+
   app.get("/api/vendor-categories/:id", async (req, res) => {
     try {
       const category = await storage.getVendorCategory(req.params.id);
@@ -66,34 +94,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         error: error instanceof Error ? error.message : "Failed to delete vendor category" 
       });
-    }
-  });
-
-  // Hierarchical category endpoints
-  app.get("/api/vendor-categories/tree", async (req, res) => {
-    try {
-      const tree = await storage.getCategoryTree();
-      res.json(tree);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch category tree" });
-    }
-  });
-
-  app.get("/api/vendor-categories/:id/children", async (req, res) => {
-    try {
-      const children = await storage.getChildCategories(req.params.id);
-      res.json(children);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch child categories" });
-    }
-  });
-
-  app.get("/api/vendor-categories/:id/descendants", async (req, res) => {
-    try {
-      const descendants = await storage.getCategoryWithDescendants(req.params.id);
-      res.json(descendants);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch category descendants" });
     }
   });
 

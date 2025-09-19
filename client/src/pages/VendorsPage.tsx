@@ -3,9 +3,9 @@ import VendorList from '@/components/VendorList';
 import type { Vendor, VendorCategory } from "@shared/schema";
 
 export default function VendorsPage() {
-  // Fetch vendor categories
+  // Fetch hierarchical category tree
   const { data: categories = [] } = useQuery<VendorCategory[]>({
-    queryKey: ['/api/vendor-categories'],
+    queryKey: ['/api/vendor-categories/tree'],
   });
 
   // Fetch vendors  
