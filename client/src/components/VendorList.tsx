@@ -6,16 +6,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import VendorCard from "./VendorCard";
 import { Search, Plus, Filter } from "lucide-react";
-import type { Vendor } from "@shared/schema";
+import type { Vendor, VendorCategory } from "@shared/schema";
 
 interface VendorListProps {
   vendors: Vendor[];
+  categories: VendorCategory[];
   onAddVendor?: () => void;
   onEditVendor?: (vendor: Vendor) => void;
   onDeleteVendor?: (vendorId: string) => void;
 }
 
-export default function VendorList({ vendors, onAddVendor, onEditVendor, onDeleteVendor }: VendorListProps) {
+export default function VendorList({ vendors, categories, onAddVendor, onEditVendor, onDeleteVendor }: VendorListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
@@ -24,9 +25,9 @@ export default function VendorList({ vendors, onAddVendor, onEditVendor, onDelet
     console.log('Search term:', value);
   };
 
-  const handleCategoryFilter = (category: string) => {
-    setSelectedCategory(category);
-    console.log('Filter by category:', category);
+  const handleCategoryFilter = (categoryId: string) => {
+    setSelectedCategory(categoryId);
+    console.log('Filter by category:', categoryId);
   };
 
   const handleAddVendor = () => {
@@ -34,23 +35,27 @@ export default function VendorList({ vendors, onAddVendor, onEditVendor, onDelet
     onAddVendor?.();
   };
 
-  // Get unique categories
-  const categories = Array.from(new Set(vendors.map(v => v.category)));
+  // Create a map of categoryId to category name for easy lookup
+  const categoryMap = categories.reduce((acc, cat) => {
+    acc[cat.id] = cat.name;
+    return acc;
+  }, {} as Record<string, string>);
 
   // Filter vendors
   const filteredVendors = vendors.filter(vendor => {
     const matchesSearch = vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          vendor.contactPerson.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === "all" || vendor.category === selectedCategory;
+    const matchesCategory = selectedCategory === "all" || vendor.categoryId === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
   // Group vendors by category
   const vendorsByCategory = filteredVendors.reduce((acc, vendor) => {
-    if (!acc[vendor.category]) {
-      acc[vendor.category] = [];
+    const categoryName = categoryMap[vendor.categoryId] || 'Unknown';
+    if (!acc[categoryName]) {
+      acc[categoryName] = [];
     }
-    acc[vendor.category].push(vendor);
+    acc[categoryName].push(vendor);
     return acc;
   }, {} as Record<string, Vendor[]>);
 
@@ -99,8 +104,8 @@ export default function VendorList({ vendors, onAddVendor, onEditVendor, onDelet
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
                 {categories.map(category => (
-                  <SelectItem key={category} value={category}>
-                    {category}
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -116,7 +121,7 @@ export default function VendorList({ vendors, onAddVendor, onEditVendor, onDelet
         </span>
         {selectedCategory !== "all" && (
           <Badge variant="secondary" data-testid="badge-active-filter">
-            {selectedCategory}
+            {categoryMap[selectedCategory] || selectedCategory}
           </Badge>
         )}
       </div>
