@@ -108,11 +108,9 @@ export class MemStorage implements IStorage {
       { name: "Bathroom Fittings", description: "Bathroom fixtures and fittings" },
     ];
 
-    // Create main categories first
-    const categoryIds: Record<string, string> = {};
+    // Create main categories only - users can create their own subcategories
     predefinedCategories.forEach(category => {
       const id = randomUUID();
-      categoryIds[category.name] = id;
       const vendorCategory: VendorCategory = {
         id,
         name: category.name,
@@ -121,33 +119,6 @@ export class MemStorage implements IStorage {
         isActive: true,
       };
       this.vendorCategories.set(id, vendorCategory);
-    });
-
-    // Add some subcategories to demonstrate hierarchy
-    const subcategories = [
-      { name: "Residential Electrical", parentName: "Electrical", description: "Residential electrical work" },
-      { name: "Commercial Electrical", parentName: "Electrical", description: "Commercial electrical systems" },
-      { name: "Foundation Work", parentName: "Civil", description: "Foundation and structural foundation work" },
-      { name: "Concrete Work", parentName: "Civil", description: "Concrete pouring and finishing" },
-      { name: "Hardwood Flooring", parentName: "Flooring", description: "Hardwood floor installation" },
-      { name: "Tile Flooring", parentName: "Flooring", description: "Ceramic and stone tile flooring" },
-      { name: "Custom Cabinetry", parentName: "Carpentry", description: "Custom cabinet design and installation" },
-      { name: "Trim Work", parentName: "Carpentry", description: "Interior trim and molding work" },
-    ];
-
-    subcategories.forEach(subcat => {
-      const id = randomUUID();
-      const parentId = categoryIds[subcat.parentName];
-      if (parentId) {
-        const vendorCategory: VendorCategory = {
-          id,
-          name: subcat.name,
-          parentId,
-          description: subcat.description,
-          isActive: true,
-        };
-        this.vendorCategories.set(id, vendorCategory);
-      }
     });
   }
 
