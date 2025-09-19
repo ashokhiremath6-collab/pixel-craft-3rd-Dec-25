@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Plus, FileText, Download, Edit, Trash2, ChevronRight } from "lucide-react";
-import type { VendorCategory } from "@shared/schema";
+import type { VendorCategory, QuoteTemplate } from "@shared/schema";
 
 interface CategoryWithChildren extends VendorCategory {
   children: CategoryWithChildren[];
@@ -18,37 +18,52 @@ export default function TemplatesPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   // Fetch vendor categories for hierarchical filtering
-  const { data: categories = [] } = useQuery({
+  const { 
+    data: categories = [], 
+    isLoading: categoriesLoading, 
+    isError: categoriesError,
+    refetch: refetchCategories 
+  } = useQuery<VendorCategory[]>({
     queryKey: ['/api/vendor-categories/tree'],
   });
 
-  // Placeholder data - will be replaced with actual API calls
-  const templates = [
-    {
-      id: "1",
-      name: "Civil Work Quote Template",
-      category: "Civil",
-      description: "Standard template for civil construction quotes",
-      isActive: true,
-      lastModified: "2024-01-15",
-    },
-    {
-      id: "2", 
-      name: "Electrical Installation Template",
-      category: "Electrical",
-      description: "Template for electrical installation quotations",
-      isActive: true,
-      lastModified: "2024-01-12",
-    },
-    {
-      id: "3",
-      name: "HVAC System Quote",
-      category: "HVAC", 
-      description: "HVAC installation and maintenance quotes",
-      isActive: false,
-      lastModified: "2024-01-10",
-    },
-  ];
+  // Fetch actual quote templates from API
+  const { 
+    data: templates = [], 
+    isLoading: templatesLoading, 
+    isError: templatesError,
+    refetch: refetchTemplates 
+  } = useQuery<QuoteTemplate[]>({
+    queryKey: ['/api/quote-templates'],
+  });
+
+  // Helper function to flatten hierarchical category data if needed
+  const flattenCategories = (data: any[]): VendorCategory[] => {
+    const result: VendorCategory[] = [];
+    
+    const traverse = (items: any[]) => {
+      items.forEach(item => {
+        // Check if this looks like a category object
+        if (item && typeof item === 'object' && item.id) {
+          result.push({
+            id: item.id,
+            name: item.name,
+            parentId: item.parentId || null,
+            description: item.description || null,
+            isActive: item.isActive ?? true
+          });
+          
+          // If it has children, traverse them recursively
+          if (item.children && Array.isArray(item.children)) {
+            traverse(item.children);
+          }
+        }
+      });
+    };
+    
+    traverse(data);
+    return result;
+  };
 
   // Helper function to build category tree structure
   const buildCategoryTree = (categories: VendorCategory[]): CategoryWithChildren[] => {
@@ -102,19 +117,24 @@ export default function TemplatesPage() {
     return result;
   };
 
-  const categoryTree = buildCategoryTree(categories as VendorCategory[]);
+  // Defensive handling for both flat and hierarchical category data  
+  const normalizedCategories = flattenCategories(categories);
+  const categoryTree = buildCategoryTree(normalizedCategories);
   const flatCategories = flattenCategoryTree(categoryTree);
 
   // Create a map of category IDs to names for filtering
   const categoryIdToNameMap = new Map<string, string>();
-  (categories as VendorCategory[]).forEach((cat) => {
+  normalizedCategories.forEach((cat) => {
     categoryIdToNameMap.set(cat.id, cat.name);
   });
 
   const filteredTemplates = templates.filter(template => {
+    // Get category name for the template
+    const templateCategoryName = categoryIdToNameMap.get(template.categoryId) || '';
+    
     // Text search filter
     const matchesSearch = template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         template.category.toLowerCase().includes(searchTerm.toLowerCase());
+                         templateCategoryName.toLowerCase().includes(searchTerm.toLowerCase());
     
     // Category filter
     if (selectedCategory === "all") {
@@ -122,12 +142,9 @@ export default function TemplatesPage() {
     }
     
     // Get the selected category and all its descendants
-    const selectedCategoryIds = getCategoryWithDescendants(selectedCategory, categories as VendorCategory[]);
-    const selectedCategoryNames = selectedCategoryIds.map(id => categoryIdToNameMap.get(id)).filter(Boolean);
+    const selectedCategoryIds = getCategoryWithDescendants(selectedCategory, normalizedCategories);
     
-    const matchesCategory = selectedCategoryNames.some(name => 
-      template.category.toLowerCase() === name?.toLowerCase()
-    );
+    const matchesCategory = selectedCategoryIds.includes(template.categoryId);
     
     return matchesSearch && matchesCategory;
   });
@@ -161,41 +178,69 @@ export default function TemplatesPage() {
           />
         </div>
         
-        <Select
-          value={selectedCategory}
-          onValueChange={setSelectedCategory}
-          data-testid="select-category-filter"
-        >
-          <SelectTrigger className="w-64">
-            <SelectValue placeholder="Filter by category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all" data-testid="option-all-categories">
-              All Categories
-            </SelectItem>
-            {flatCategories.map((category) => (
-              <SelectItem
-                key={category.id}
-                value={category.id}
-                data-testid={`option-category-${category.id}`}
-              >
-                <span 
-                  className="flex items-center gap-1"
-                  style={{ marginLeft: `${category.level * 16}px` }}
-                >
-                  {category.children.length > 0 && (
-                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                  )}
-                  <span>{category.name}</span>
-                </span>
+        <div className="flex items-center gap-2">
+          <Select
+            value={selectedCategory}
+            onValueChange={setSelectedCategory}
+            disabled={categoriesLoading}
+            data-testid="select-category-filter"
+          >
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder={
+                categoriesLoading ? "Loading categories..." : 
+                "Filter by category"
+              } />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" data-testid="option-all-categories">
+                All Categories
               </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              {!categoriesLoading && flatCategories.map((category) => (
+                <SelectItem
+                  key={category.id}
+                  value={category.id}
+                  data-testid={`option-category-${category.id}`}
+                >
+                  <span 
+                    className="flex items-center gap-1"
+                    style={{ marginLeft: `${category.level * 16}px` }}
+                  >
+                    {category.children.length > 0 && (
+                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                    )}
+                    <span>{category.name}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {categoriesError && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => refetchCategories()}
+              className="text-destructive"
+            >
+              Retry Categories
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredTemplates.map((template) => (
+      {templatesError ? (
+        <div className="text-center py-12">
+          <div className="text-destructive mb-4">Failed to load templates</div>
+          <Button onClick={() => refetchTemplates()} variant="outline">
+            Try Again
+          </Button>
+        </div>
+      ) : templatesLoading ? (
+        <div className="text-center py-12">
+          <div className="text-muted-foreground">Loading templates...</div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTemplates.map((template) => (
           <Card 
             key={template.id} 
             className="hover-elevate transition-all duration-200"
@@ -215,7 +260,7 @@ export default function TemplatesPage() {
                         className="text-xs"
                         data-testid={`badge-category-${template.id}`}
                       >
-                        {template.category}
+                        {categoryIdToNameMap.get(template.categoryId) || 'Unknown'}
                       </Badge>
                       <Badge 
                         variant={template.isActive ? "default" : "destructive"}
@@ -235,7 +280,7 @@ export default function TemplatesPage() {
               </CardDescription>
               
               <div className="text-xs text-muted-foreground mb-4" data-testid={`text-last-modified-${template.id}`}>
-                Last modified: {template.lastModified}
+                Created: {template.createdAt ? new Date(template.createdAt).toLocaleDateString() : 'Unknown'}
               </div>
               
               <div className="flex items-center gap-2">
@@ -267,10 +312,11 @@ export default function TemplatesPage() {
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {filteredTemplates.length === 0 && (
+      {!templatesLoading && filteredTemplates.length === 0 && (
         <div className="text-center py-12">
           <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-medium text-foreground mb-2" data-testid="text-empty-state-heading">
