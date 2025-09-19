@@ -3,10 +3,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, FileText, Download, Edit, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
+import { Search, Plus, FileText, Download, Edit, Trash2, ChevronRight } from "lucide-react";
+import type { VendorCategory } from "@shared/schema";
+
+interface CategoryWithChildren extends VendorCategory {
+  children: CategoryWithChildren[];
+  level: number;
+}
 
 export default function TemplatesPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+
+  // Fetch vendor categories for hierarchical filtering
+  const { data: categories = [] } = useQuery({
+    queryKey: ['/api/vendor-categories/tree'],
+  });
 
   // Placeholder data - will be replaced with actual API calls
   const templates = [
@@ -36,10 +50,87 @@ export default function TemplatesPage() {
     },
   ];
 
-  const filteredTemplates = templates.filter(template =>
-    template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    template.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Helper function to build category tree structure
+  const buildCategoryTree = (categories: VendorCategory[]): CategoryWithChildren[] => {
+    const categoryMap = new Map<string, CategoryWithChildren>();
+    const rootCategories: CategoryWithChildren[] = [];
+
+    // First pass: create all categories with children arrays
+    categories.forEach(cat => {
+      categoryMap.set(cat.id, { ...cat, children: [], level: 0 });
+    });
+
+    // Second pass: organize into tree structure and set levels
+    categories.forEach(cat => {
+      const category = categoryMap.get(cat.id)!;
+      if (cat.parentId) {
+        const parent = categoryMap.get(cat.parentId);
+        if (parent) {
+          category.level = parent.level + 1;
+          parent.children.push(category);
+        }
+      } else {
+        rootCategories.push(category);
+      }
+    });
+
+    return rootCategories;
+  };
+
+  // Helper function to flatten category tree for Select dropdown
+  const flattenCategoryTree = (tree: CategoryWithChildren[]): CategoryWithChildren[] => {
+    const result: CategoryWithChildren[] = [];
+    const traverse = (categories: CategoryWithChildren[]) => {
+      categories.forEach(cat => {
+        result.push(cat);
+        if (cat.children.length > 0) {
+          traverse(cat.children);
+        }
+      });
+    };
+    traverse(tree);
+    return result;
+  };
+
+  // Helper function to get category and all its descendants
+  const getCategoryWithDescendants = (categoryId: string, allCategories: VendorCategory[]): string[] => {
+    const result = [categoryId];
+    const children = allCategories.filter(cat => cat.parentId === categoryId);
+    children.forEach(child => {
+      result.push(...getCategoryWithDescendants(child.id, allCategories));
+    });
+    return result;
+  };
+
+  const categoryTree = buildCategoryTree(categories as VendorCategory[]);
+  const flatCategories = flattenCategoryTree(categoryTree);
+
+  // Create a map of category IDs to names for filtering
+  const categoryIdToNameMap = new Map<string, string>();
+  (categories as VendorCategory[]).forEach((cat) => {
+    categoryIdToNameMap.set(cat.id, cat.name);
+  });
+
+  const filteredTemplates = templates.filter(template => {
+    // Text search filter
+    const matchesSearch = template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         template.category.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Category filter
+    if (selectedCategory === "all") {
+      return matchesSearch;
+    }
+    
+    // Get the selected category and all its descendants
+    const selectedCategoryIds = getCategoryWithDescendants(selectedCategory, categories as VendorCategory[]);
+    const selectedCategoryNames = selectedCategoryIds.map(id => categoryIdToNameMap.get(id)).filter(Boolean);
+    
+    const matchesCategory = selectedCategoryNames.some(name => 
+      template.category.toLowerCase() === name?.toLowerCase()
+    );
+    
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="p-6 space-y-6" data-testid="templates-page">
@@ -69,6 +160,38 @@ export default function TemplatesPage() {
             data-testid="input-search-templates"
           />
         </div>
+        
+        <Select
+          value={selectedCategory}
+          onValueChange={setSelectedCategory}
+          data-testid="select-category-filter"
+        >
+          <SelectTrigger className="w-64">
+            <SelectValue placeholder="Filter by category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" data-testid="option-all-categories">
+              All Categories
+            </SelectItem>
+            {flatCategories.map((category) => (
+              <SelectItem
+                key={category.id}
+                value={category.id}
+                data-testid={`option-category-${category.id}`}
+              >
+                <span 
+                  className="flex items-center gap-1"
+                  style={{ marginLeft: `${category.level * 16}px` }}
+                >
+                  {category.children.length > 0 && (
+                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                  )}
+                  <span>{category.name}</span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
