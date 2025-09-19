@@ -1168,6 +1168,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get BOQ details for a specific quote
+  app.get("/api/quotes/:quoteId/boq", async (req, res) => {
+    try {
+      const { quoteId } = req.params;
+
+      // Validate quoteId
+      if (!quoteId || typeof quoteId !== 'string') {
+        return res.status(400).json({ error: "Invalid quote ID" });
+      }
+
+      // Get BOQ items for the quote
+      const boqItems = await storage.getBOQByProjectVendor(quoteId);
+      
+      // Get quote details
+      const quote = await storage.getProjectVendor(quoteId);
+      
+      if (!quote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+
+      res.json({
+        quote,
+        boqItems
+      });
+
+    } catch (error) {
+      console.error('Error fetching BOQ details:', error);
+      res.status(500).json({ error: "Failed to fetch BOQ details" });
+    }
+  });
 
   const httpServer = createServer(app);
 
