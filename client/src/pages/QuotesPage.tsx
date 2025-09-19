@@ -1,6 +1,13 @@
 import ComparativeQuotes from '@/components/ComparativeQuotes';
+import { useQuery } from '@tanstack/react-query';
+import type { VendorCategory } from '@shared/schema';
 
 export default function QuotesPage() {
+  // Fetch vendor categories for hierarchical filtering
+  const { data: categories = [] } = useQuery({
+    queryKey: ['/api/vendor-categories/tree'],
+  });
+
   //todo: remove mock functionality
   const mockProjects = [
     {
@@ -135,6 +142,7 @@ export default function QuotesPage() {
   return (
     <ComparativeQuotes 
       projects={mockProjects}
+      categories={categories as VendorCategory[]}
       quotations={mockQuotations}
       onStatusChange={handleStatusChange}
     />

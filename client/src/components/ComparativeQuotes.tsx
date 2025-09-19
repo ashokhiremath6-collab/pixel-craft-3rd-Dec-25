@@ -5,8 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import StatusBadge from "./StatusBadge";
-import { TrendingUp, TrendingDown, AlertTriangle, BarChart3 } from "lucide-react";
-import type { Project } from "@shared/schema";
+import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight } from "lucide-react";
+import type { Project, VendorCategory } from "@shared/schema";
 
 interface QuotationData {
   id: string;
@@ -20,13 +20,19 @@ interface QuotationData {
   isAboveAverage?: boolean;
 }
 
+interface CategoryWithChildren extends VendorCategory {
+  children: CategoryWithChildren[];
+  level: number;
+}
+
 interface ComparativeQuotesProps {
   projects: Project[];
+  categories: VendorCategory[];
   quotations: Record<string, QuotationData[]>; // projectId -> quotations
   onStatusChange?: (quotationId: string, status: "Quoted" | "Selected" | "Rejected") => void;
 }
 
-export default function ComparativeQuotes({ projects, quotations, onStatusChange }: ComparativeQuotesProps) {
+export default function ComparativeQuotes({ projects, categories, quotations, onStatusChange }: ComparativeQuotesProps) {
   const [selectedProject, setSelectedProject] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
@@ -49,13 +55,90 @@ export default function ComparativeQuotes({ projects, quotations, onStatusChange
     }))
   );
 
-  // Get unique categories from quotations
-  const categories = Array.from(new Set(allQuotations.map(q => q.category)));
+  // Helper function to build category tree structure
+  const buildCategoryTree = (categories: VendorCategory[]): CategoryWithChildren[] => {
+    const categoryMap = new Map<string, CategoryWithChildren>();
+    const rootCategories: CategoryWithChildren[] = [];
 
-  // Filter quotations
+    // First pass: create all categories with children arrays
+    categories.forEach(cat => {
+      categoryMap.set(cat.id, { ...cat, children: [], level: 0 });
+    });
+
+    // Second pass: organize into tree structure and set levels
+    categories.forEach(cat => {
+      const categoryWithChildren = categoryMap.get(cat.id)!;
+      
+      if (cat.parentId) {
+        const parent = categoryMap.get(cat.parentId);
+        if (parent) {
+          categoryWithChildren.level = parent.level + 1;
+          parent.children.push(categoryWithChildren);
+        }
+      } else {
+        rootCategories.push(categoryWithChildren);
+      }
+    });
+
+    return rootCategories;
+  };
+
+  // Helper function to flatten tree for easy lookup
+  const flattenCategoryTree = (tree: CategoryWithChildren[]): CategoryWithChildren[] => {
+    const result: CategoryWithChildren[] = [];
+    
+    const traverse = (nodes: CategoryWithChildren[]) => {
+      nodes.forEach(node => {
+        result.push(node);
+        traverse(node.children);
+      });
+    };
+    
+    traverse(tree);
+    return result;
+  };
+
+  // Build category tree and flatten for select options
+  const categoryTree = buildCategoryTree(categories);
+  const flatCategories = flattenCategoryTree(categoryTree);
+
+  // Create a map of categoryId to category for easy lookup
+  const categoryMap = categories.reduce((acc, cat) => {
+    acc[cat.id] = cat;
+    return acc;
+  }, {} as Record<string, VendorCategory>);
+
+  // Helper function to get all descendant category IDs
+  const getCategoryWithDescendants = (categoryId: string): string[] => {
+    const result = [categoryId];
+    const category = flatCategories.find(cat => cat.id === categoryId);
+    
+    if (category) {
+      const addDescendants = (cat: CategoryWithChildren) => {
+        cat.children.forEach(child => {
+          result.push(child.id);
+          addDescendants(child);
+        });
+      };
+      addDescendants(category);
+    }
+    
+    return result;
+  };
+
+  // Filter quotations with hierarchical category support
   const filteredQuotations = allQuotations.filter(quotation => {
     const matchesProject = selectedProject === "all" || quotation.projectId === selectedProject;
-    const matchesCategory = selectedCategory === "all" || quotation.category === selectedCategory;
+    
+    // For hierarchical filtering, include quotations from selected category and all its descendants
+    let matchesCategory = selectedCategory === "all";
+    if (!matchesCategory && selectedCategory !== "all") {
+      const categoryIds = getCategoryWithDescendants(selectedCategory);
+      // Try to find a matching category by name (for backward compatibility with existing quotation data)
+      const categoryNames = categoryIds.map(id => categoryMap[id]?.name).filter(Boolean);
+      matchesCategory = categoryNames.includes(quotation.category);
+    }
+    
     return matchesProject && matchesCategory;
   });
 
@@ -149,9 +232,16 @@ export default function ComparativeQuotes({ projects, quotations, onStatusChange
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map(category => (
-                    <SelectItem key={category} value={category}>
-                      {category}
+                  {flatCategories.map(category => (
+                    <SelectItem key={category.id} value={category.id}>
+                      <div className="flex items-center">
+                        {category.level > 0 && (
+                          <span style={{ marginLeft: `${category.level * 16}px` }} className="text-muted-foreground">
+                            <ChevronRight className="h-3 w-3 inline mr-1" />
+                          </span>
+                        )}
+                        {category.name}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>

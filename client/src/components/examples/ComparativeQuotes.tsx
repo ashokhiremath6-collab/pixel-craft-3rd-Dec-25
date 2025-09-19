@@ -70,9 +70,18 @@ export default function ComparativeQuotesExample() {
     ]
   };
 
+  const mockCategories = [
+    { id: '1', name: 'Civil', parentId: null, description: 'Civil construction', isActive: true },
+    { id: '2', name: 'Electrical', parentId: null, description: 'Electrical systems', isActive: true },
+  ];
+
   return (
     <div className="max-w-7xl">
-      <ComparativeQuotes projects={mockProjects} quotations={mockQuotations} />
+      <ComparativeQuotes 
+        projects={mockProjects} 
+        categories={mockCategories}
+        quotations={mockQuotations} 
+      />
     </div>
   );
 }
