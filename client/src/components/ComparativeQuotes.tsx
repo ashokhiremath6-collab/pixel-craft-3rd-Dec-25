@@ -50,6 +50,78 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     console.log('Filter by category:', category);
   };
 
+  // Handle individual quote export
+  const handleIndividualQuoteExport = async (quotation: QuotationData, group: any, format: 'csv' | 'excel') => {
+    try {
+      setIsExporting(true);
+
+      // Create export data for individual quote
+      const exportData = {
+        quotation: {
+          id: quotation.id,
+          vendorName: quotation.vendorName,
+          category: quotation.category,
+          quotationValue: quotation.quotationValue,
+          dateOfQuotation: quotation.dateOfQuotation,
+          status: quotation.status,
+          quotationFile: quotation.quotationFile || '',
+          notes: quotation.notes || '',
+          projectName: group.projectName,
+          projectId: group.projectId
+        },
+        metadata: {
+          exportDate: new Date().toISOString(),
+          exportType: 'individual_quote'
+        }
+      };
+
+      const response = await fetch(`/api/quotes/export/individual/${format}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(exportData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to export quote as ${format.toUpperCase()}`);
+      }
+
+      // Get filename from response headers or create default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filename = contentDisposition?.match(/filename="?([^"]+)"?/)?.[1] || 
+        `quote_${quotation.vendorName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : 'csv'}`;
+
+      // Download the file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Quote Exported Successfully",
+        description: `Individual quote from ${quotation.vendorName} exported as ${format.toUpperCase()}`,
+      });
+
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export Failed",
+        description: error instanceof Error ? error.message : "Failed to export quote",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // Get all quotations
   const allQuotations = Object.entries(quotations).flatMap(([projectId, quots]) =>
     quots.map(q => ({
@@ -506,6 +578,33 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                 Reject
                               </Button>
                             )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  data-testid={`button-export-quote-${quotation.id}`}
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem 
+                                  onClick={() => handleIndividualQuoteExport(quotation, group, 'csv')}
+                                  data-testid={`export-quote-csv-${quotation.id}`}
+                                >
+                                  <FileText className="mr-2 h-4 w-4" />
+                                  Export as CSV
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleIndividualQuoteExport(quotation, group, 'excel')}
+                                  data-testid={`export-quote-excel-${quotation.id}`}
+                                >
+                                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                                  Export as Excel
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </TableCell>
                       </TableRow>

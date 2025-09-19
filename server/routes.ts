@@ -873,6 +873,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Individual quote export endpoint
+  app.post("/api/quotes/export/individual/:format", async (req, res) => {
+    try {
+      const { format } = req.params;
+
+      if (!['csv', 'excel'].includes(format)) {
+        return res.status(400).json({ 
+          error: "Invalid export format. Supported formats: csv, excel." 
+        });
+      }
+
+      // Validation schema for individual quote export
+      const individualQuoteSchema = z.object({
+        quotation: z.object({
+          id: z.string().max(50),
+          vendorName: z.string().max(200),
+          category: z.string().max(100),
+          quotationValue: z.string().max(20),
+          dateOfQuotation: z.string().max(50),
+          status: z.enum(["Quoted", "Selected", "Rejected"]),
+          quotationFile: z.string().max(500),
+          notes: z.string().max(1000),
+          projectName: z.string().max(200),
+          projectId: z.string().max(50)
+        }),
+        metadata: z.object({
+          exportDate: z.string(),
+          exportType: z.string()
+        })
+      });
+
+      // Validate request body
+      const parsed = individualQuoteSchema.parse(req.body);
+      const { quotation } = parsed;
+
+      // Prepare export data for individual quote
+      const quotationValue = parseFloat(quotation.quotationValue);
+      if (isNaN(quotationValue)) {
+        return res.status(400).json({ error: "Invalid quotation value" });
+      }
+
+      const exportRow = {
+        'Vendor Name': sanitizeForExport(quotation.vendorName),
+        'Project Name': sanitizeForExport(quotation.projectName),
+        'Category': sanitizeForExport(quotation.category),
+        'Quote Value (INR)': quotationValue,
+        'Quote Value (Formatted)': formatCurrencyForExport(quotation.quotationValue),
+        'Date of Quotation': safeDateFormat(quotation.dateOfQuotation),
+        'Status': sanitizeForExport(quotation.status),
+        'Notes': sanitizeForExport(quotation.notes),
+        'Quote File': sanitizeForExport(quotation.quotationFile),
+        'Quote ID': sanitizeForExport(quotation.id),
+        'Exported On': safeDateFormat(new Date().toISOString())
+      };
+
+      const timestamp = new Date().toISOString().split('T')[0];
+      const vendorName = quotation.vendorName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+
+      if (format === 'csv') {
+        const Papa = await import('papaparse');
+        const csv = Papa.unparse([exportRow]);
+        const filename = `quote_${vendorName}_${timestamp}.csv`;
+        
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(csv);
+      } else {
+        // Excel export
+        const XLSX = await import('xlsx');
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.json_to_sheet([exportRow]);
+        
+        // Set column widths for better readability
+        const colWidths = [
+          { wch: 20 }, // Vendor Name
+          { wch: 25 }, // Project Name
+          { wch: 15 }, // Category
+          { wch: 15 }, // Quote Value (INR)
+          { wch: 20 }, // Quote Value (Formatted)
+          { wch: 15 }, // Date of Quotation
+          { wch: 10 }, // Status
+          { wch: 30 }, // Notes
+          { wch: 25 }, // Quote File
+          { wch: 15 }, // Quote ID
+          { wch: 15 }  // Exported On
+        ];
+        worksheet['!cols'] = colWidths;
+        
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Individual Quote');
+        
+        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        const filename = `quote_${vendorName}_${timestamp}.xlsx`;
+        
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(buffer);
+      }
+
+    } catch (error) {
+      console.error('Individual quote export error:', error);
+      
+      // Handle validation errors specifically
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid request data",
+          details: "Please ensure all required fields are properly formatted"
+        });
+      }
+      
+      res.status(500).json({ 
+        error: "Failed to export individual quote",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
 
   const httpServer = createServer(app);
 
