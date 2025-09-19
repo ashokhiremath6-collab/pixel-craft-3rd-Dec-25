@@ -738,21 +738,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return sum / quotations.length;
   };
 
-  // Helper function to sanitize text for CSV/Excel export to prevent formula injection
+  // Enhanced helper function to sanitize text for CSV/Excel export to prevent formula injection
   const sanitizeForExport = (text: string | undefined | null): string => {
     if (!text) return '';
     const stringValue = String(text);
     
-    // Check if the text starts with potentially dangerous characters
-    const dangerousChars = ['=', '+', '-', '@', '\t', '\r', '\n'];
-    const firstChar = stringValue.charAt(0);
+    // Remove control characters
+    let sanitized = stringValue.replace(/[\x00-\x1F\x7F]/g, '');
     
-    if (dangerousChars.includes(firstChar)) {
+    // Check if the first non-whitespace character is potentially dangerous
+    const dangerousChars = ['=', '+', '-', '@', '\t', '\r', '\n'];
+    const trimmed = sanitized.trim();
+    const firstNonWhitespaceChar = trimmed.charAt(0);
+    
+    if (dangerousChars.includes(firstNonWhitespaceChar)) {
       // Prefix with single quote to prevent formula execution
-      return `'${stringValue}`;
+      return `'${sanitized}`;
     }
     
-    return stringValue;
+    return sanitized;
   };
 
   // Export quotes endpoint
@@ -760,6 +764,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { format } = req.params;
 
+      // Strict format validation
       if (!['csv', 'excel'].includes(format)) {
         return res.status(400).json({ 
           error: "Invalid export format. Supported formats: csv, excel. PDF export is temporarily unavailable." 
@@ -878,7 +883,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { format } = req.params;
 
-      if (!['csv', 'excel'].includes(format)) {
+      // Strict format validation with explicit allow-list
+      const allowedFormats = ['csv', 'excel'] as const;
+      if (!allowedFormats.includes(format as any)) {
         return res.status(400).json({ 
           error: "Invalid export format. Supported formats: csv, excel." 
         });
@@ -932,7 +939,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const vendorName = quotation.vendorName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
 
       if (format === 'csv') {
-        const Papa = await import('papaparse');
         const csv = Papa.unparse([exportRow]);
         const filename = `quote_${vendorName}_${timestamp}.csv`;
         
@@ -994,7 +1000,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { format } = req.params;
 
-      if (!['csv', 'excel'].includes(format)) {
+      // Strict format validation with explicit allow-list
+      const allowedFormats = ['csv', 'excel'] as const;
+      if (!allowedFormats.includes(format as any)) {
         return res.status(400).json({ 
           error: "Invalid export format. Supported formats: csv, excel." 
         });
@@ -1066,8 +1074,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const templateName = template.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
 
       if (format === 'csv') {
-        const Papa = await import('papaparse');
-        
         // Add header information
         const headerInfo = [
           [`QUOTE TEMPLATE: ${sanitizeForExport(template.name)}`],
