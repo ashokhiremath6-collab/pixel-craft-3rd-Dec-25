@@ -2,10 +2,12 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import StatusBadge from "./StatusBadge";
-import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, Download, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import type { Project, VendorCategory } from "@shared/schema";
 
 interface QuotationData {
@@ -35,6 +37,8 @@ interface ComparativeQuotesProps {
 export default function ComparativeQuotes({ projects, categories, quotations, onStatusChange }: ComparativeQuotesProps) {
   const [selectedProject, setSelectedProject] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
 
   const handleProjectFilter = (projectId: string) => {
     setSelectedProject(projectId);
@@ -180,6 +184,94 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     return ((quotationValue - average) / average) * 100;
   };
 
+  // Export functions
+  const handleExportCSV = () => {
+    exportQuotes('csv');
+  };
+
+  const handleExportExcel = () => {
+    exportQuotes('excel');
+  };
+
+  const exportQuotes = async (format: 'csv' | 'excel') => {
+    if (isExporting) return; // Prevent multiple simultaneous exports
+    
+    setIsExporting(true);
+    
+    try {
+      // Check if there's data to export
+      if (filteredQuotations.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "No data to export",
+          description: "Please adjust your filters to include quotations for export."
+        });
+        return;
+      }
+
+      const exportData = {
+        filters: {
+          project: selectedProject,
+          category: selectedCategory
+        },
+        quotations: filteredQuotations,
+        groupedData: Object.entries(groupedData).map(([key, group]) => ({
+          key,
+          category: group.category,
+          projectName: group.projectName,
+          projectId: group.projectId,
+          quotations: group.quotations,
+          average: getAverageQuote(group.quotations)
+        }))
+      };
+
+      // Call API endpoint for export
+      const response = await fetch(`/api/quotes/export/${format}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(exportData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Export failed: ${response.statusText}`);
+      }
+
+      // Handle file download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      const timestamp = new Date().toISOString().split('T')[0];
+      const filename = `quotes_export_${timestamp}.${format === 'excel' ? 'xlsx' : format}`;
+      link.download = filename;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      // Show success message
+      toast({
+        title: "Export successful",
+        description: `${format.toUpperCase()} file downloaded successfully with ${filteredQuotations.length} quotations.`
+      });
+
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast({
+        variant: "destructive",
+        title: "Export failed",
+        description: error instanceof Error ? error.message : "An unexpected error occurred during export."
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -192,11 +284,58 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
             Compare vendor quotations side-by-side by project and category
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">
-            {Object.keys(groupedData).length} comparison groups
-          </span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">
+              {Object.keys(groupedData).length} comparison groups
+            </span>
+          </div>
+          
+          {/* Export Button */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={isExporting || filteredQuotations.length === 0}
+                data-testid="button-export-quotes"
+              >
+                {isExporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                {isExporting ? "Exporting..." : "Export"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem 
+                onClick={handleExportCSV} 
+                disabled={isExporting || filteredQuotations.length === 0}
+                data-testid="menu-item-export-csv"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Export as CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleExportExcel} 
+                disabled={isExporting || filteredQuotations.length === 0}
+                data-testid="menu-item-export-excel"
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Export as Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                disabled={true}
+                data-testid="menu-item-export-pdf"
+                className="opacity-50"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Export as PDF (Coming Soon)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

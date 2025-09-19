@@ -15,6 +15,7 @@ import {
   insertBoqSchema,
   insertQuoteFileSchema 
 } from "@shared/schema";
+import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Vendor Categories Routes
@@ -671,6 +672,207 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch quote files" });
     }
   });
+
+  // Helper function to format currency for export
+  const formatCurrencyForExport = (value: string) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR'
+    }).format(parseFloat(value));
+  };
+
+  // Helper function to calculate variance percentage
+  const calculateVariance = (value: string, average: number) => {
+    const quotationValue = parseFloat(value);
+    return ((quotationValue - average) / average) * 100;
+  };
+
+  // Validation schema for export request with field length limits
+  const exportRequestSchema = z.object({
+    filters: z.object({
+      project: z.string().max(100),
+      category: z.string().max(100)
+    }),
+    quotations: z.array(z.object({
+      id: z.string().max(50),
+      vendorName: z.string().max(200),
+      category: z.string().max(100),
+      quotationValue: z.string().max(20),
+      dateOfQuotation: z.string().max(50),
+      status: z.enum(["Quoted", "Selected", "Rejected"]),
+      quotationFile: z.string().max(500).optional(),
+      notes: z.string().max(1000).optional(),
+      projectId: z.string().max(50),
+      projectName: z.string().max(200)
+    })).max(5000), // Limit number of quotations
+    groupedData: z.array(z.object({
+      key: z.string().max(100),
+      category: z.string().max(100),
+      projectName: z.string().max(200),
+      projectId: z.string().max(50),
+      quotations: z.array(z.any()).max(1000), // Limit quotations per group
+      average: z.number().optional() // We'll recompute this server-side
+    })).max(100) // Limit number of groups
+  });
+
+  // Helper function to safely parse and format date
+  const safeDateFormat = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+      }
+      return date.toLocaleDateString('en-IN');
+    } catch {
+      return 'Invalid Date';
+    }
+  };
+
+  // Helper function to calculate group average
+  const calculateGroupAverage = (quotations: any[]) => {
+    if (quotations.length === 0) return 0;
+    const sum = quotations.reduce((acc, q) => {
+      const value = parseFloat(q.quotationValue);
+      return acc + (isNaN(value) ? 0 : value);
+    }, 0);
+    return sum / quotations.length;
+  };
+
+  // Helper function to sanitize text for CSV/Excel export to prevent formula injection
+  const sanitizeForExport = (text: string | undefined | null): string => {
+    if (!text) return '';
+    const stringValue = String(text);
+    
+    // Check if the text starts with potentially dangerous characters
+    const dangerousChars = ['=', '+', '-', '@', '\t', '\r', '\n'];
+    const firstChar = stringValue.charAt(0);
+    
+    if (dangerousChars.includes(firstChar)) {
+      // Prefix with single quote to prevent formula execution
+      return `'${stringValue}`;
+    }
+    
+    return stringValue;
+  };
+
+  // Export quotes endpoint
+  app.post("/api/quotes/export/:format", async (req, res) => {
+    try {
+      const { format } = req.params;
+
+      if (!['csv', 'excel'].includes(format)) {
+        return res.status(400).json({ 
+          error: "Invalid export format. Supported formats: csv, excel. PDF export is temporarily unavailable." 
+        });
+      }
+
+      // Validate request body
+      const parsed = exportRequestSchema.parse(req.body);
+      const { filters, quotations, groupedData } = parsed;
+
+      // Validate request body size
+      if (quotations.length > 10000) {
+        return res.status(400).json({ error: "Too many quotations to export. Maximum 10,000 records allowed." });
+      }
+
+      // Prepare export data with server-side computation
+      const exportRows: any[] = [];
+      
+      // Recompute averages and variances server-side for data integrity
+      groupedData.forEach((group) => {
+        // Recompute group average server-side (don't trust client data)
+        const serverAverage = calculateGroupAverage(group.quotations);
+        
+        group.quotations.forEach((quotation) => {
+          const quotationValue = parseFloat(quotation.quotationValue);
+          if (isNaN(quotationValue)) {
+            console.warn(`Invalid quotation value: ${quotation.quotationValue} for quotation ${quotation.id}`);
+            return; // Skip invalid records
+          }
+
+          const variance = calculateVariance(quotation.quotationValue, serverAverage);
+          exportRows.push({
+            'Project Name': sanitizeForExport(quotation.projectName || 'Unknown Project'),
+            'Category': sanitizeForExport(quotation.category || 'Unknown Category'),
+            'Vendor Name': sanitizeForExport(quotation.vendorName || 'Unknown Vendor'),
+            'Quote Value (INR)': quotationValue,
+            'Quote Value (Formatted)': formatCurrencyForExport(quotation.quotationValue),
+            'Variance (%)': variance.toFixed(2),
+            'Date of Quotation': safeDateFormat(quotation.dateOfQuotation),
+            'Status': sanitizeForExport(quotation.status || 'Unknown'),
+            'Category Average (INR)': serverAverage.toFixed(2),
+            'Category Average (Formatted)': formatCurrencyForExport(serverAverage.toString()),
+            'Notes': sanitizeForExport(quotation.notes || ''),
+            'Quote File': sanitizeForExport(quotation.quotationFile || '')
+          });
+        });
+      });
+
+      if (exportRows.length === 0) {
+        return res.status(400).json({ error: "No valid data to export" });
+      }
+
+      const timestamp = new Date().toISOString().split('T')[0];
+      
+      if (format === 'csv') {
+        // Generate CSV
+        const csv = Papa.unparse(exportRows);
+        const filename = `quotes_export_${timestamp}.csv`;
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(csv);
+        
+      } else if (format === 'excel') {
+        // Generate Excel
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.json_to_sheet(exportRows);
+        
+        // Set column widths for better formatting
+        const colWidths = [
+          { wch: 25 }, // Project Name
+          { wch: 20 }, // Category
+          { wch: 25 }, // Vendor Name
+          { wch: 15 }, // Quote Value (INR)
+          { wch: 20 }, // Quote Value (Formatted)
+          { wch: 12 }, // Variance (%)
+          { wch: 18 }, // Date of Quotation
+          { wch: 12 }, // Status
+          { wch: 18 }, // Category Average (INR)
+          { wch: 25 }, // Category Average (Formatted)
+          { wch: 30 }, // Notes
+          { wch: 25 }  // Quote File
+        ];
+        worksheet['!cols'] = colWidths;
+        
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Quotes Export');
+        
+        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        const filename = `quotes_export_${timestamp}.xlsx`;
+        
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(buffer);
+      }
+
+    } catch (error) {
+      console.error('Export error:', error);
+      
+      // Handle validation errors specifically
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid request data",
+          details: "Please ensure all required fields are properly formatted"
+        });
+      }
+      
+      res.status(500).json({ 
+        error: "Failed to export quotes",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
 
   const httpServer = createServer(app);
 
