@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Plus, FileText, Download, Edit, Trash2, ChevronRight, ChevronDown, Upload, PlusCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Search, Plus, FileText, Download, Edit, Trash2, ChevronRight, ChevronDown, Upload, PlusCircle, FileSpreadsheet } from "lucide-react";
 import type { VendorCategory, QuoteTemplate } from "@shared/schema";
 import { AddTemplateDialog } from "@/components/AddTemplateDialog";
 import TemplateImport from "@/components/TemplateImport";
@@ -22,6 +23,8 @@ export default function TemplatesPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<QuoteTemplate | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
 
   // Fetch vendor categories for hierarchical filtering
   const { 
@@ -121,6 +124,78 @@ export default function TemplatesPage() {
       result.push(...getCategoryWithDescendants(child.id, allCategories));
     });
     return result;
+  };
+
+  // Handle template export for vendors
+  const handleTemplateExport = async (template: QuoteTemplate, format: 'csv' | 'excel') => {
+    try {
+      setIsExporting(true);
+
+      // Get category name
+      const categoryName = categoryIdToNameMap.get(template.categoryId) || 'Unknown';
+
+      // Create export data for template
+      const exportData = {
+        template: {
+          id: template.id,
+          name: template.name,
+          description: template.description,
+          categoryId: template.categoryId,
+          categoryName: categoryName,
+          isActive: template.isActive,
+          createdAt: template.createdAt
+        },
+        metadata: {
+          exportDate: new Date().toISOString(),
+          exportType: 'blank_template_for_vendor'
+        }
+      };
+
+      const response = await fetch(`/api/templates/export/${format}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(exportData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to export template as ${format.toUpperCase()}`);
+      }
+
+      // Get filename from response headers or create default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filename = contentDisposition?.match(/filename="?([^"]+)"?/)?.[1] || 
+        `template_${template.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : 'csv'}`;
+
+      // Download the file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Template Exported Successfully",
+        description: `Blank template "${template.name}" exported as ${format.toUpperCase()} for vendor to complete`,
+      });
+
+    } catch (error) {
+      console.error('Template export error:', error);
+      toast({
+        title: "Export Failed",
+        description: error instanceof Error ? error.message : "Failed to export template",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // Defensive handling for both flat and hierarchical category data  
@@ -316,15 +391,35 @@ export default function TemplatesPage() {
               </div>
               
               <div className="flex items-center gap-2">
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  className="flex items-center gap-1 flex-1"
-                  data-testid={`button-download-${template.id}`}
-                >
-                  <Download className="h-3 w-3" />
-                  Download
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="flex items-center gap-1 flex-1"
+                      data-testid={`button-export-template-${template.id}`}
+                    >
+                      <Download className="h-3 w-3" />
+                      Export for Vendor
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={() => handleTemplateExport(template, 'csv')}
+                      data-testid={`export-template-csv-${template.id}`}
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      Export as CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => handleTemplateExport(template, 'excel')}
+                      data-testid={`export-template-excel-${template.id}`}
+                    >
+                      <FileSpreadsheet className="mr-2 h-4 w-4" />
+                      Export as Excel
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button 
                   size="sm" 
                   variant="outline"

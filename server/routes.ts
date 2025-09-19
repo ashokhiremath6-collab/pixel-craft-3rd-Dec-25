@@ -989,6 +989,179 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Template export endpoint for vendors
+  app.post("/api/templates/export/:format", async (req, res) => {
+    try {
+      const { format } = req.params;
+
+      if (!['csv', 'excel'].includes(format)) {
+        return res.status(400).json({ 
+          error: "Invalid export format. Supported formats: csv, excel." 
+        });
+      }
+
+      // Validation schema for template export
+      const templateExportSchema = z.object({
+        template: z.object({
+          id: z.string().max(50),
+          name: z.string().max(200),
+          description: z.string().max(1000),
+          categoryId: z.string().max(50),
+          categoryName: z.string().max(200),
+          isActive: z.boolean(),
+          createdAt: z.string().optional()
+        }),
+        metadata: z.object({
+          exportDate: z.string(),
+          exportType: z.string()
+        })
+      });
+
+      // Validate request body
+      const parsed = templateExportSchema.parse(req.body);
+      const { template } = parsed;
+
+      // Create blank template structure for vendor to fill out
+      const templateRows = [
+        {
+          'Item/Service': 'Item Name/Description',
+          'Quantity': 'Enter Quantity',
+          'Unit': 'Enter Unit (pcs, sqft, etc.)',
+          'Rate per Unit (INR)': 'Enter Rate',
+          'Total Amount (INR)': 'Quantity × Rate',
+          'Notes/Specifications': 'Enter any notes or specifications',
+          'Vendor Name': 'Enter your company name',
+          'Contact Person': 'Enter contact person name',
+          'Phone': 'Enter phone number',
+          'Email': 'Enter email address'
+        },
+        {
+          'Item/Service': '(Example) Construction Material',
+          'Quantity': '100',
+          'Unit': 'sqft',
+          'Rate per Unit (INR)': '500',
+          'Total Amount (INR)': '50,000',
+          'Notes/Specifications': 'High quality material as per specs',
+          'Vendor Name': 'Your Company Name',
+          'Contact Person': 'John Doe',
+          'Phone': '+91-9876543210',
+          'Email': 'john@company.com'
+        },
+        // Add multiple blank rows for vendor to fill
+        ...Array(15).fill(null).map(() => ({
+          'Item/Service': '',
+          'Quantity': '',
+          'Unit': '',
+          'Rate per Unit (INR)': '',
+          'Total Amount (INR)': '',
+          'Notes/Specifications': '',
+          'Vendor Name': '',
+          'Contact Person': '',
+          'Phone': '',
+          'Email': ''
+        }))
+      ];
+
+      const timestamp = new Date().toISOString().split('T')[0];
+      const templateName = template.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+
+      if (format === 'csv') {
+        const Papa = await import('papaparse');
+        
+        // Add header information
+        const headerInfo = [
+          [`QUOTE TEMPLATE: ${sanitizeForExport(template.name)}`],
+          [`Category: ${sanitizeForExport(template.categoryName)}`],
+          [`Description: ${sanitizeForExport(template.description)}`],
+          [`Export Date: ${new Date().toLocaleDateString()}`],
+          [''],
+          ['INSTRUCTIONS FOR VENDOR:'],
+          ['1. Fill in your company details in the rows below'],
+          ['2. Replace example entries with your actual quote items'],
+          ['3. Add as many rows as needed for your quote'],
+          ['4. Save and send back to client'],
+          [''],
+          ['QUOTE ITEMS:']
+        ];
+
+        const csvContent = headerInfo.map(row => Papa.unparse([row])).join('\n') + '\n' + Papa.unparse(templateRows);
+        const filename = `template_${templateName}_${timestamp}.csv`;
+        
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(csvContent);
+      } else {
+        // Excel export
+        const XLSX = await import('xlsx');
+        const workbook = XLSX.utils.book_new();
+        
+        // Create header sheet with template information
+        const headerData = [
+          ['QUOTE TEMPLATE INFORMATION'],
+          ['Template Name:', sanitizeForExport(template.name)],
+          ['Category:', sanitizeForExport(template.categoryName)],
+          ['Description:', sanitizeForExport(template.description)],
+          ['Export Date:', new Date().toLocaleDateString()],
+          [''],
+          ['INSTRUCTIONS FOR VENDOR:'],
+          ['1. Fill in your company details in the rows below'],
+          ['2. Replace example entries with your actual quote items'],
+          ['3. Add as many rows as needed for your quote'],
+          ['4. Calculate totals and save file'],
+          ['5. Send completed quote back to client'],
+          [''],
+          ['Please scroll to "Quote Template" sheet to fill in your quote details']
+        ];
+
+        const headerSheet = XLSX.utils.aoa_to_sheet(headerData);
+        XLSX.utils.book_append_sheet(workbook, headerSheet, 'Instructions');
+
+        // Create main template sheet
+        const templateSheet = XLSX.utils.json_to_sheet(templateRows);
+        
+        // Set column widths for better readability
+        const colWidths = [
+          { wch: 30 }, // Item/Service
+          { wch: 10 }, // Quantity
+          { wch: 10 }, // Unit
+          { wch: 15 }, // Rate per Unit
+          { wch: 20 }, // Total Amount
+          { wch: 40 }, // Notes/Specifications
+          { wch: 20 }, // Vendor Name
+          { wch: 20 }, // Contact Person
+          { wch: 15 }, // Phone
+          { wch: 25 }  // Email
+        ];
+        templateSheet['!cols'] = colWidths;
+        
+        XLSX.utils.book_append_sheet(workbook, templateSheet, 'Quote Template');
+        
+        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        const filename = `template_${templateName}_${timestamp}.xlsx`;
+        
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(buffer);
+      }
+
+    } catch (error) {
+      console.error('Template export error:', error);
+      
+      // Handle validation errors specifically
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid request data",
+          details: "Please ensure all required fields are properly formatted"
+        });
+      }
+      
+      res.status(500).json({ 
+        error: "Failed to export template",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
 
   const httpServer = createServer(app);
 
