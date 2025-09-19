@@ -240,11 +240,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/quote-templates/:id", async (req, res) => {
+    try {
+      const parsed = insertQuoteTemplateSchema.partial().parse(req.body);
+      const template = await storage.updateQuoteTemplate(req.params.id, parsed);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid template data" });
+    }
+  });
+
   // Configure multer for file uploads
   const upload = multer({
     dest: '/tmp/uploads',
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB limit
+      files: 1, // Only allow single file upload
     },
     fileFilter: (req, file, cb) => {
       const allowedTypes = [
@@ -254,7 +268,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'application/pdf', // .pdf for reference files
       ];
       
-      if (allowedTypes.includes(file.mimetype)) {
+      // Also check file extension as MIME types can be unreliable
+      const allowedExtensions = ['.xlsx', '.xls', '.csv', '.pdf'];
+      const fileExtension = path.extname(file.originalname).toLowerCase();
+      
+      if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
         cb(null, true);
       } else {
         cb(new Error('Invalid file type. Only Excel (.xlsx, .xls), CSV, and PDF files are allowed.'));
@@ -462,6 +480,175 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "Failed to import quote",
         details: error instanceof Error ? error.message : 'Unknown error'
       });
+    }
+  });
+
+  // Template processing functions
+  const parseTemplateFile = async (filePath: string, mimeType: string): Promise<any[]> => {
+    try {
+      if (mimeType.includes('excel') || mimeType.includes('sheet')) {
+        // Parse Excel file
+        const workbook = XLSX.readFile(filePath);
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        return XLSX.utils.sheet_to_json(worksheet);
+      } else if (mimeType.includes('csv')) {
+        // Parse CSV file
+        const csvData = fs.readFileSync(filePath, 'utf8');
+        const parsed = Papa.parse(csvData, { header: true, skipEmptyLines: true });
+        return parsed.data as any[];
+      }
+      return [];
+    } catch (error) {
+      console.error('Error parsing template file:', error);
+      return [];
+    }
+  };
+
+  const processTemplateImport = async (data: any[], categoryId: string) => {
+    const results = {
+      template: null as any,
+      fields: [] as any[],
+      errors: [] as string[]
+    };
+
+    try {
+      // Analyze the data to extract template structure
+      if (data.length === 0) {
+        results.errors.push('No data found in file');
+        return results;
+      }
+
+      // Get first row to determine field structure
+      const firstRow = data[0];
+      const fieldNames = Object.keys(firstRow);
+      
+      // Generate template name from filename or default
+      const templateName = `Imported Template ${new Date().toLocaleDateString()}`;
+      
+      // Create the template
+      const templateData = {
+        name: templateName,
+        description: `Template imported from file with ${fieldNames.length} fields`,
+        categoryId: categoryId,
+        isActive: true
+      };
+
+      results.template = await storage.createQuoteTemplate(templateData);
+
+      // Analyze field types and requirements
+      results.fields = fieldNames.map(fieldName => {
+        // Analyze sample values to determine field type
+        const sampleValues = data.slice(0, 10).map(row => row[fieldName]).filter(val => val != null && val !== '');
+        
+        let fieldType = 'text';
+        let isRequired = false;
+        
+        // Simple type detection
+        if (sampleValues.length > 0) {
+          const numericValues = sampleValues.filter(val => !isNaN(parseFloat(val))).length;
+          if (numericValues > sampleValues.length * 0.8) {
+            fieldType = 'number';
+          }
+          
+          // Check if field appears required (most values are non-empty)
+          const nonEmptyCount = sampleValues.length;
+          isRequired = nonEmptyCount > data.length * 0.7;
+        }
+
+        return {
+          name: fieldName,
+          type: fieldType,
+          required: isRequired,
+          defaultValue: sampleValues[0] || undefined
+        };
+      });
+
+    } catch (error) {
+      results.errors.push(`Processing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    return results;
+  };
+
+  // Template Import Routes
+  app.post("/api/quote-templates/import", upload.single('templateFile'), async (req, res) => {
+    let tempFilePath: string | undefined;
+    let statusCode = 500;
+    let responseData: any = { error: "Failed to import template" };
+
+    try {
+      if (!req.file) {
+        statusCode = 400;
+        responseData = { error: "No file uploaded" };
+        return;
+      }
+
+      tempFilePath = req.file.path;
+      const { categoryId } = req.body;
+      
+      if (!categoryId) {
+        statusCode = 400;
+        responseData = { error: "Category ID is required" };
+        return;
+      }
+
+      // Verify category exists
+      const category = await storage.getVendorCategory(categoryId);
+      
+      if (!category) {
+        statusCode = 404;
+        responseData = { error: "Category not found" };
+        return;
+      }
+
+      // Parse the uploaded file
+      const data = await parseTemplateFile(req.file.path, req.file.mimetype);
+      
+      if (!data || data.length === 0) {
+        statusCode = 400;
+        responseData = { error: "No valid data found in file" };
+        return;
+      }
+
+      // Process the template import
+      const results = await processTemplateImport(data, categoryId);
+      
+      if (!results.template) {
+        statusCode = 400;
+        responseData = { error: "Failed to create template" };
+        return;
+      }
+
+      // Success case
+      statusCode = 201;
+      responseData = {
+        message: "Template imported successfully",
+        template: results.template,
+        fields: results.fields,
+        totalFields: results.fields.length,
+        errors: results.errors
+      };
+
+    } catch (error) {
+      console.error('Template import error:', error);
+      statusCode = 500;
+      responseData = { 
+        error: "Failed to import template",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      };
+    } finally {
+      // Guaranteed cleanup of temporary file
+      if (tempFilePath) {
+        try {
+          fs.unlinkSync(tempFilePath);
+        } catch (e) {
+          console.warn('Failed to clean up temporary file:', e);
+        }
+      }
+      
+      // Send response
+      res.status(statusCode).json(responseData);
     }
   });
 

@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Plus, FileText, Download, Edit, Trash2, ChevronRight } from "lucide-react";
+import { Search, Plus, FileText, Download, Edit, Trash2, ChevronRight, ChevronDown, Upload, PlusCircle } from "lucide-react";
 import type { VendorCategory, QuoteTemplate } from "@shared/schema";
 import { AddTemplateDialog } from "@/components/AddTemplateDialog";
+import TemplateImport from "@/components/TemplateImport";
 
 interface CategoryWithChildren extends VendorCategory {
   children: CategoryWithChildren[];
@@ -18,6 +20,8 @@ export default function TemplatesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<QuoteTemplate | null>(null);
 
   // Fetch vendor categories for hierarchical filtering
   const { 
@@ -162,14 +166,36 @@ export default function TemplatesPage() {
             Manage quote templates for different vendor categories
           </p>
         </div>
-        <Button 
-          onClick={() => setAddDialogOpen(true)}
-          data-testid="button-add-template" 
-          className="flex items-center gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Add Template
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              data-testid="button-add-template" 
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Template
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem 
+              onClick={() => setAddDialogOpen(true)}
+              data-testid="menu-item-create-template"
+              className="flex items-center gap-2"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Create Template
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => setImportDialogOpen(true)}
+              data-testid="menu-item-import-template"
+              className="flex items-center gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Import Template
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="flex items-center gap-4">
@@ -302,6 +328,7 @@ export default function TemplatesPage() {
                 <Button 
                   size="sm" 
                   variant="outline"
+                  onClick={() => setEditingTemplate(template)}
                   data-testid={`button-edit-${template.id}`}
                   aria-label={`Edit ${template.name} template`}
                 >
@@ -335,9 +362,48 @@ export default function TemplatesPage() {
       )}
 
       <AddTemplateDialog 
-        open={addDialogOpen} 
-        onOpenChange={setAddDialogOpen} 
+        open={addDialogOpen || !!editingTemplate} 
+        onOpenChange={(open) => {
+          setAddDialogOpen(open);
+          if (!open) setEditingTemplate(null);
+        }}
+        template={editingTemplate || undefined}
       />
+
+      {importDialogOpen && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setImportDialogOpen(false);
+            }
+          }}
+        >
+          <div 
+            className="bg-background rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold">Import Template</h2>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setImportDialogOpen(false)}
+                  data-testid="button-close-import"
+                >
+                  ×
+                </Button>
+              </div>
+              <TemplateImport 
+                onImportComplete={() => {
+                  setImportDialogOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

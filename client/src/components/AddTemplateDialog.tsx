@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,13 +11,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { insertQuoteTemplateSchema, type InsertQuoteTemplate, type VendorCategory } from "@shared/schema";
+import { insertQuoteTemplateSchema, type InsertQuoteTemplate, type VendorCategory, type QuoteTemplate } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { ChevronRight } from "lucide-react";
 
 interface AddTemplateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  template?: QuoteTemplate; // Optional template for edit mode
 }
 
 interface CategoryWithChildren extends VendorCategory {
@@ -25,9 +26,10 @@ interface CategoryWithChildren extends VendorCategory {
   level: number;
 }
 
-export function AddTemplateDialog({ open, onOpenChange }: AddTemplateDialogProps) {
+export function AddTemplateDialog({ open, onOpenChange, template }: AddTemplateDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const isEditing = !!template;
 
   // Fetch vendor categories for the form
   const { data: categories = [], isLoading: categoriesLoading } = useQuery<VendorCategory[]>({
@@ -114,15 +116,38 @@ export function AddTemplateDialog({ open, onOpenChange }: AddTemplateDialogProps
     },
   });
 
-  const createTemplateMutation = useMutation({
+  // Reset form when template changes (for edit mode)
+  useEffect(() => {
+    if (template) {
+      form.reset({
+        name: template.name || "",
+        description: template.description || "",
+        categoryId: template.categoryId || "",
+        isActive: template.isActive ?? true,
+      });
+    } else {
+      form.reset({
+        name: "",
+        description: "",
+        categoryId: "",
+        isActive: true,
+      });
+    }
+  }, [template, form]);
+
+  const saveTemplateMutation = useMutation({
     mutationFn: async (data: InsertQuoteTemplate) => {
-      return apiRequest('POST', '/api/quote-templates', data);
+      if (isEditing && template) {
+        return apiRequest('PUT', `/api/quote-templates/${template.id}`, data);
+      } else {
+        return apiRequest('POST', '/api/quote-templates', data);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/quote-templates'] });
       toast({
         title: "Success",
-        description: "Template created successfully",
+        description: isEditing ? "Template updated successfully" : "Template created successfully",
       });
       form.reset();
       onOpenChange(false);
@@ -130,14 +155,14 @@ export function AddTemplateDialog({ open, onOpenChange }: AddTemplateDialogProps
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to create template",
+        description: error.message || (isEditing ? "Failed to update template" : "Failed to create template"),
         variant: "destructive",
       });
     },
   });
 
   const onSubmit = (data: InsertQuoteTemplate) => {
-    createTemplateMutation.mutate(data);
+    saveTemplateMutation.mutate(data);
   };
 
   const handleDialogChange = (open: boolean) => {
@@ -151,9 +176,13 @@ export function AddTemplateDialog({ open, onOpenChange }: AddTemplateDialogProps
     <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogContent className="sm:max-w-[500px]" data-testid="dialog-add-template">
         <DialogHeader>
-          <DialogTitle data-testid="text-dialog-title">Create Quote Template</DialogTitle>
+          <DialogTitle data-testid="text-dialog-title">
+            {isEditing ? "Edit Quote Template" : "Create Quote Template"}
+          </DialogTitle>
           <DialogDescription>
-            Create a new quote template for vendor quotations. Templates help standardize quote requests.
+            {isEditing 
+              ? "Edit the quote template details below." 
+              : "Create a new quote template for vendor quotations. Templates help standardize quote requests."}
           </DialogDescription>
         </DialogHeader>
 
@@ -270,10 +299,12 @@ export function AddTemplateDialog({ open, onOpenChange }: AddTemplateDialogProps
               </Button>
               <Button 
                 type="submit" 
-                disabled={createTemplateMutation.isPending}
-                data-testid="button-create-template"
+                disabled={saveTemplateMutation.isPending}
+                data-testid={isEditing ? "button-update-template" : "button-create-template"}
               >
-                {createTemplateMutation.isPending ? "Creating..." : "Create Template"}
+                {saveTemplateMutation.isPending 
+                  ? (isEditing ? "Updating..." : "Creating...") 
+                  : (isEditing ? "Update Template" : "Create Template")}
               </Button>
             </DialogFooter>
           </form>
