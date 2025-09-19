@@ -6,7 +6,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import StatusBadge from "./StatusBadge";
-import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, Download, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import QuoteDetailModal from "./QuoteDetailModal";
+import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, Download, FileSpreadsheet, FileText, Loader2, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Project, VendorCategory } from "@shared/schema";
 
@@ -38,6 +39,9 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const [selectedProject, setSelectedProject] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalData, setModalData] = useState<{ vendorName: string; projectName: string } | null>(null);
   const { toast } = useToast();
 
   const handleProjectFilter = (projectId: string) => {
@@ -48,6 +52,21 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const handleCategoryFilter = (category: string) => {
     setSelectedCategory(category);
     console.log('Filter by category:', category);
+  };
+
+  const handleQuoteClick = (quotation: QuotationData, projectName: string) => {
+    setSelectedQuoteId(quotation.id);
+    setModalData({
+      vendorName: quotation.vendorName,
+      projectName: projectName
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedQuoteId(null);
+    setModalData(null);
   };
 
   // Handle individual quote export
@@ -558,6 +577,15 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         
                         <TableCell data-testid="cell-actions">
                           <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleQuoteClick(quotation, group.projectName)}
+                              data-testid={`button-view-quote-${quotation.id}`}
+                              title="View detailed quote breakdown"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                             {quotation.status !== "Selected" && (
                               <Button
                                 size="sm"
@@ -627,6 +655,15 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
           </CardContent>
         </Card>
       )}
+
+      {/* Quote Detail Modal */}
+      <QuoteDetailModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        quoteId={selectedQuoteId}
+        vendorName={modalData?.vendorName}
+        projectName={modalData?.projectName}
+      />
     </div>
   );
 }

@@ -240,6 +240,242 @@ export class MemStorage implements IStorage {
     sampleVendors.forEach(vendor => {
       this.vendors.set(vendor.id, vendor);
     });
+
+    // Create sample project-vendor relationships with quotations
+    const projectArray = Array.from(this.projects.values());
+    const vendorArray = Array.from(this.vendors.values());
+
+    if (projectArray.length > 0 && vendorArray.length > 0) {
+      const project1 = projectArray[0]; // City Center Mall Renovation
+      const project2 = projectArray[1]; // Hospital Wing Construction
+
+      // Sample project-vendor relationships with hardcoded IDs to match frontend mock data
+      const sampleProjectVendors = [
+        {
+          id: "1", // ABC Construction - matches frontend mock ID
+          projectId: project1.id,
+          vendorId: vendorArray[0].id, // ABC Construction Ltd
+          quotationValue: "4500000.00",
+          dateOfQuotation: "2024-01-20",
+          status: "Selected" as const,
+          notes: "Selected based on competitive pricing and quality track record"
+        },
+        {
+          id: "2", // BuildRight Corp - matches frontend mock ID
+          projectId: project1.id,
+          vendorId: vendorArray[2].id, // BuildRight Corp
+          quotationValue: "5200000.00",
+          dateOfQuotation: "2024-01-16",
+          status: "Quoted" as const,
+          notes: "Comprehensive quote with detailed BOQ"
+        },
+        {
+          id: "3", // ElectroTech Solutions - matches frontend mock ID
+          projectId: project1.id,
+          vendorId: vendorArray[1].id, // ElectroTech Solutions
+          quotationValue: "7500000.00",
+          dateOfQuotation: "2024-01-18",
+          status: "Quoted" as const,
+          notes: "Electrical systems installation"
+        },
+        {
+          id: "4", // PowerPro Electric - matches frontend mock ID
+          projectId: project2.id,
+          vendorId: vendorArray[3].id, // PowerPro Electric
+          quotationValue: "3375000.00",
+          dateOfQuotation: "2024-01-22",
+          status: "Quoted" as const,
+          notes: "Hospital electrical infrastructure"
+        }
+      ];
+
+      sampleProjectVendors.forEach(pv => {
+        this.projectVendors.set(pv.id, {
+          ...pv,
+          quotationFile: null,
+          templateId: null,
+          submittedAt: new Date()
+        });
+      });
+
+      // Sample BOQ data for the project-vendor relationships
+      const sampleBoqItems = [
+        // BOQ for ABC Construction Ltd - Civil work
+        {
+          projectVendorId: sampleProjectVendors[0].id,
+          itemDescription: "Concrete Foundation Work",
+          quantity: "250.00",
+          unit: "m³",
+          unitRate: "8500.00",
+          totalAmount: "2125000.00",
+          category: "Civil Work",
+          itemCode: "CIV-001",
+          specifications: "M25 grade concrete with reinforcement as per IS 456"
+        },
+        {
+          projectVendorId: sampleProjectVendors[0].id,
+          itemDescription: "Brick Masonry Work",
+          quantity: "500.00",
+          unit: "m²",
+          unitRate: "1200.00",
+          totalAmount: "600000.00",
+          category: "Civil Work",
+          itemCode: "CIV-002",
+          specifications: "Standard brick masonry with cement mortar 1:6"
+        },
+        {
+          projectVendorId: sampleProjectVendors[0].id,
+          itemDescription: "Steel Reinforcement",
+          quantity: "25.00",
+          unit: "MT",
+          unitRate: "75000.00",
+          totalAmount: "1875000.00",
+          category: "Material",
+          itemCode: "MAT-001",
+          specifications: "TMT bars Fe 415 grade as per IS 1786"
+        },
+
+        // BOQ for BuildRight Corp
+        {
+          projectVendorId: sampleProjectVendors[1].id,
+          itemDescription: "Excavation Work",
+          quantity: "400.00",
+          unit: "m³",
+          unitRate: "850.00",
+          totalAmount: "340000.00",
+          category: "Earthwork",
+          itemCode: "EW-001",
+          specifications: "Machine excavation up to 3m depth"
+        },
+        {
+          projectVendorId: sampleProjectVendors[1].id,
+          itemDescription: "Structural Steel Work",
+          quantity: "15.00",
+          unit: "MT",
+          unitRate: "85000.00",
+          totalAmount: "1275000.00",
+          category: "Structural",
+          itemCode: "STR-001",
+          specifications: "Structural steel work including fabrication and erection"
+        },
+        {
+          projectVendorId: sampleProjectVendors[1].id,
+          itemDescription: "Concrete Flooring",
+          quantity: "800.00",
+          unit: "m²",
+          unitRate: "2200.00",
+          totalAmount: "1760000.00",
+          category: "Civil Work",
+          itemCode: "CIV-003",
+          specifications: "RCC slab 150mm thick with waterproofing"
+        },
+        {
+          projectVendorId: sampleProjectVendors[1].id,
+          itemDescription: "Plastering Work",
+          quantity: "1200.00",
+          unit: "m²",
+          unitRate: "350.00",
+          totalAmount: "420000.00",
+          category: "Finishing",
+          itemCode: "FIN-001",
+          specifications: "Internal plastering 12mm thick with cement mortar"
+        },
+
+        // BOQ for ElectroTech Solutions - Electrical work
+        {
+          projectVendorId: sampleProjectVendors[2].id,
+          itemDescription: "Main Distribution Panel",
+          quantity: "1.00",
+          unit: "No",
+          unitRate: "450000.00",
+          totalAmount: "450000.00",
+          category: "Electrical Equipment",
+          itemCode: "ELE-001",
+          specifications: "1600A main distribution panel with MCCB and accessories"
+        },
+        {
+          projectVendorId: sampleProjectVendors[2].id,
+          itemDescription: "Electrical Wiring",
+          quantity: "2500.00",
+          unit: "m",
+          unitRate: "850.00",
+          totalAmount: "2125000.00",
+          category: "Electrical Installation",
+          itemCode: "ELE-002",
+          specifications: "Copper conductor wiring in PVC conduits"
+        },
+        {
+          projectVendorId: sampleProjectVendors[2].id,
+          itemDescription: "LED Lighting Fixtures",
+          quantity: "150.00",
+          unit: "No",
+          unitRate: "2800.00",
+          totalAmount: "420000.00",
+          category: "Lighting",
+          itemCode: "ELE-003",
+          specifications: "36W LED panel lights with driver and mounting accessories"
+        },
+        {
+          projectVendorId: sampleProjectVendors[2].id,
+          itemDescription: "Emergency Generator Setup",
+          quantity: "1.00",
+          unit: "Set",
+          unitRate: "4500000.00",
+          totalAmount: "4500000.00",
+          category: "Power Systems",
+          itemCode: "ELE-004",
+          specifications: "500KVA diesel generator with AMF panel and accessories"
+        },
+
+        // BOQ for PowerPro Electric - Hospital electrical
+        {
+          projectVendorId: sampleProjectVendors[3].id,
+          itemDescription: "Hospital Grade Electrical Panels",
+          quantity: "3.00",
+          unit: "No",
+          unitRate: "285000.00",
+          totalAmount: "855000.00",
+          category: "Medical Equipment",
+          itemCode: "MED-001",
+          specifications: "Hospital grade distribution panels with isolated ground"
+        },
+        {
+          projectVendorId: sampleProjectVendors[3].id,
+          itemDescription: "Nurse Call System",
+          quantity: "50.00",
+          unit: "Points",
+          unitRate: "15000.00",
+          totalAmount: "750000.00",
+          category: "Communication",
+          itemCode: "COM-001",
+          specifications: "Wireless nurse call system with bedside and bathroom stations"
+        },
+        {
+          projectVendorId: sampleProjectVendors[3].id,
+          itemDescription: "UPS System Installation",
+          quantity: "1.00",
+          unit: "Set",
+          unitRate: "1770000.00",
+          totalAmount: "1770000.00",
+          category: "Power Backup",
+          itemCode: "PWR-001",
+          specifications: "100KVA online UPS with battery bank for critical loads"
+        }
+      ];
+
+      // Create BOQ items
+      sampleBoqItems.forEach(boqData => {
+        const id = randomUUID();
+        const boq = {
+          ...boqData,
+          id,
+          quantity: boqData.quantity,
+          unitRate: boqData.unitRate,
+          totalAmount: boqData.totalAmount
+        };
+        this.boq.set(id, boq);
+      });
+    }
   }
 
   // User methods
