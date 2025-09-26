@@ -212,6 +212,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/projects/:id", async (req, res) => {
+    try {
+      const parsed = insertProjectSchema.partial().parse(req.body);
+      const project = await storage.updateProject(req.params.id, parsed);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      res.json(project);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid project data" });
+    }
+  });
+
   // Project Vendors Routes
   app.get("/api/project-vendors", async (req, res) => {
     try {
