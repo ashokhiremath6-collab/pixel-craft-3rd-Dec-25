@@ -39,6 +39,7 @@ export default function ProjectsPage() {
   const queryClient = useQueryClient();
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+  const [isAddingProject, setIsAddingProject] = useState(false);
 
   // Fetch quotations data which includes projects and their vendor relationships
   const { data: quotationsData, isLoading } = useQuery<QuotationsResponse>({
@@ -56,13 +57,44 @@ export default function ProjectsPage() {
     },
   });
 
+  // Form for adding new projects
+  const addForm = useForm<InsertProject>({
+    resolver: zodResolver(insertProjectSchema),
+    defaultValues: {
+      projectName: "",
+      clientName: "",
+      startDate: "",
+      endDate: "",
+    },
+  });
+
+  // Create mutation
+  const createProjectMutation = useMutation({
+    mutationFn: async (project: InsertProject) => {
+      return apiRequest('POST', '/api/projects', project);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
+      setIsAddingProject(false);
+      addForm.reset();
+      toast({
+        title: "Success",
+        description: "Project created successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to create project",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Update mutation
   const updateProjectMutation = useMutation({
     mutationFn: async (data: { id: string; project: Partial<InsertProject> }) => {
-      return apiRequest(`/api/projects/${data.id}`, {
-        method: "PUT",
-        body: JSON.stringify(data.project),
-      });
+      return apiRequest('PUT', `/api/projects/${data.id}`, data.project);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
@@ -85,9 +117,7 @@ export default function ProjectsPage() {
   // Delete mutation
   const deleteProjectMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/projects/${id}`, {
-        method: "DELETE",
-      });
+      return apiRequest('DELETE', `/api/projects/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
@@ -113,11 +143,8 @@ export default function ProjectsPage() {
   }));
 
   const handleAddProject = () => {
-    console.log('Add project - would open form modal');
-    toast({
-      title: "Add Project",
-      description: "Add project functionality will be implemented next",
-    });
+    setIsAddingProject(true);
+    addForm.reset();
   };
 
   const handleEditProject = (project: Project) => {
@@ -162,6 +189,15 @@ export default function ProjectsPage() {
   const handleCloseEditDialog = () => {
     setEditingProject(null);
     form.reset();
+  };
+
+  const handleCloseAddDialog = () => {
+    setIsAddingProject(false);
+    addForm.reset();
+  };
+
+  const onSubmitAdd = (data: InsertProject) => {
+    createProjectMutation.mutate(data);
   };
 
   if (isLoading) {
@@ -252,6 +288,7 @@ export default function ProjectsPage() {
                       <Input 
                         type="date" 
                         {...field} 
+                        value={field.value || ""}
                         data-testid="input-end-date"
                       />
                     </FormControl>
@@ -304,6 +341,108 @@ export default function ProjectsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Add Project Dialog */}
+      <Dialog open={isAddingProject} onOpenChange={handleCloseAddDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add New Project</DialogTitle>
+            <DialogDescription>
+              Create a new project to track vendors and quotations.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...addForm}>
+            <form onSubmit={addForm.handleSubmit(onSubmitAdd)} className="space-y-4">
+              <FormField
+                control={addForm.control}
+                name="projectName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Project Name</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Enter project name" 
+                        {...field} 
+                        data-testid="input-project-name"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="clientName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Client Name</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Enter client name" 
+                        {...field} 
+                        data-testid="input-client-name"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="startDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Date</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="date" 
+                        {...field} 
+                        data-testid="input-start-date"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="endDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>End Date</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="date" 
+                        {...field} 
+                        value={field.value || ""}
+                        data-testid="input-end-date"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end space-x-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={handleCloseAddDialog}
+                  data-testid="button-cancel-add"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={createProjectMutation.isPending}
+                  data-testid="button-submit-add"
+                >
+                  {createProjectMutation.isPending ? "Creating..." : "Create Project"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
