@@ -38,7 +38,7 @@ type SubcategoryFormData = z.infer<typeof subcategoryFormSchema>;
 type VendorFormData = z.infer<typeof vendorFormSchema>;
 
 interface VendorListProps {
-  vendors: Vendor[];
+  vendors: Array<Vendor & { projects?: Array<{ projectId: string; projectName: string; clientName: string; status: string }> }>;
   categories: VendorCategory[];
   onAddVendor?: () => void;
   onEditVendor?: (vendor: Vendor) => void;
@@ -48,6 +48,7 @@ interface VendorListProps {
 export default function VendorList({ vendors, categories, onAddVendor, onEditVendor, onDeleteVendor }: VendorListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedProject, setSelectedProject] = useState<string>("all");
   const [isSubcategoryDialogOpen, setIsSubcategoryDialogOpen] = useState(false);
   const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
   
@@ -89,6 +90,11 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   const handleCategoryFilter = (categoryId: string) => {
     setSelectedCategory(categoryId);
     console.log('Filter by category:', categoryId);
+  };
+
+  const handleProjectFilter = (projectId: string) => {
+    setSelectedProject(projectId);
+    console.log('Filter by project:', projectId);
   };
 
   const handleAddVendor = () => {
@@ -155,6 +161,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors-with-projects'] });
       setIsVendorDialogOpen(false);
       vendorForm.reset({
         name: "",
@@ -255,7 +262,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
     return result;
   };
 
-  // Filter vendors with hierarchical support
+  // Filter vendors with hierarchical support and project filtering
   const filteredVendors = vendors.filter(vendor => {
     const matchesSearch = vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          vendor.contactPerson.toLowerCase().includes(searchTerm.toLowerCase());
@@ -267,7 +274,13 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       matchesCategory = categoryIds.includes(vendor.categoryId);
     }
     
-    return matchesSearch && matchesCategory;
+    // Project filtering
+    let matchesProject = selectedProject === "all";
+    if (!matchesProject && selectedProject !== "all") {
+      matchesProject = vendor.projects?.some(project => project.projectId === selectedProject) || false;
+    }
+    
+    return matchesSearch && matchesCategory && matchesProject;
   });
 
   // Group vendors by category with hierarchical display
@@ -619,6 +632,19 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                 ))}
               </SelectContent>
             </Select>
+            <Select value={selectedProject} onValueChange={handleProjectFilter}>
+              <SelectTrigger className="w-full sm:w-48" data-testid="select-project-filter">
+                <SelectValue placeholder="All Projects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Projects</SelectItem>
+                {projects.map(project => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.projectName} - {project.clientName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -629,7 +655,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
           {filteredVendors.length} vendor{filteredVendors.length !== 1 ? 's' : ''} found
         </span>
         {selectedCategory !== "all" && (
-          <Badge variant="secondary" data-testid="badge-active-filter">
+          <Badge variant="secondary" data-testid="badge-active-category-filter">
             {(() => {
               const category = categoryMap[selectedCategory];
               if (!category) return selectedCategory;
@@ -640,6 +666,14 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                 return parentCategory ? `${parentCategory.name} > ${category.name}` : category.name;
               }
               return category.name;
+            })()}
+          </Badge>
+        )}
+        {selectedProject !== "all" && (
+          <Badge variant="secondary" data-testid="badge-active-project-filter">
+            {(() => {
+              const project = projects.find(p => p.id === selectedProject);
+              return project ? `${project.projectName} - ${project.clientName}` : selectedProject;
             })()}
           </Badge>
         )}
