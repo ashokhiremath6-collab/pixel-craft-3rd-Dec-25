@@ -15,8 +15,18 @@ import {
   type InsertBoq,
   type QuoteFile,
   type InsertQuoteFile,
+  users,
+  vendorCategories,
+  vendors,
+  projects,
+  projectVendors,
+  quoteTemplates,
+  boq,
+  quoteFiles,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, inArray, isNull } from "drizzle-orm";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -841,4 +851,266 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DBStorage implements IStorage {
+  // Users
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id));
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.username, username));
+    return result[0];
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const result = await db.insert(users).values(user).returning();
+    return result[0];
+  }
+
+  // Vendor Categories
+  async getAllVendorCategories(): Promise<VendorCategory[]> {
+    return await db.select().from(vendorCategories);
+  }
+
+  async getVendorCategory(id: string): Promise<VendorCategory | undefined> {
+    const result = await db.select().from(vendorCategories).where(eq(vendorCategories.id, id));
+    return result[0];
+  }
+
+  async getChildCategories(parentId: string | null): Promise<VendorCategory[]> {
+    if (parentId === null) {
+      return await db.select().from(vendorCategories).where(isNull(vendorCategories.parentId));
+    }
+    return await db.select().from(vendorCategories).where(eq(vendorCategories.parentId, parentId));
+  }
+
+  async getCategoryTree(): Promise<VendorCategory[]> {
+    return await db.select().from(vendorCategories);
+  }
+
+  async getCategoryWithDescendants(categoryId: string): Promise<string[]> {
+    // Get all categories
+    const allCategories = await db.select().from(vendorCategories);
+    
+    // Build descendant tree (same logic as MemStorage)
+    const descendants = [categoryId];
+    const toProcess = [categoryId];
+    
+    while (toProcess.length > 0) {
+      const currentId = toProcess.shift()!;
+      const children = allCategories.filter(cat => cat.parentId === currentId);
+      
+      for (const child of children) {
+        if (!descendants.includes(child.id)) {
+          descendants.push(child.id);
+          toProcess.push(child.id);
+        }
+      }
+    }
+    
+    return descendants;
+  }
+
+  async createVendorCategory(category: InsertVendorCategory): Promise<VendorCategory> {
+    const result = await db.insert(vendorCategories).values(category).returning();
+    return result[0];
+  }
+
+  async updateVendorCategory(id: string, category: Partial<InsertVendorCategory>): Promise<VendorCategory | undefined> {
+    const result = await db.update(vendorCategories).set(category).where(eq(vendorCategories.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteVendorCategory(id: string): Promise<boolean> {
+    // Check if category has children or vendors before deleting
+    const hasChildren = await db.select().from(vendorCategories).where(eq(vendorCategories.parentId, id));
+    const hasVendors = await db.select().from(vendors).where(eq(vendors.categoryId, id));
+    
+    if (hasChildren.length > 0 || hasVendors.length > 0) {
+      throw new Error("Cannot delete category with child categories or vendors");
+    }
+    
+    const result = await db.delete(vendorCategories).where(eq(vendorCategories.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Vendors
+  async getAllVendors(): Promise<Vendor[]> {
+    return await db.select().from(vendors);
+  }
+
+  async getVendor(id: string): Promise<Vendor | undefined> {
+    const result = await db.select().from(vendors).where(eq(vendors.id, id));
+    return result[0];
+  }
+
+  async getVendorsByCategory(categoryId: string): Promise<Vendor[]> {
+    return await db.select().from(vendors).where(eq(vendors.categoryId, categoryId));
+  }
+
+  async getVendorsByCategoryWithDescendants(categoryId: string): Promise<Vendor[]> {
+    const categoryIds = await this.getCategoryWithDescendants(categoryId);
+    return await db.select().from(vendors).where(inArray(vendors.categoryId, categoryIds));
+  }
+
+  async createVendor(vendor: InsertVendor): Promise<Vendor> {
+    const result = await db.insert(vendors).values(vendor).returning();
+    return result[0];
+  }
+
+  async updateVendor(id: string, vendor: Partial<InsertVendor>): Promise<Vendor | undefined> {
+    const result = await db.update(vendors).set(vendor).where(eq(vendors.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteVendor(id: string): Promise<boolean> {
+    const result = await db.delete(vendors).where(eq(vendors.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Projects
+  async getAllProjects(): Promise<Project[]> {
+    return await db.select().from(projects);
+  }
+
+  async getProject(id: string): Promise<Project | undefined> {
+    const result = await db.select().from(projects).where(eq(projects.id, id));
+    return result[0];
+  }
+
+  async createProject(project: InsertProject): Promise<Project> {
+    const result = await db.insert(projects).values(project).returning();
+    return result[0];
+  }
+
+  async updateProject(id: string, project: Partial<InsertProject>): Promise<Project | undefined> {
+    const result = await db.update(projects).set(project).where(eq(projects.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteProject(id: string): Promise<boolean> {
+    const result = await db.delete(projects).where(eq(projects.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Project Vendors
+  async getAllProjectVendors(): Promise<ProjectVendor[]> {
+    return await db.select().from(projectVendors);
+  }
+
+  async getProjectVendors(projectId: string): Promise<ProjectVendor[]> {
+    return await db.select().from(projectVendors).where(eq(projectVendors.projectId, projectId));
+  }
+
+  async getProjectVendor(id: string): Promise<ProjectVendor | undefined> {
+    const result = await db.select().from(projectVendors).where(eq(projectVendors.id, id));
+    return result[0];
+  }
+
+  async createProjectVendor(projectVendor: InsertProjectVendor): Promise<ProjectVendor> {
+    const result = await db.insert(projectVendors).values(projectVendor).returning();
+    return result[0];
+  }
+
+  async updateProjectVendor(id: string, projectVendor: Partial<InsertProjectVendor>): Promise<ProjectVendor | undefined> {
+    const result = await db.update(projectVendors).set(projectVendor).where(eq(projectVendors.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteProjectVendor(id: string): Promise<boolean> {
+    const result = await db.delete(projectVendors).where(eq(projectVendors.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Quote Templates
+  async getAllQuoteTemplates(): Promise<QuoteTemplate[]> {
+    return await db.select().from(quoteTemplates);
+  }
+
+  async getQuoteTemplate(id: string): Promise<QuoteTemplate | undefined> {
+    const result = await db.select().from(quoteTemplates).where(eq(quoteTemplates.id, id));
+    return result[0];
+  }
+
+  async getQuoteTemplatesByCategory(categoryId: string): Promise<QuoteTemplate[]> {
+    return await db.select().from(quoteTemplates).where(eq(quoteTemplates.categoryId, categoryId));
+  }
+
+  async createQuoteTemplate(template: InsertQuoteTemplate): Promise<QuoteTemplate> {
+    const result = await db.insert(quoteTemplates).values(template).returning();
+    return result[0];
+  }
+
+  async updateQuoteTemplate(id: string, template: Partial<InsertQuoteTemplate>): Promise<QuoteTemplate | undefined> {
+    const result = await db.update(quoteTemplates).set(template).where(eq(quoteTemplates.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteQuoteTemplate(id: string): Promise<boolean> {
+    const result = await db.delete(quoteTemplates).where(eq(quoteTemplates.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // BOQ (Bill of Quantities)
+  async getBOQByProjectVendor(projectVendorId: string): Promise<Boq[]> {
+    return await db.select().from(boq).where(eq(boq.projectVendorId, projectVendorId));
+  }
+
+  async getBOQ(id: string): Promise<Boq | undefined> {
+    const result = await db.select().from(boq).where(eq(boq.id, id));
+    return result[0];
+  }
+
+  async createBOQ(boqItem: InsertBoq): Promise<Boq> {
+    const result = await db.insert(boq).values(boqItem).returning();
+    return result[0];
+  }
+
+  async updateBOQ(id: string, boqItem: Partial<InsertBoq>): Promise<Boq | undefined> {
+    const result = await db.update(boq).set(boqItem).where(eq(boq.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteBOQ(id: string): Promise<boolean> {
+    const result = await db.delete(boq).where(eq(boq.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async createBOQBatch(boqs: InsertBoq[]): Promise<Boq[]> {
+    const result = await db.insert(boq).values(boqs).returning();
+    return result;
+  }
+
+  async deleteBOQByProjectVendor(projectVendorId: string): Promise<boolean> {
+    const result = await db.delete(boq).where(eq(boq.projectVendorId, projectVendorId));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Quote Files
+  async getQuoteFilesByProjectVendor(projectVendorId: string): Promise<QuoteFile[]> {
+    return await db.select().from(quoteFiles).where(eq(quoteFiles.projectVendorId, projectVendorId));
+  }
+
+  async getQuoteFile(id: string): Promise<QuoteFile | undefined> {
+    const result = await db.select().from(quoteFiles).where(eq(quoteFiles.id, id));
+    return result[0];
+  }
+
+  async createQuoteFile(quoteFile: InsertQuoteFile): Promise<QuoteFile> {
+    const result = await db.insert(quoteFiles).values(quoteFile).returning();
+    return result[0];
+  }
+
+  async updateQuoteFile(id: string, updates: Partial<InsertQuoteFile>): Promise<QuoteFile | undefined> {
+    const result = await db.update(quoteFiles).set(updates).where(eq(quoteFiles.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteQuoteFile(id: string): Promise<boolean> {
+    const result = await db.delete(quoteFiles).where(eq(quoteFiles.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+}
+
+export const storage = new DBStorage();
