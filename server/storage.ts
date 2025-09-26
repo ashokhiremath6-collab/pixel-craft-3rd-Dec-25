@@ -116,378 +116,10 @@ export class MemStorage implements IStorage {
     this.boq = new Map();
     this.quoteFiles = new Map();
     
-    // Initialize with predefined categories
-    this.initializePredefinedCategories();
-    
-    // Initialize with sample data for testing
-    this.initializeSampleData();
+    // No dummy data needed - using database storage
   }
 
-  private initializePredefinedCategories() {
-    const predefinedCategories = [
-      { name: "Civil", description: "Civil construction and structural work" },
-      { name: "Electrical", description: "Electrical installations and systems" },
-      { name: "Plumbing", description: "Plumbing and water systems" },
-      { name: "HVAC", description: "Heating, ventilation, and air conditioning" },
-      { name: "Kitchen", description: "Kitchen fixtures and appliances" },
-      { name: "Flooring", description: "Floor installations and materials" },
-      { name: "Windows", description: "Windows and glazing systems" },
-      { name: "Carpentry", description: "Carpentry and woodwork" },
-      { name: "Audio Systems", description: "Audio and sound systems" },
-      { name: "Automation", description: "Home and building automation" },
-      { name: "Furniture", description: "Furniture and furnishings" },
-      { name: "Soft Furnishings", description: "Curtains, upholstery, and soft furnishings" },
-      { name: "Wall Finishes", description: "Paint, wallpaper, and wall treatments" },
-      { name: "Appliances", description: "Home and commercial appliances" },
-      { name: "Bathroom Fittings", description: "Bathroom fixtures and fittings" },
-    ];
-
-    // Create main categories only - users can create their own subcategories
-    predefinedCategories.forEach(category => {
-      const id = randomUUID();
-      const vendorCategory: VendorCategory = {
-        id,
-        name: category.name,
-        parentId: null,
-        description: category.description,
-        isActive: true,
-      };
-      this.vendorCategories.set(id, vendorCategory);
-    });
-  }
-
-  private initializeSampleData() {
-    // Sample Projects
-    const sampleProjects = [
-      {
-        id: randomUUID(),
-        projectName: "City Center Mall Renovation",
-        clientName: "Metro Development Corp",
-        startDate: "2024-01-15",
-        endDate: "2024-06-30"
-      },
-      {
-        id: randomUUID(),
-        projectName: "Hospital Wing Construction",
-        clientName: "Regional Medical Center", 
-        startDate: "2024-03-01",
-        endDate: null
-      },
-      {
-        id: randomUUID(),
-        projectName: "Office Complex Expansion",
-        clientName: "TechCorp Industries",
-        startDate: "2024-02-01",
-        endDate: "2024-08-15"
-      },
-      {
-        id: randomUUID(),
-        projectName: "Residential Tower Development",
-        clientName: "Skyline Properties",
-        startDate: "2024-04-01",
-        endDate: "2024-12-31"
-      }
-    ];
-
-    sampleProjects.forEach(project => {
-      this.projects.set(project.id, project);
-    });
-
-    // Get some category IDs for vendors
-    const categories = Array.from(this.vendorCategories.values());
-    const civilCat = categories.find(cat => cat.name === "Civil");
-    const electricalCat = categories.find(cat => cat.name === "Electrical");
-    const plumbingCat = categories.find(cat => cat.name === "Plumbing");
-
-    // Sample Vendors
-    const sampleVendors = [
-      {
-        id: randomUUID(),
-        name: "ABC Construction Ltd",
-        categoryId: civilCat?.id || categories[0]?.id || "category-1",
-        contactPerson: "John Smith",
-        phone: "+91-9876543210",
-        email: "john@abcconstruction.com",
-        notes: "Specializes in commercial construction"
-      },
-      {
-        id: randomUUID(),
-        name: "ElectroTech Solutions",
-        categoryId: electricalCat?.id || categories[1]?.id || "category-2",
-        contactPerson: "Sarah Wilson",
-        phone: "+91-9876543211",
-        email: "sarah@electrotech.com",
-        notes: "Expert in industrial electrical systems"
-      },
-      {
-        id: randomUUID(),
-        name: "BuildRight Corp",
-        categoryId: civilCat?.id || categories[0]?.id || "category-1",
-        contactPerson: "Mike Johnson",
-        phone: "+91-9876543212",
-        email: "mike@buildright.com",
-        notes: "Residential and commercial construction"
-      },
-      {
-        id: randomUUID(),
-        name: "PowerPro Electric",
-        categoryId: electricalCat?.id || categories[1]?.id || "category-2",
-        contactPerson: "Lisa Chen",
-        phone: "+91-9876543213",
-        email: "lisa@powerpro.com",
-        notes: "Electrical installations and maintenance"
-      },
-      {
-        id: randomUUID(),
-        name: "AquaFlow Plumbing",
-        categoryId: plumbingCat?.id || categories[2]?.id || "category-3",
-        contactPerson: "David Brown",
-        phone: "+91-9876543214",
-        email: "david@aquaflow.com",
-        notes: "Complete plumbing solutions"
-      }
-    ];
-
-    sampleVendors.forEach(vendor => {
-      this.vendors.set(vendor.id, vendor);
-    });
-
-    // Create sample project-vendor relationships with quotations
-    const projectArray = Array.from(this.projects.values());
-    const vendorArray = Array.from(this.vendors.values());
-
-    if (projectArray.length > 0 && vendorArray.length > 0) {
-      const project1 = projectArray[0]; // City Center Mall Renovation
-      const project2 = projectArray[1]; // Hospital Wing Construction
-
-      // Sample project-vendor relationships with hardcoded IDs to match frontend mock data
-      const sampleProjectVendors = [
-        {
-          id: "1", // ABC Construction - matches frontend mock ID
-          projectId: project1.id,
-          vendorId: vendorArray[0].id, // ABC Construction Ltd
-          quotationValue: "4500000.00",
-          dateOfQuotation: "2024-01-20",
-          status: "Selected" as const,
-          notes: "Selected based on competitive pricing and quality track record"
-        },
-        {
-          id: "2", // BuildRight Corp - matches frontend mock ID
-          projectId: project1.id,
-          vendorId: vendorArray[2].id, // BuildRight Corp
-          quotationValue: "5200000.00",
-          dateOfQuotation: "2024-01-16",
-          status: "Quoted" as const,
-          notes: "Comprehensive quote with detailed BOQ"
-        },
-        {
-          id: "3", // ElectroTech Solutions - matches frontend mock ID
-          projectId: project1.id,
-          vendorId: vendorArray[1].id, // ElectroTech Solutions
-          quotationValue: "7500000.00",
-          dateOfQuotation: "2024-01-18",
-          status: "Quoted" as const,
-          notes: "Electrical systems installation"
-        },
-        {
-          id: "4", // PowerPro Electric - matches frontend mock ID
-          projectId: project2.id,
-          vendorId: vendorArray[3].id, // PowerPro Electric
-          quotationValue: "3375000.00",
-          dateOfQuotation: "2024-01-22",
-          status: "Quoted" as const,
-          notes: "Hospital electrical infrastructure"
-        }
-      ];
-
-      sampleProjectVendors.forEach(pv => {
-        this.projectVendors.set(pv.id, {
-          ...pv,
-          quotationFile: null,
-          templateId: null,
-          submittedAt: new Date()
-        });
-      });
-
-      // Sample BOQ data for the project-vendor relationships
-      const sampleBoqItems = [
-        // BOQ for ABC Construction Ltd - Civil work
-        {
-          projectVendorId: sampleProjectVendors[0].id,
-          itemDescription: "Concrete Foundation Work",
-          quantity: "250.00",
-          unit: "m³",
-          unitRate: "8500.00",
-          totalAmount: "2125000.00",
-          category: "Civil Work",
-          itemCode: "CIV-001",
-          specifications: "M25 grade concrete with reinforcement as per IS 456"
-        },
-        {
-          projectVendorId: sampleProjectVendors[0].id,
-          itemDescription: "Brick Masonry Work",
-          quantity: "500.00",
-          unit: "m²",
-          unitRate: "1200.00",
-          totalAmount: "600000.00",
-          category: "Civil Work",
-          itemCode: "CIV-002",
-          specifications: "Standard brick masonry with cement mortar 1:6"
-        },
-        {
-          projectVendorId: sampleProjectVendors[0].id,
-          itemDescription: "Steel Reinforcement",
-          quantity: "25.00",
-          unit: "MT",
-          unitRate: "75000.00",
-          totalAmount: "1875000.00",
-          category: "Material",
-          itemCode: "MAT-001",
-          specifications: "TMT bars Fe 415 grade as per IS 1786"
-        },
-
-        // BOQ for BuildRight Corp
-        {
-          projectVendorId: sampleProjectVendors[1].id,
-          itemDescription: "Excavation Work",
-          quantity: "400.00",
-          unit: "m³",
-          unitRate: "850.00",
-          totalAmount: "340000.00",
-          category: "Earthwork",
-          itemCode: "EW-001",
-          specifications: "Machine excavation up to 3m depth"
-        },
-        {
-          projectVendorId: sampleProjectVendors[1].id,
-          itemDescription: "Structural Steel Work",
-          quantity: "15.00",
-          unit: "MT",
-          unitRate: "85000.00",
-          totalAmount: "1275000.00",
-          category: "Structural",
-          itemCode: "STR-001",
-          specifications: "Structural steel work including fabrication and erection"
-        },
-        {
-          projectVendorId: sampleProjectVendors[1].id,
-          itemDescription: "Concrete Flooring",
-          quantity: "800.00",
-          unit: "m²",
-          unitRate: "2200.00",
-          totalAmount: "1760000.00",
-          category: "Civil Work",
-          itemCode: "CIV-003",
-          specifications: "RCC slab 150mm thick with waterproofing"
-        },
-        {
-          projectVendorId: sampleProjectVendors[1].id,
-          itemDescription: "Plastering Work",
-          quantity: "1200.00",
-          unit: "m²",
-          unitRate: "350.00",
-          totalAmount: "420000.00",
-          category: "Finishing",
-          itemCode: "FIN-001",
-          specifications: "Internal plastering 12mm thick with cement mortar"
-        },
-
-        // BOQ for ElectroTech Solutions - Electrical work
-        {
-          projectVendorId: sampleProjectVendors[2].id,
-          itemDescription: "Main Distribution Panel",
-          quantity: "1.00",
-          unit: "No",
-          unitRate: "450000.00",
-          totalAmount: "450000.00",
-          category: "Electrical Equipment",
-          itemCode: "ELE-001",
-          specifications: "1600A main distribution panel with MCCB and accessories"
-        },
-        {
-          projectVendorId: sampleProjectVendors[2].id,
-          itemDescription: "Electrical Wiring",
-          quantity: "2500.00",
-          unit: "m",
-          unitRate: "850.00",
-          totalAmount: "2125000.00",
-          category: "Electrical Installation",
-          itemCode: "ELE-002",
-          specifications: "Copper conductor wiring in PVC conduits"
-        },
-        {
-          projectVendorId: sampleProjectVendors[2].id,
-          itemDescription: "LED Lighting Fixtures",
-          quantity: "150.00",
-          unit: "No",
-          unitRate: "2800.00",
-          totalAmount: "420000.00",
-          category: "Lighting",
-          itemCode: "ELE-003",
-          specifications: "36W LED panel lights with driver and mounting accessories"
-        },
-        {
-          projectVendorId: sampleProjectVendors[2].id,
-          itemDescription: "Emergency Generator Setup",
-          quantity: "1.00",
-          unit: "Set",
-          unitRate: "4500000.00",
-          totalAmount: "4500000.00",
-          category: "Power Systems",
-          itemCode: "ELE-004",
-          specifications: "500KVA diesel generator with AMF panel and accessories"
-        },
-
-        // BOQ for PowerPro Electric - Hospital electrical
-        {
-          projectVendorId: sampleProjectVendors[3].id,
-          itemDescription: "Hospital Grade Electrical Panels",
-          quantity: "3.00",
-          unit: "No",
-          unitRate: "285000.00",
-          totalAmount: "855000.00",
-          category: "Medical Equipment",
-          itemCode: "MED-001",
-          specifications: "Hospital grade distribution panels with isolated ground"
-        },
-        {
-          projectVendorId: sampleProjectVendors[3].id,
-          itemDescription: "Nurse Call System",
-          quantity: "50.00",
-          unit: "Points",
-          unitRate: "15000.00",
-          totalAmount: "750000.00",
-          category: "Communication",
-          itemCode: "COM-001",
-          specifications: "Wireless nurse call system with bedside and bathroom stations"
-        },
-        {
-          projectVendorId: sampleProjectVendors[3].id,
-          itemDescription: "UPS System Installation",
-          quantity: "1.00",
-          unit: "Set",
-          unitRate: "1770000.00",
-          totalAmount: "1770000.00",
-          category: "Power Backup",
-          itemCode: "PWR-001",
-          specifications: "100KVA online UPS with battery bank for critical loads"
-        }
-      ];
-
-      // Create BOQ items
-      sampleBoqItems.forEach(boqData => {
-        const id = randomUUID();
-        const boq = {
-          ...boqData,
-          id,
-          quantity: boqData.quantity,
-          unitRate: boqData.unitRate,
-          totalAmount: boqData.totalAmount
-        };
-        this.boq.set(id, boq);
-      });
-    }
-  }
+  // Removed dummy data methods - using database storage
 
   // User methods
   async getUser(id: string): Promise<User | undefined> {
@@ -567,10 +199,9 @@ export class MemStorage implements IStorage {
 
   async getCategoryWithDescendants(categoryId: string): Promise<string[]> {
     const descendants = [categoryId];
-    const findChildren = (parentId: string): void => {
-      const children = Array.from(this.vendorCategories.values())
-        .filter(cat => cat.parentId === parentId);
-      
+    
+    const findChildren = (parentId: string) => {
+      const children = Array.from(this.vendorCategories.values()).filter(cat => cat.parentId === parentId);
       for (const child of children) {
         descendants.push(child.id);
         findChildren(child.id); // Recursively find grandchildren
@@ -663,7 +294,7 @@ export class MemStorage implements IStorage {
     return this.projects.delete(id);
   }
 
-  // Project Vendor methods
+  // Project Vendors
   async getAllProjectVendors(): Promise<ProjectVendor[]> {
     return Array.from(this.projectVendors.values());
   }
@@ -683,11 +314,10 @@ export class MemStorage implements IStorage {
     const projectVendor: ProjectVendor = { 
       ...insertProjectVendor, 
       id,
-      status: insertProjectVendor.status || "Quoted",
-      notes: insertProjectVendor.notes || null,
       quotationFile: insertProjectVendor.quotationFile || null,
       quotationValue: insertProjectVendor.quotationValue || null,
       dateOfQuotation: insertProjectVendor.dateOfQuotation || null,
+      notes: insertProjectVendor.notes || null,
       templateId: insertProjectVendor.templateId || null,
       submittedAt: new Date()
     };
@@ -708,7 +338,7 @@ export class MemStorage implements IStorage {
     return this.projectVendors.delete(id);
   }
 
-  // Quote Template methods
+  // Quote Templates
   async getAllQuoteTemplates(): Promise<QuoteTemplate[]> {
     return Array.from(this.quoteTemplates.values());
   }
@@ -751,7 +381,7 @@ export class MemStorage implements IStorage {
     return this.quoteTemplates.delete(id);
   }
 
-  // BOQ (Bill of Quantities) methods
+  // BOQ (Bill of Quantities)
   async getBOQByProjectVendor(projectVendorId: string): Promise<Boq[]> {
     return Array.from(this.boq.values()).filter(
       boq => boq.projectVendorId === projectVendorId
@@ -803,8 +433,8 @@ export class MemStorage implements IStorage {
     );
     
     let deletedCount = 0;
-    for (const boq of boqItems) {
-      if (this.boq.delete(boq.id)) {
+    for (const boqItem of boqItems) {
+      if (this.boq.delete(boqItem.id)) {
         deletedCount++;
       }
     }
@@ -812,7 +442,7 @@ export class MemStorage implements IStorage {
     return deletedCount > 0;
   }
 
-  // Quote Files methods
+  // Quote Files
   async getQuoteFilesByProjectVendor(projectVendorId: string): Promise<QuoteFile[]> {
     return Array.from(this.quoteFiles.values()).filter(
       file => file.projectVendorId === projectVendorId
