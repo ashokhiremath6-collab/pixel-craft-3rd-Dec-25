@@ -7,8 +7,12 @@ import ProjectCard from "./ProjectCard";
 import { Users, Building2, FileText, TrendingUp, Plus, ArrowRight } from "lucide-react";
 import type { Vendor, Project } from "@shared/schema";
 
+interface VendorWithCategory extends Omit<Vendor, 'categoryName'> {
+  category: string;
+}
+
 interface DashboardProps {
-  vendors: Vendor[];
+  vendors: VendorWithCategory[];
   projects: Project[];
   recentQuotations: Array<{
     id: string;
