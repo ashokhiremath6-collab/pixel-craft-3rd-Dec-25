@@ -54,6 +54,7 @@ export interface IStorage {
   deleteProject(id: string): Promise<boolean>;
   
   // Project Vendors
+  getAllProjectVendors(): Promise<ProjectVendor[]>;
   getProjectVendors(projectId: string): Promise<ProjectVendor[]>;
   getProjectVendor(id: string): Promise<ProjectVendor | undefined>;
   createProjectVendor(projectVendor: InsertProjectVendor): Promise<ProjectVendor>;
@@ -653,6 +654,10 @@ export class MemStorage implements IStorage {
   }
 
   // Project Vendor methods
+  async getAllProjectVendors(): Promise<ProjectVendor[]> {
+    return Array.from(this.projectVendors.values());
+  }
+
   async getProjectVendors(projectId: string): Promise<ProjectVendor[]> {
     return Array.from(this.projectVendors.values()).filter(
       pv => pv.projectId === projectId

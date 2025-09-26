@@ -212,6 +212,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Project Vendors Routes
+  app.get("/api/project-vendors", async (req, res) => {
+    try {
+      const projectVendors = await storage.getAllProjectVendors();
+      res.json(projectVendors);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch project vendors" });
+    }
+  });
+
+  app.get("/api/project-vendors/project/:projectId", async (req, res) => {
+    try {
+      const projectVendors = await storage.getProjectVendors(req.params.projectId);
+      res.json(projectVendors);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch project vendors" });
+    }
+  });
+
+  app.post("/api/project-vendors", async (req, res) => {
+    try {
+      const parsed = insertProjectVendorSchema.parse(req.body);
+      const projectVendor = await storage.createProjectVendor(parsed);
+      res.status(201).json(projectVendor);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid project vendor data" });
+    }
+  });
+
+  app.put("/api/project-vendors/:id", async (req, res) => {
+    try {
+      const parsed = insertProjectVendorSchema.partial().parse(req.body);
+      const projectVendor = await storage.updateProjectVendor(req.params.id, parsed);
+      if (!projectVendor) {
+        return res.status(404).json({ error: "Project vendor not found" });
+      }
+      res.json(projectVendor);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid project vendor data" });
+    }
+  });
+
+  // Quotations API - aggregated data for comparative quotes
+  app.get("/api/quotations", async (req, res) => {
+    try {
+      // Get all project vendors
+      const projectVendors = await storage.getAllProjectVendors();
+      
+      // Get all projects and vendors for joining
+      const projects = await storage.getAllProjects();
+      const vendors = await storage.getAllVendors();
+      const categories = await storage.getAllVendorCategories();
+      
+      // Create lookup maps for performance
+      const projectMap = new Map(projects.map(p => [p.id, p]));
+      const vendorMap = new Map(vendors.map(v => [v.id, v]));
+      const categoryMap = new Map(categories.map(c => [c.id, c]));
+      
+      // Transform project vendors into quotation format grouped by project
+      const quotationsByProject: Record<string, any[]> = {};
+      
+      projectVendors.forEach(pv => {
+        const project = projectMap.get(pv.projectId);
+        const vendor = vendorMap.get(pv.vendorId);
+        const category = vendor ? categoryMap.get(vendor.categoryId) : null;
+        
+        if (project && vendor && category) {
+          if (!quotationsByProject[pv.projectId]) {
+            quotationsByProject[pv.projectId] = [];
+          }
+          
+          quotationsByProject[pv.projectId].push({
+            id: pv.id,
+            vendorName: vendor.name,
+            category: category.name,
+            quotationValue: pv.quotationValue || "0.00",
+            dateOfQuotation: pv.dateOfQuotation || new Date().toISOString().split('T')[0],
+            status: pv.status,
+            quotationFile: pv.quotationFile,
+            notes: pv.notes,
+            projectId: pv.projectId,
+            projectName: project.projectName
+          });
+        }
+      });
+      
+      res.json({
+        projects: projects,
+        quotations: quotationsByProject
+      });
+    } catch (error) {
+      console.error('Error fetching quotations:', error);
+      res.status(500).json({ error: "Failed to fetch quotations" });
+    }
+  });
+
   // Quote Templates Routes
   app.get("/api/quote-templates", async (req, res) => {
     try {
