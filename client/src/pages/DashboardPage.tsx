@@ -1,114 +1,74 @@
+import { useQuery } from "@tanstack/react-query";
 import Dashboard from '@/components/Dashboard';
+import type { Vendor, Project } from "@shared/schema";
+
+interface VendorWithCategory extends Omit<Vendor, 'categoryName'> {
+  category: string;
+}
+
+interface QuotationData {
+  id: string;
+  vendorName: string;
+  category: string;
+  quotationValue: string;
+  dateOfQuotation: string;
+  status: "Quoted" | "Selected" | "Rejected";
+  quotationFile?: string;
+  notes?: string;
+  isAboveAverage?: boolean;
+}
+
+interface QuotationsResponse {
+  projects: Project[];
+  quotations: Record<string, QuotationData[]>;
+}
 
 export default function DashboardPage() {
-  //todo: remove mock functionality
-  const mockVendors = [
-    {
-      id: '1',
-      name: 'ABC Construction',
-      category: 'Civil',
-      contactPerson: 'John Smith',
-      phone: '+1 (555) 123-4567',
-      email: 'john@abcconstruction.com',
-      notes: 'Reliable contractor with 15+ years experience'
-    },
-    {
-      id: '2',
-      name: 'ElectroTech Solutions',
-      category: 'Electrical',
-      contactPerson: 'Sarah Johnson',
-      phone: '+1 (555) 234-5678',
-      email: 'sarah@electrotech.com',
-      notes: 'Specialized in commercial electrical systems'
-    },
-    {
-      id: '3',
-      name: 'Bright Lights Co',
-      category: 'Lighting',
-      contactPerson: 'Mike Chen',
-      phone: '+1 (555) 345-6789',
-      email: 'mike@brightlights.com',
-      notes: 'Custom lighting solutions and LED installations'
-    },
-    {
-      id: '4',
-      name: 'BuildRight Corp',
-      category: 'Civil',
-      contactPerson: 'Lisa Wong',
-      phone: '+1 (555) 456-7890',
-      email: 'lisa@buildright.com',
-      notes: 'Large-scale construction and renovation projects'
-    }
-  ];
+  // Fetch all data needed for dashboard
+  const { data: vendorsData, isLoading: vendorsLoading } = useQuery<Vendor[]>({
+    queryKey: ['/api/vendors'],
+  });
 
-  const mockProjects = [
-    {
-      id: '1',
-      projectName: 'City Center Mall Renovation',
-      clientName: 'Metro Development Corp',
-      startDate: '2024-01-15',
-      endDate: '2024-06-30'
-    },
-    {
-      id: '2',
-      projectName: 'Hospital Wing Construction',
-      clientName: 'Regional Medical Center',
-      startDate: '2024-03-01',
-      endDate: null
-    },
-    {
-      id: '3',
-      projectName: 'Office Complex Expansion',
-      clientName: 'TechCorp Industries',
-      startDate: '2024-02-01',
-      endDate: '2024-08-15'
-    }
-  ];
-
-  const mockRecentQuotations = [
-    {
-      id: '1',
-      vendorName: 'ABC Construction',
-      projectName: 'City Center Mall Renovation',
-      quotationValue: '45000.00',
-      status: 'Selected' as const,
-      dateOfQuotation: '2024-01-15'
-    },
-    {
-      id: '2',
-      vendorName: 'ElectroTech Solutions',
-      projectName: 'City Center Mall Renovation',
-      quotationValue: '78500.00',
-      status: 'Quoted' as const,
-      dateOfQuotation: '2024-01-18'
-    },
-    {
-      id: '3',
-      vendorName: 'Bright Lights Co',
-      projectName: 'Hospital Wing Construction',
-      quotationValue: '32000.00',
-      status: 'Quoted' as const,
-      dateOfQuotation: '2024-03-05'
-    },
-    {
-      id: '4',
-      vendorName: 'BuildRight Corp',
-      projectName: 'Office Complex Expansion',
-      quotationValue: '67000.00',
-      status: 'Selected' as const,
-      dateOfQuotation: '2024-02-10'
-    }
-  ];
+  const { data: quotationsData, isLoading: quotationsLoading } = useQuery<QuotationsResponse>({
+    queryKey: ['/api/quotations'],
+  });
 
   const handleNavigate = (path: string) => {
     window.location.href = path;
   };
 
+  const isLoading = vendorsLoading || quotationsLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  // Transform vendors to match Dashboard component expectations
+  const vendorsWithCategory: VendorWithCategory[] = (vendorsData || []).map(vendor => ({
+    ...vendor,
+    category: vendor.categoryName || 'Other'
+  }));
+
+  // Create recent quotations from project-vendor relationships
+  const recentQuotations = Object.entries(quotationsData?.quotations || {})
+    .flatMap(([projectId, projectQuotations]) => {
+      const project = quotationsData?.projects.find(p => p.id === projectId);
+      return projectQuotations.map(q => ({
+        ...q,
+        projectName: project?.projectName || 'Unknown Project'
+      }));
+    })
+    .slice(0, 10); // Show latest 10 quotations
+
   return (
     <Dashboard 
-      vendors={mockVendors}
-      projects={mockProjects}
-      recentQuotations={mockRecentQuotations}
+      vendors={vendorsWithCategory}
+      projects={quotationsData?.projects || []}
+      recentQuotations={recentQuotations}
       onNavigate={handleNavigate}
     />
   );
