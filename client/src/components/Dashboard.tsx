@@ -194,7 +194,7 @@ export default function Dashboard({ vendors, projects, recentQuotations, onNavig
           <CardContent className="space-y-4">
             {recentVendors.length > 0 ? (
               recentVendors.map(vendor => (
-                <VendorCard key={vendor.id} vendor={vendor} />
+                <VendorCard key={vendor.id} vendor={vendor} categoryName={vendor.category} />
               ))
             ) : (
               <div className="text-center py-8">
