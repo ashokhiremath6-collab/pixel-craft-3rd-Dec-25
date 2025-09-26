@@ -2,15 +2,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Phone, Mail, User, FileText, Edit, Trash2 } from "lucide-react";
-import type { Vendor } from "@shared/schema";
+import type { Vendor, VendorCategory } from "@shared/schema";
 
 interface VendorCardProps {
   vendor: Vendor;
+  categoryName?: string;
   onEdit?: (vendor: Vendor) => void;
   onDelete?: (vendorId: string) => void;
 }
 
-export default function VendorCard({ vendor, onEdit, onDelete }: VendorCardProps) {
+export default function VendorCard({ vendor, categoryName, onEdit, onDelete }: VendorCardProps) {
   const handleEdit = () => {
     console.log('Edit vendor clicked:', vendor.id);
     onEdit?.(vendor);
@@ -29,7 +30,7 @@ export default function VendorCard({ vendor, onEdit, onDelete }: VendorCardProps
             {vendor.name}
           </CardTitle>
           <Badge variant="secondary" className="mt-1" data-testid="badge-vendor-category">
-            {vendor.category}
+            {categoryName || 'Unknown Category'}
           </Badge>
         </div>
         <div className="flex gap-1">

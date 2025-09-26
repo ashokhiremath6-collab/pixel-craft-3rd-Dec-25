@@ -611,6 +611,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
               <VendorCard
                 key={vendor.id}
                 vendor={vendor}
+                categoryName={categoryMap[vendor.categoryId]?.name}
                 onEdit={onEditVendor}
                 onDelete={onDeleteVendor}
               />
