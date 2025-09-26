@@ -11,13 +11,13 @@ import VendorCard from "./VendorCard";
 import { Search, Plus, Filter, ChevronRight, FolderPlus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { createInsertSchema } from "drizzle-zod";
 import { vendorCategories, insertVendorSchema } from "@shared/schema";
-import type { Vendor, VendorCategory } from "@shared/schema";
+import type { Vendor, VendorCategory, Project } from "@shared/schema";
 
 interface CategoryWithChildren extends VendorCategory {
   children: CategoryWithChildren[];
@@ -31,6 +31,7 @@ const subcategoryFormSchema = baseInsertSchema.extend({
 
 const vendorFormSchema = insertVendorSchema.extend({
   categoryId: z.string().min(1, "Category is required"),
+  projectId: z.string().min(1, "Project is required"),
 });
 
 type SubcategoryFormData = z.infer<typeof subcategoryFormSchema>;
@@ -52,6 +53,11 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Fetch projects for project selection
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: ['/api/projects'],
+  });
   
   const subcategoryForm = useForm<SubcategoryFormData>({
     resolver: zodResolver(subcategoryFormSchema),
@@ -71,6 +77,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       phone: "",
       email: "",
       notes: "",
+      projectId: "",
     },
   });
 
@@ -125,7 +132,8 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   // Create vendor mutation
   const createVendorMutation = useMutation({
     mutationFn: async (data: VendorFormData) => {
-      return apiRequest('POST', '/api/vendors', {
+      // First create the vendor
+      const vendorResponse = await apiRequest('POST', '/api/vendors', {
         name: data.name,
         categoryId: data.categoryId,
         contactPerson: data.contactPerson,
@@ -133,6 +141,17 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
         email: data.email,
         notes: data.notes || null,
       });
+      
+      const vendor = await vendorResponse.json();
+      
+      // Then create the project-vendor relationship
+      await apiRequest('POST', '/api/project-vendors', {
+        projectId: data.projectId,
+        vendorId: vendor.id,
+        status: 'Quoted',
+      });
+      
+      return vendor;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
@@ -422,6 +441,30 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                                   )}
                                   {category.name}
                                 </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={vendorForm.control}
+                    name="projectId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Project</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-vendor-project">
+                              <SelectValue placeholder="Select project" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {projects.map(project => (
+                              <SelectItem key={project.id} value={project.id}>
+                                {project.projectName} - {project.clientName}
                               </SelectItem>
                             ))}
                           </SelectContent>
