@@ -156,10 +156,18 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
       setIsVendorDialogOpen(false);
-      vendorForm.reset();
+      vendorForm.reset({
+        name: "",
+        categoryId: "",
+        contactPerson: "",
+        phone: "",
+        email: "",
+        notes: "",
+        projectId: "",
+      });
       toast({
         title: "Success",
-        description: "Vendor created successfully",
+        description: "Vendor created successfully and linked to project",
       });
     },
     onError: (error) => {
