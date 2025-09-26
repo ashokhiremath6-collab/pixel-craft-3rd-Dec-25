@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import Dashboard from '@/components/Dashboard';
-import type { Vendor, Project } from "@shared/schema";
+import type { Vendor, Project, VendorCategory } from "@shared/schema";
 
 interface VendorWithCategory extends Omit<Vendor, 'categoryName'> {
   category: string;
@@ -29,6 +29,10 @@ export default function DashboardPage() {
     queryKey: ['/api/vendors'],
   });
 
+  const { data: categoriesData, isLoading: categoriesLoading } = useQuery<VendorCategory[]>({
+    queryKey: ['/api/vendor-categories/tree'],
+  });
+
   const { data: quotationsData, isLoading: quotationsLoading } = useQuery<QuotationsResponse>({
     queryKey: ['/api/quotations'],
   });
@@ -37,7 +41,7 @@ export default function DashboardPage() {
     window.location.href = path;
   };
 
-  const isLoading = vendorsLoading || quotationsLoading;
+  const isLoading = vendorsLoading || quotationsLoading || categoriesLoading;
 
   if (isLoading) {
     return (
@@ -47,10 +51,16 @@ export default function DashboardPage() {
     );
   }
 
+  // Create category lookup map
+  const categoryMap = (categoriesData || []).reduce((acc, category) => {
+    acc[category.id] = category.name;
+    return acc;
+  }, {} as Record<string, string>);
+
   // Transform vendors to match Dashboard component expectations
   const vendorsWithCategory: VendorWithCategory[] = (vendorsData || []).map(vendor => ({
     ...vendor,
-    category: vendor.categoryName || 'Other'
+    category: categoryMap[vendor.categoryId] || 'Unknown Category'
   }));
 
   // Create recent quotations from project-vendor relationships
