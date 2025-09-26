@@ -115,6 +115,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/vendors-with-projects", async (req, res) => {
+    try {
+      const vendorsWithProjects = await storage.getVendorsWithProjects();
+      res.json(vendorsWithProjects);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch vendors with projects" });
+    }
+  });
+
   app.get("/api/vendors/category/:categoryId", async (req, res) => {
     try {
       const vendors = await storage.getVendorsByCategory(req.params.categoryId);

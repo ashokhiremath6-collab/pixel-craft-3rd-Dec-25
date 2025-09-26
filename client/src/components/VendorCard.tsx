@@ -1,11 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, Mail, User, FileText, Edit, Trash2 } from "lucide-react";
+import { Phone, Mail, User, FileText, Edit, Trash2, Building2 } from "lucide-react";
 import type { Vendor, VendorCategory } from "@shared/schema";
 
 interface VendorCardProps {
-  vendor: Vendor;
+  vendor: Vendor & { projects?: Array<{ projectId: string; projectName: string; clientName: string; status: string }> };
   categoryName?: string;
   onEdit?: (vendor: Vendor) => void;
   onDelete?: (vendorId: string) => void;
@@ -69,6 +69,31 @@ export default function VendorCard({ vendor, categoryName, onEdit, onDelete }: V
           <div className="flex items-start gap-2 text-sm text-muted-foreground">
             <FileText className="h-4 w-4 mt-0.5" />
             <span data-testid="text-notes">{vendor.notes}</span>
+          </div>
+        )}
+        {vendor.projects && vendor.projects.length > 0 && (
+          <div className="pt-2 border-t">
+            <div className="flex items-center gap-2 text-sm font-medium mb-2">
+              <Building2 className="h-4 w-4" />
+              <span>Associated Projects</span>
+            </div>
+            <div className="space-y-1">
+              {vendor.projects.map((project, index) => (
+                <div key={project.projectId} className="text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-foreground" data-testid={`text-project-name-${index}`}>
+                      {project.projectName}
+                    </span>
+                    <Badge variant={project.status === 'Selected' ? 'default' : 'secondary'} className="text-xs">
+                      {project.status}
+                    </Badge>
+                  </div>
+                  <span className="text-muted-foreground" data-testid={`text-client-name-${index}`}>
+                    {project.clientName}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </CardContent>

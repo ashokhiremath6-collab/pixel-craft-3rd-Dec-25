@@ -13,9 +13,9 @@ export default function VendorsPage() {
     queryKey: ['/api/vendor-categories/tree'],
   });
 
-  // Fetch vendors  
-  const { data: vendors = [], isLoading } = useQuery<Vendor[]>({
-    queryKey: ['/api/vendors'],
+  // Fetch vendors with project information
+  const { data: vendors = [], isLoading } = useQuery<Array<Vendor & { projects: Array<{ projectId: string; projectName: string; clientName: string; status: string }> }>>({
+    queryKey: ['/api/vendors-with-projects'],
   });
 
   // Delete vendor mutation
@@ -24,6 +24,7 @@ export default function VendorsPage() {
       return apiRequest('DELETE', `/api/vendors/${vendorId}`);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors-with-projects'] });
       queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
       toast({
         title: "Success",

@@ -584,6 +584,39 @@ export class DBStorage implements IStorage {
     return await db.select().from(vendors).where(inArray(vendors.categoryId, categoryIds));
   }
 
+  async getVendorsWithProjects(): Promise<Array<Vendor & { projects: Array<{ projectId: string; projectName: string; clientName: string; status: string }> }>> {
+    const allVendors = await db.select().from(vendors);
+    const allProjectVendors = await db.select().from(projectVendors);
+    const allProjects = await db.select().from(projects);
+    
+    // Create project lookup map
+    const projectMap = new Map(allProjects.map(p => [p.id, p]));
+    
+    // Group project vendors by vendor ID
+    const vendorProjectsMap = new Map<string, Array<{ projectId: string; projectName: string; clientName: string; status: string }>>();
+    
+    allProjectVendors.forEach(pv => {
+      const project = projectMap.get(pv.projectId);
+      if (project) {
+        if (!vendorProjectsMap.has(pv.vendorId)) {
+          vendorProjectsMap.set(pv.vendorId, []);
+        }
+        vendorProjectsMap.get(pv.vendorId)!.push({
+          projectId: project.id,
+          projectName: project.projectName,
+          clientName: project.clientName,
+          status: pv.status
+        });
+      }
+    });
+    
+    // Combine vendors with their projects
+    return allVendors.map(vendor => ({
+      ...vendor,
+      projects: vendorProjectsMap.get(vendor.id) || []
+    }));
+  }
+
   async createVendor(vendor: InsertVendor): Promise<Vendor> {
     const result = await db.insert(vendors).values(vendor).returning();
     return result[0];
