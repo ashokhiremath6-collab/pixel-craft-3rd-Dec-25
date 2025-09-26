@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
+import pdfParse from "pdf-parse";
 import fs from "fs";
 import path from "path";
 import { storage } from "./storage";
@@ -411,7 +412,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Helper function to parse Excel/CSV files
+  // Helper function to extract quote data from PDF text
+  const extractQuoteDataFromPDF = (pdfText: string) => {
+    const lines = pdfText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    const extractedData: any[] = [];
+    
+    // Common patterns for quote extraction
+    const patterns = {
+      // Match amounts/prices: $100, ₹1,000, 100.00, etc.
+      amount: /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/g,
+      // Match quantities: 5 nos, 10 units, 2.5 sq ft, etc.
+      quantity: /(\d+(?:\.\d+)?)\s*(nos?|units?|pieces?|sq\s*ft|sq\s*m|kg|meter?s?|hrs?|days?)/gi,
+      // Match line items (description followed by amount)
+      lineItem: /^(.+?)\s+(?:₹|Rs\.?|\$)?\s*([0-9,]+(?:\.[0-9]{2})?)$/,
+      // Match table-like data with multiple columns
+      tableRow: /^(.+?)\s+(\d+(?:\.\d+)?)\s+(.+?)\s+([0-9,]+(?:\.[0-9]{2})?)(?:\s+([0-9,]+(?:\.[0-9]{2})?))?$/
+    };
+    
+    let currentSection = '';
+    let itemCounter = 1;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Skip headers and common quote document sections
+      if (line.toLowerCase().includes('quotation') || 
+          line.toLowerCase().includes('estimate') ||
+          line.toLowerCase().includes('bill of quantities') ||
+          line.toLowerCase().includes('boq')) {
+        currentSection = line;
+        continue;
+      }
+      
+      // Try to match table-like rows (item, qty, unit, rate, amount)
+      const tableMatch = line.match(patterns.tableRow);
+      if (tableMatch) {
+        const [, description, quantity, unit, unitRate, totalAmount] = tableMatch;
+        
+        extractedData.push({
+          'description': description.trim(),
+          'quantity': parseFloat(quantity) || 1,
+          'unit': unit.trim() || 'unit',
+          'unit rate': parseFloat(unitRate.replace(/,/g, '')) || 0,
+          'amount': parseFloat((totalAmount || unitRate).replace(/,/g, '')) || 0,
+          'category': currentSection || 'General'
+        });
+        continue;
+      }
+      
+      // Try to match simple line items (description + amount)
+      const lineItemMatch = line.match(patterns.lineItem);
+      if (lineItemMatch) {
+        const [, description, amount] = lineItemMatch;
+        
+        // Skip if description is too short or looks like a header
+        if (description.length < 5 || 
+            description.toLowerCase().includes('total') ||
+            description.toLowerCase().includes('subtotal')) {
+          continue;
+        }
+        
+        extractedData.push({
+          'description': description.trim(),
+          'quantity': 1,
+          'unit': 'unit',
+          'unit rate': parseFloat(amount.replace(/,/g, '')) || 0,
+          'amount': parseFloat(amount.replace(/,/g, '')) || 0,
+          'category': currentSection || 'General'
+        });
+        continue;
+      }
+      
+      // Look for quantity and amount patterns in the same line
+      const quantityMatches = [...line.matchAll(patterns.quantity)];
+      const amountMatches = [...line.matchAll(patterns.amount)];
+      
+      if (quantityMatches.length > 0 && amountMatches.length > 0) {
+        // Extract description (text before quantity)
+        const qtyMatch = quantityMatches[0];
+        const amtMatch = amountMatches[amountMatches.length - 1]; // Use last amount match
+        
+        const qtyIndex = line.indexOf(qtyMatch[0]);
+        const description = line.substring(0, qtyIndex).trim();
+        
+        if (description.length > 3) {
+          extractedData.push({
+            'description': description,
+            'quantity': parseFloat(qtyMatch[1]) || 1,
+            'unit': qtyMatch[2] || 'unit',
+            'unit rate': parseFloat(amtMatch[1].replace(/,/g, '')) || 0,
+            'amount': parseFloat(amtMatch[1].replace(/,/g, '')) || 0,
+            'category': currentSection || 'General'
+          });
+        }
+      }
+    }
+    
+    // If no structured data found, create a single item with the total quote
+    if (extractedData.length === 0) {
+      const amounts = [];
+      for (const line of lines) {
+        const matches = [...line.matchAll(patterns.amount)];
+        amounts.push(...matches.map(m => parseFloat(m[1].replace(/,/g, ''))));
+      }
+      
+      if (amounts.length > 0) {
+        const maxAmount = Math.max(...amounts);
+        extractedData.push({
+          'description': 'PDF Quote - Imported from document',
+          'quantity': 1,
+          'unit': 'lump sum',
+          'unit rate': maxAmount,
+          'amount': maxAmount,
+          'category': 'General'
+        });
+      }
+    }
+    
+    return extractedData;
+  };
+
+  // Helper function to parse Excel/CSV/PDF files
   const parseQuoteFile = async (filePath: string, mimeType: string) => {
     try {
       if (mimeType.includes('csv')) {
@@ -446,6 +567,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           return obj;
         }).filter(row => Object.values(row).some(val => val !== ''));
+      } else if (mimeType.includes('pdf') || filePath.toLowerCase().endsWith('.pdf')) {
+        // Parse PDF file
+        const pdfBuffer = fs.readFileSync(filePath);
+        const pdfData = await pdfParse(pdfBuffer);
+        const text = pdfData.text;
+        
+        // Extract quote information using pattern matching
+        return extractQuoteDataFromPDF(text);
       }
       
       return [];

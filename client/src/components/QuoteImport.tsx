@@ -104,14 +104,15 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
     const allowedTypes = [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-excel',
-      'text/csv'
+      'text/csv',
+      'application/pdf'
     ];
     
     if (!allowedTypes.includes(file.type)) {
       toast({
         variant: "destructive",
         title: "Invalid file type",
-        description: "Please upload an Excel (.xlsx, .xls) or CSV file.",
+        description: "Please upload an Excel (.xlsx, .xls), CSV, or PDF file.",
       });
       return;
     }
@@ -181,7 +182,7 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
             Import Quote
           </CardTitle>
           <CardDescription>
-            Upload Excel or CSV files to import quotations with BOQ details
+            Upload Excel, CSV, or PDF files to import quotations with BOQ details
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -228,7 +229,7 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
                     Drag and drop your quote file here
                   </p>
                   <p className="text-muted-foreground">
-                    or click to browse for Excel (.xlsx, .xls) or CSV files
+                    or click to browse for Excel (.xlsx, .xls), CSV, or PDF files
                   </p>
                 </div>
                 <Button
@@ -242,7 +243,7 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
                   ref={fileInputRef}
                   type="file"
                   className="hidden"
-                  accept=".xlsx,.xls,.csv"
+                  accept=".xlsx,.xls,.csv,.pdf"
                   onChange={handleFileInputChange}
                   data-testid="input-file-hidden"
                 />
