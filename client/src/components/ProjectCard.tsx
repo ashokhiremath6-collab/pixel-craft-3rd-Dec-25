@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Building, Edit, Eye } from "lucide-react";
+import { Calendar, Building, Edit, Eye, Trash2 } from "lucide-react";
 import type { Project } from "@shared/schema";
 
 interface ProjectCardProps {
@@ -9,9 +9,10 @@ interface ProjectCardProps {
   vendorCount?: number;
   onEdit?: (project: Project) => void;
   onView?: (project: Project) => void;
+  onDelete?: (project: Project) => void;
 }
 
-export default function ProjectCard({ project, vendorCount = 0, onEdit, onView }: ProjectCardProps) {
+export default function ProjectCard({ project, vendorCount = 0, onEdit, onView, onDelete }: ProjectCardProps) {
   const handleEdit = () => {
     console.log('Edit project clicked:', project.id);
     onEdit?.(project);
@@ -20,6 +21,11 @@ export default function ProjectCard({ project, vendorCount = 0, onEdit, onView }
   const handleView = () => {
     console.log('View project clicked:', project.id);
     onView?.(project);
+  };
+
+  const handleDelete = () => {
+    console.log('Delete project clicked:', project.id);
+    onDelete?.(project);
   };
 
   const formatDate = (dateString: string | null) => {
@@ -69,6 +75,15 @@ export default function ProjectCard({ project, vendorCount = 0, onEdit, onView }
             data-testid="button-edit-project"
           >
             <Edit className="h-4 w-4" />
+          </Button>
+          <Button 
+            size="icon" 
+            variant="ghost" 
+            onClick={handleDelete}
+            data-testid="button-delete-project"
+            className="text-destructive hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
           </Button>
         </div>
       </CardHeader>

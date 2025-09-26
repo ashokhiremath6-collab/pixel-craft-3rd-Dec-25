@@ -31,9 +31,10 @@ interface ProjectViewProps {
   onAddProject?: () => void;
   onEditProject?: (project: Project) => void;
   onViewProject?: (project: Project) => void;
+  onDeleteProject?: (project: Project) => void;
 }
 
-export default function ProjectView({ projects, quotations, onAddProject, onEditProject, onViewProject }: ProjectViewProps) {
+export default function ProjectView({ projects, quotations, onAddProject, onEditProject, onViewProject, onDeleteProject }: ProjectViewProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
@@ -116,6 +117,7 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
                   vendorCount={project.vendorCount}
                   onEdit={onEditProject}
                   onView={onViewProject}
+                  onDelete={onDeleteProject}
                 />
               </div>
             ))}

@@ -4,7 +4,8 @@ import ProjectView from '@/components/ProjectView';
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
@@ -37,6 +38,7 @@ export default function ProjectsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [deletingProject, setDeletingProject] = useState<Project | null>(null);
 
   // Fetch quotations data which includes projects and their vendor relationships
   const { data: quotationsData, isLoading } = useQuery<QuotationsResponse>({
@@ -80,6 +82,30 @@ export default function ProjectsPage() {
     },
   });
 
+  // Delete mutation
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest(`/api/projects/${id}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
+      setDeletingProject(null);
+      toast({
+        title: "Success",
+        description: "Project deleted successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete project",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Transform projects to include vendor counts
   const projectsWithCounts: ProjectData[] = (quotationsData?.projects || []).map(project => ({
     ...project,
@@ -112,6 +138,19 @@ export default function ProjectsPage() {
     });
   };
 
+  const handleDeleteProject = (project: Project) => {
+    setDeletingProject(project);
+  };
+
+  const confirmDeleteProject = () => {
+    if (!deletingProject) return;
+    deleteProjectMutation.mutate(deletingProject.id);
+  };
+
+  const cancelDeleteProject = () => {
+    setDeletingProject(null);
+  };
+
   const onSubmitEdit = (data: InsertProject) => {
     if (!editingProject) return;
     updateProjectMutation.mutate({
@@ -141,6 +180,7 @@ export default function ProjectsPage() {
         onAddProject={handleAddProject}
         onEditProject={handleEditProject}
         onViewProject={handleViewProject}
+        onDeleteProject={handleDeleteProject}
       />
 
       {/* Edit Project Dialog */}
@@ -240,6 +280,30 @@ export default function ProjectsPage() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingProject} onOpenChange={cancelDeleteProject}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the project "{deletingProject?.projectName}"? 
+              This action cannot be undone and will remove all associated vendor relationships and quotations.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteProject}
+              disabled={deleteProjectMutation.isPending}
+              data-testid="button-confirm-delete"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteProjectMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
