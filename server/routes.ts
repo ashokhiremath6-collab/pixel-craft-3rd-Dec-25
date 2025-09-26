@@ -287,8 +287,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: pv.id,
             vendorName: vendor.name,
             category: category.name,
-            quotationValue: pv.quotationValue || "0.00",
-            dateOfQuotation: pv.dateOfQuotation || new Date().toISOString().split('T')[0],
+            quotationValue: pv.quotationValue,
+            dateOfQuotation: pv.dateOfQuotation,
             status: pv.status,
             quotationFile: pv.quotationFile,
             notes: pv.notes,
@@ -778,8 +778,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Helper function to calculate variance percentage
-  const calculateVariance = (value: string, average: number) => {
+  const calculateVariance = (value: string | null | undefined, average: number) => {
+    if (!value || average === 0) return 0;
     const quotationValue = parseFloat(value);
+    if (isNaN(quotationValue)) return 0;
     return ((quotationValue - average) / average) * 100;
   };
 
@@ -793,10 +795,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       id: z.string().max(50),
       vendorName: z.string().max(200),
       category: z.string().max(100),
-      quotationValue: z.string().max(20),
-      dateOfQuotation: z.string().max(50),
+      quotationValue: z.string().max(20).nullable(),
+      dateOfQuotation: z.string().max(50).nullable(),
       status: z.enum(["Quoted", "Selected", "Rejected"]),
-      quotationFile: z.string().max(500).optional(),
+      quotationFile: z.string().max(500).optional().nullable(),
       notes: z.string().max(1000).optional(),
       projectId: z.string().max(50),
       projectName: z.string().max(200)
@@ -828,6 +830,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const calculateGroupAverage = (quotations: any[]) => {
     if (quotations.length === 0) return 0;
     const sum = quotations.reduce((acc, q) => {
+      if (!q.quotationValue) return acc;
       const value = parseFloat(q.quotationValue);
       return acc + (isNaN(value) ? 0 : value);
     }, 0);
@@ -885,8 +888,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const serverAverage = calculateGroupAverage(group.quotations);
         
         group.quotations.forEach((quotation) => {
-          const quotationValue = parseFloat(quotation.quotationValue);
-          if (isNaN(quotationValue)) {
+          const quotationValue = quotation.quotationValue ? parseFloat(quotation.quotationValue) : 0;
+          if (quotation.quotationValue && isNaN(quotationValue)) {
             console.warn(`Invalid quotation value: ${quotation.quotationValue} for quotation ${quotation.id}`);
             return; // Skip invalid records
           }
@@ -993,10 +996,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: z.string().max(50),
           vendorName: z.string().max(200),
           category: z.string().max(100),
-          quotationValue: z.string().max(20),
-          dateOfQuotation: z.string().max(50),
+          quotationValue: z.string().max(20).nullable(),
+          dateOfQuotation: z.string().max(50).nullable(),
           status: z.enum(["Quoted", "Selected", "Rejected"]),
-          quotationFile: z.string().max(500),
+          quotationFile: z.string().max(500).optional().nullable(),
           notes: z.string().max(1000),
           projectName: z.string().max(200),
           projectId: z.string().max(50)
@@ -1012,8 +1015,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { quotation } = parsed;
 
       // Prepare export data for individual quote
-      const quotationValue = parseFloat(quotation.quotationValue);
-      if (isNaN(quotationValue)) {
+      const quotationValue = quotation.quotationValue ? parseFloat(quotation.quotationValue) : 0;
+      if (quotation.quotationValue && isNaN(quotationValue)) {
         return res.status(400).json({ error: "Invalid quotation value" });
       }
 

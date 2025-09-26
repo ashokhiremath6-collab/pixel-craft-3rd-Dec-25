@@ -15,8 +15,8 @@ interface QuotationData {
   id: string;
   vendorName: string;
   category: string;
-  quotationValue: string;
-  dateOfQuotation: string;
+  quotationValue: string | null | undefined;
+  dateOfQuotation: string | null | undefined;
   status: "Quoted" | "Selected" | "Rejected";
   quotationFile?: string;
   notes?: string;
@@ -80,8 +80,8 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
           id: quotation.id,
           vendorName: quotation.vendorName,
           category: quotation.category,
-          quotationValue: quotation.quotationValue,
-          dateOfQuotation: quotation.dateOfQuotation,
+          quotationValue: quotation.quotationValue || '',
+          dateOfQuotation: quotation.dateOfQuotation || '',
           status: quotation.status,
           quotationFile: quotation.quotationFile || '',
           notes: quotation.notes || '',
@@ -266,12 +266,17 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
 
   const getAverageQuote = (categoryQuotations: typeof filteredQuotations) => {
     if (categoryQuotations.length === 0) return 0;
-    const sum = categoryQuotations.reduce((acc, q) => acc + parseFloat(q.quotationValue), 0);
+    const sum = categoryQuotations.reduce((acc, q) => {
+      const value = q.quotationValue ? parseFloat(q.quotationValue) : 0;
+      return acc + value;
+    }, 0);
     return sum / categoryQuotations.length;
   };
 
-  const getQuoteVariance = (value: string, average: number) => {
+  const getQuoteVariance = (value: string | null | undefined, average: number) => {
+    if (!value || average === 0) return 0;
     const quotationValue = parseFloat(value);
+    if (isNaN(quotationValue)) return 0;
     return ((quotationValue - average) / average) * 100;
   };
 
@@ -485,7 +490,11 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
       {Object.entries(groupedData).map(([key, group]) => {
         const average = getAverageQuote(group.quotations);
         const sortedQuotations = [...group.quotations].sort((a, b) => 
-          parseFloat(a.quotationValue) - parseFloat(b.quotationValue)
+          {
+            const aValue = a.quotationValue ? parseFloat(a.quotationValue) : 0;
+            const bValue = b.quotationValue ? parseFloat(b.quotationValue) : 0;
+            return aValue - bValue;
+          }
         );
 
         return (
@@ -541,7 +550,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         <TableCell data-testid="text-quotation-value">
                           <div className="flex items-center gap-2">
                             <span className="font-mono font-semibold">
-                              {formatCurrency(quotation.quotationValue)}
+                              {quotation.quotationValue ? formatCurrency(quotation.quotationValue) : <span className="text-muted-foreground">No quote</span>}
                             </span>
                             {isLowest && (
                               <Badge variant="outline" className="text-green-600 border-green-200">
@@ -568,7 +577,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         </TableCell>
                         
                         <TableCell data-testid="text-quotation-date">
-                          {new Date(quotation.dateOfQuotation).toLocaleDateString()}
+                          {quotation.dateOfQuotation ? new Date(quotation.dateOfQuotation).toLocaleDateString() : <span className="text-muted-foreground">No date</span>}
                         </TableCell>
                         
                         <TableCell data-testid="cell-status">
