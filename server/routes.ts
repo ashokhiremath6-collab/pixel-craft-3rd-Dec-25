@@ -392,7 +392,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Configure multer for file uploads
   const upload = multer({
-    dest: 'uploads/',
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        // Ensure uploads directory exists
+        if (!fs.existsSync('uploads')) {
+          fs.mkdirSync('uploads', { recursive: true });
+        }
+        cb(null, 'uploads/');
+      },
+      filename: (req, file, cb) => {
+        // Keep original extension for proper file serving
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, uniqueSuffix + ext);
+      }
+    }),
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB limit
       files: 1, // Only allow single file upload
