@@ -294,6 +294,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete a project vendor
+  app.delete("/api/project-vendors/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteProjectVendor(req.params.id);
+      if (success) {
+        res.json({ message: "Project vendor deleted successfully" });
+      } else {
+        res.status(404).json({ error: "Project vendor not found" });
+      }
+    } catch (error) {
+      console.error('Error deleting project vendor:', error);
+      res.status(500).json({ error: "Failed to delete project vendor" });
+    }
+  });
+
   // Quotations API - aggregated data for comparative quotes
   app.get("/api/quotations", async (req, res) => {
     try {

@@ -7,7 +7,9 @@ import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@
 import { Badge } from "@/components/ui/badge";
 import StatusBadge from "./StatusBadge";
 import QuoteDetailModal from "./QuoteDetailModal";
-import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, Download, FileSpreadsheet, FileText, Loader2, Eye } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Project, VendorCategory } from "@shared/schema";
 import { formatCurrencyCompact, formatVendorNameWithCategory } from "@/lib/currencyUtils";
@@ -68,6 +70,34 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     setIsModalOpen(false);
     setSelectedQuoteId(null);
     setModalData(null);
+  };
+
+  // Handle quote deletion
+  const handleDeleteQuote = async (quotationId: string, vendorName: string) => {
+    try {
+      const response = await fetch(`/api/project-vendors/${quotationId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete quote');
+      }
+      
+      // Invalidate the quotations cache to refresh the data
+      queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
+      
+      toast({
+        title: "Quote deleted",
+        description: `Quote from ${vendorName} has been deleted successfully.`,
+      });
+    } catch (error) {
+      console.error('Error deleting quote:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete quote. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Handle individual quote export
@@ -625,6 +655,35 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                 Reject
                               </Button>
                             )}
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-red-600 hover:text-red-700"
+                                  data-testid={`button-delete-quote-${quotation.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Quote</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete the quote from {quotation.vendorName}? This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteQuote(quotation.id, quotation.vendorName)}
+                                    className="bg-red-600 hover:bg-red-700"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
