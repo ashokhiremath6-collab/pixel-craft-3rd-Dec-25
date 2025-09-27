@@ -706,34 +706,34 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                 </TableHeader>
                 <TableBody>
                   {categoryVendors.map(vendor => (
-                    <TableRow key={vendor.id} data-testid={`vendor-row-${vendor.id}`}>
-                      <TableCell className="font-medium">
+                    <TableRow key={vendor.id} data-testid={`vendor-row-${vendor.id}`} className="h-12">
+                      <TableCell className="font-medium py-2">
                         <div>
                           <span data-testid="text-vendor-name">{vendor.name}</span>
-                          <div className="text-xs text-muted-foreground mt-1">
+                          <div className="text-xs text-muted-foreground">
                             {categoryMap[vendor.categoryId]?.name || 'Unknown Category'}
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
                         <div className="flex items-center gap-2">
                           <User className="h-3 w-3 text-muted-foreground" />
                           <span data-testid="text-contact-person">{vendor.contactPerson}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
                         <div className="flex items-center gap-2">
                           <Phone className="h-3 w-3 text-muted-foreground" />
                           <span data-testid="text-phone">{vendor.phone}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
                         <div className="flex items-center gap-2">
                           <Mail className="h-3 w-3 text-muted-foreground" />
                           <span data-testid="text-email" className="text-sm">{vendor.email}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
                         {vendor.projects && vendor.projects.length > 0 ? (
                           <div className="space-y-1">
                             {vendor.projects.slice(0, 2).map((project, index) => (
@@ -765,7 +765,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                           <span className="text-sm text-muted-foreground">No projects</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right py-2">
                         <div className="flex gap-1 justify-end">
                           <Button 
                             size="icon" 
