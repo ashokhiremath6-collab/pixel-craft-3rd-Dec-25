@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { ArrowLeft, FileText, Activity, Calendar, User, MoreHorizontal, Download } from "lucide-react";
 import { Link } from "wouter";
 import { QuoteTemplate } from "@shared/schema";
+import { getTemplateDisplayName } from "@/lib/templateUtils";
 
 export default function TemplateViewPage() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +17,30 @@ export default function TemplateViewPage() {
     queryKey: ['/api/quote-templates', id],
     enabled: !!id
   });
+
+  // Fetch categories to get category name for consistent naming
+  const { data: categories = [] } = useQuery({
+    queryKey: ['/api/vendor-categories/tree'],
+    enabled: !!template?.categoryId
+  });
+
+  // Find the category name for this template
+  const getCategoryName = (categoryId: string, categories: any[]): string => {
+    if (!Array.isArray(categories)) return '';
+    for (const category of categories) {
+      if (category.id === categoryId) return category.name;
+      if (category.children) {
+        const found = getCategoryName(categoryId, category.children);
+        if (found) return found;
+      }
+    }
+    return '';
+  };
+
+  const categoryName = template?.categoryId && Array.isArray(categories) 
+    ? getCategoryName(template.categoryId, categories) 
+    : '';
+  const displayName = categoryName ? getTemplateDisplayName(template?.name || '', categoryName) : template?.name || '';
 
   if (isLoading) {
     return (
@@ -66,7 +91,7 @@ export default function TemplateViewPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold" data-testid="heading-template-name">
-              {template.name}
+              {displayName}
             </h1>
             <p className="text-muted-foreground">
               Template Details and Content
@@ -85,7 +110,7 @@ export default function TemplateViewPage() {
               const downloadUrl = `/api/quote-templates/${template.id}/download`;
               const link = document.createElement('a');
               link.href = downloadUrl;
-              link.download = `${template.name}.xlsx`;
+              link.download = `${displayName}.xlsx`;
               document.body.appendChild(link);
               link.click();
               document.body.removeChild(link);
@@ -104,11 +129,11 @@ export default function TemplateViewPage() {
             <CardTitle className="text-lg flex items-center gap-2">
               <Activity className="h-4 w-4" />
               Excel Data
-              {isSpreadsheetTemplate && (
+              {isSpreadsheetTemplate ? (
                 <Badge variant="secondary" className="text-xs">
                   {(template.fields as any).rowCount || 0} rows × {(template.fields as any).columnCount || 0} columns
                 </Badge>
-              )}
+              ) : null}
             </CardTitle>
             <CardDescription>
               Original Excel file content displayed in spreadsheet format
