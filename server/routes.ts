@@ -630,7 +630,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
-      res.json(project);
+      
+      const userRole = req.session.userRole;
+      const userId = req.session.userId!;
+      
+      if (userRole === 'designer') {
+        // Designers can see all projects
+        res.json(project);
+      } else if (userRole === 'client') {
+        // Clients can only see projects assigned to their email
+        const user = await storage.getUser(userId);
+        if (!user || project.clientEmail !== user.email) {
+          return res.status(403).json({ error: "Access denied to this project" });
+        }
+        res.json(project);
+      } else {
+        res.status(403).json({ error: "Invalid role" });
+      }
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch project" });
     }
@@ -674,8 +690,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Project Vendors Routes
   app.get("/api/project-vendors", requireAuth, async (req, res) => {
     try {
-      const projectVendors = await storage.getAllProjectVendors();
-      res.json(projectVendors);
+      const userRole = req.session.userRole;
+      const userId = req.session.userId!;
+      
+      if (userRole === 'designer') {
+        // Designers can see all project vendors
+        const projectVendors = await storage.getAllProjectVendors();
+        res.json(projectVendors);
+      } else if (userRole === 'client') {
+        // Clients can only see project vendors for their accessible projects
+        const user = await storage.getUser(userId);
+        if (!user) {
+          return res.status(401).json({ error: "User not found" });
+        }
+        
+        const allProjectVendors = await storage.getAllProjectVendors();
+        const allProjects = await storage.getAllProjects();
+        const accessibleProjects = allProjects.filter(project => 
+          project.clientEmail === user.email
+        );
+        const accessibleProjectIds = new Set(accessibleProjects.map(p => p.id));
+        
+        const clientProjectVendors = allProjectVendors.filter(pv => 
+          accessibleProjectIds.has(pv.projectId)
+        );
+        res.json(clientProjectVendors);
+      } else {
+        res.status(403).json({ error: "Invalid role" });
+      }
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch project vendors" });
     }
@@ -683,8 +725,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/project-vendors/project/:projectId", requireAuth, async (req, res) => {
     try {
-      const projectVendors = await storage.getProjectVendors(req.params.projectId);
-      res.json(projectVendors);
+      const userRole = req.session.userRole;
+      const userId = req.session.userId!;
+      const projectId = req.params.projectId;
+      
+      if (userRole === 'designer') {
+        // Designers can access all project vendors
+        const projectVendors = await storage.getProjectVendors(projectId);
+        res.json(projectVendors);
+      } else if (userRole === 'client') {
+        // Clients can only access project vendors for their assigned projects
+        const user = await storage.getUser(userId);
+        if (!user) {
+          return res.status(401).json({ error: "User not found" });
+        }
+        
+        const project = await storage.getProject(projectId);
+        if (!project || project.clientEmail !== user.email) {
+          return res.status(403).json({ error: "Access denied to this project" });
+        }
+        
+        const projectVendors = await storage.getProjectVendors(projectId);
+        res.json(projectVendors);
+      } else {
+        res.status(403).json({ error: "Invalid role" });
+      }
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch project vendors" });
     }
@@ -1628,8 +1693,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get BOQ items for a project vendor (protected)
   app.get("/api/project-vendors/:id/boq", requireAuth, async (req, res) => {
     try {
-      const boqItems = await storage.getBOQByProjectVendor(req.params.id);
-      res.json(boqItems);
+      const userRole = req.session.userRole;
+      const userId = req.session.userId!;
+      const projectVendorId = req.params.id;
+      
+      if (userRole === 'designer') {
+        // Designers can access all BOQ data
+        const boqItems = await storage.getBOQByProjectVendor(projectVendorId);
+        res.json(boqItems);
+      } else if (userRole === 'client') {
+        // Clients can only access BOQ for their assigned projects
+        const user = await storage.getUser(userId);
+        if (!user) {
+          return res.status(401).json({ error: "User not found" });
+        }
+        
+        // Get project vendor to check project ownership
+        const allProjectVendors = await storage.getAllProjectVendors();
+        const projectVendor = allProjectVendors.find(pv => pv.id === projectVendorId);
+        if (!projectVendor) {
+          return res.status(404).json({ error: "Project vendor not found" });
+        }
+        
+        const project = await storage.getProject(projectVendor.projectId);
+        if (!project || project.clientEmail !== user.email) {
+          return res.status(403).json({ error: "Access denied to this project's BOQ" });
+        }
+        
+        const boqItems = await storage.getBOQByProjectVendor(projectVendorId);
+        res.json(boqItems);
+      } else {
+        res.status(403).json({ error: "Invalid role" });
+      }
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch BOQ items" });
     }
@@ -1638,8 +1733,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get quote files for a project vendor (protected)
   app.get("/api/project-vendors/:id/files", requireAuth, async (req, res) => {
     try {
-      const files = await storage.getQuoteFilesByProjectVendor(req.params.id);
-      res.json(files);
+      const userRole = req.session.userRole;
+      const userId = req.session.userId!;
+      const projectVendorId = req.params.id;
+      
+      if (userRole === 'designer') {
+        // Designers can access all quote files
+        const files = await storage.getQuoteFilesByProjectVendor(projectVendorId);
+        res.json(files);
+      } else if (userRole === 'client') {
+        // Clients can only access quote files for their assigned projects
+        const user = await storage.getUser(userId);
+        if (!user) {
+          return res.status(401).json({ error: "User not found" });
+        }
+        
+        // Get project vendor to check project ownership
+        const allProjectVendors = await storage.getAllProjectVendors();
+        const projectVendor = allProjectVendors.find(pv => pv.id === projectVendorId);
+        if (!projectVendor) {
+          return res.status(404).json({ error: "Project vendor not found" });
+        }
+        
+        const project = await storage.getProject(projectVendor.projectId);
+        if (!project || project.clientEmail !== user.email) {
+          return res.status(403).json({ error: "Access denied to this project's files" });
+        }
+        
+        const files = await storage.getQuoteFilesByProjectVendor(projectVendorId);
+        res.json(files);
+      } else {
+        res.status(403).json({ error: "Invalid role" });
+      }
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch quote files" });
     }
