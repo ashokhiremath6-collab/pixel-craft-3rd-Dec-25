@@ -472,21 +472,21 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold" data-testid="heading-comparative-quotes">
+          <h1 className="text-xl font-semibold" data-testid="heading-comparative-quotes">
             Comparative Quotes
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Compare vendor quotations side-by-side by project and category
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">
               {Object.keys(groupedData).length} comparison groups
             </span>
           </div>
@@ -540,15 +540,15 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
 
       {/* Filters */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Filters</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
+        <CardContent className="pt-0">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
-              <label className="text-sm font-medium mb-2 block">Project</label>
+              <label className="text-xs font-medium mb-1 block">Project</label>
               <Select value={selectedProject} onValueChange={handleProjectFilter}>
-                <SelectTrigger data-testid="select-project-filter">
+                <SelectTrigger data-testid="select-project-filter" className="h-8">
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
                 <SelectContent>
@@ -563,9 +563,9 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
             </div>
             
             <div className="flex-1">
-              <label className="text-sm font-medium mb-2 block">Category</label>
+              <label className="text-xs font-medium mb-1 block">Category</label>
               <Select value={selectedCategory} onValueChange={handleCategoryFilter}>
-                <SelectTrigger data-testid="select-category-filter">
+                <SelectTrigger data-testid="select-category-filter" className="h-8">
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent>
@@ -602,13 +602,13 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
 
         return (
           <Card key={key} className="" data-testid={`comparison-group-${key}`}>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-lg">
+                  <CardTitle className="text-base">
                     {group.category} - {group.projectName}
                   </CardTitle>
-                  <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                     <span data-testid="text-quote-count">
                       {group.quotations.length} quotes
                     </span>
@@ -617,21 +617,21 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                     </span>
                   </div>
                 </div>
-                <Badge variant="outline" data-testid="badge-category">
+                <Badge variant="outline" className="text-xs" data-testid="badge-category">
                   {group.category}
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Vendor</TableHead>
-                    <TableHead>Quote Value</TableHead>
-                    <TableHead>Variance</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                  <TableRow className="h-8">
+                    <TableHead className="text-xs font-medium">Vendor</TableHead>
+                    <TableHead className="text-xs font-medium">Quote Value</TableHead>
+                    <TableHead className="text-xs font-medium">Variance</TableHead>
+                    <TableHead className="text-xs font-medium">Date</TableHead>
+                    <TableHead className="text-xs font-medium">Status</TableHead>
+                    <TableHead className="text-xs font-medium">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -643,16 +643,16 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                     return (
                       <TableRow 
                         key={quotation.id}
-                        className={quotation.status === "Selected" ? "bg-green-50 dark:bg-green-900/10" : ""}
+                        className={`h-10 ${quotation.status === "Selected" ? "bg-green-50 dark:bg-green-900/10" : ""}`}
                         data-testid={`quotation-row-${quotation.id}`}
                       >
-                        <TableCell className="font-medium" data-testid="text-vendor-name">
+                        <TableCell className="font-medium text-sm py-2" data-testid="text-vendor-name">
                           {formatVendorNameWithCategory(quotation.vendorName, quotation.category)}
                         </TableCell>
                         
-                        <TableCell data-testid="text-quotation-value">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-semibold">
+                        <TableCell className="py-2" data-testid="text-quotation-value">
+                          <div className="flex items-center gap-1">
+                            <span className="font-mono font-semibold text-sm">
                               {(() => {
                                 const quotationValue = quotation.quotationValue || '';
                                 const numericValue = parseFloat(quotationValue);
@@ -660,60 +660,63 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                               })()}
                             </span>
                             {isLowest && (
-                              <Badge variant="outline" className="text-green-600 border-green-200">
+                              <Badge variant="outline" className="text-xs text-green-600 border-green-200 px-1">
                                 Lowest
                               </Badge>
                             )}
                             {quotation.isAboveAverage && (
-                              <AlertTriangle className="h-4 w-4 text-orange-500" />
+                              <AlertTriangle className="h-3 w-3 text-orange-500" />
                             )}
                           </div>
                         </TableCell>
                         
-                        <TableCell data-testid="text-variance">
+                        <TableCell className="py-2" data-testid="text-variance">
                           <div className="flex items-center gap-1">
                             {variance > 0 ? (
-                              <TrendingUp className="h-4 w-4 text-red-500" />
+                              <TrendingUp className="h-3 w-3 text-red-500" />
                             ) : (
-                              <TrendingDown className="h-4 w-4 text-green-500" />
+                              <TrendingDown className="h-3 w-3 text-green-500" />
                             )}
-                            <span className={variance > 0 ? "text-red-600" : "text-green-600"}>
+                            <span className={`text-xs ${variance > 0 ? "text-red-600" : "text-green-600"}`}>
                               {variance > 0 ? '+' : ''}{variance.toFixed(1)}%
                             </span>
                           </div>
                         </TableCell>
                         
-                        <TableCell data-testid="text-quotation-date">
+                        <TableCell className="py-2 text-xs" data-testid="text-quotation-date">
                           {quotation.dateOfQuotation ? new Date(quotation.dateOfQuotation).toLocaleDateString() : <span className="text-muted-foreground">No date</span>}
                         </TableCell>
                         
-                        <TableCell data-testid="cell-status">
+                        <TableCell className="py-2" data-testid="cell-status">
                           <StatusBadge status={quotation.status} />
                         </TableCell>
                         
-                        <TableCell data-testid="cell-actions">
-                          <div className="flex gap-1">
+                        <TableCell className="py-2" data-testid="cell-actions">
+                          <div className="flex gap-0.5">
                             <Button
-                              size="sm"
+                              size="icon"
+                              className="h-6 w-6"
                               variant="ghost"
                               onClick={() => handleQuoteClick(quotation, group.projectName)}
                               data-testid={`button-view-quote-${quotation.id}`}
                               title="View detailed quote breakdown"
                             >
-                              <Eye className="h-4 w-4" />
+                              <Eye className="h-3 w-3" />
                             </Button>
                             <Button
-                              size="sm"
+                              size="icon"
+                              className="h-6 w-6"
                               variant="ghost"
                               onClick={() => handleEditQuote(quotation)}
                               data-testid={`button-edit-quote-${quotation.id}`}
                               title="Edit quote values"
                             >
-                              <Edit2 className="h-4 w-4" />
+                              <Edit2 className="h-3 w-3" />
                             </Button>
                             {quotation.status !== "Selected" && (
                               <Button
                                 size="sm"
+                                className="h-6 text-xs px-2"
                                 variant="outline"
                                 onClick={() => onStatusChange?.(quotation.id, "Selected")}
                                 data-testid="button-select-vendor"
@@ -724,6 +727,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                             {quotation.status === "Quoted" && (
                               <Button
                                 size="sm"
+                                className="h-6 text-xs px-2"
                                 variant="outline"
                                 onClick={() => onStatusChange?.(quotation.id, "Rejected")}
                                 data-testid="button-reject-vendor"
@@ -734,12 +738,12 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button
-                                  size="sm"
+                                  size="icon"
                                   variant="outline"
-                                  className="text-red-600 hover:text-red-700"
+                                  className="text-red-600 hover:text-red-700 h-6 w-6"
                                   data-testid={`button-delete-quote-${quotation.id}`}
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash2 className="h-3 w-3" />
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
@@ -764,39 +768,44 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                               <DropdownMenuTrigger asChild>
                                 <Button
                                   size="icon"
+                                  className="h-6 w-6"
                                   variant="ghost"
                                   data-testid={`button-export-quote-${quotation.id}`}
                                 >
-                                  <Download className="h-4 w-4" />
+                                  <Download className="h-3 w-3" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem 
                                   onClick={() => handleQuoteClick(quotation, group.projectName)}
                                   data-testid={`view-quote-${quotation.id}`}
+                                  className="text-xs"
                                 >
-                                  <Eye className="mr-2 h-4 w-4" />
+                                  <Eye className="mr-2 h-3 w-3" />
                                   View Quote
                                 </DropdownMenuItem>
                                 <DropdownMenuItem 
                                   onClick={() => handleIndividualQuoteExport(quotation, group, 'pdf')}
                                   data-testid={`export-quote-pdf-${quotation.id}`}
+                                  className="text-xs"
                                 >
-                                  <FileText className="mr-2 h-4 w-4" />
+                                  <FileText className="mr-2 h-3 w-3" />
                                   Export as PDF
                                 </DropdownMenuItem>
                                 <DropdownMenuItem 
                                   onClick={() => handleIndividualQuoteExport(quotation, group, 'excel')}
                                   data-testid={`export-quote-excel-${quotation.id}`}
+                                  className="text-xs"
                                 >
-                                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                                  <FileSpreadsheet className="mr-2 h-3 w-3" />
                                   Export as Excel
                                 </DropdownMenuItem>
                                 <DropdownMenuItem 
                                   onClick={() => handleIndividualQuoteExport(quotation, group, 'csv')}
                                   data-testid={`export-quote-csv-${quotation.id}`}
+                                  className="text-xs"
                                 >
-                                  <FileText className="mr-2 h-4 w-4" />
+                                  <FileText className="mr-2 h-3 w-3" />
                                   Export as CSV
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -814,10 +823,10 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
       })}
 
       {Object.keys(groupedData).length === 0 && (
-        <Card className="text-center py-12">
+        <Card className="text-center py-8">
           <CardContent>
-            <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground" data-testid="text-no-comparisons">
+            <BarChart3 className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground" data-testid="text-no-comparisons">
               No quotations available for comparison with the selected filters.
             </p>
           </CardContent>
