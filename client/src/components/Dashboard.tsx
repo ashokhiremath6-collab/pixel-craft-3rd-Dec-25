@@ -6,7 +6,7 @@ import VendorCard from "./VendorCard";
 import ProjectCard from "./ProjectCard";
 import { Users, Building2, FileText, TrendingUp, Plus, ArrowRight } from "lucide-react";
 import type { Vendor, Project } from "@shared/schema";
-import { formatCurrencyCompact } from "@/lib/currencyUtils";
+import { formatCurrencyCompact, formatVendorNameWithProjectAndCategory } from "@/lib/currencyUtils";
 
 interface VendorWithCategory extends Omit<Vendor, 'categoryName'> {
   category: string;
@@ -22,6 +22,7 @@ interface DashboardProps {
     quotationValue: string;
     status: "Quoted" | "Selected" | "Rejected";
     dateOfQuotation: string;
+    category?: string;
   }>;
   onNavigate?: (path: string) => void;
 }
@@ -165,9 +166,8 @@ export default function Dashboard({ vendors, projects, recentQuotations, onNavig
                   data-testid={`recent-quotation-${quotation.id}`}
                 >
                   <div className="flex-1">
-                    <div className="font-medium">{quotation.vendorName}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {quotation.projectName}
+                    <div className="font-medium">
+                      {formatVendorNameWithProjectAndCategory(quotation.vendorName, quotation.projectName, quotation.category)}
                     </div>
                   </div>
                   <div className="text-right">

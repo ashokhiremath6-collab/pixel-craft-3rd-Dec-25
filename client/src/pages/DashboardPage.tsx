@@ -69,7 +69,8 @@ export default function DashboardPage() {
       const project = quotationsData?.projects.find(p => p.id === projectId);
       return projectQuotations.map(q => ({
         ...q,
-        projectName: project?.projectName || 'Unknown Project'
+        projectName: project?.projectName || 'Unknown Project',
+        category: q.category // Include category from API response
       }));
     })
     .slice(0, 10); // Show latest 10 quotations

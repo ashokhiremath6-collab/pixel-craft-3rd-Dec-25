@@ -50,3 +50,14 @@ export function formatVendorNameWithCategory(vendorName: string, categoryName?: 
   if (!categoryName) return vendorName;
   return `${vendorName} - ${categoryName}`;
 }
+
+/**
+ * Format vendor name with project and category for quotations
+ * Example: "Isosceles" + "Maker Tower" + "Flooring" → "Isosceles / Maker Tower / Flooring"
+ */
+export function formatVendorNameWithProjectAndCategory(vendorName: string, projectName?: string, categoryName?: string): string {
+  const parts = [vendorName];
+  if (projectName) parts.push(projectName);
+  if (categoryName) parts.push(categoryName);
+  return parts.join(' / ');
+}
