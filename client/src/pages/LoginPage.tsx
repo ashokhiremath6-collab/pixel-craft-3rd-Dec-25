@@ -65,14 +65,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const handleQuickLogin = async () => {
     setIsLoading(true);
     try {
-      // Try to create a quick admin account
-      const registerResponse = await apiRequest('POST', '/api/auth/register', {
-        email: 'admin@company.com',
-        password: 'password',
-        role: 'designer'
-      });
-
-      // Always try to login, even if registration fails (user might already exist)
+      // Only attempt login with existing designer account
       const loginResponse = await apiRequest('POST', '/api/auth/login', {
         email: 'admin@company.com',
         password: 'password',
@@ -88,7 +81,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         const error = await loginResponse.json();
         toast({
           title: "Quick login failed",
-          description: error.error || "Please try manual login",
+          description: error.error || "Designer account not found. Please contact administrator.",
           variant: "destructive",
         });
       }
