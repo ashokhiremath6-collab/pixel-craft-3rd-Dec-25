@@ -637,6 +637,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const projectVendor = await storage.createProjectVendor(projectVendorData);
+      
+      if (!projectVendor) {
+        throw new Error('Failed to create project vendor record');
+      }
+      
       results.projectVendor = projectVendor;
 
       // Create BOQ items
@@ -650,7 +655,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
     } catch (error) {
-      results.errors.push(`Processing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Processing error in processQuoteImport:', error);
+      throw error; // Re-throw the error instead of silently continuing
     }
 
     return results;
