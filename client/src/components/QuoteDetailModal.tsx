@@ -121,7 +121,7 @@ export default function QuoteDetailModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2" data-testid="title-quote-details">
             <FileText className="h-5 w-5" />
-            Quote Details - {vendorName}
+            {vendorName} Quote
           </DialogTitle>
           <DialogDescription data-testid="description-quote-details">
             Detailed breakdown of quotation for {projectName}
@@ -191,14 +191,6 @@ export default function QuoteDetailModal({
                     </div>
                   </div>
 
-                  {quoteDetails.quote.notes && (
-                    <div className="mt-4">
-                      <h4 className="text-sm font-medium mb-2">Notes</h4>
-                      <p className="text-sm text-muted-foreground" data-testid="text-quote-notes">
-                        {quoteDetails.quote.notes}
-                      </p>
-                    </div>
-                  )}
 
                   {/* Original Quote File */}
                   {quoteDetails.quote.quotationFile && (
@@ -208,7 +200,7 @@ export default function QuoteDetailModal({
                         <div className="flex items-center gap-2 mb-2">
                           <FileText className="h-4 w-4" />
                           <span className="text-sm font-medium">
-                            {quoteDetails.quote.quotationFile.split('/').pop()}
+                            {vendorName?.replace(/\s+/g, '_')}_Quote.pdf
                           </span>
                         </div>
                         <div className="flex gap-2">
