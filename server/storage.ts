@@ -1,6 +1,8 @@
 import { 
   type User, 
   type InsertUser,
+  type UserProjectAccess,
+  type InsertUserProjectAccess,
   type VendorCategory,
   type InsertVendorCategory,
   type Vendor,
@@ -18,6 +20,7 @@ import {
   type FloorPlan,
   type InsertFloorPlan,
   users,
+  userProjectAccess,
   vendorCategories,
   vendors,
   projects,
@@ -39,6 +42,14 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
+  
+  // User Project Access
+  getUserProjectAccess(userId: string): Promise<UserProjectAccess[]>;
+  getProjectUsers(projectId: string): Promise<UserProjectAccess[]>;
+  createUserProjectAccess(access: InsertUserProjectAccess): Promise<UserProjectAccess>;
+  deleteUserProjectAccess(userId: string, projectId: string): Promise<boolean>;
+  getUserAccessibleProjects(userId: string): Promise<string[]>;
   
   // Vendor Categories
   getAllVendorCategories(): Promise<VendorCategory[]>;
@@ -111,6 +122,7 @@ export interface IStorage {
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
+  private userProjectAccess: Map<string, UserProjectAccess>;
   private vendorCategories: Map<string, VendorCategory>;
   private vendors: Map<string, Vendor>;
   private projects: Map<string, Project>;
@@ -122,6 +134,7 @@ export class MemStorage implements IStorage {
 
   constructor() {
     this.users = new Map();
+    this.userProjectAccess = new Map();
     this.vendorCategories = new Map();
     this.vendors = new Map();
     this.projects = new Map();
@@ -149,9 +162,65 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
+    const user: User = { 
+      ...insertUser, 
+      id,
+      role: insertUser.role || "client",
+      isActive: insertUser.isActive ?? true,
+      createdAt: new Date()
+    };
     this.users.set(id, user);
     return user;
+  }
+
+  async updateUser(id: string, userUpdate: Partial<InsertUser>): Promise<User | undefined> {
+    const existingUser = this.users.get(id);
+    if (!existingUser) return undefined;
+    
+    const updatedUser: User = { ...existingUser, ...userUpdate };
+    this.users.set(id, updatedUser);
+    return updatedUser;
+  }
+
+  // User Project Access methods (MemStorage uses maps)
+  async getUserProjectAccess(userId: string): Promise<UserProjectAccess[]> {
+    return Array.from(this.userProjectAccess.values()).filter(
+      (access) => access.userId === userId
+    );
+  }
+
+  async getProjectUsers(projectId: string): Promise<UserProjectAccess[]> {
+    return Array.from(this.userProjectAccess.values()).filter(
+      (access) => access.projectId === projectId
+    );
+  }
+
+  async createUserProjectAccess(access: InsertUserProjectAccess): Promise<UserProjectAccess> {
+    const id = randomUUID();
+    const userProjectAccess: UserProjectAccess = {
+      ...access,
+      id,
+      accessLevel: access.accessLevel || "read",
+      assignedAt: new Date()
+    };
+    this.userProjectAccess.set(id, userProjectAccess);
+    return userProjectAccess;
+  }
+
+  async deleteUserProjectAccess(userId: string, projectId: string): Promise<boolean> {
+    const existing = Array.from(this.userProjectAccess.entries()).find(
+      ([_, access]) => access.userId === userId && access.projectId === projectId
+    );
+    if (existing) {
+      this.userProjectAccess.delete(existing[0]);
+      return true;
+    }
+    return false;
+  }
+
+  async getUserAccessibleProjects(userId: string): Promise<string[]> {
+    const userAccess = await this.getUserProjectAccess(userId);
+    return userAccess.map(access => access.projectId);
   }
 
   // Vendor Category methods
@@ -601,6 +670,36 @@ export class DBStorage implements IStorage {
   async createUser(user: InsertUser): Promise<User> {
     const result = await db.insert(users).values(user).returning();
     return result[0];
+  }
+
+  async updateUser(id: string, userUpdate: Partial<InsertUser>): Promise<User | undefined> {
+    const result = await db.update(users).set(userUpdate).where(eq(users.id, id)).returning();
+    return result[0];
+  }
+
+  // User Project Access methods
+  async getUserProjectAccess(userId: string): Promise<UserProjectAccess[]> {
+    return await db.select().from(userProjectAccess).where(eq(userProjectAccess.userId, userId));
+  }
+
+  async getProjectUsers(projectId: string): Promise<UserProjectAccess[]> {
+    return await db.select().from(userProjectAccess).where(eq(userProjectAccess.projectId, projectId));
+  }
+
+  async createUserProjectAccess(access: InsertUserProjectAccess): Promise<UserProjectAccess> {
+    const result = await db.insert(userProjectAccess).values(access).returning();
+    return result[0];
+  }
+
+  async deleteUserProjectAccess(userId: string, projectId: string): Promise<boolean> {
+    const result = await db.delete(userProjectAccess)
+      .where(and(eq(userProjectAccess.userId, userId), eq(userProjectAccess.projectId, projectId)));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async getUserAccessibleProjects(userId: string): Promise<string[]> {
+    const userAccess = await this.getUserProjectAccess(userId);
+    return userAccess.map(access => access.projectId);
   }
 
   // Vendor Categories

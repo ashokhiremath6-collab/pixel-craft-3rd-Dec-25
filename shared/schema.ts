@@ -165,17 +165,38 @@ export type QuoteFile = typeof quoteFiles.$inferSelect;
 export type InsertFloorPlan = z.infer<typeof insertFloorPlanSchema>;
 export type FloorPlan = typeof floorPlans.$inferSelect;
 
-// Legacy user schema (keeping for compatibility)
+// Users table with role-based access control
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  role: text("role").notNull().default("client"), // admin or client
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+// User-Project Access table for controlling which users can access which projects
+export const userProjectAccess = pgTable("user_project_access", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  projectId: varchar("project_id").notNull().references(() => projects.id),
+  accessLevel: text("access_level").notNull().default("read"), // read, write, admin
+  assignedBy: varchar("assigned_by").notNull().references(() => users.id),
+  assignedAt: timestamp("assigned_at").notNull().default(sql`now()`),
+});
+
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUserProjectAccessSchema = createInsertSchema(userProjectAccess).omit({
+  id: true,
+  assignedAt: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+
+export type InsertUserProjectAccess = z.infer<typeof insertUserProjectAccessSchema>;
+export type UserProjectAccess = typeof userProjectAccess.$inferSelect;
