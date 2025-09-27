@@ -3,10 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import ProjectCard from "./ProjectCard";
+import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import QuotationRow from "./QuotationRow";
-import { Search, Plus, Building2 } from "lucide-react";
+import { Search, Plus, Building2, Calendar, Edit, Eye, Trash2 } from "lucide-react";
 import type { Project } from "@shared/schema";
 
 interface ProjectData extends Project {
@@ -102,26 +102,116 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
             Projects ({filteredProjects.length})
           </h2>
           
-          <div className="space-y-4 max-h-96 overflow-y-auto">
-            {filteredProjects.map(project => (
-              <div 
-                key={project.id} 
-                className={`cursor-pointer transition-colors ${
-                  selectedProject === project.id ? 'ring-2 ring-primary' : ''
-                }`}
-                onClick={() => handleProjectSelect(project.id)}
-                data-testid={`project-item-${project.id}`}
-              >
-                <ProjectCard
-                  project={project}
-                  vendorCount={project.vendorCount}
-                  onEdit={onEditProject}
-                  onView={onViewProject}
-                  onDelete={onDeleteProject}
-                />
-              </div>
-            ))}
-          </div>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Project Name</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Timeline</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Vendors</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProjects.map(project => {
+                    const formatDate = (dateString: string | null) => {
+                      if (!dateString) return 'Not set';
+                      return new Date(dateString).toLocaleDateString();
+                    };
+                    
+                    const isActive = () => {
+                      if (!project.endDate) return true;
+                      return new Date(project.endDate) > new Date();
+                    };
+                    
+                    return (
+                      <TableRow 
+                        key={project.id}
+                        className={`cursor-pointer transition-colors ${
+                          selectedProject === project.id ? 'bg-muted/50' : ''
+                        }`}
+                        onClick={() => handleProjectSelect(project.id)}
+                        data-testid={`project-item-${project.id}`}
+                      >
+                        <TableCell className="font-medium">
+                          <span data-testid="text-project-name">{project.projectName}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span data-testid="text-client-name">{project.clientName}</span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            <span data-testid="text-start-date">{formatDate(project.startDate)}</span>
+                            {project.endDate && (
+                              <>
+                                <span>→</span>
+                                <span data-testid="text-end-date">{formatDate(project.endDate)}</span>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={isActive() ? "default" : "secondary"}
+                            data-testid="badge-project-status"
+                          >
+                            {isActive() ? 'Active' : 'Completed'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" data-testid="badge-vendor-count">
+                            {project.vendorCount} vendors
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-1 justify-end">
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onViewProject?.(project);
+                              }}
+                              data-testid="button-view-project"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditProject?.(project);
+                              }}
+                              data-testid="button-edit-project"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteProject?.(project);
+                              }}
+                              data-testid="button-delete-project"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
 
           {filteredProjects.length === 0 && (
             <Card className="text-center py-8">

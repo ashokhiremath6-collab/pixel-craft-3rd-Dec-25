@@ -7,8 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-import VendorCard from "./VendorCard";
-import { Search, Plus, Filter, ChevronRight, FolderPlus } from "lucide-react";
+import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
+import { Search, Plus, Filter, ChevronRight, FolderPlus, Edit, Trash2, Phone, Mail, User, Building2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
@@ -691,17 +691,107 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
             </Badge>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {categoryVendors.map(vendor => (
-              <VendorCard
-                key={vendor.id}
-                vendor={vendor}
-                categoryName={categoryMap[vendor.categoryId]?.name}
-                onEdit={onEditVendor}
-                onDelete={onDeleteVendor}
-              />
-            ))}
-          </div>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Vendor Name</TableHead>
+                    <TableHead>Contact Person</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Projects</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {categoryVendors.map(vendor => (
+                    <TableRow key={vendor.id} data-testid={`vendor-row-${vendor.id}`}>
+                      <TableCell className="font-medium">
+                        <div>
+                          <span data-testid="text-vendor-name">{vendor.name}</span>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {categoryMap[vendor.categoryId]?.name || 'Unknown Category'}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <User className="h-3 w-3 text-muted-foreground" />
+                          <span data-testid="text-contact-person">{vendor.contactPerson}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-3 w-3 text-muted-foreground" />
+                          <span data-testid="text-phone">{vendor.phone}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-3 w-3 text-muted-foreground" />
+                          <span data-testid="text-email" className="text-sm">{vendor.email}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {vendor.projects && vendor.projects.length > 0 ? (
+                          <div className="space-y-1">
+                            {vendor.projects.slice(0, 2).map((project, index) => (
+                              <div key={project.projectId} className="text-sm">
+                                <div className="flex items-center gap-2">
+                                  <Building2 className="h-3 w-3 text-muted-foreground" />
+                                  <span className="font-medium" data-testid={`text-project-name-${index}`}>
+                                    {project.projectName}
+                                  </span>
+                                  <Badge 
+                                    variant={project.status === 'Selected' ? 'default' : 'secondary'} 
+                                    className="text-xs"
+                                  >
+                                    {project.status}
+                                  </Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground ml-5" data-testid={`text-client-name-${index}`}>
+                                  {project.clientName}
+                                </div>
+                              </div>
+                            ))}
+                            {vendor.projects.length > 2 && (
+                              <div className="text-xs text-muted-foreground ml-5">
+                                +{vendor.projects.length - 2} more project{vendor.projects.length - 2 > 1 ? 's' : ''}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">No projects</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-1 justify-end">
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            onClick={() => onEditVendor?.(vendor)}
+                            data-testid="button-edit-vendor"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            onClick={() => onDeleteVendor?.(vendor.id)}
+                            data-testid="button-delete-vendor"
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </div>
       ))}
 
