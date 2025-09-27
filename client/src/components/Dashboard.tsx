@@ -24,10 +24,19 @@ interface DashboardProps {
     dateOfQuotation: string;
     category?: string;
   }>;
+  allQuotations?: Array<{
+    id: string;
+    vendorName: string;
+    projectName: string;
+    quotationValue: string;
+    status: "Quoted" | "Selected" | "Rejected";
+    dateOfQuotation: string;
+    category?: string;
+  }>;
   onNavigate?: (path: string) => void;
 }
 
-export default function Dashboard({ vendors, projects, recentQuotations, onNavigate }: DashboardProps) {
+export default function Dashboard({ vendors, projects, recentQuotations, allQuotations, onNavigate }: DashboardProps) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const handleNavigate = (path: string) => {
@@ -50,7 +59,7 @@ export default function Dashboard({ vendors, projects, recentQuotations, onNavig
     !project.endDate || new Date(project.endDate) > new Date()
   ).length;
 
-  const totalQuotationValue = recentQuotations
+  const totalQuotationValue = (allQuotations || recentQuotations)
     .filter(quote => quote.status === "Selected") // Only include approved quotations
     .reduce(
       (sum, quote) => sum + parseFloat(quote.quotationValue || '0'),

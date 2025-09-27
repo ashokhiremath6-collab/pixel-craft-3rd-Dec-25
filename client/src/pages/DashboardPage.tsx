@@ -63,8 +63,8 @@ export default function DashboardPage() {
     category: categoryMap[vendor.categoryId] || 'Unknown Category'
   }));
 
-  // Create recent quotations from project-vendor relationships
-  const recentQuotations = Object.entries(quotationsData?.quotations || {})
+  // Create all quotations from project-vendor relationships
+  const allQuotations = Object.entries(quotationsData?.quotations || {})
     .flatMap(([projectId, projectQuotations]) => {
       const project = quotationsData?.projects.find(p => p.id === projectId);
       return projectQuotations.map(q => ({
@@ -72,14 +72,17 @@ export default function DashboardPage() {
         projectName: project?.projectName || 'Unknown Project',
         category: q.category // Include category from API response
       }));
-    })
-    .slice(0, 10); // Show latest 10 quotations
+    });
+
+  // Create recent quotations for display (latest 10)
+  const recentQuotations = allQuotations.slice(0, 10);
 
   return (
     <Dashboard 
       vendors={vendorsWithCategory}
       projects={quotationsData?.projects || []}
       recentQuotations={recentQuotations}
+      allQuotations={allQuotations} // Pass all quotations for total calculation
       onNavigate={handleNavigate}
     />
   );
