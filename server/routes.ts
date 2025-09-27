@@ -16,13 +16,15 @@ import {
   insertProjectVendorSchema,
   insertQuoteTemplateSchema,
   insertBoqSchema,
-  insertQuoteFileSchema 
+  insertQuoteFileSchema,
+  insertFloorPlanSchema 
 } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Serve uploaded files statically
   app.use('/uploads', express.static('uploads'));
+  app.use('/uploads/floor-plans', express.static('uploads/floor-plans'));
   
   // Vendor Categories Routes
   app.get("/api/vendor-categories", async (req, res) => {
@@ -1781,6 +1783,181 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching BOQ details:', error);
       res.status(500).json({ error: "Failed to fetch BOQ details" });
+    }
+  });
+
+  // Floor Plans Routes
+  app.get("/api/floor-plans", async (req, res) => {
+    try {
+      const floorPlans = await storage.getAllFloorPlans();
+      res.json(floorPlans);
+    } catch (error) {
+      console.error('Error fetching floor plans:', error);
+      res.status(500).json({ error: "Failed to fetch floor plans" });
+    }
+  });
+
+  app.get("/api/floor-plans/project/:projectId", async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      const floorPlans = await storage.getFloorPlansByProject(projectId);
+      res.json(floorPlans);
+    } catch (error) {
+      console.error('Error fetching floor plans for project:', error);
+      res.status(500).json({ error: "Failed to fetch floor plans for project" });
+    }
+  });
+
+  app.get("/api/floor-plans/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const floorPlan = await storage.getFloorPlan(id);
+      if (!floorPlan) {
+        return res.status(404).json({ error: "Floor plan not found" });
+      }
+      res.json(floorPlan);
+    } catch (error) {
+      console.error('Error fetching floor plan:', error);
+      res.status(500).json({ error: "Failed to fetch floor plan" });
+    }
+  });
+
+  // Configure multer for floor plan uploads with additional file types
+  const floorPlanUpload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        // Ensure uploads directory exists
+        if (!fs.existsSync('uploads/floor-plans')) {
+          fs.mkdirSync('uploads/floor-plans', { recursive: true });
+        }
+        cb(null, 'uploads/floor-plans/');
+      },
+      filename: (req, file, cb) => {
+        // Keep original extension for proper file serving
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, uniqueSuffix + ext);
+      }
+    }),
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB limit for floor plan files
+      files: 1, // Only allow single file upload
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = [
+        'application/pdf', // .pdf
+        'image/png', // .png
+        'image/jpeg', // .jpg, .jpeg
+        'image/gif', // .gif
+        'image/bmp', // .bmp
+        'image/tiff', // .tiff
+        'application/dwg', // .dwg (CAD files)
+        'application/dxf', // .dxf (CAD files)
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      ];
+      
+      // Also check file extension as MIME types can be unreliable
+      const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.dwg', '.dxf', '.xlsx'];
+      const fileExtension = path.extname(file.originalname).toLowerCase();
+      
+      if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only image files (PNG, JPG, GIF, BMP, TIFF), CAD files (DWG, DXF), PDF, and Excel files are allowed.'));
+      }
+    }
+  });
+
+  app.post("/api/floor-plans", floorPlanUpload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Validate the request body
+      const { projectId, name, description, version } = req.body;
+      
+      if (!projectId || !name) {
+        return res.status(400).json({ error: "Project ID and name are required" });
+      }
+
+      const floorPlanData = {
+        projectId,
+        name,
+        description: description || null,
+        fileName: req.file.originalname,
+        filePath: req.file.path,
+        fileType: path.extname(req.file.originalname).toLowerCase().substring(1), // Remove dot
+        fileSize: req.file.size.toString(), // Convert number to string for decimal schema
+        version: version || "1.0",
+        isActive: true
+      };
+
+      // Validate with Zod schema
+      const validatedData = insertFloorPlanSchema.parse(floorPlanData);
+      
+      const floorPlan = await storage.createFloorPlan(validatedData);
+      res.status(201).json(floorPlan);
+    } catch (error) {
+      console.error('Error creating floor plan:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid floor plan data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create floor plan" });
+    }
+  });
+
+  app.put("/api/floor-plans/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Validate the request body
+      const updates = insertFloorPlanSchema.partial().parse(req.body);
+      
+      const updatedFloorPlan = await storage.updateFloorPlan(id, updates);
+      if (!updatedFloorPlan) {
+        return res.status(404).json({ error: "Floor plan not found" });
+      }
+      
+      res.json(updatedFloorPlan);
+    } catch (error) {
+      console.error('Error updating floor plan:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid floor plan data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update floor plan" });
+    }
+  });
+
+  app.delete("/api/floor-plans/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get the floor plan first to delete the file
+      const floorPlan = await storage.getFloorPlan(id);
+      if (!floorPlan) {
+        return res.status(404).json({ error: "Floor plan not found" });
+      }
+      
+      const deleted = await storage.deleteFloorPlan(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Floor plan not found" });
+      }
+      
+      // Delete the physical file
+      try {
+        if (fs.existsSync(floorPlan.filePath)) {
+          fs.unlinkSync(floorPlan.filePath);
+        }
+      } catch (fileError) {
+        console.warn('Warning: Could not delete physical file:', fileError);
+        // Don't fail the request if file deletion fails
+      }
+      
+      res.json({ message: "Floor plan deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting floor plan:', error);
+      res.status(500).json({ error: "Failed to delete floor plan" });
     }
   });
 
