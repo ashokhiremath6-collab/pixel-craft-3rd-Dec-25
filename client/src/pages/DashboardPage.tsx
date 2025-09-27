@@ -24,9 +24,18 @@ interface QuotationsResponse {
 }
 
 export default function DashboardPage() {
+  // Get user info to check role
+  const { data: user } = useQuery({
+    queryKey: ['/api/auth/me'],
+    retry: false,
+  });
+  
+  const isDesigner = user?.role === 'designer';
+  
   // Fetch all data needed for dashboard
   const { data: vendorsData, isLoading: vendorsLoading } = useQuery<Vendor[]>({
     queryKey: ['/api/vendors'],
+    enabled: isDesigner, // Only load vendors for designers
   });
 
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery<VendorCategory[]>({
@@ -58,6 +67,7 @@ export default function DashboardPage() {
   }, {} as Record<string, string>);
 
   // Transform vendors to match Dashboard component expectations
+  // For clients, vendors data will be empty since they don't need to see all vendors
   const vendorsWithCategory: VendorWithCategory[] = (vendorsData || []).map(vendor => ({
     ...vendor,
     category: categoryMap[vendor.categoryId] || 'Unknown Category'

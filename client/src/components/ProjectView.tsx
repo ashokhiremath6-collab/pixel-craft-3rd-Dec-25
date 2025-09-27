@@ -32,9 +32,10 @@ interface ProjectViewProps {
   onEditProject?: (project: Project) => void;
   onViewProject?: (project: Project) => void;
   onDeleteProject?: (project: Project) => void;
+  isDesigner?: boolean;
 }
 
-export default function ProjectView({ projects, quotations, onAddProject, onEditProject, onViewProject, onDeleteProject }: ProjectViewProps) {
+export default function ProjectView({ projects, quotations, onAddProject, onEditProject, onViewProject, onDeleteProject, isDesigner = false }: ProjectViewProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
@@ -72,10 +73,12 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
             View all vendors participating in each project
           </p>
         </div>
-        <Button onClick={handleAddProject} data-testid="button-add-project">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Project
-        </Button>
+        {isDesigner && (
+          <Button onClick={handleAddProject} data-testid="button-add-project">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Project
+          </Button>
+        )}
       </div>
 
       {/* Search */}
@@ -190,30 +193,34 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
                               >
                                 <Eye className="h-3 w-3" />
                               </Button>
-                              <Button 
-                                size="icon" 
-                                variant="ghost" 
-                                className="h-7 w-7"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onEditProject?.(project);
-                                }}
-                                data-testid="button-edit-project"
-                              >
-                                <Edit className="h-3 w-3" />
-                              </Button>
-                              <Button 
-                                size="icon" 
-                                variant="ghost" 
-                                className="h-7 w-7 text-destructive hover:text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDeleteProject?.(project);
-                                }}
-                                data-testid="button-delete-project"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
+                              {isDesigner && (
+                                <>
+                                  <Button 
+                                    size="icon" 
+                                    variant="ghost" 
+                                    className="h-7 w-7"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onEditProject?.(project);
+                                    }}
+                                    data-testid="button-edit-project"
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                  <Button 
+                                    size="icon" 
+                                    variant="ghost" 
+                                    className="h-7 w-7 text-destructive hover:text-destructive"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onDeleteProject?.(project);
+                                    }}
+                                    data-testid="button-delete-project"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -230,15 +237,17 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
                 <p className="text-muted-foreground" data-testid="text-no-projects">
                   No projects found matching your criteria.
                 </p>
-                <Button 
-                  variant="outline" 
-                  onClick={handleAddProject}
-                  className="mt-4"
-                  data-testid="button-add-first-project"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add First Project
-                </Button>
+                {isDesigner && (
+                  <Button 
+                    variant="outline" 
+                    onClick={handleAddProject}
+                    className="mt-4"
+                    data-testid="button-add-first-project"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add First Project
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )}

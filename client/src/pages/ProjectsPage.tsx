@@ -41,6 +41,14 @@ export default function ProjectsPage() {
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
   const [isAddingProject, setIsAddingProject] = useState(false);
 
+  // Get user info to check role
+  const { data: user } = useQuery({
+    queryKey: ['/api/auth/me'],
+    retry: false,
+  });
+  
+  const isDesigner = user?.role === 'designer';
+
   // Fetch quotations data which includes projects and their vendor relationships
   const { data: quotationsData, isLoading } = useQuery<QuotationsResponse>({
     queryKey: ['/api/quotations'],
@@ -217,6 +225,7 @@ export default function ProjectsPage() {
         onEditProject={handleEditProject}
         onViewProject={handleViewProject}
         onDeleteProject={handleDeleteProject}
+        isDesigner={isDesigner}
       />
 
       {/* Edit Project Dialog */}
