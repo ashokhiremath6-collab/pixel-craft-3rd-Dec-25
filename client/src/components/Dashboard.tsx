@@ -50,10 +50,12 @@ export default function Dashboard({ vendors, projects, recentQuotations, onNavig
     !project.endDate || new Date(project.endDate) > new Date()
   ).length;
 
-  const totalQuotationValue = recentQuotations.reduce(
-    (sum, quote) => sum + parseFloat(quote.quotationValue),
-    0
-  );
+  const totalQuotationValue = recentQuotations
+    .filter(quote => quote.status === "Selected") // Only include approved quotations
+    .reduce(
+      (sum, quote) => sum + parseFloat(quote.quotationValue || '0'),
+      0
+    );
 
   const selectedVendors = recentQuotations.filter(q => q.status === "Selected").length;
 
