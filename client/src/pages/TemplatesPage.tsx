@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -346,22 +347,35 @@ export default function TemplatesPage() {
           <div className="text-muted-foreground">Loading templates...</div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTemplates.map((template) => (
-          <Card 
-            key={template.id} 
-            className="hover-elevate transition-all duration-200"
-            data-testid={`card-template-${template.id}`}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" />
-                  <div>
-                    <CardTitle className="text-lg" data-testid={`text-template-name-${template.id}`}>
-                      {template.name}
-                    </CardTitle>
-                    <div className="flex items-center gap-2 mt-1">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Template Name</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredTemplates.map((template) => (
+                  <TableRow 
+                    key={template.id} 
+                    className="h-12"
+                    data-testid={`row-template-${template.id}`}
+                  >
+                    <TableCell className="font-medium py-2">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-primary" />
+                        <span data-testid={`text-template-name-${template.id}`}>
+                          {template.name}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-2">
                       <Badge 
                         variant="secondary" 
                         className="text-xs"
@@ -369,6 +383,8 @@ export default function TemplatesPage() {
                       >
                         {categoryIdToNameMap.get(template.categoryId) || 'Unknown'}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="py-2">
                       <Badge 
                         variant={template.isActive ? "default" : "destructive"}
                         className="text-xs"
@@ -376,72 +392,73 @@ export default function TemplatesPage() {
                       >
                         {template.isActive ? "Active" : "Inactive"}
                       </Badge>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <CardDescription className="mb-4" data-testid={`text-description-${template.id}`}>
-                {template.description}
-              </CardDescription>
-              
-              <div className="text-xs text-muted-foreground mb-4" data-testid={`text-last-modified-${template.id}`}>
-                Created: {template.createdAt ? new Date(template.createdAt).toLocaleDateString() : 'Unknown'}
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="flex items-center gap-1 flex-1"
-                      data-testid={`button-export-template-${template.id}`}
-                    >
-                      <Download className="h-3 w-3" />
-                      Export for Vendor
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem 
-                      onClick={() => handleTemplateExport(template, 'csv')}
-                      data-testid={`export-template-csv-${template.id}`}
-                    >
-                      <FileText className="mr-2 h-4 w-4" />
-                      Export as CSV
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => handleTemplateExport(template, 'excel')}
-                      data-testid={`export-template-excel-${template.id}`}
-                    >
-                      <FileSpreadsheet className="mr-2 h-4 w-4" />
-                      Export as Excel
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => setEditingTemplate(template)}
-                  data-testid={`button-edit-${template.id}`}
-                  aria-label={`Edit ${template.name} template`}
-                >
-                  <Edit className="h-3 w-3" />
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  data-testid={`button-delete-${template.id}`}
-                  aria-label={`Delete ${template.name} template`}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          ))}
-        </div>
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <span className="text-sm text-muted-foreground" data-testid={`text-description-${template.id}`}>
+                        {template.description}
+                      </span>
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <span className="text-xs text-muted-foreground" data-testid={`text-last-modified-${template.id}`}>
+                        {template.createdAt ? new Date(template.createdAt).toLocaleDateString() : 'Unknown'}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right py-2">
+                      <div className="flex gap-1 justify-end">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="flex items-center gap-1"
+                              data-testid={`button-export-template-${template.id}`}
+                            >
+                              <Download className="h-3 w-3" />
+                              Export
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem 
+                              onClick={() => handleTemplateExport(template, 'csv')}
+                              data-testid={`export-template-csv-${template.id}`}
+                            >
+                              <FileText className="mr-2 h-4 w-4" />
+                              Export as CSV
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleTemplateExport(template, 'excel')}
+                              data-testid={`export-template-excel-${template.id}`}
+                            >
+                              <FileSpreadsheet className="mr-2 h-4 w-4" />
+                              Export as Excel
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => setEditingTemplate(template)}
+                          data-testid={`button-edit-${template.id}`}
+                          aria-label={`Edit ${template.name} template`}
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          data-testid={`button-delete-${template.id}`}
+                          aria-label={`Delete ${template.name} template`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
       {!templatesLoading && filteredTemplates.length === 0 && (
