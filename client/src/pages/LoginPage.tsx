@@ -67,21 +67,21 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     try {
       // Try to create a quick admin account
       const registerResponse = await apiRequest('POST', '/api/auth/register', {
-        email: 'admin@vendor.com',
-        password: 'admin123',
-        role: 'admin'
+        email: 'admin@company.com',
+        password: 'password',
+        role: 'designer'
       });
 
       // Always try to login, even if registration fails (user might already exist)
       const loginResponse = await apiRequest('POST', '/api/auth/login', {
-        email: 'admin@vendor.com',
-        password: 'admin123',
+        email: 'admin@company.com',
+        password: 'password',
       });
 
       if (loginResponse.ok) {
         toast({
           title: "Quick login successful",
-          description: "Logged in as admin. Welcome back to your data!",
+          description: "Logged in as designer. Welcome back to your data!",
         });
         onLoginSuccess();
       } else {
@@ -120,7 +120,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
               className="w-full"
               data-testid="button-quick-login"
             >
-              {isLoading ? "Logging in..." : "Quick Login (admin@vendor.com)"}
+              {isLoading ? "Logging in..." : "Quick Login (admin@company.com)"}
             </Button>
             <p className="text-sm text-muted-foreground text-center">
               Click above to quickly access your data, or login manually below

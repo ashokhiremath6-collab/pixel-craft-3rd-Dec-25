@@ -43,8 +43,8 @@ const requireAuth = (req: express.Request, res: express.Response, next: express.
 };
 
 const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (!req.session.userId || req.session.userRole !== 'admin') {
-    return res.status(403).json({ error: "Admin access required" });
+  if (!req.session.userId || req.session.userRole !== 'designer') {
+    return res.status(403).json({ error: "Designer access required" });
   }
   next();
 };
@@ -117,8 +117,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userRole = req.session.userRole;
           const userId = req.session.userId;
           
-          if (userRole === 'admin') {
-            // Admin can access all files
+          if (userRole === 'designer') {
+            // Designer can access all files
           } else if (userRole === 'client') {
             // Check if client has access to this project
             const userAccess = await storage.getUserProjectAccess(userId!);
@@ -131,8 +131,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return res.status(403).json({ error: 'Access denied - invalid role' });
           }
         } else {
-          // File not associated with any project - only admin can access
-          if (req.session.userRole !== 'admin') {
+          // File not associated with any project - only designer can access
+          if (req.session.userRole !== 'designer') {
             return res.status(403).json({ error: 'Access denied - file not associated with accessible project' });
           }
         }
@@ -194,8 +194,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userRole = req.session.userRole;
           const userId = req.session.userId;
           
-          if (userRole === 'admin') {
-            // Admin can access all files
+          if (userRole === 'designer') {
+            // Designer can access all files
           } else if (userRole === 'client') {
             // Check if client has access to this project
             const userAccess = await storage.getUserProjectAccess(userId!);
@@ -208,8 +208,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return res.status(403).json({ error: 'Access denied - invalid role' });
           }
         } else {
-          // File not associated with any project - only admin can access
-          if (req.session.userRole !== 'admin') {
+          // File not associated with any project - only designer can access
+          if (req.session.userRole !== 'designer') {
             return res.status(403).json({ error: 'Access denied - floor plan not associated with accessible project' });
           }
         }
@@ -243,7 +243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (user && user.isActive) {
           return res.json({
             id: user.id,
-            email: user.email || user.username,
+            email: user.email,
             role: user.role,
             isActive: user.isActive
           });
@@ -257,26 +257,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { username, password } = req.body;
+      const { email, password, role } = req.body;
       
-      if (!username || !password) {
-        return res.status(400).json({ error: "Username and password are required" });
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
       }
       
       // Check if user already exists
-      const existingUser = await storage.getUserByUsername(username);
+      const existingUser = await storage.getUserByEmail(email);
       if (existingUser) {
-        return res.status(400).json({ error: "Username already exists" });
+        return res.status(400).json({ error: "Email already exists" });
       }
       
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
       
-      // Create user with forced client role (security: prevent privilege escalation)
+      // Security: Only allow designer role creation by existing designers
+      let userRole = "client"; // Default to client
+      if (role === "designer") {
+        // Check if the request is from an authenticated designer
+        if (!req.session.userId || req.session.userRole !== "designer") {
+          return res.status(403).json({ error: "Only designers can create designer accounts" });
+        }
+        userRole = "designer";
+      }
+      
       const user = await storage.createUser({
-        username,
+        email,
         password: hashedPassword,
-        role: "client", // Always force client role for self-registration
+        role: userRole,
         isActive: true
       });
       
@@ -286,7 +295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json({
         id: user.id,
-        username: user.username,
+        email: user.email,
         role: user.role,
         isActive: user.isActive
       });
@@ -301,14 +310,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { username, password } = req.body;
+      const { email, password } = req.body;
       
-      if (!username || !password) {
-        return res.status(400).json({ error: "Username and password are required" });
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
       }
       
       // Find user
-      const user = await storage.getUserByUsername(username);
+      const user = await storage.getUserByEmail(email);
       if (!user) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
@@ -330,7 +339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         id: user.id,
-        username: user.username,
+        email: user.email,
         role: user.role,
         isActive: user.isActive
       });
@@ -361,7 +370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         id: user.id,
-        username: user.username,
+        email: user.email,
         role: user.role,
         isActive: user.isActive
       });
@@ -371,7 +380,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // User management routes (admin only)
+  // User management routes (designer only)
   app.get("/api/users", requireAdmin, async (req, res) => {
     try {
       const users = await storage.getAllUsers();
@@ -588,8 +597,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Projects Routes (protected)
   app.get("/api/projects", requireAuth, async (req, res) => {
     try {
-      const projects = await storage.getAllProjects();
-      res.json(projects);
+      const userRole = req.session.userRole;
+      const userId = req.session.userId!;
+      
+      if (userRole === 'designer') {
+        // Designers can see all projects
+        const projects = await storage.getAllProjects();
+        res.json(projects);
+      } else if (userRole === 'client') {
+        // Clients can only see projects assigned to their email
+        const user = await storage.getUser(userId);
+        if (!user) {
+          return res.status(401).json({ error: "User not found" });
+        }
+        
+        const allProjects = await storage.getAllProjects();
+        const clientProjects = allProjects.filter(project => 
+          project.clientEmail === user.email
+        );
+        res.json(clientProjects);
+      } else {
+        res.status(403).json({ error: "Invalid role" });
+      }
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch projects" });
     }
@@ -713,13 +742,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Quotations API - aggregated data for comparative quotes (protected)
   app.get("/api/quotations", requireAuth, async (req, res) => {
     try {
+      const userRole = req.session.userRole;
+      const userId = req.session.userId!;
+      
       // Get all project vendors
       const projectVendors = await storage.getAllProjectVendors();
       
       // Get all projects and vendors for joining
-      const projects = await storage.getAllProjects();
+      const allProjects = await storage.getAllProjects();
       const vendors = await storage.getAllVendors();
       const categories = await storage.getAllVendorCategories();
+      
+      // Filter projects based on user role and access
+      let projects = allProjects;
+      if (userRole === 'client') {
+        const user = await storage.getUser(userId);
+        if (!user) {
+          return res.status(401).json({ error: "User not found" });
+        }
+        projects = allProjects.filter(project => project.clientEmail === user.email);
+      }
       
       // Create lookup maps for performance
       const projectMap = new Map(projects.map(p => [p.id, p]));
@@ -734,7 +776,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const vendor = vendorMap.get(pv.vendorId);
         const category = vendor ? categoryMap.get(vendor.categoryId) : null;
         
-        if (project && vendor && category) {
+        // Only include project vendors for projects the user has access to
+        if (project && vendor && category && projects.some(p => p.id === project.id)) {
           if (!quotationsByProject[pv.projectId]) {
             quotationsByProject[pv.projectId] = [];
           }

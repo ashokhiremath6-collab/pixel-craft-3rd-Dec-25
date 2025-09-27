@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -10,6 +10,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useLocation, Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
 interface NavigationItem {
   title: string;
@@ -66,8 +67,24 @@ const settingsItems: NavigationItem[] = [
   },
 ];
 
+const designerOnlyItems: NavigationItem[] = [
+  {
+    title: "Client Access",
+    url: "/client-access",
+    icon: UserCheck,
+  },
+];
+
 export function AppSidebar() {
   const [location] = useLocation();
+  
+  // Get user info to check role
+  const { data: user } = useQuery({
+    queryKey: ['/api/auth/me'],
+    retry: false,
+  });
+  
+  const isDesigner = user?.role === 'designer';
 
   return (
     <Sidebar data-testid="sidebar-main">
@@ -115,6 +132,30 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isDesigner && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {designerOnlyItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton 
+                      asChild
+                      data-active={location === item.url}
+                      data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         <SidebarGroup>
           <SidebarGroupLabel>Configuration</SidebarGroupLabel>

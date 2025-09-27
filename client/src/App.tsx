@@ -16,6 +16,7 @@ import TemplatesPage from "@/pages/TemplatesPage";
 import TemplateViewPage from "@/pages/TemplateViewPage";
 import ImportPage from "@/pages/ImportPage";
 import SettingsPage from "@/pages/SettingsPage";
+import ClientAccessPage from "@/pages/ClientAccessPage";
 import LoginPage from "@/pages/LoginPage";
 import { useState } from "react";
 
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/templates" component={TemplatesPage} />
       <Route path="/templates/:id" component={TemplateViewPage} />
       <Route path="/import" component={ImportPage} />
+      <Route path="/client-access" component={ClientAccessPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

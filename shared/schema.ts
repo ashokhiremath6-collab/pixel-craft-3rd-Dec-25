@@ -28,6 +28,7 @@ export const projects = pgTable("projects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectName: text("project_name").notNull(),
   clientName: text("client_name").notNull(),
+  clientEmail: text("client_email").notNull(), // Email for client access control
   startDate: date("start_date").notNull(),
   endDate: date("end_date"),
 });
@@ -168,9 +169,9 @@ export type FloorPlan = typeof floorPlans.$inferSelect;
 // Users table with role-based access control
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
+  email: text("email").notNull().unique(), // Use email as primary identifier
   password: text("password").notNull(),
-  role: text("role").notNull().default("client"), // admin or client
+  role: text("role").notNull().default("client"), // designer (full access) or client (project-specific)
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
