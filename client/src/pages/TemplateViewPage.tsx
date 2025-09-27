@@ -98,56 +98,13 @@ export default function TemplateViewPage() {
         </div>
       </div>
 
-      {/* Template Information */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Template Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Name</label>
-              <p className="text-sm mt-1" data-testid="text-template-name">{template.name}</p>
-            </div>
-            
-            {template.description && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Description</label>
-                <p className="text-sm mt-1" data-testid="text-template-description">{template.description}</p>
-              </div>
-            )}
-
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Status</label>
-              <div className="mt-1">
-                <Badge variant={template.isActive ? "default" : "secondary"} className="text-xs">
-                  {template.isActive ? "Active" : "Inactive"}
-                </Badge>
-              </div>
-            </div>
-
-            {template.createdAt && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Created</label>
-                <p className="text-sm mt-1 flex items-center gap-2">
-                  <Calendar className="h-3 w-3" />
-                  {new Date(template.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Excel Spreadsheet Data - Full Width */}
-        <Card className="lg:col-span-2">
+      {/* Excel Spreadsheet Data - Full Width */}
+      <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Activity className="h-4 w-4" />
               Excel Data
-{isSpreadsheetTemplate && (
+              {isSpreadsheetTemplate && (
                 <Badge variant="secondary" className="text-xs">
                   {(template.fields as any).rowCount || 0} rows × {(template.fields as any).columnCount || 0} columns
                 </Badge>
@@ -223,7 +180,6 @@ export default function TemplateViewPage() {
             )}
           </CardContent>
         </Card>
-      </div>
     </div>
   );
 }
