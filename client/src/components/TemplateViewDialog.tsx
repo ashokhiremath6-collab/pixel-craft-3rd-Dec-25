@@ -15,7 +15,11 @@ interface TemplateViewDialogProps {
 export function TemplateViewDialog({ template, open, onOpenChange }: TemplateViewDialogProps) {
   if (!template) return null;
 
-  const templateFields = template.fields ? JSON.parse(JSON.stringify(template.fields)) : [];
+  // Handle different field formats
+  const isSpreadsheetTemplate = template.fields && typeof template.fields === 'object' && 
+    (template.fields as any).type === 'spreadsheet';
+  const templateFields = !isSpreadsheetTemplate && template.fields ? 
+    JSON.parse(JSON.stringify(template.fields)) : [];
   const hasFields = Array.isArray(templateFields) && templateFields.length > 0;
 
   return (
@@ -78,24 +82,48 @@ export function TemplateViewDialog({ template, open, onOpenChange }: TemplateVie
               </CardContent>
             </Card>
 
-            {/* Template Fields */}
+            {/* Excel Spreadsheet Data */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Activity className="h-4 w-4" />
-                  Template Fields
-                  {hasFields && (
+                  Excel Data
+                  {isSpreadsheetTemplate && (
                     <Badge variant="secondary" className="text-xs">
-                      {templateFields.length} field{templateFields.length !== 1 ? 's' : ''}
+                      {(template.fields as any).rowCount} rows × {(template.fields as any).columnCount} columns
                     </Badge>
                   )}
                 </CardTitle>
                 <CardDescription>
-                  Field definitions that will be used when creating quotes with this template
+                  Original Excel file content displayed in spreadsheet format
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {hasFields ? (
+                {isSpreadsheetTemplate && (template.fields as any).data ? (
+                  <div className="border rounded-lg overflow-auto max-h-96">
+                    <Table className="text-xs">
+                      <TableBody>
+                        {((template.fields as any).data as any[][]).map((row: any[], rowIndex: number) => (
+                          <TableRow key={rowIndex} data-testid={`excel-row-${rowIndex}`}>
+                            {row.map((cell: any, colIndex: number) => (
+                              <TableCell 
+                                key={colIndex} 
+                                className={`p-2 border-r border-b font-mono ${
+                                  rowIndex === 0 ? 'font-bold bg-muted' : 
+                                  rowIndex === 1 ? 'font-semibold bg-muted/50' : ''
+                                }`}
+                                data-testid={`excel-cell-${rowIndex}-${colIndex}`}
+                              >
+                                {cell || ''}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : hasFields ? (
+                  // Fallback to old field format if not spreadsheet type
                   <div className="border rounded-lg">
                     <Table>
                       <TableHeader>
@@ -136,10 +164,9 @@ export function TemplateViewDialog({ template, open, onOpenChange }: TemplateVie
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <h3 className="text-lg font-medium mb-2">No Fields Defined</h3>
+                    <h3 className="text-lg font-medium mb-2">No Data Available</h3>
                     <p className="text-sm">
-                      This template doesn't have any fields defined yet. 
-                      Use the edit function to add field definitions.
+                      This template doesn't have any Excel data or field definitions.
                     </p>
                   </div>
                 )}

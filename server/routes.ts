@@ -960,7 +960,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
 
-  const processTemplateImport = async (data: any[], categoryId: string) => {
+  const processTemplateImport = async (data: any[], categoryId: string, rawExcelData?: any[][]) => {
     const results = {
       template: null as any,
       fields: [] as any[],
@@ -974,59 +974,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return results;
       }
 
-      // Get first row to determine field structure
-      const firstRow = data[0];
-      const fieldNames = Object.keys(firstRow);
-      
       // Generate template name from filename or default
       const templateName = `Imported Template ${new Date().toLocaleDateString()}`;
       
-      // Create the template
+      // Store the raw Excel data as spreadsheet format
+      const spreadsheetData = {
+        type: 'spreadsheet',
+        data: rawExcelData || data,
+        rowCount: rawExcelData ? rawExcelData.length : data.length,
+        columnCount: rawExcelData ? Math.max(...rawExcelData.map(row => row.length)) : Object.keys(data[0]).length
+      };
+      
+      // Create the template with spreadsheet data
       const templateData = {
         name: templateName,
-        description: `Template imported from file with ${fieldNames.length} fields`,
+        description: `Template imported from Excel file with ${spreadsheetData.rowCount} rows and ${spreadsheetData.columnCount} columns`,
         categoryId: categoryId,
+        fields: spreadsheetData, // Store raw spreadsheet data instead of parsed fields
         isActive: true
       };
 
       results.template = await storage.createQuoteTemplate(templateData);
-
-      // Analyze field types and requirements
-      results.fields = fieldNames.map(fieldName => {
-        // Analyze sample values to determine field type
-        const sampleValues = data.slice(0, 10).map(row => row[fieldName]).filter(val => val != null && val !== '');
-        
-        let fieldType = 'text';
-        let isRequired = false;
-        
-        // Simple type detection
-        if (sampleValues.length > 0) {
-          const numericValues = sampleValues.filter(val => !isNaN(parseFloat(val))).length;
-          if (numericValues > sampleValues.length * 0.8) {
-            fieldType = 'number';
-          }
-          
-          // Check if field appears required (most values are non-empty)
-          const nonEmptyCount = sampleValues.length;
-          isRequired = nonEmptyCount > data.length * 0.7;
-        }
-
-        return {
-          name: fieldName,
-          type: fieldType,
-          required: isRequired,
-          defaultValue: sampleValues[0] || undefined
-        };
-      });
-
-      // Update the template with the extracted fields
-      if (results.template && results.fields.length > 0) {
-        await storage.updateQuoteTemplate(results.template.id, {
-          fields: results.fields
-        });
-        // Update the local template object
-        results.template.fields = results.fields;
-      }
+      results.fields = []; // No individual fields since we're storing as spreadsheet
 
     } catch (error) {
       results.errors.push(`Processing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1075,8 +1044,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      // Process the template import
-      const results = await processTemplateImport(data, categoryId);
+      // Get raw Excel data for spreadsheet storage
+      const buffer = fs.readFileSync(req.file.path);
+      const workbook = XLSX.read(buffer);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawExcelData = XLSX.utils.sheet_to_json(worksheet, { 
+        header: 1, 
+        defval: '',
+        blankrows: false
+      });
+
+      // Process the template import with raw Excel data
+      const results = await processTemplateImport(data, categoryId, rawExcelData as any[][]);
       
       if (!results.template) {
         statusCode = 400;
