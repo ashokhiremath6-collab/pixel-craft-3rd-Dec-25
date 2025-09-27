@@ -74,8 +74,15 @@ export default function DashboardPage() {
       }));
     });
 
-  // Create recent quotations for display (latest 10)
-  const recentQuotations = allQuotations.slice(0, 10);
+  // Create recent quotations for display (latest 10 by submission date)
+  const recentQuotations = allQuotations
+    .sort((a, b) => {
+      // Sort by dateOfQuotation if available, otherwise fall back to comparing IDs as a proxy for creation time
+      const dateA = a.dateOfQuotation ? new Date(a.dateOfQuotation).getTime() : 0;
+      const dateB = b.dateOfQuotation ? new Date(b.dateOfQuotation).getTime() : 0;
+      return dateB - dateA; // Most recent first
+    })
+    .slice(0, 10);
 
   return (
     <Dashboard 
