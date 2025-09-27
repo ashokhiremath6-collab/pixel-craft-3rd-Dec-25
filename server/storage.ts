@@ -3,6 +3,8 @@ import {
   type InsertUser,
   type UserProjectAccess,
   type InsertUserProjectAccess,
+  type DesignerAllowlist,
+  type InsertDesignerAllowlist,
   type VendorCategory,
   type InsertVendorCategory,
   type Vendor,
@@ -21,6 +23,7 @@ import {
   type InsertFloorPlan,
   users,
   userProjectAccess,
+  designerAllowlist,
   vendorCategories,
   vendors,
   projects,
@@ -42,8 +45,10 @@ export interface IStorage {
   getAllUsers(): Promise<User[]>;
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByGoogleId(googleId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
+  updateUserLastLogin(id: string): Promise<void>;
   
   // User Project Access
   getUserProjectAccess(userId: string): Promise<UserProjectAccess[]>;
@@ -51,6 +56,19 @@ export interface IStorage {
   createUserProjectAccess(access: InsertUserProjectAccess): Promise<UserProjectAccess>;
   deleteUserProjectAccess(userId: string, projectId: string): Promise<boolean>;
   getUserAccessibleProjects(userId: string): Promise<string[]>;
+  
+  // Designer Allowlist
+  getDesignerAllowlist(): Promise<DesignerAllowlist[]>;
+  addToDesignerAllowlist(allowlist: InsertDesignerAllowlist): Promise<DesignerAllowlist>;
+  removeFromDesignerAllowlist(email: string): Promise<boolean>;
+  isDesignerEmail(email: string): Promise<boolean>;
+  
+  // Role-based access helpers
+  getProjectsForUser(userId: string, role: string): Promise<Project[]>;
+  getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]>;
+  getBOQForUser(userId: string, role: string, projectVendorId: string): Promise<Boq[]>;
+  getQuoteFilesForUser(userId: string, role: string, projectVendorId: string): Promise<QuoteFile[]>;
+  getFloorPlansForUser(userId: string, role: string, projectId?: string): Promise<FloorPlan[]>;
   
   // Vendor Categories
   getAllVendorCategories(): Promise<VendorCategory[]>;
@@ -170,8 +188,15 @@ export class MemStorage implements IStorage {
     const user: User = { 
       ...insertUser, 
       id,
+      password: insertUser.password || null,
       role: insertUser.role || "client",
+      authProvider: insertUser.authProvider || "local",
+      googleId: insertUser.googleId || null,
+      firstName: insertUser.firstName || null,
+      lastName: insertUser.lastName || null,
+      profilePicture: insertUser.profilePicture || null,
       isActive: insertUser.isActive ?? true,
+      lastLoginAt: null,
       createdAt: new Date()
     };
     this.users.set(id, user);
@@ -185,6 +210,95 @@ export class MemStorage implements IStorage {
     const updatedUser: User = { ...existingUser, ...userUpdate };
     this.users.set(id, updatedUser);
     return updatedUser;
+  }
+
+  // OAuth support methods  
+  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.googleId === googleId,
+    );
+  }
+
+  async updateUserLastLogin(id: string): Promise<void> {
+    const user = this.users.get(id);
+    if (user) {
+      user.lastLoginAt = new Date();
+      this.users.set(id, user);
+    }
+  }
+
+  // Designer Allowlist methods (MemStorage - not used in production)
+  async getDesignerAllowlist(): Promise<DesignerAllowlist[]> {
+    return []; // MemStorage doesn't store allowlist
+  }
+
+  async addToDesignerAllowlist(allowlist: InsertDesignerAllowlist): Promise<DesignerAllowlist> {
+    throw new Error("MemStorage doesn't support designer allowlist");
+  }
+
+  async removeFromDesignerAllowlist(email: string): Promise<boolean> {
+    return false;
+  }
+
+  async isDesignerEmail(email: string): Promise<boolean> {
+    return email === 'admin@company.com'; // Hardcoded for MemStorage
+  }
+
+  // Role-based access helpers (MemStorage - simplified)
+  async getProjectsForUser(userId: string, role: string): Promise<Project[]> {
+    if (role === 'designer') {
+      return Array.from(this.projects.values());
+    }
+    const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+    return Array.from(this.projects.values()).filter(p => accessibleProjectIds.includes(p.id));
+  }
+
+  async getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]> {
+    if (role === 'designer') {
+      return projectId ? 
+        Array.from(this.projectVendors.values()).filter(pv => pv.projectId === projectId) :
+        Array.from(this.projectVendors.values());
+    }
+    const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+    return Array.from(this.projectVendors.values()).filter(pv => 
+      accessibleProjectIds.includes(pv.projectId) && (!projectId || pv.projectId === projectId)
+    );
+  }
+
+  async getBOQForUser(userId: string, role: string, projectVendorId: string): Promise<Boq[]> {
+    if (role === 'designer') {
+      return Array.from(this.boq.values()).filter(b => b.projectVendorId === projectVendorId);
+    }
+    // Check if user has access to the project vendor's project
+    const projectVendor = this.projectVendors.get(projectVendorId);
+    if (!projectVendor) return [];
+    const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+    if (!accessibleProjectIds.includes(projectVendor.projectId)) return [];
+    return Array.from(this.boq.values()).filter(b => b.projectVendorId === projectVendorId);
+  }
+
+  async getQuoteFilesForUser(userId: string, role: string, projectVendorId: string): Promise<QuoteFile[]> {
+    if (role === 'designer') {
+      return Array.from(this.quoteFiles.values()).filter(f => f.projectVendorId === projectVendorId);
+    }
+    // Check if user has access to the project vendor's project
+    const projectVendor = this.projectVendors.get(projectVendorId);
+    if (!projectVendor) return [];
+    const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+    if (!accessibleProjectIds.includes(projectVendor.projectId)) return [];
+    return Array.from(this.quoteFiles.values()).filter(f => f.projectVendorId === projectVendorId);
+  }
+
+  async getFloorPlansForUser(userId: string, role: string, projectId?: string): Promise<FloorPlan[]> {
+    if (role === 'designer') {
+      return projectId ?
+        Array.from(this.floorPlans.values()).filter(f => f.projectId === projectId) :
+        Array.from(this.floorPlans.values());
+    }
+    const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+    return Array.from(this.floorPlans.values()).filter(f => 
+      accessibleProjectIds.includes(f.projectId) && (!projectId || f.projectId === projectId)
+    );
   }
 
   // User Project Access methods (MemStorage uses maps)
@@ -686,6 +800,15 @@ export class DBStorage implements IStorage {
     return result[0];
   }
 
+  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.googleId, googleId));
+    return result[0];
+  }
+
+  async updateUserLastLogin(id: string): Promise<void> {
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, id));
+  }
+
   // User Project Access methods
   async getUserProjectAccess(userId: string): Promise<UserProjectAccess[]> {
     return await db.select().from(userProjectAccess).where(eq(userProjectAccess.userId, userId));
@@ -709,6 +832,29 @@ export class DBStorage implements IStorage {
   async getUserAccessibleProjects(userId: string): Promise<string[]> {
     const userAccess = await this.getUserProjectAccess(userId);
     return userAccess.map(access => access.projectId);
+  }
+
+  // Designer Allowlist methods
+  async getDesignerAllowlist(): Promise<DesignerAllowlist[]> {
+    return await db.select().from(designerAllowlist).where(eq(designerAllowlist.isActive, true));
+  }
+
+  async addToDesignerAllowlist(allowlist: InsertDesignerAllowlist): Promise<DesignerAllowlist> {
+    const result = await db.insert(designerAllowlist).values(allowlist).returning();
+    return result[0];
+  }
+
+  async removeFromDesignerAllowlist(email: string): Promise<boolean> {
+    const result = await db.update(designerAllowlist)
+      .set({ isActive: false })
+      .where(eq(designerAllowlist.email, email));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async isDesignerEmail(email: string): Promise<boolean> {
+    const result = await db.select().from(designerAllowlist)
+      .where(and(eq(designerAllowlist.email, email), eq(designerAllowlist.isActive, true)));
+    return result.length > 0;
   }
 
   // Vendor Categories
@@ -868,6 +1014,113 @@ export class DBStorage implements IStorage {
   async deleteProject(id: string): Promise<boolean> {
     const result = await db.delete(projects).where(eq(projects.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Role-based access helper methods
+  async getProjectsForUser(userId: string, role: string): Promise<Project[]> {
+    if (role === 'designer') {
+      // Designers can access all projects
+      return await db.select().from(projects);
+    } else {
+      // Clients can only access projects they have access to
+      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+      if (accessibleProjectIds.length === 0) {
+        return [];
+      }
+      return await db.select().from(projects).where(inArray(projects.id, accessibleProjectIds));
+    }
+  }
+
+  async getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]> {
+    if (role === 'designer') {
+      // Designers can access all project vendors
+      if (projectId) {
+        return await db.select().from(projectVendors).where(eq(projectVendors.projectId, projectId));
+      }
+      return await db.select().from(projectVendors);
+    } else {
+      // Clients can only access project vendors for their projects
+      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+      if (accessibleProjectIds.length === 0) {
+        return [];
+      }
+      
+      if (projectId) {
+        // Verify client has access to the specific project
+        if (!accessibleProjectIds.includes(projectId)) {
+          return [];
+        }
+        return await db.select().from(projectVendors).where(eq(projectVendors.projectId, projectId));
+      }
+      
+      return await db.select().from(projectVendors).where(inArray(projectVendors.projectId, accessibleProjectIds));
+    }
+  }
+
+  async getBOQForUser(userId: string, role: string, projectVendorId: string): Promise<Boq[]> {
+    if (role === 'designer') {
+      // Designers can access all BOQ data
+      return await db.select().from(boq).where(eq(boq.projectVendorId, projectVendorId));
+    } else {
+      // Clients can only access BOQ for project vendors in their accessible projects
+      const projectVendor = await db.select().from(projectVendors).where(eq(projectVendors.id, projectVendorId));
+      if (projectVendor.length === 0) {
+        return [];
+      }
+      
+      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+      if (!accessibleProjectIds.includes(projectVendor[0].projectId)) {
+        return [];
+      }
+      
+      return await db.select().from(boq).where(eq(boq.projectVendorId, projectVendorId));
+    }
+  }
+
+  async getQuoteFilesForUser(userId: string, role: string, projectVendorId: string): Promise<QuoteFile[]> {
+    if (role === 'designer') {
+      // Designers can access all quote files
+      return await db.select().from(quoteFiles).where(eq(quoteFiles.projectVendorId, projectVendorId));
+    } else {
+      // Clients can only access quote files for project vendors in their accessible projects
+      const projectVendor = await db.select().from(projectVendors).where(eq(projectVendors.id, projectVendorId));
+      if (projectVendor.length === 0) {
+        return [];
+      }
+      
+      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+      if (!accessibleProjectIds.includes(projectVendor[0].projectId)) {
+        return [];
+      }
+      
+      return await db.select().from(quoteFiles).where(eq(quoteFiles.projectVendorId, projectVendorId));
+    }
+  }
+
+  async getFloorPlansForUser(userId: string, role: string, projectId?: string): Promise<FloorPlan[]> {
+    if (role === 'designer') {
+      // Designers can access all floor plans
+      if (projectId) {
+        return await db.select().from(floorPlans).where(eq(floorPlans.projectId, projectId));
+      }
+      return await db.select().from(floorPlans);
+    } else {
+      // Clients can only access floor plans for their accessible projects
+      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+      if (accessibleProjectIds.length === 0) {
+        return [];
+      }
+      
+      if (projectId) {
+        // Verify client has access to the specific project
+        if (!accessibleProjectIds.includes(projectId)) {
+          return [];
+        }
+        return await db.select().from(floorPlans).where(eq(floorPlans.projectId, projectId));
+      }
+      
+      return await db.select().from(floorPlans).where(inArray(floorPlans.projectId, accessibleProjectIds));
+    }
   }
 
   // Project Vendors

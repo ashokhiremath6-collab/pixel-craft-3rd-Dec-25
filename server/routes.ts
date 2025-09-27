@@ -13,6 +13,8 @@ import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
 import { storage } from "./storage";
+import { OAuth2Client } from "google-auth-library";
+import { randomBytes } from "crypto";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
@@ -31,6 +33,8 @@ declare module 'express-session' {
   interface SessionData {
     userId?: string;
     userRole?: string;
+    oauthState?: string;
+    oauthNonce?: string;
   }
 }
 
@@ -327,7 +331,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Account is disabled" });
       }
       
-      // Verify password
+      // Verify password (handle OAuth users who may not have passwords)
+      if (!user.password) {
+        return res.status(401).json({ error: "Please use OAuth login for this account" });
+      }
+      
       const isValidPassword = await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
         return res.status(401).json({ error: "Invalid credentials" });
@@ -359,6 +367,150 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Logged out successfully" });
     });
   });
+
+  // Google OAuth configuration
+  const googleOAuthClient = new OAuth2Client({
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    redirectUri: process.env.GOOGLE_REDIRECT_URI || `${process.env.NODE_ENV === 'production' ? 'https' : 'http'}://${process.env.REPLIT_DOMAIN || 'localhost:5000'}/api/auth/google/callback`
+  });
+
+  // Google OAuth initiation endpoint
+  app.get("/api/auth/google", (req, res) => {
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({ error: "Google OAuth not configured" });
+    }
+
+    // Generate cryptographically secure state and nonce for CSRF protection
+    const state = randomBytes(16).toString('hex');
+    const nonce = randomBytes(16).toString('hex');
+    
+    // Store state and nonce in session for validation
+    req.session.oauthState = state;
+    req.session.oauthNonce = nonce;
+
+    const scopes = [
+      'https://www.googleapis.com/auth/userinfo.profile',
+      'https://www.googleapis.com/auth/userinfo.email'
+    ];
+
+    const authorizationUrl = googleOAuthClient.generateAuthUrl({
+      access_type: 'offline',
+      scope: scopes,
+      include_granted_scopes: true,
+      state: state,
+      nonce: nonce
+    });
+
+    res.redirect(authorizationUrl);
+  });
+
+  // Google OAuth callback endpoint
+  app.get("/api/auth/google/callback", async (req, res) => {
+    try {
+      const { code, error, state } = req.query;
+
+      if (error) {
+        console.error('Google OAuth error:', error);
+        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=oauth_cancelled`);
+      }
+
+      if (!code) {
+        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=missing_code`);
+      }
+
+      if (!process.env.GOOGLE_CLIENT_ID) {
+        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=oauth_not_configured`);
+      }
+
+      // Validate state parameter to prevent CSRF attacks
+      if (!state || state !== req.session.oauthState) {
+        console.error('OAuth state mismatch - potential CSRF attack');
+        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=invalid_state`);
+      }
+
+      // Clear state from session after validation
+      delete req.session.oauthState;
+
+      // Exchange authorization code for tokens
+      const { tokens } = await googleOAuthClient.getToken(code as string);
+      googleOAuthClient.setCredentials(tokens);
+
+      // Get user info from Google with nonce validation
+      const ticket = await googleOAuthClient.verifyIdToken({
+        idToken: tokens.id_token!,
+        audience: process.env.GOOGLE_CLIENT_ID,
+        maxExpiry: 3600, // 1 hour max
+        nonce: req.session.oauthNonce, // Pass stored nonce for validation
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload) {
+        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=invalid_token`);
+      }
+
+      // Additional nonce validation (belt and suspenders approach)
+      if (payload.nonce !== req.session.oauthNonce) {
+        console.error('OAuth nonce mismatch - potential token replay attack');
+        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=invalid_nonce`);
+      }
+
+      // Clear nonce from session after successful validation
+      delete req.session.oauthNonce;
+
+      const { sub: googleId, email, given_name: firstName, family_name: lastName, picture } = payload;
+
+      if (!email) {
+        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=no_email`);
+      }
+
+      // Check if user exists
+      let user = await storage.getUserByEmail(email);
+      
+      if (!user) {
+        // Check if this email is in the designer allowlist to determine role
+        const isDesigner = await storage.isDesignerEmail(email);
+        const userRole = isDesigner ? 'designer' : 'client';
+
+        // Create new user
+        user = await storage.createUser({
+          email,
+          password: null, // No password for OAuth users
+          role: userRole,
+          authProvider: 'google',
+          googleId,
+          firstName: firstName || null,
+          lastName: lastName || null,
+          profilePicture: picture || null,
+          isActive: true
+        });
+      } else {
+        // Update existing user with OAuth info if needed
+        if (!user.googleId) {
+          await storage.updateUser(user.id, {
+            googleId,
+            authProvider: 'google',
+            firstName: firstName || user.firstName,
+            lastName: lastName || user.lastName,
+            profilePicture: picture || user.profilePicture
+          });
+        }
+      }
+
+      // Update last login time
+      await storage.updateUserLastLogin(user.id);
+
+      // Set session
+      req.session.userId = user.id;
+      req.session.userRole = user.role;
+
+      // Redirect to frontend with success
+      res.redirect(`${process.env.FRONTEND_URL || '/'}?oauth=success`);
+    } catch (error) {
+      console.error('Google OAuth callback error:', error);
+      res.redirect(`${process.env.FRONTEND_URL || '/'}?error=oauth_failed`);
+    }
+  });
   
   app.get("/api/auth/me", requireAuth, async (req, res) => {
     try {
@@ -387,9 +539,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Remove passwords from response
       const safeUsers = users.map(user => ({
         id: user.id,
-        username: user.username,
+        email: user.email,
         role: user.role,
+        authProvider: user.authProvider,
+        firstName: user.firstName,
+        lastName: user.lastName,
         isActive: user.isActive,
+        lastLoginAt: user.lastLoginAt,
         createdAt: user.createdAt
       }));
       res.json(safeUsers);
@@ -597,57 +753,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Projects Routes (protected)
   app.get("/api/projects", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole;
+      const userRole = req.session.userRole!;
       const userId = req.session.userId!;
       
-      if (userRole === 'designer') {
-        // Designers can see all projects
-        const projects = await storage.getAllProjects();
-        res.json(projects);
-      } else if (userRole === 'client') {
-        // Clients can only see projects assigned to their email
-        const user = await storage.getUser(userId);
-        if (!user) {
-          return res.status(401).json({ error: "User not found" });
-        }
-        
-        const allProjects = await storage.getAllProjects();
-        const clientProjects = allProjects.filter(project => 
-          project.clientEmail === user.email
-        );
-        res.json(clientProjects);
-      } else {
-        res.status(403).json({ error: "Invalid role" });
-      }
+      // Use role-based helper method for consistent access control
+      const projects = await storage.getProjectsForUser(userId, userRole);
+      res.json(projects);
     } catch (error) {
+      console.error('Get projects error:', error);
       res.status(500).json({ error: "Failed to fetch projects" });
     }
   });
 
   app.get("/api/projects/:id", requireAuth, async (req, res) => {
     try {
-      const project = await storage.getProject(req.params.id);
-      if (!project) {
-        return res.status(404).json({ error: "Project not found" });
-      }
-      
-      const userRole = req.session.userRole;
+      const userRole = req.session.userRole!;
       const userId = req.session.userId!;
       
-      if (userRole === 'designer') {
-        // Designers can see all projects
-        res.json(project);
-      } else if (userRole === 'client') {
-        // Clients can only see projects assigned to their email
-        const user = await storage.getUser(userId);
-        if (!user || project.clientEmail !== user.email) {
-          return res.status(403).json({ error: "Access denied to this project" });
-        }
-        res.json(project);
-      } else {
-        res.status(403).json({ error: "Invalid role" });
+      // Get user's accessible projects and check if this project is included
+      const userProjects = await storage.getProjectsForUser(userId, userRole);
+      const project = userProjects.find(p => p.id === req.params.id);
+      
+      if (!project) {
+        return res.status(404).json({ error: "Project not found or access denied" });
       }
+      
+      res.json(project);
     } catch (error) {
+      console.error('Get project error:', error);
       res.status(500).json({ error: "Failed to fetch project" });
     }
   });
@@ -690,67 +823,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Project Vendors Routes
   app.get("/api/project-vendors", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole;
+      const userRole = req.session.userRole!;
       const userId = req.session.userId!;
       
-      if (userRole === 'designer') {
-        // Designers can see all project vendors
-        const projectVendors = await storage.getAllProjectVendors();
-        res.json(projectVendors);
-      } else if (userRole === 'client') {
-        // Clients can only see project vendors for their accessible projects
-        const user = await storage.getUser(userId);
-        if (!user) {
-          return res.status(401).json({ error: "User not found" });
-        }
-        
-        const allProjectVendors = await storage.getAllProjectVendors();
-        const allProjects = await storage.getAllProjects();
-        const accessibleProjects = allProjects.filter(project => 
-          project.clientEmail === user.email
-        );
-        const accessibleProjectIds = new Set(accessibleProjects.map(p => p.id));
-        
-        const clientProjectVendors = allProjectVendors.filter(pv => 
-          accessibleProjectIds.has(pv.projectId)
-        );
-        res.json(clientProjectVendors);
-      } else {
-        res.status(403).json({ error: "Invalid role" });
-      }
+      // Use role-based helper method for consistent access control
+      const projectVendors = await storage.getProjectVendorsForUser(userId, userRole);
+      res.json(projectVendors);
     } catch (error) {
+      console.error('Get project vendors error:', error);
       res.status(500).json({ error: "Failed to fetch project vendors" });
     }
   });
 
   app.get("/api/project-vendors/project/:projectId", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole;
+      const userRole = req.session.userRole!;
       const userId = req.session.userId!;
       const projectId = req.params.projectId;
       
-      if (userRole === 'designer') {
-        // Designers can access all project vendors
-        const projectVendors = await storage.getProjectVendors(projectId);
-        res.json(projectVendors);
-      } else if (userRole === 'client') {
-        // Clients can only access project vendors for their assigned projects
-        const user = await storage.getUser(userId);
-        if (!user) {
-          return res.status(401).json({ error: "User not found" });
-        }
-        
-        const project = await storage.getProject(projectId);
-        if (!project || project.clientEmail !== user.email) {
-          return res.status(403).json({ error: "Access denied to this project" });
-        }
-        
-        const projectVendors = await storage.getProjectVendors(projectId);
-        res.json(projectVendors);
-      } else {
-        res.status(403).json({ error: "Invalid role" });
-      }
+      // Use role-based helper method with project ID filter
+      const projectVendors = await storage.getProjectVendorsForUser(userId, userRole, projectId);
+      res.json(projectVendors);
     } catch (error) {
+      console.error('Get project vendors by project error:', error);
       res.status(500).json({ error: "Failed to fetch project vendors" });
     }
   });
@@ -1693,39 +1788,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get BOQ items for a project vendor (protected)
   app.get("/api/project-vendors/:id/boq", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole;
+      const userRole = req.session.userRole!;
       const userId = req.session.userId!;
       const projectVendorId = req.params.id;
       
-      if (userRole === 'designer') {
-        // Designers can access all BOQ data
-        const boqItems = await storage.getBOQByProjectVendor(projectVendorId);
-        res.json(boqItems);
-      } else if (userRole === 'client') {
-        // Clients can only access BOQ for their assigned projects
-        const user = await storage.getUser(userId);
-        if (!user) {
-          return res.status(401).json({ error: "User not found" });
-        }
-        
-        // Get project vendor to check project ownership
-        const allProjectVendors = await storage.getAllProjectVendors();
-        const projectVendor = allProjectVendors.find(pv => pv.id === projectVendorId);
-        if (!projectVendor) {
-          return res.status(404).json({ error: "Project vendor not found" });
-        }
-        
-        const project = await storage.getProject(projectVendor.projectId);
-        if (!project || project.clientEmail !== user.email) {
-          return res.status(403).json({ error: "Access denied to this project's BOQ" });
-        }
-        
-        const boqItems = await storage.getBOQByProjectVendor(projectVendorId);
-        res.json(boqItems);
-      } else {
-        res.status(403).json({ error: "Invalid role" });
-      }
+      // Use role-based helper method for consistent access control
+      const boqItems = await storage.getBOQForUser(userId, userRole, projectVendorId);
+      res.json(boqItems);
     } catch (error) {
+      console.error('Get BOQ error:', error);
       res.status(500).json({ error: "Failed to fetch BOQ items" });
     }
   });
@@ -1733,39 +1804,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get quote files for a project vendor (protected)
   app.get("/api/project-vendors/:id/files", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole;
+      const userRole = req.session.userRole!;
       const userId = req.session.userId!;
       const projectVendorId = req.params.id;
       
-      if (userRole === 'designer') {
-        // Designers can access all quote files
-        const files = await storage.getQuoteFilesByProjectVendor(projectVendorId);
-        res.json(files);
-      } else if (userRole === 'client') {
-        // Clients can only access quote files for their assigned projects
-        const user = await storage.getUser(userId);
-        if (!user) {
-          return res.status(401).json({ error: "User not found" });
-        }
-        
-        // Get project vendor to check project ownership
-        const allProjectVendors = await storage.getAllProjectVendors();
-        const projectVendor = allProjectVendors.find(pv => pv.id === projectVendorId);
-        if (!projectVendor) {
-          return res.status(404).json({ error: "Project vendor not found" });
-        }
-        
-        const project = await storage.getProject(projectVendor.projectId);
-        if (!project || project.clientEmail !== user.email) {
-          return res.status(403).json({ error: "Access denied to this project's files" });
-        }
-        
-        const files = await storage.getQuoteFilesByProjectVendor(projectVendorId);
-        res.json(files);
-      } else {
-        res.status(403).json({ error: "Invalid role" });
-      }
+      // Use role-based helper method for consistent access control
+      const files = await storage.getQuoteFilesForUser(userId, userRole, projectVendorId);
+      res.json(files);
     } catch (error) {
+      console.error('Get quote files error:', error);
       res.status(500).json({ error: "Failed to fetch quote files" });
     }
   });
@@ -2345,7 +2392,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Floor Plans Routes (protected)
   app.get("/api/floor-plans", requireAuth, async (req, res) => {
     try {
-      const floorPlans = await storage.getAllFloorPlans();
+      const userRole = req.session.userRole!;
+      const userId = req.session.userId!;
+      
+      // Use role-based helper method for consistent access control
+      const floorPlans = await storage.getFloorPlansForUser(userId, userRole);
       res.json(floorPlans);
     } catch (error) {
       console.error('Error fetching floor plans:', error);
@@ -2355,8 +2406,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/floor-plans/project/:projectId", requireAuth, async (req, res) => {
     try {
+      const userRole = req.session.userRole!;
+      const userId = req.session.userId!;
       const { projectId } = req.params;
-      const floorPlans = await storage.getFloorPlansByProject(projectId);
+      
+      // Use role-based helper method with project ID filter
+      const floorPlans = await storage.getFloorPlansForUser(userId, userRole, projectId);
       res.json(floorPlans);
     } catch (error) {
       console.error('Error fetching floor plans for project:', error);
@@ -2366,11 +2421,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/floor-plans/:id", requireAuth, async (req, res) => {
     try {
+      const userRole = req.session.userRole!;
+      const userId = req.session.userId!;
       const { id } = req.params;
-      const floorPlan = await storage.getFloorPlan(id);
+      
+      // Get user's accessible floor plans and check if this one is included
+      const userFloorPlans = await storage.getFloorPlansForUser(userId, userRole);
+      const floorPlan = userFloorPlans.find(fp => fp.id === id);
+      
       if (!floorPlan) {
-        return res.status(404).json({ error: "Floor plan not found" });
+        return res.status(404).json({ error: "Floor plan not found or access denied" });
       }
+      
       res.json(floorPlan);
     } catch (error) {
       console.error('Error fetching floor plan:', error);

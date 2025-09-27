@@ -166,13 +166,19 @@ export type QuoteFile = typeof quoteFiles.$inferSelect;
 export type InsertFloorPlan = z.infer<typeof insertFloorPlanSchema>;
 export type FloorPlan = typeof floorPlans.$inferSelect;
 
-// Users table with role-based access control
+// Users table with role-based access control and OAuth support
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(), // Use email as primary identifier
-  password: text("password").notNull(),
+  password: text("password"), // Optional for OAuth users
   role: text("role").notNull().default("client"), // designer (full access) or client (project-specific)
+  authProvider: text("auth_provider").notNull().default("local"), // local, google
+  googleId: text("google_id"), // Google OAuth ID
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  profilePicture: text("profile_picture"), // URL to profile image
   isActive: boolean("is_active").notNull().default(true),
+  lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
@@ -191,9 +197,23 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
 });
 
+// Designer Email Allowlist - predefined emails that should have designer role
+export const designerAllowlist = pgTable("designer_allowlist", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull().unique(),
+  isActive: boolean("is_active").notNull().default(true),
+  addedBy: varchar("added_by").notNull().references(() => users.id),
+  addedAt: timestamp("added_at").notNull().default(sql`now()`),
+});
+
 export const insertUserProjectAccessSchema = createInsertSchema(userProjectAccess).omit({
   id: true,
   assignedAt: true,
+});
+
+export const insertDesignerAllowlistSchema = createInsertSchema(designerAllowlist).omit({
+  id: true,
+  addedAt: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -201,3 +221,6 @@ export type User = typeof users.$inferSelect;
 
 export type InsertUserProjectAccess = z.infer<typeof insertUserProjectAccessSchema>;
 export type UserProjectAccess = typeof userProjectAccess.$inferSelect;
+
+export type InsertDesignerAllowlist = z.infer<typeof insertDesignerAllowlistSchema>;
+export type DesignerAllowlist = typeof designerAllowlist.$inferSelect;
