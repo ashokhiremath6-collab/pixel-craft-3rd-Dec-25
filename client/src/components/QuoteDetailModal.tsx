@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, FileText, Calendar, IndianRupee, Package, User, AlertCircle } from "lucide-react";
+import { Loader2, FileText, Calendar, IndianRupee, Package, User, AlertCircle, Eye, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Boq, ProjectVendor } from "@shared/schema";
 
@@ -185,6 +185,46 @@ export default function QuoteDetailModal({
                       <p className="text-sm text-muted-foreground" data-testid="text-quote-notes">
                         {quoteDetails.quote.notes}
                       </p>
+                    </div>
+                  )}
+
+                  {/* Original Quote File */}
+                  {quoteDetails.quote.quotationFile && (
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium mb-2">Original Quote File</h4>
+                      <div className="border rounded-lg p-4 bg-muted/50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <FileText className="h-4 w-4" />
+                          <span className="text-sm font-medium">
+                            {quoteDetails.quote.quotationFile.split('/').pop()}
+                          </span>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => quoteDetails.quote.quotationFile && window.open(quoteDetails.quote.quotationFile, '_blank')}
+                            data-testid="button-view-original-file"
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Original File
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => {
+                              const link = document.createElement('a');
+                              link.href = quoteDetails.quote.quotationFile!;
+                              link.download = quoteDetails.quote.quotationFile!.split('/').pop() || 'quote.pdf';
+                              link.click();
+                            }}
+                            data-testid="button-download-original-file"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   )}
 

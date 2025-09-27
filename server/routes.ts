@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -20,6 +21,9 @@ import {
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Serve uploaded files statically
+  app.use('/uploads', express.static('uploads'));
+  
   // Vendor Categories Routes
   app.get("/api/vendor-categories", async (req, res) => {
     try {
@@ -388,7 +392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Configure multer for file uploads
   const upload = multer({
-    dest: '/tmp/uploads',
+    dest: 'uploads/',
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB limit
       files: 1, // Only allow single file upload
@@ -724,7 +728,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process the quote import
       const results = await processQuoteImport(data, projectId, vendorId);
       
-      // Store file information
+      // Store file information - keep the uploaded file
       const filePath = `/uploads/${req.file.filename}`;
       const quoteFileData = {
         projectVendorId: results.projectVendor.id,
@@ -741,12 +745,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         quotationFile: filePath
       });
 
-      // Clean up temporary file
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (error) {
-        console.warn('Failed to clean up temporary file:', error);
-      }
+      // Don't delete the file - keep it for viewing
+      console.log(`Stored quote file at: ${filePath}`);
 
       res.status(201).json({
         message: "Quote imported successfully",
