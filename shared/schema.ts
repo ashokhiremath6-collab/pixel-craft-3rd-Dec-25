@@ -40,6 +40,9 @@ export const quoteTemplates = pgTable("quote_templates", {
   description: text("description"),
   templateFile: text("template_file"), // file path/url in storage
   fields: jsonb("fields"), // JSON structure of required fields
+  originalFileData: text("original_file_data"), // Base64 encoded original Excel file
+  originalFileName: text("original_file_name"), // Original file name for download
+  originalMimeType: text("original_mime_type"), // Original MIME type for download
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });

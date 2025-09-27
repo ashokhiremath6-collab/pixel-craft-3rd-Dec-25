@@ -74,6 +74,7 @@ export interface IStorage {
   // Quote Templates
   getAllQuoteTemplates(): Promise<QuoteTemplate[]>;
   getQuoteTemplate(id: string): Promise<QuoteTemplate | undefined>;
+  getQuoteTemplateWithFileData(id: string): Promise<QuoteTemplate | undefined>;
   getQuoteTemplatesByCategory(categoryId: string): Promise<QuoteTemplate[]>;
   createQuoteTemplate(template: InsertQuoteTemplate): Promise<QuoteTemplate>;
   updateQuoteTemplate(id: string, template: Partial<InsertQuoteTemplate>): Promise<QuoteTemplate | undefined>;
@@ -340,17 +341,34 @@ export class MemStorage implements IStorage {
 
   // Quote Templates
   async getAllQuoteTemplates(): Promise<QuoteTemplate[]> {
-    return Array.from(this.quoteTemplates.values());
+    return Array.from(this.quoteTemplates.values()).map(template => {
+      // Exclude originalFileData to avoid bloating API responses
+      const { originalFileData, ...templateWithoutFileData } = template;
+      return templateWithoutFileData as QuoteTemplate;
+    });
   }
 
   async getQuoteTemplate(id: string): Promise<QuoteTemplate | undefined> {
+    const template = this.quoteTemplates.get(id);
+    if (!template) return undefined;
+    // Exclude originalFileData to avoid bloating API responses
+    const { originalFileData, ...templateWithoutFileData } = template;
+    return templateWithoutFileData as QuoteTemplate;
+  }
+
+  async getQuoteTemplateWithFileData(id: string): Promise<QuoteTemplate | undefined> {
+    // Include originalFileData for downloads
     return this.quoteTemplates.get(id);
   }
 
   async getQuoteTemplatesByCategory(categoryId: string): Promise<QuoteTemplate[]> {
     return Array.from(this.quoteTemplates.values()).filter(
       template => template.categoryId === categoryId
-    );
+    ).map(template => {
+      // Exclude originalFileData to avoid bloating API responses
+      const { originalFileData, ...templateWithoutFileData } = template;
+      return templateWithoutFileData as QuoteTemplate;
+    });
   }
 
   async createQuoteTemplate(insertTemplate: InsertQuoteTemplate): Promise<QuoteTemplate> {
@@ -688,16 +706,58 @@ export class DBStorage implements IStorage {
 
   // Quote Templates
   async getAllQuoteTemplates(): Promise<QuoteTemplate[]> {
-    return await db.select().from(quoteTemplates);
+    // Exclude originalFileData to avoid bloating API responses
+    return await db.select({
+      id: quoteTemplates.id,
+      name: quoteTemplates.name,
+      categoryId: quoteTemplates.categoryId,
+      description: quoteTemplates.description,
+      templateFile: quoteTemplates.templateFile,
+      fields: quoteTemplates.fields,
+      originalFileName: quoteTemplates.originalFileName,
+      originalMimeType: quoteTemplates.originalMimeType,
+      isActive: quoteTemplates.isActive,
+      createdAt: quoteTemplates.createdAt
+    }).from(quoteTemplates);
   }
 
   async getQuoteTemplate(id: string): Promise<QuoteTemplate | undefined> {
+    // Exclude originalFileData to avoid bloating API responses
+    const result = await db.select({
+      id: quoteTemplates.id,
+      name: quoteTemplates.name,
+      categoryId: quoteTemplates.categoryId,
+      description: quoteTemplates.description,
+      templateFile: quoteTemplates.templateFile,
+      fields: quoteTemplates.fields,
+      originalFileName: quoteTemplates.originalFileName,
+      originalMimeType: quoteTemplates.originalMimeType,
+      isActive: quoteTemplates.isActive,
+      createdAt: quoteTemplates.createdAt
+    }).from(quoteTemplates).where(eq(quoteTemplates.id, id));
+    return result[0];
+  }
+
+  async getQuoteTemplateWithFileData(id: string): Promise<QuoteTemplate | undefined> {
+    // Include originalFileData for downloads
     const result = await db.select().from(quoteTemplates).where(eq(quoteTemplates.id, id));
     return result[0];
   }
 
   async getQuoteTemplatesByCategory(categoryId: string): Promise<QuoteTemplate[]> {
-    return await db.select().from(quoteTemplates).where(eq(quoteTemplates.categoryId, categoryId));
+    // Exclude originalFileData to avoid bloating API responses
+    return await db.select({
+      id: quoteTemplates.id,
+      name: quoteTemplates.name,
+      categoryId: quoteTemplates.categoryId,
+      description: quoteTemplates.description,
+      templateFile: quoteTemplates.templateFile,
+      fields: quoteTemplates.fields,
+      originalFileName: quoteTemplates.originalFileName,
+      originalMimeType: quoteTemplates.originalMimeType,
+      isActive: quoteTemplates.isActive,
+      createdAt: quoteTemplates.createdAt
+    }).from(quoteTemplates).where(eq(quoteTemplates.categoryId, categoryId));
   }
 
   async createQuoteTemplate(template: InsertQuoteTemplate): Promise<QuoteTemplate> {

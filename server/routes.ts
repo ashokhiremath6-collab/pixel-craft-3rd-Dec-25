@@ -373,15 +373,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Download Excel file route
   app.get("/api/quote-templates/:id/download", async (req, res) => {
     try {
-      const template = await storage.getQuoteTemplate(req.params.id);
+      const template = await storage.getQuoteTemplateWithFileData(req.params.id);
       if (!template) {
         return res.status(404).json({ error: "Template not found" });
       }
 
-      // If template has spreadsheet data, recreate Excel file
-      if (template.fields && typeof template.fields === 'object' && 
+      // If template has original file data, serve the original Excel file
+      if (template.originalFileData && template.originalFileName) {
+        // Decode the Base64 data back to binary
+        const excelBuffer = Buffer.from(template.originalFileData, 'base64');
+        
+        // Use original MIME type or default to Excel
+        const contentType = template.originalMimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        
+        // Set headers for download using original filename and MIME type
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${template.originalFileName}"`);
+        res.setHeader('Content-Length', excelBuffer.length);
+        
+        res.send(excelBuffer);
+      } else if (template.fields && typeof template.fields === 'object' && 
           (template.fields as any).type === 'spreadsheet' && (template.fields as any).data) {
         
+        // Fallback: recreate Excel file from spreadsheet data if no original file
         const spreadsheetData = (template.fields as any).data as any[][];
         
         // Create Excel workbook from the spreadsheet data
@@ -1009,7 +1023,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
 
-  const processTemplateImport = async (data: any[], categoryId: string, rawExcelData?: any[][]) => {
+  const processTemplateImport = async (data: any[], categoryId: string, rawExcelData?: any[][], originalFileData?: string, originalFileName?: string, originalMimeType?: string) => {
     const results = {
       template: null as any,
       fields: [] as any[],
@@ -1040,6 +1054,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: `Template imported from Excel file with ${spreadsheetData.rowCount} rows and ${spreadsheetData.columnCount} columns`,
         categoryId: categoryId,
         fields: spreadsheetData, // Store raw spreadsheet data instead of parsed fields
+        originalFileData: originalFileData, // Store original Excel file as Base64
+        originalFileName: originalFileName, // Store original filename
+        originalMimeType: originalMimeType, // Store original MIME type
         isActive: true
       };
 
@@ -1103,8 +1120,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         blankrows: false
       });
 
-      // Process the template import with raw Excel data
-      const results = await processTemplateImport(data, categoryId, rawExcelData as any[][]);
+      // Store original file data as Base64 for downloads
+      const originalFileData = buffer.toString('base64');
+      const originalFileName = req.file.originalname;
+      const originalMimeType = req.file.mimetype;
+
+      // Process the template import with raw Excel data and original file
+      const results = await processTemplateImport(data, categoryId, rawExcelData as any[][], originalFileData, originalFileName, originalMimeType);
       
       if (!results.template) {
         statusCode = 400;
