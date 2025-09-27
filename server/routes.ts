@@ -234,6 +234,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Authentication Routes
+  
+  // Check authentication status
+  app.get("/api/auth/me", async (req, res) => {
+    if (req.session.userId) {
+      try {
+        const user = await storage.getUser(req.session.userId);
+        if (user && user.isActive) {
+          return res.json({
+            id: user.id,
+            email: user.email || user.username,
+            role: user.role,
+            isActive: user.isActive
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      }
+    }
+    return res.status(401).json({ error: "Not authenticated" });
+  });
+  
   app.post("/api/auth/register", async (req, res) => {
     try {
       const { username, password } = req.body;
