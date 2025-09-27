@@ -231,6 +231,24 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
               </CardContent>
             </Card>
           )}
+
+          {filteredProjects.length > 0 && !selectedProject && (
+            <Card className="text-center py-6 mt-4">
+              <CardContent>
+                <div className="flex flex-col items-center gap-3">
+                  <Building2 className="h-10 w-10 text-muted-foreground" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground" data-testid="text-select-project-title">
+                      Select a Project
+                    </p>
+                    <p className="text-sm text-muted-foreground" data-testid="text-select-project-subtitle">
+                      Click on any project above to view participating vendors and their quotations
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Project Details */}
@@ -275,16 +293,7 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
                 </Card>
               )}
             </>
-          ) : (
-            <Card className="text-center py-12">
-              <CardContent>
-                <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground" data-testid="text-select-project">
-                  Select a project to view participating vendors
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
