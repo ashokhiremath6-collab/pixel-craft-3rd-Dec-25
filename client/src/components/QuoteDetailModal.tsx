@@ -67,7 +67,7 @@ export default function QuoteDetailModal({
   }
 
   const formatCurrency = (value: string | number) => {
-    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    const numValue = parseLocalizedNumber(value);
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR'
@@ -79,10 +79,22 @@ export default function QuoteDetailModal({
     return new Date(dateString).toLocaleDateString('en-IN');
   };
 
+  const parseLocalizedNumber = (value: string | number) => {
+    if (typeof value === 'number') return value;
+    // Remove commas, currency symbols, and other non-numeric characters except dots
+    const cleanValue = value.toString().replace(/[,₹$\s]/g, '');
+    const numValue = parseFloat(cleanValue);
+    return isNaN(numValue) ? 0 : numValue;
+  };
+
   const getTotalAmount = () => {
+    // Use the quote's parsed total value if available, otherwise sum BOQ items
+    if (quoteDetails?.quote.quotationValue) {
+      return parseLocalizedNumber(quoteDetails.quote.quotationValue);
+    }
     if (!quoteDetails?.boqItems) return 0;
     return quoteDetails.boqItems.reduce((sum, item) => 
-      sum + parseFloat(item.totalAmount.toString()), 0
+      sum + parseLocalizedNumber(item.totalAmount), 0
     );
   };
 
@@ -105,7 +117,7 @@ export default function QuoteDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden" data-testid="dialog-quote-details">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden" data-testid="dialog-quote-details">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2" data-testid="title-quote-details">
             <FileText className="h-5 w-5" />
@@ -138,15 +150,15 @@ export default function QuoteDetailModal({
             </Button>
           </div>
         ) : quoteDetails ? (
-          <ScrollArea className="flex-1 pr-6">
-            <div className="space-y-6">
+          <ScrollArea className="flex-1 pr-4">
+            <div className="space-y-4">
               {/* Quote Summary */}
               <Card data-testid="card-quote-summary">
-                <CardHeader>
-                  <CardTitle className="text-lg">Quote Summary</CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Quote Summary</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <CardContent className="pt-0">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <User className="h-4 w-4" />
@@ -228,7 +240,7 @@ export default function QuoteDetailModal({
                     </div>
                   )}
 
-                  <Separator className="my-4" />
+                  <Separator className="my-3" />
 
                   {/* Total Summary */}
                   <div className="flex justify-between items-center">
@@ -247,15 +259,15 @@ export default function QuoteDetailModal({
               {Object.keys(groupedBoqItems).length > 0 ? (
                 Object.entries(groupedBoqItems).map(([category, items]) => (
                   <Card key={category} data-testid={`card-category-${category.replace(/\s+/g, '-').toLowerCase()}`}>
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center justify-between">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center justify-between">
                         <span>{category}</span>
                         <Badge variant="outline" data-testid={`badge-item-count-${category.replace(/\s+/g, '-').toLowerCase()}`}>
                           {items.length} item{items.length !== 1 ? 's' : ''}
                         </Badge>
                       </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-0">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -308,7 +320,7 @@ export default function QuoteDetailModal({
                             <TableCell className="text-right font-bold" data-testid={`text-category-subtotal-${category.replace(/\s+/g, '-').toLowerCase()}`}>
                               {formatCurrency(
                                 items.reduce((sum, item) => 
-                                  sum + parseFloat(item.totalAmount.toString()), 0
+                                  sum + parseLocalizedNumber(item.totalAmount), 0
                                 )
                               )}
                             </TableCell>
@@ -340,7 +352,7 @@ export default function QuoteDetailModal({
           </div>
         )}
 
-        <div className="flex justify-end pt-4 border-t">
+        <div className="flex justify-end pt-3 border-t">
           <Button onClick={onClose} data-testid="button-close-modal">
             Close
           </Button>
