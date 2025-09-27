@@ -1,6 +1,10 @@
 import type { Express } from "express";
 import express from "express";
 import { createServer, type Server } from "http";
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import bcrypt from "bcrypt";
+import { pool } from "./db";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
@@ -17,17 +21,380 @@ import {
   insertQuoteTemplateSchema,
   insertBoqSchema,
   insertQuoteFileSchema,
-  insertFloorPlanSchema 
+  insertFloorPlanSchema,
+  insertUserSchema
 } from "@shared/schema";
 import { z } from "zod";
 
+// Session configuration types
+declare module 'express-session' {
+  interface SessionData {
+    userId?: string;
+    userRole?: string;
+  }
+}
+
+// Authentication middleware
+const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  next();
+};
+
+const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!req.session.userId || req.session.userRole !== 'admin') {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  next();
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Serve uploaded files statically
-  app.use('/uploads', express.static('uploads'));
-  app.use('/uploads/floor-plans', express.static('uploads/floor-plans'));
+  // Validate required environment variables
+  if (!process.env.SESSION_SECRET) {
+    throw new Error('SESSION_SECRET environment variable is required for secure session management');
+  }
+
+  // Session configuration
+  const PgSession = connectPgSimple(session);
   
-  // Vendor Categories Routes
-  app.get("/api/vendor-categories", async (req, res) => {
+  app.use(session({
+    store: new PgSession({
+      pool: pool,
+      tableName: 'session',
+      createTableIfMissing: true,
+    }),
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    rolling: true,
+    cookie: {
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax'
+    }
+  }));
+
+  // Secure file download endpoints (replace static serving with authenticated handlers)
+  // Files are now served through authenticated endpoints below instead of static routes
+  
+  // Authenticated file download for uploads (quotations, BOQ files, etc.)
+  app.get('/uploads/:filename', requireAuth, async (req, res) => {
+    try {
+      const { filename } = req.params;
+      
+      // Prevent path traversal attacks - validate filename
+      if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        return res.status(400).json({ error: 'Invalid filename' });
+      }
+      
+      const uploadsDir = path.join(process.cwd(), 'uploads');
+      const filePath = path.join(uploadsDir, filename);
+      
+      // Double-check path safety - ensure resolved path is within uploads directory
+      const resolvedPath = path.resolve(filePath);
+      const resolvedUploadsDir = path.resolve(uploadsDir);
+      if (!resolvedPath.startsWith(resolvedUploadsDir)) {
+        return res.status(400).json({ error: 'Invalid file path' });
+      }
+      
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      
+      // Project-level authorization: Find which project this file belongs to
+      try {
+        // Check if this file is associated with any project vendor (quotation files)
+        const allProjectVendors = await storage.getAllProjectVendors();
+        const associatedProjectVendor = allProjectVendors.find(pv => 
+          pv.quotationFile && pv.quotationFile.includes(filename)
+        );
+        
+        if (associatedProjectVendor) {
+          // Check if user has access to this project
+          const userRole = req.session.userRole;
+          const userId = req.session.userId;
+          
+          if (userRole === 'admin') {
+            // Admin can access all files
+          } else if (userRole === 'client') {
+            // Check if client has access to this project
+            const userAccess = await storage.getUserProjectAccess(userId!);
+            const hasAccess = userAccess.some(access => access.projectId === associatedProjectVendor.projectId);
+            
+            if (!hasAccess) {
+              return res.status(403).json({ error: 'Access denied - insufficient project permissions' });
+            }
+          } else {
+            return res.status(403).json({ error: 'Access denied - invalid role' });
+          }
+        } else {
+          // File not associated with any project - only admin can access
+          if (req.session.userRole !== 'admin') {
+            return res.status(403).json({ error: 'Access denied - file not associated with accessible project' });
+          }
+        }
+      } catch (authError) {
+        console.error('Error checking file authorization:', authError);
+        return res.status(500).json({ error: 'Authorization check failed' });
+      }
+      
+      // Serve the file with proper headers
+      const stat = fs.statSync(filePath);
+      const fileStream = fs.createReadStream(filePath);
+      
+      res.setHeader('Content-Length', stat.size);
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error('Error serving file:', error);
+      res.status(500).json({ error: 'Failed to serve file' });
+    }
+  });
+  
+  // Authenticated file download for floor plans
+  app.get('/uploads/floor-plans/:filename', requireAuth, async (req, res) => {
+    try {
+      const { filename } = req.params;
+      
+      // Prevent path traversal attacks - validate filename
+      if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        return res.status(400).json({ error: 'Invalid filename' });
+      }
+      
+      const floorPlansDir = path.join(process.cwd(), 'uploads', 'floor-plans');
+      const filePath = path.join(floorPlansDir, filename);
+      
+      // Double-check path safety - ensure resolved path is within floor-plans directory
+      const resolvedPath = path.resolve(filePath);
+      const resolvedFloorPlansDir = path.resolve(floorPlansDir);
+      if (!resolvedPath.startsWith(resolvedFloorPlansDir)) {
+        return res.status(400).json({ error: 'Invalid file path' });
+      }
+      
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'Floor plan file not found' });
+      }
+      
+      // Project-level authorization: Find which project this floor plan belongs to
+      try {
+        // Check if this file is associated with any floor plan
+        const allFloorPlans = await storage.getAllFloorPlans();
+        const associatedFloorPlan = allFloorPlans.find(fp => 
+          fp.filePath && fp.filePath.includes(filename)
+        );
+        
+        if (associatedFloorPlan) {
+          // Check if user has access to this project
+          const userRole = req.session.userRole;
+          const userId = req.session.userId;
+          
+          if (userRole === 'admin') {
+            // Admin can access all files
+          } else if (userRole === 'client') {
+            // Check if client has access to this project
+            const userAccess = await storage.getUserProjectAccess(userId!);
+            const hasAccess = userAccess.some(access => access.projectId === associatedFloorPlan.projectId);
+            
+            if (!hasAccess) {
+              return res.status(403).json({ error: 'Access denied - insufficient project permissions' });
+            }
+          } else {
+            return res.status(403).json({ error: 'Access denied - invalid role' });
+          }
+        } else {
+          // File not associated with any project - only admin can access
+          if (req.session.userRole !== 'admin') {
+            return res.status(403).json({ error: 'Access denied - floor plan not associated with accessible project' });
+          }
+        }
+      } catch (authError) {
+        console.error('Error checking floor plan authorization:', authError);
+        return res.status(500).json({ error: 'Authorization check failed' });
+      }
+      
+      // Serve the file with proper headers
+      const stat = fs.statSync(filePath);
+      const fileStream = fs.createReadStream(filePath);
+      
+      res.setHeader('Content-Length', stat.size);
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error('Error serving floor plan file:', error);
+      res.status(500).json({ error: 'Failed to serve floor plan file' });
+    }
+  });
+  
+  // Authentication Routes
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password are required" });
+      }
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+      
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+      
+      // Create user with forced client role (security: prevent privilege escalation)
+      const user = await storage.createUser({
+        username,
+        password: hashedPassword,
+        role: "client", // Always force client role for self-registration
+        isActive: true
+      });
+      
+      // Set session
+      req.session.userId = user.id;
+      req.session.userRole = user.role;
+      
+      res.status(201).json({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        isActive: user.isActive
+      });
+    } catch (error) {
+      console.error('Registration error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid user data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to register user" });
+    }
+  });
+  
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password are required" });
+      }
+      
+      // Find user
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      
+      // Check if user is active
+      if (!user.isActive) {
+        return res.status(401).json({ error: "Account is disabled" });
+      }
+      
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      
+      // Set session
+      req.session.userId = user.id;
+      req.session.userRole = user.role;
+      
+      res.json({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        isActive: user.isActive
+      });
+    } catch (error) {
+      console.error('Login error:', error);
+      res.status(500).json({ error: "Failed to login" });
+    }
+  });
+  
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Logout error:', err);
+        return res.status(500).json({ error: "Failed to logout" });
+      }
+      res.clearCookie('connect.sid');
+      res.json({ message: "Logged out successfully" });
+    });
+  });
+  
+  app.get("/api/auth/me", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        req.session.destroy(() => {});
+        return res.status(401).json({ error: "User not found" });
+      }
+      
+      res.json({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        isActive: user.isActive
+      });
+    } catch (error) {
+      console.error('Get current user error:', error);
+      res.status(500).json({ error: "Failed to get user information" });
+    }
+  });
+  
+  // User management routes (admin only)
+  app.get("/api/users", requireAdmin, async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      // Remove passwords from response
+      const safeUsers = users.map(user => ({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        isActive: user.isActive,
+        createdAt: user.createdAt
+      }));
+      res.json(safeUsers);
+    } catch (error) {
+      console.error('Get users error:', error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+  
+  app.post("/api/user-project-access", requireAdmin, async (req, res) => {
+    try {
+      const access = await storage.createUserProjectAccess(req.body);
+      res.status(201).json(access);
+    } catch (error) {
+      console.error('Create user project access error:', error);
+      res.status(500).json({ error: "Failed to create user project access" });
+    }
+  });
+  
+  app.delete("/api/user-project-access/:userId/:projectId", requireAdmin, async (req, res) => {
+    try {
+      const { userId, projectId } = req.params;
+      const deleted = await storage.deleteUserProjectAccess(userId, projectId);
+      if (!deleted) {
+        return res.status(404).json({ error: "User project access not found" });
+      }
+      res.json({ message: "User project access deleted successfully" });
+    } catch (error) {
+      console.error('Delete user project access error:', error);
+      res.status(500).json({ error: "Failed to delete user project access" });
+    }
+  });
+  
+  // Vendor Categories Routes (protected)
+  app.get("/api/vendor-categories", requireAuth, async (req, res) => {
     try {
       const categories = await storage.getAllVendorCategories();
       res.json(categories);
@@ -37,7 +404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Hierarchical category endpoints - MUST come before /:id to avoid conflicts
-  app.get("/api/vendor-categories/tree", async (req, res) => {
+  app.get("/api/vendor-categories/tree", requireAuth, async (req, res) => {
     try {
       const tree = await storage.getCategoryTree();
       res.json(tree);
@@ -46,7 +413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/vendor-categories/:id/children", async (req, res) => {
+  app.get("/api/vendor-categories/:id/children", requireAuth, async (req, res) => {
     try {
       const children = await storage.getChildCategories(req.params.id);
       res.json(children);
@@ -55,7 +422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/vendor-categories/:id/descendants", async (req, res) => {
+  app.get("/api/vendor-categories/:id/descendants", requireAuth, async (req, res) => {
     try {
       const descendants = await storage.getCategoryWithDescendants(req.params.id);
       res.json(descendants);
@@ -64,7 +431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/vendor-categories/:id", async (req, res) => {
+  app.get("/api/vendor-categories/:id", requireAuth, async (req, res) => {
     try {
       const category = await storage.getVendorCategory(req.params.id);
       if (!category) {
@@ -76,7 +443,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/vendor-categories", async (req, res) => {
+  app.post("/api/vendor-categories", requireAdmin, async (req, res) => {
     try {
       const parsed = insertVendorCategorySchema.parse(req.body);
       const category = await storage.createVendorCategory(parsed);
@@ -86,7 +453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/vendor-categories/:id", async (req, res) => {
+  app.put("/api/vendor-categories/:id", requireAdmin, async (req, res) => {
     try {
       const parsed = insertVendorCategorySchema.partial().parse(req.body);
       const category = await storage.updateVendorCategory(req.params.id, parsed);
@@ -99,7 +466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/vendor-categories/:id", async (req, res) => {
+  app.delete("/api/vendor-categories/:id", requireAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteVendorCategory(req.params.id);
       if (!deleted) {
@@ -114,7 +481,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Vendors Routes
-  app.get("/api/vendors", async (req, res) => {
+  app.get("/api/vendors", requireAuth, async (req, res) => {
     try {
       const vendors = await storage.getAllVendors();
       res.json(vendors);
@@ -123,7 +490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/vendors-with-projects", async (req, res) => {
+  app.get("/api/vendors-with-projects", requireAuth, async (req, res) => {
     try {
       const vendorsWithProjects = await storage.getVendorsWithProjects();
       res.json(vendorsWithProjects);
@@ -132,7 +499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/vendors/category/:categoryId", async (req, res) => {
+  app.get("/api/vendors/category/:categoryId", requireAuth, async (req, res) => {
     try {
       const vendors = await storage.getVendorsByCategory(req.params.categoryId);
       res.json(vendors);
@@ -141,7 +508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/vendors/by-parent-category/:parentId", async (req, res) => {
+  app.get("/api/vendors/by-parent-category/:parentId", requireAuth, async (req, res) => {
     try {
       const vendors = await storage.getVendorsByCategoryWithDescendants(req.params.parentId);
       res.json(vendors);
@@ -150,7 +517,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/vendors/:id", async (req, res) => {
+  app.get("/api/vendors/:id", requireAuth, async (req, res) => {
     try {
       const vendor = await storage.getVendor(req.params.id);
       if (!vendor) {
@@ -162,7 +529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/vendors", async (req, res) => {
+  app.post("/api/vendors", requireAdmin, async (req, res) => {
     try {
       const parsed = insertVendorSchema.parse(req.body);
       const vendor = await storage.createVendor(parsed);
@@ -172,7 +539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/vendors/:id", async (req, res) => {
+  app.put("/api/vendors/:id", requireAdmin, async (req, res) => {
     try {
       const parsed = insertVendorSchema.partial().parse(req.body);
       const vendor = await storage.updateVendor(req.params.id, parsed);
@@ -185,7 +552,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/vendors/:id", async (req, res) => {
+  app.delete("/api/vendors/:id", requireAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteVendor(req.params.id);
       if (!deleted) {
@@ -197,8 +564,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Projects Routes
-  app.get("/api/projects", async (req, res) => {
+  // Projects Routes (protected)
+  app.get("/api/projects", requireAuth, async (req, res) => {
     try {
       const projects = await storage.getAllProjects();
       res.json(projects);
@@ -207,7 +574,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/projects/:id", async (req, res) => {
+  app.get("/api/projects/:id", requireAuth, async (req, res) => {
     try {
       const project = await storage.getProject(req.params.id);
       if (!project) {
@@ -219,7 +586,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects", async (req, res) => {
+  app.post("/api/projects", requireAdmin, async (req, res) => {
     try {
       const parsed = insertProjectSchema.parse(req.body);
       const project = await storage.createProject(parsed);
@@ -229,7 +596,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/projects/:id", async (req, res) => {
+  app.put("/api/projects/:id", requireAdmin, async (req, res) => {
     try {
       const parsed = insertProjectSchema.partial().parse(req.body);
       const project = await storage.updateProject(req.params.id, parsed);
@@ -242,7 +609,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/projects/:id", async (req, res) => {
+  app.delete("/api/projects/:id", requireAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteProject(req.params.id);
       if (!deleted) {
@@ -255,7 +622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Project Vendors Routes
-  app.get("/api/project-vendors", async (req, res) => {
+  app.get("/api/project-vendors", requireAuth, async (req, res) => {
     try {
       const projectVendors = await storage.getAllProjectVendors();
       res.json(projectVendors);
@@ -264,7 +631,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/project-vendors/project/:projectId", async (req, res) => {
+  app.get("/api/project-vendors/project/:projectId", requireAuth, async (req, res) => {
     try {
       const projectVendors = await storage.getProjectVendors(req.params.projectId);
       res.json(projectVendors);
@@ -273,7 +640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/project-vendors", async (req, res) => {
+  app.post("/api/project-vendors", requireAuth, async (req, res) => {
     try {
       const parsed = insertProjectVendorSchema.parse(req.body);
       const projectVendor = await storage.createProjectVendor(parsed);
@@ -284,7 +651,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upsert project vendor to prevent duplicates
-  app.post("/api/project-vendors/upsert", async (req, res) => {
+  app.post("/api/project-vendors/upsert", requireAuth, async (req, res) => {
     try {
       const parsed = insertProjectVendorSchema.parse(req.body);
       const projectVendor = await storage.upsertProjectVendor(parsed);
@@ -294,7 +661,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/project-vendors/:id", async (req, res) => {
+  app.put("/api/project-vendors/:id", requireAuth, async (req, res) => {
     try {
       const parsed = insertProjectVendorSchema.partial().parse(req.body);
       const projectVendor = await storage.updateProjectVendor(req.params.id, parsed);
@@ -308,7 +675,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete a project vendor
-  app.delete("/api/project-vendors/:id", async (req, res) => {
+  app.delete("/api/project-vendors/:id", requireAuth, async (req, res) => {
     try {
       const success = await storage.deleteProjectVendor(req.params.id);
       if (success) {
@@ -322,8 +689,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Quotations API - aggregated data for comparative quotes
-  app.get("/api/quotations", async (req, res) => {
+  // Quotations API - aggregated data for comparative quotes (protected)
+  app.get("/api/quotations", requireAuth, async (req, res) => {
     try {
       // Get all project vendors
       const projectVendors = await storage.getAllProjectVendors();
@@ -377,7 +744,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Quote Templates Routes
-  app.get("/api/quote-templates", async (req, res) => {
+  app.get("/api/quote-templates", requireAuth, async (req, res) => {
     try {
       const templates = await storage.getAllQuoteTemplates();
       res.json(templates);
@@ -386,7 +753,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/quote-templates/:id", async (req, res) => {
+  app.get("/api/quote-templates/:id", requireAuth, async (req, res) => {
     try {
       const template = await storage.getQuoteTemplate(req.params.id);
       if (!template) {
@@ -399,7 +766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Download Excel file route
-  app.get("/api/quote-templates/:id/download", async (req, res) => {
+  app.get("/api/quote-templates/:id/download", requireAuth, async (req, res) => {
     try {
       const template = await storage.getQuoteTemplateWithFileData(req.params.id);
       if (!template) {
@@ -449,7 +816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/quote-templates/category/:categoryId", async (req, res) => {
+  app.get("/api/quote-templates/category/:categoryId", requireAuth, async (req, res) => {
     try {
       const templates = await storage.getQuoteTemplatesByCategory(req.params.categoryId);
       res.json(templates);
@@ -458,7 +825,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/quote-templates", async (req, res) => {
+  app.post("/api/quote-templates", requireAdmin, async (req, res) => {
     try {
       const parsed = insertQuoteTemplateSchema.parse(req.body);
       const template = await storage.createQuoteTemplate(parsed);
@@ -911,7 +1278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Quote Import Routes
-  app.post("/api/quotes/import", upload.single('quoteFile'), async (req, res) => {
+  app.post("/api/quotes/import", requireAuth, upload.single('quoteFile'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -1099,7 +1466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Template Import Routes
-  app.post("/api/quote-templates/import", upload.single('templateFile'), async (req, res) => {
+  app.post("/api/quote-templates/import", requireAdmin, upload.single('templateFile'), async (req, res) => {
     let tempFilePath: string | undefined;
     let statusCode = 500;
     let responseData: any = { error: "Failed to import template" };
@@ -1194,8 +1561,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get BOQ items for a project vendor
-  app.get("/api/project-vendors/:id/boq", async (req, res) => {
+  // Get BOQ items for a project vendor (protected)
+  app.get("/api/project-vendors/:id/boq", requireAuth, async (req, res) => {
     try {
       const boqItems = await storage.getBOQByProjectVendor(req.params.id);
       res.json(boqItems);
@@ -1204,8 +1571,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get quote files for a project vendor
-  app.get("/api/project-vendors/:id/files", async (req, res) => {
+  // Get quote files for a project vendor (protected)
+  app.get("/api/project-vendors/:id/files", requireAuth, async (req, res) => {
     try {
       const files = await storage.getQuoteFilesByProjectVendor(req.params.id);
       res.json(files);
@@ -1304,7 +1671,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Export quotes endpoint
-  app.post("/api/quotes/export/:format", async (req, res) => {
+  app.post("/api/quotes/export/:format", requireAuth, async (req, res) => {
     try {
       const { format } = req.params;
 
@@ -1423,7 +1790,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Individual quote export endpoint
-  app.post("/api/quotes/export/individual/:format", async (req, res) => {
+  app.post("/api/quotes/export/individual/:format", requireAuth, async (req, res) => {
     try {
       const { format } = req.params;
 
@@ -1583,7 +1950,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Template export endpoint for vendors
-  app.post("/api/templates/export/:format", async (req, res) => {
+  app.post("/api/templates/export/:format", requireAuth, async (req, res) => {
     try {
       const { format } = req.params;
 
@@ -1756,7 +2123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get BOQ details for a specific quote
-  app.get("/api/quotes/:quoteId/boq", async (req, res) => {
+  app.get("/api/quotes/:quoteId/boq", requireAuth, async (req, res) => {
     try {
       const { quoteId } = req.params;
 
@@ -1786,8 +2153,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Floor Plans Routes
-  app.get("/api/floor-plans", async (req, res) => {
+  // Floor Plans Routes (protected)
+  app.get("/api/floor-plans", requireAuth, async (req, res) => {
     try {
       const floorPlans = await storage.getAllFloorPlans();
       res.json(floorPlans);
@@ -1797,7 +2164,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/floor-plans/project/:projectId", async (req, res) => {
+  app.get("/api/floor-plans/project/:projectId", requireAuth, async (req, res) => {
     try {
       const { projectId } = req.params;
       const floorPlans = await storage.getFloorPlansByProject(projectId);
@@ -1808,7 +2175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/floor-plans/:id", async (req, res) => {
+  app.get("/api/floor-plans/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const floorPlan = await storage.getFloorPlan(id);
@@ -1868,7 +2235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/floor-plans", floorPlanUpload.single('file'), async (req, res) => {
+  app.post("/api/floor-plans", requireAdmin, floorPlanUpload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -1907,7 +2274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/floor-plans/:id", async (req, res) => {
+  app.put("/api/floor-plans/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       
@@ -1929,7 +2296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/floor-plans/:id", async (req, res) => {
+  app.delete("/api/floor-plans/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       

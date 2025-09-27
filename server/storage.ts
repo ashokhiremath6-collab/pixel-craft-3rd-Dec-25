@@ -39,6 +39,7 @@ import { eq, inArray, isNull, and } from "drizzle-orm";
 
 export interface IStorage {
   // Users
+  getAllUsers(): Promise<User[]>;
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
@@ -150,6 +151,10 @@ export class MemStorage implements IStorage {
   // Removed dummy data methods - using database storage
 
   // User methods
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
   }
@@ -657,6 +662,10 @@ export class MemStorage implements IStorage {
 
 export class DBStorage implements IStorage {
   // Users
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
   async getUser(id: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.id, id));
     return result[0];
