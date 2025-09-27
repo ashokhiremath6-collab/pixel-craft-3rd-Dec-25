@@ -11,8 +11,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Search, Plus, FileText, Download, Edit, Trash2, ChevronRight, ChevronDown, Upload, PlusCircle, FileSpreadsheet, Eye } from "lucide-react";
 import type { VendorCategory, QuoteTemplate } from "@shared/schema";
 import { AddTemplateDialog } from "@/components/AddTemplateDialog";
-import { TemplateViewDialog } from "@/components/TemplateViewDialog";
 import TemplateImport from "@/components/TemplateImport";
+import { Link } from "wouter";
 
 interface CategoryWithChildren extends VendorCategory {
   children: CategoryWithChildren[];
@@ -25,7 +25,6 @@ export default function TemplatesPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<QuoteTemplate | null>(null);
-  const [viewingTemplate, setViewingTemplate] = useState<QuoteTemplate | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
 
@@ -436,15 +435,16 @@ export default function TemplatesPage() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setViewingTemplate(template)}
-                          data-testid={`button-view-${template.id}`}
-                          aria-label={`View ${template.name} template`}
-                        >
-                          <Eye className="h-3 w-3" />
-                        </Button>
+                        <Link href={`/templates/${template.id}`}>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            data-testid={`button-view-${template.id}`}
+                            aria-label={`View ${template.name} template`}
+                          >
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                        </Link>
                         <Button 
                           size="sm" 
                           variant="outline"
@@ -493,13 +493,6 @@ export default function TemplatesPage() {
         template={editingTemplate || undefined}
       />
 
-      <TemplateViewDialog 
-        template={viewingTemplate}
-        open={!!viewingTemplate}
-        onOpenChange={(open) => {
-          if (!open) setViewingTemplate(null);
-        }}
-      />
 
       {importDialogOpen && (
         <div 
