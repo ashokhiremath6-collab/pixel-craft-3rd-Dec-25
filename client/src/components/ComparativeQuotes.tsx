@@ -632,7 +632,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         data-testid={`quotation-row-${quotation.id}`}
                       >
                         <TableCell className="font-medium text-sm py-2" data-testid="text-vendor-name">
-                          {formatVendorNameWithCategory(quotation.vendorName, quotation.category)}
+                          {quotation.vendorName}
                         </TableCell>
                         
                         <TableCell className="py-2" data-testid="text-quotation-value">
