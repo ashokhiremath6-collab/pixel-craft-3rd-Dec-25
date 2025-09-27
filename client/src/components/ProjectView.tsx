@@ -121,7 +121,8 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
                         if (!dateString) return 'Not set';
                         return new Date(dateString).toLocaleDateString('en-US', { 
                           month: 'short', 
-                          day: 'numeric' 
+                          day: 'numeric',
+                          year: 'numeric'
                         });
                       };
                       
