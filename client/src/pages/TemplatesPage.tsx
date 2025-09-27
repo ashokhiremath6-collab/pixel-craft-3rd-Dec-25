@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Plus, FileText, Download, Edit, Trash2, ChevronRight, ChevronDown, Upload, PlusCircle, FileSpreadsheet } from "lucide-react";
+import { Search, Plus, FileText, Download, Edit, Trash2, ChevronRight, ChevronDown, Upload, PlusCircle, FileSpreadsheet, Eye } from "lucide-react";
 import type { VendorCategory, QuoteTemplate } from "@shared/schema";
 import { AddTemplateDialog } from "@/components/AddTemplateDialog";
+import { TemplateViewDialog } from "@/components/TemplateViewDialog";
 import TemplateImport from "@/components/TemplateImport";
 
 interface CategoryWithChildren extends VendorCategory {
@@ -24,6 +25,7 @@ export default function TemplatesPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<QuoteTemplate | null>(null);
+  const [viewingTemplate, setViewingTemplate] = useState<QuoteTemplate | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
 
@@ -437,6 +439,15 @@ export default function TemplatesPage() {
                         <Button 
                           size="sm" 
                           variant="outline"
+                          onClick={() => setViewingTemplate(template)}
+                          data-testid={`button-view-${template.id}`}
+                          aria-label={`View ${template.name} template`}
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
                           onClick={() => setEditingTemplate(template)}
                           data-testid={`button-edit-${template.id}`}
                           aria-label={`Edit ${template.name} template`}
@@ -480,6 +491,14 @@ export default function TemplatesPage() {
           if (!open) setEditingTemplate(null);
         }}
         template={editingTemplate || undefined}
+      />
+
+      <TemplateViewDialog 
+        template={viewingTemplate}
+        open={!!viewingTemplate}
+        onOpenChange={(open) => {
+          if (!open) setViewingTemplate(null);
+        }}
       />
 
       {importDialogOpen && (
