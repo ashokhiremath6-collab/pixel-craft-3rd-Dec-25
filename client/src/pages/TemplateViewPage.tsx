@@ -124,7 +124,7 @@ export default function TemplateViewPage() {
                         {row.map((cell: any, colIndex: number) => (
                           <TableCell 
                             key={colIndex} 
-                            className={`p-3 border-r border-b font-mono whitespace-nowrap ${
+                            className={`p-3 border-r border-b font-mono break-words max-w-xs ${
                               rowIndex === 0 ? 'font-bold bg-muted text-sm' : 
                               rowIndex === 1 ? 'font-semibold bg-muted/50 text-sm' : 'text-xs'
                             }`}
