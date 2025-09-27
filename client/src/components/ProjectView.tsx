@@ -94,9 +94,9 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Projects List */}
-        <div className="space-y-4">
+        <div className="space-y-4 xl:col-span-2">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Building2 className="h-5 w-5" />
             Projects ({filteredProjects.length})
