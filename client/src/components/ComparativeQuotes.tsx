@@ -107,6 +107,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
       return response.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
       queryClient.invalidateQueries({ queryKey: ['/api/project-vendors'] });
       queryClient.invalidateQueries({ queryKey: ['/api/vendors-with-projects'] });
       handleCloseEditModal();
