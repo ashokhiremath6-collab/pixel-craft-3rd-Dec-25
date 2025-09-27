@@ -705,7 +705,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {categoryVendors.map(vendor => (
+                  {categoryVendors.map((vendor: VendorListProps['vendors'][0]) => (
                     <TableRow key={vendor.id} data-testid={`vendor-row-${vendor.id}`} className="h-12">
                       <TableCell className="font-medium py-2">
                         <div>
@@ -736,8 +736,8 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                       <TableCell className="py-2">
                         {vendor.projects && vendor.projects.length > 0 ? (
                           <div className="space-y-1">
-                            {vendor.projects.slice(0, 2).map((project, index) => (
-                              <div key={project.projectId} className="text-sm">
+                            {vendor.projects.slice(0, 2).map((project: any, index: number) => (
+                              <div key={`${vendor.id}-${project.projectId}-${index}`} className="text-sm">
                                 <div className="flex items-center gap-2">
                                   <Building2 className="h-3 w-3 text-muted-foreground" />
                                   <span className="font-medium" data-testid={`text-project-name-${index}`}>
@@ -755,7 +755,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                                 </div>
                               </div>
                             ))}
-                            {vendor.projects.length > 2 && (
+                            {vendor.projects && vendor.projects.length > 2 && (
                               <div className="text-xs text-muted-foreground ml-5">
                                 +{vendor.projects.length - 2} more project{vendor.projects.length - 2 > 1 ? 's' : ''}
                               </div>
