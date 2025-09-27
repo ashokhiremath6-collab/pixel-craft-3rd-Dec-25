@@ -559,7 +559,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                               {(() => {
                                 const quotationValue = quotation.quotationValue || '';
                                 const numericValue = parseFloat(quotationValue);
-                                return !isNaN(numericValue) && numericValue > 0 ? formatCurrency(quotationValue) : <span className="text-muted-foreground">No quote</span>;
+                                return !isNaN(numericValue) && numericValue > 0 ? formatCurrency(quotationValue) : <span className="text-muted-foreground">No total</span>;
                               })()}
                             </span>
                             {isLowest && (
