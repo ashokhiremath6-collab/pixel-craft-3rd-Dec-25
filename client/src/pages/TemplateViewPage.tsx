@@ -77,9 +77,23 @@ export default function TemplateViewPage() {
           <Badge variant={template.isActive ? "default" : "secondary"}>
             {template.isActive ? "Active" : "Inactive"}
           </Badge>
-          <Button variant="outline" size="sm">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              // Download Excel file to open in Excel application
+              const downloadUrl = `/api/quote-templates/${template.id}/download`;
+              const link = document.createElement('a');
+              link.href = downloadUrl;
+              link.download = `${template.name}.xlsx`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            data-testid="button-download-excel"
+          >
             <Download className="h-4 w-4 mr-2" />
-            Export
+            Open in Excel
           </Button>
         </div>
       </div>

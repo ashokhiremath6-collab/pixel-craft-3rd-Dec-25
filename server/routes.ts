@@ -358,6 +358,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/quote-templates/:id", async (req, res) => {
+    try {
+      const template = await storage.getQuoteTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch template" });
+    }
+  });
+
+  // Download Excel file route
+  app.get("/api/quote-templates/:id/download", async (req, res) => {
+    try {
+      const template = await storage.getQuoteTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      // If template has spreadsheet data, recreate Excel file
+      if (template.fields && typeof template.fields === 'object' && 
+          (template.fields as any).type === 'spreadsheet' && (template.fields as any).data) {
+        
+        const spreadsheetData = (template.fields as any).data as any[][];
+        
+        // Create Excel workbook from the spreadsheet data
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.aoa_to_sheet(spreadsheetData);
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+        
+        // Generate Excel buffer
+        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+        
+        // Set headers for Excel download
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${template.name.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx"`);
+        res.setHeader('Content-Length', excelBuffer.length);
+        
+        res.send(excelBuffer);
+      } else {
+        res.status(400).json({ error: "No Excel data available for download" });
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      res.status(500).json({ error: "Failed to download template" });
+    }
+  });
+
   app.get("/api/quote-templates/category/:categoryId", async (req, res) => {
     try {
       const templates = await storage.getQuoteTemplatesByCategory(req.params.categoryId);
