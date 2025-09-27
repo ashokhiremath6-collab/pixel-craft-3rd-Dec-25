@@ -608,14 +608,6 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                   <CardTitle className="text-base">
                     {group.category} - {group.projectName}
                   </CardTitle>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                    <span data-testid="text-quote-count">
-                      {group.quotations.length} quotes
-                    </span>
-                    <span data-testid="text-average-quote">
-                      Average: {formatCurrency(average.toString())}
-                    </span>
-                  </div>
                 </div>
                 <Badge variant="outline" className="text-xs" data-testid="badge-category">
                   {group.category}
