@@ -10,6 +10,7 @@ import NotFound from "@/pages/not-found";
 import DashboardPage from "@/pages/DashboardPage";
 import VendorsPage from "@/pages/VendorsPage";
 import ProjectsPage from "@/pages/ProjectsPage";
+import FloorPlansPage from "@/pages/FloorPlansPage";
 import QuotesPage from "@/pages/QuotesPage";
 import TemplatesPage from "@/pages/TemplatesPage";
 import TemplateViewPage from "@/pages/TemplateViewPage";
@@ -21,6 +22,7 @@ function Router() {
     <Switch>
       <Route path="/" component={DashboardPage} />
       <Route path="/projects" component={ProjectsPage} />
+      <Route path="/floor-plans" component={FloorPlansPage} />
       <Route path="/vendors" component={VendorsPage} />
       <Route path="/quotes" component={QuotesPage} />
       <Route path="/templates" component={TemplatesPage} />
