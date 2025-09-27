@@ -102,20 +102,19 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
             Projects ({filteredProjects.length})
           </h2>
           
-          <Card className="max-h-[calc(100vh-24rem)] overflow-hidden">
+          <Card>
             <CardContent className="p-0">
-              <div className="max-h-[calc(100vh-28rem)] overflow-y-auto">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-background z-10">
-                    <TableRow>
-                      <TableHead className="py-3">Project Name</TableHead>
-                      <TableHead className="py-3">Client</TableHead>
-                      <TableHead className="py-3">Timeline</TableHead>
-                      <TableHead className="py-3">Status</TableHead>
-                      <TableHead className="py-3">Vendors</TableHead>
-                      <TableHead className="py-3 text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="py-2">Project Name</TableHead>
+                    <TableHead className="py-2">Client</TableHead>
+                    <TableHead className="py-2">Timeline</TableHead>
+                    <TableHead className="py-2">Status</TableHead>
+                    <TableHead className="py-2">Vendors</TableHead>
+                    <TableHead className="py-2 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
                   <TableBody>
                     {filteredProjects.map(project => {
                       const formatDate = (dateString: string | null) => {
@@ -221,7 +220,6 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
                     })}
                   </TableBody>
                 </Table>
-              </div>
             </CardContent>
           </Card>
 
