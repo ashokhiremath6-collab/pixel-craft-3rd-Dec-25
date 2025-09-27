@@ -657,8 +657,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return parsed.data;
       } else if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) {
-        // Parse Excel file
-        const workbook = XLSX.readFile(filePath);
+        // Parse Excel file - use fs.readFileSync + XLSX.read for ESM compatibility
+        const buffer = fs.readFileSync(filePath);
+        const workbook = XLSX.read(buffer);
         const sheetName = workbook.SheetNames[0]; // Use first sheet
         const worksheet = workbook.Sheets[sheetName];
         const data = XLSX.utils.sheet_to_json(worksheet, {
