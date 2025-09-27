@@ -150,8 +150,8 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       
       const vendor = await vendorResponse.json();
       
-      // Then create the project-vendor relationship
-      await apiRequest('POST', '/api/project-vendors', {
+      // Then create/update the project-vendor relationship using upsert
+      await apiRequest('POST', '/api/project-vendors/upsert', {
         projectId: data.projectId,
         vendorId: vendor.id,
         status: 'Quoted',

@@ -68,6 +68,7 @@ export interface IStorage {
   getProjectVendors(projectId: string): Promise<ProjectVendor[]>;
   getProjectVendor(id: string): Promise<ProjectVendor | undefined>;
   createProjectVendor(projectVendor: InsertProjectVendor): Promise<ProjectVendor>;
+  upsertProjectVendor(projectVendor: InsertProjectVendor): Promise<ProjectVendor>;
   updateProjectVendor(id: string, projectVendor: Partial<InsertProjectVendor>): Promise<ProjectVendor | undefined>;
   deleteProjectVendor(id: string): Promise<boolean>;
   
@@ -324,6 +325,32 @@ export class MemStorage implements IStorage {
     };
     this.projectVendors.set(id, projectVendor);
     return projectVendor;
+  }
+
+  async upsertProjectVendor(insertProjectVendor: InsertProjectVendor): Promise<ProjectVendor> {
+    // Check if project-vendor relationship already exists
+    const existingProjectVendor = Array.from(this.projectVendors.values()).find(
+      pv => pv.projectId === insertProjectVendor.projectId && pv.vendorId === insertProjectVendor.vendorId
+    );
+
+    if (existingProjectVendor) {
+      // Update existing record
+      const updated = { 
+        ...existingProjectVendor, 
+        ...insertProjectVendor,
+        quotationFile: insertProjectVendor.quotationFile || existingProjectVendor.quotationFile,
+        quotationValue: insertProjectVendor.quotationValue || existingProjectVendor.quotationValue,
+        dateOfQuotation: insertProjectVendor.dateOfQuotation || existingProjectVendor.dateOfQuotation,
+        notes: insertProjectVendor.notes || existingProjectVendor.notes,
+        templateId: insertProjectVendor.templateId || existingProjectVendor.templateId,
+        submittedAt: existingProjectVendor.submittedAt // Keep original submission time
+      };
+      this.projectVendors.set(existingProjectVendor.id, updated);
+      return updated;
+    } else {
+      // Create new record
+      return await this.createProjectVendor(insertProjectVendor);
+    }
   }
 
   async updateProjectVendor(id: string, updates: Partial<InsertProjectVendor>): Promise<ProjectVendor | undefined> {
@@ -692,6 +719,38 @@ export class DBStorage implements IStorage {
   async createProjectVendor(projectVendor: InsertProjectVendor): Promise<ProjectVendor> {
     const result = await db.insert(projectVendors).values(projectVendor).returning();
     return result[0];
+  }
+
+  async upsertProjectVendor(projectVendor: InsertProjectVendor): Promise<ProjectVendor> {
+    // Check if project-vendor relationship already exists
+    const existing = await db.select().from(projectVendors)
+      .where(
+        and(
+          eq(projectVendors.projectId, projectVendor.projectId),
+          eq(projectVendors.vendorId, projectVendor.vendorId)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Update existing record
+      const result = await db.update(projectVendors)
+        .set({
+          ...projectVendor,
+          quotationFile: projectVendor.quotationFile || existing[0].quotationFile,
+          quotationValue: projectVendor.quotationValue || existing[0].quotationValue,
+          dateOfQuotation: projectVendor.dateOfQuotation || existing[0].dateOfQuotation,
+          notes: projectVendor.notes || existing[0].notes,
+          templateId: projectVendor.templateId || existing[0].templateId,
+          submittedAt: existing[0].submittedAt // Keep original submission time
+        })
+        .where(eq(projectVendors.id, existing[0].id))
+        .returning();
+      return result[0];
+    } else {
+      // Create new record
+      return await this.createProjectVendor(projectVendor);
+    }
   }
 
   async updateProjectVendor(id: string, projectVendor: Partial<InsertProjectVendor>): Promise<ProjectVendor | undefined> {

@@ -281,6 +281,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upsert project vendor to prevent duplicates
+  app.post("/api/project-vendors/upsert", async (req, res) => {
+    try {
+      const parsed = insertProjectVendorSchema.parse(req.body);
+      const projectVendor = await storage.upsertProjectVendor(parsed);
+      res.status(201).json(projectVendor);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid project vendor data" });
+    }
+  });
+
   app.put("/api/project-vendors/:id", async (req, res) => {
     try {
       const parsed = insertProjectVendorSchema.partial().parse(req.body);
@@ -871,7 +882,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notes: `Imported ${boqItems.length} BOQ items`
       };
 
-      const projectVendor = await storage.createProjectVendor(projectVendorData);
+      const projectVendor = await storage.upsertProjectVendor(projectVendorData);
       
       if (!projectVendor) {
         throw new Error('Failed to create project vendor record');
