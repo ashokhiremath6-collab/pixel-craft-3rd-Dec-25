@@ -984,6 +984,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
 
+      // Update the template with the extracted fields
+      if (results.template && results.fields.length > 0) {
+        await storage.updateQuoteTemplate(results.template.id, {
+          fields: results.fields
+        });
+        // Update the local template object
+        results.template.fields = results.fields;
+      }
+
     } catch (error) {
       results.errors.push(`Processing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
