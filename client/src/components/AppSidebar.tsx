@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -27,6 +27,11 @@ const mainItems: NavigationItem[] = [
     title: "Projects",
     url: "/projects",
     icon: Building2,
+  },
+  {
+    title: "Floor Plans",
+    url: "/floor-plans",
+    icon: Map,
   },
   {
     title: "Vendors by Category",
