@@ -78,14 +78,15 @@ export default function QuoteDetailModal({
 
 
   const getTotalAmount = () => {
-    // Use the quote's parsed total value if available, otherwise sum BOQ items
+    // Only use explicit quote total value, don't calculate from unit rates
     if (quoteDetails?.quote.quotationValue) {
       return parseLocalizedNumber(quoteDetails.quote.quotationValue);
     }
-    if (!quoteDetails?.boqItems) return 0;
-    return quoteDetails.boqItems.reduce((sum, item) => 
-      sum + parseLocalizedNumber(item.totalAmount), 0
-    );
+    return null; // No total if not explicitly provided
+  };
+
+  const hasExplicitTotal = () => {
+    return quoteDetails?.quote.quotationValue && parseLocalizedNumber(quoteDetails.quote.quotationValue) > 0;
   };
 
   const getStatusColor = (status: string) => {
@@ -224,16 +225,23 @@ export default function QuoteDetailModal({
 
                   <Separator className="my-3" />
 
-                  {/* Total Summary */}
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-medium">Total Quote Value:</span>
-                    <div className="flex items-center gap-2">
-                      <IndianRupee className="h-5 w-5 text-green-600" />
-                      <span className="text-2xl font-bold text-green-600" data-testid="text-total-value">
-                        {formatCurrency(getTotalAmount())}
-                      </span>
+                  {/* Total Summary - Only show if explicitly provided */}
+                  {hasExplicitTotal() && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-medium">Total Quote Value:</span>
+                      <div className="flex items-center gap-2">
+                        <IndianRupee className="h-5 w-5 text-green-600" />
+                        <span className="text-2xl font-bold text-green-600" data-testid="text-total-value">
+                          {formatCurrency(getTotalAmount()!)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  )}
+                  {!hasExplicitTotal() && (
+                    <div className="text-center py-2 text-muted-foreground">
+                      <span className="text-sm">Unit rate quotation - No total provided</span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
