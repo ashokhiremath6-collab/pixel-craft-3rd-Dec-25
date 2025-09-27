@@ -6,6 +6,7 @@ import VendorCard from "./VendorCard";
 import ProjectCard from "./ProjectCard";
 import { Users, Building2, FileText, TrendingUp, Plus, ArrowRight } from "lucide-react";
 import type { Vendor, Project } from "@shared/schema";
+import { formatCurrencyCompact } from "@/lib/currencyUtils";
 
 interface VendorWithCategory extends Omit<Vendor, 'categoryName'> {
   category: string;
@@ -59,11 +60,7 @@ export default function Dashboard({ vendors, projects, recentQuotations, onNavig
   const recentProjects = projects.slice(0, 3);
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      notation: 'compact'
-    }).format(value);
+    return formatCurrencyCompact(value);
   };
 
   return (

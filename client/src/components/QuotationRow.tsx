@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import StatusBadge from "./StatusBadge";
 import { FileText, Download, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatCurrencyCompact, formatVendorNameWithCategory } from "@/lib/currencyUtils";
 
 interface QuotationData {
   id: string;
@@ -37,10 +38,7 @@ export default function QuotationRow({ quotation, onStatusChange, onDownload }: 
   };
 
   const formatCurrency = (value: string) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR'
-    }).format(parseFloat(value));
+    return formatCurrencyCompact(value);
   };
 
   const formatDate = (dateString: string) => {
@@ -57,7 +55,7 @@ export default function QuotationRow({ quotation, onStatusChange, onDownload }: 
     >
       <TableCell className="font-medium" data-testid="text-vendor-name">
         <div className="flex flex-col">
-          <span>{quotation.vendorName}</span>
+          <span>{formatVendorNameWithCategory(quotation.vendorName, quotation.category)}</span>
           <Badge variant="outline" className="w-fit mt-1">
             {quotation.category}
           </Badge>

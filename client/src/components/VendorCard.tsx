@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Phone, Mail, User, FileText, Edit, Trash2, Building2 } from "lucide-react";
 import type { Vendor, VendorCategory } from "@shared/schema";
+import { formatVendorNameWithCategory } from "@/lib/currencyUtils";
 
 interface VendorCardProps {
   vendor: Vendor & { projects?: Array<{ projectId: string; projectName: string; clientName: string; status: string }> };
@@ -27,7 +28,7 @@ export default function VendorCard({ vendor, categoryName, onEdit, onDelete }: V
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-4">
         <div className="flex-1">
           <CardTitle className="text-lg font-semibold" data-testid="text-vendor-name">
-            {vendor.name}
+            {formatVendorNameWithCategory(vendor.name, categoryName)}
           </CardTitle>
           <Badge variant="secondary" className="mt-1" data-testid="badge-vendor-category">
             {categoryName || 'Unknown Category'}

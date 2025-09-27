@@ -16,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, FileText, Calendar, IndianRupee, Package, User, AlertCircle, Eye, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Boq, ProjectVendor } from "@shared/schema";
+import { formatCurrencyCompact, parseLocalizedNumber } from "@/lib/currencyUtils";
 
 interface QuoteDetailModalProps {
   isOpen: boolean;
@@ -67,11 +68,7 @@ export default function QuoteDetailModal({
   }
 
   const formatCurrency = (value: string | number) => {
-    const numValue = parseLocalizedNumber(value);
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR'
-    }).format(numValue);
+    return formatCurrencyCompact(value);
   };
 
   const formatDate = (dateString: string | null) => {
@@ -79,13 +76,6 @@ export default function QuoteDetailModal({
     return new Date(dateString).toLocaleDateString('en-IN');
   };
 
-  const parseLocalizedNumber = (value: string | number) => {
-    if (typeof value === 'number') return value;
-    // Remove commas, currency symbols, and other non-numeric characters except dots
-    const cleanValue = value.toString().replace(/[,₹$\s]/g, '');
-    const numValue = parseFloat(cleanValue);
-    return isNaN(numValue) ? 0 : numValue;
-  };
 
   const getTotalAmount = () => {
     // Use the quote's parsed total value if available, otherwise sum BOQ items

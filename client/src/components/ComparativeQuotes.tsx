@@ -10,6 +10,7 @@ import QuoteDetailModal from "./QuoteDetailModal";
 import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, Download, FileSpreadsheet, FileText, Loader2, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Project, VendorCategory } from "@shared/schema";
+import { formatCurrencyCompact, formatVendorNameWithCategory } from "@/lib/currencyUtils";
 
 interface QuotationData {
   id: string;
@@ -266,10 +267,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   }>);
 
   const formatCurrency = (value: string) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR'
-    }).format(parseFloat(value));
+    return formatCurrencyCompact(value);
   };
 
   const getAverageQuote = (categoryQuotations: typeof filteredQuotations) => {
@@ -552,15 +550,16 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         data-testid={`quotation-row-${quotation.id}`}
                       >
                         <TableCell className="font-medium" data-testid="text-vendor-name">
-                          {quotation.vendorName}
+                          {formatVendorNameWithCategory(quotation.vendorName, quotation.category)}
                         </TableCell>
                         
                         <TableCell data-testid="text-quotation-value">
                           <div className="flex items-center gap-2">
                             <span className="font-mono font-semibold">
                               {(() => {
-                                const numericValue = parseFloat(quotation.quotationValue || '0');
-                                return !isNaN(numericValue) && numericValue > 0 ? formatCurrency(quotation.quotationValue) : <span className="text-muted-foreground">No quote</span>;
+                                const quotationValue = quotation.quotationValue || '';
+                                const numericValue = parseFloat(quotationValue);
+                                return !isNaN(numericValue) && numericValue > 0 ? formatCurrency(quotationValue) : <span className="text-muted-foreground">No quote</span>;
                               })()}
                             </span>
                             {isLowest && (
