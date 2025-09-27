@@ -435,8 +435,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const extractQuoteDataFromPDF = (pdfText: string) => {
     const lines = pdfText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     const extractedData: any[] = [];
+    const detectedTotals: any = {};
     
-    // Common patterns for quote extraction
+    // Enhanced patterns for quote extraction
     const patterns = {
       // Match amounts/prices: $100, ₹1,000, 100.00, etc.
       amount: /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/g,
@@ -445,12 +446,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Match line items (description followed by amount)
       lineItem: /^(.+?)\s+(?:₹|Rs\.?|\$)?\s*([0-9,]+(?:\.[0-9]{2})?)$/,
       // Match table-like data with multiple columns
-      tableRow: /^(.+?)\s+(\d+(?:\.\d+)?)\s+(.+?)\s+([0-9,]+(?:\.[0-9]{2})?)(?:\s+([0-9,]+(?:\.[0-9]{2})?))?$/
+      tableRow: /^(.+?)\s+(\d+(?:\.\d+)?)\s+(.+?)\s+([0-9,]+(?:\.[0-9]{2})?)(?:\s+([0-9,]+(?:\.[0-9]{2})?))?$/,
+      // Enhanced total detection patterns
+      grandTotal: /(grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due)[\s:]*(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi,
+      subTotal: /(sub\s*total|subtotal)[\s:]*(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi,
+      tax: /(tax|gst|vat|cgst|sgst|igst)[\s:]*(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi
     };
     
     let currentSection = '';
     let itemCounter = 1;
     
+    // Helper function to parse currency amounts
+    const parseCurrency = (amountStr: string) => {
+      return parseFloat(amountStr.replace(/[₹,\$Rs\s]/g, '')) || 0;
+    };
+    
+    // First pass: Scan for total amounts throughout the document
+    for (const line of lines) {
+      // Look for grand total patterns
+      const grandTotalMatches = Array.from(line.matchAll(patterns.grandTotal));
+      if (grandTotalMatches.length > 0) {
+        const lastMatch = grandTotalMatches[grandTotalMatches.length - 1];
+        detectedTotals.grandTotal = parseCurrency(lastMatch[2]);
+        detectedTotals.grandTotalLine = line;
+      }
+      
+      // Look for subtotal patterns
+      const subTotalMatches = Array.from(line.matchAll(patterns.subTotal));
+      if (subTotalMatches.length > 0) {
+        const lastMatch = subTotalMatches[subTotalMatches.length - 1];
+        detectedTotals.subTotal = parseCurrency(lastMatch[2]);
+      }
+      
+      // Look for tax patterns
+      const taxMatches = Array.from(line.matchAll(patterns.tax));
+      if (taxMatches.length > 0) {
+        const lastMatch = taxMatches[taxMatches.length - 1];
+        detectedTotals.tax = parseCurrency(lastMatch[2]);
+      }
+    }
+    
+    // Second pass: Extract line items
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       
@@ -460,6 +496,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           line.toLowerCase().includes('bill of quantities') ||
           line.toLowerCase().includes('boq')) {
         currentSection = line;
+        continue;
+      }
+      
+      // Skip lines that contain total keywords (we already extracted totals)
+      if (patterns.grandTotal.test(line) || patterns.subTotal.test(line) || patterns.tax.test(line)) {
         continue;
       }
       
@@ -485,9 +526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const [, description, amount] = lineItemMatch;
         
         // Skip if description is too short or looks like a header
-        if (description.length < 5 || 
-            description.toLowerCase().includes('total') ||
-            description.toLowerCase().includes('subtotal')) {
+        if (description.length < 5) {
           continue;
         }
         
@@ -503,8 +542,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Look for quantity and amount patterns in the same line
-      const quantityMatches = [...line.matchAll(patterns.quantity)];
-      const amountMatches = [...line.matchAll(patterns.amount)];
+      const quantityMatches = Array.from(line.matchAll(patterns.quantity));
+      const amountMatches = Array.from(line.matchAll(patterns.amount));
       
       if (quantityMatches.length > 0 && amountMatches.length > 0) {
         // Extract description (text before quantity)
@@ -527,11 +566,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
     
-    // If no structured data found, create a single item with the total quote
+    // If no structured data found but we have a grand total, create a single item
+    if (extractedData.length === 0 && detectedTotals.grandTotal) {
+      extractedData.push({
+        'description': 'PDF Quote - Total Amount',
+        'quantity': 1,
+        'unit': 'lump sum',
+        'unit rate': detectedTotals.grandTotal,
+        'amount': detectedTotals.grandTotal,
+        'category': 'General'
+      });
+    }
+    
+    // If still no data, fall back to finding the largest amount
     if (extractedData.length === 0) {
       const amounts = [];
       for (const line of lines) {
-        const matches = [...line.matchAll(patterns.amount)];
+        const matches = Array.from(line.matchAll(patterns.amount));
         amounts.push(...matches.map(m => parseFloat(m[1].replace(/,/g, ''))));
       }
       
@@ -548,7 +599,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
     
-    return extractedData;
+    // Return both line items and detected totals
+    return {
+      items: extractedData,
+      totals: detectedTotals
+    };
   };
 
   // Helper function to parse Excel/CSV/PDF files
@@ -593,10 +648,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const text = pdfData.text;
         
         // Extract quote information using pattern matching
-        return extractQuoteDataFromPDF(text);
+        const result = extractQuoteDataFromPDF(text);
+        
+        // Return both items and totals for PDF processing
+        return {
+          items: result.items,
+          totals: result.totals,
+          originalFormat: 'pdf'
+        };
       }
       
-      return [];
+      return { items: [], totals: {}, originalFormat: 'unknown' };
     } catch (error) {
       console.error('Error parsing file:', error);
       throw new Error('Failed to parse file');
@@ -604,7 +666,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Helper function to process quote data and create records
-  const processQuoteImport = async (data: any[], projectId: string, vendorId: string) => {
+  const processQuoteImport = async (data: any, projectId: string, vendorId: string) => {
     const results = {
       projectVendor: null as any,
       boqItems: [] as any[],
@@ -612,11 +674,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
 
     try {
-      // Calculate total quotation value from BOQ items
+      // Handle different data formats (PDF vs Excel/CSV)
+      const items = data.items || data;
+      const totals = data.totals || {};
+      const originalFormat = data.originalFormat || 'unknown';
+      
+      // Calculate total quotation value, preferring detected grand total
       let totalValue = 0;
       const boqItems = [];
 
-      for (const row of data) {
+      // Use detected grand total from PDF if available
+      if (totals.grandTotal && totals.grandTotal > 0) {
+        totalValue = totals.grandTotal;
+        console.log(`Using detected grand total from PDF: ${totalValue}`);
+      }
+
+      for (const row of items) {
         // Try to map common column names (flexible mapping)
         const item = {
           description: row['description'] || row['item description'] || row['item'] || row['desc'] || '',
