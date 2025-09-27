@@ -509,7 +509,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const taxMatches = Array.from(line.matchAll(patterns.tax));
       if (taxMatches.length > 0) {
         const lastMatch = taxMatches[taxMatches.length - 1];
-        detectedTotals.tax = parseCurrency(lastMatch[1]);
+        detectedTotals.tax = parseCurrency(lastMatch[2]); // Fixed: use group 2 (amount) not group 1 (label)
       }
     }
     
@@ -519,13 +519,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       detectedTotals.grandTotalLine = detectedTotals.finalAmountLine;
     }
     
-    // Debug logging for total detection
-    console.log('PDF Total Detection Results:', {
-      grandTotal: detectedTotals.grandTotal,
-      finalAmount: detectedTotals.finalAmount,
-      subTotal: detectedTotals.subTotal,
-      tax: detectedTotals.tax
-    });
+    // Optional: Log total detection for troubleshooting (can be removed in production)
+    if (detectedTotals.grandTotal) {
+      console.log(`PDF Total Detection: Found grand total ${detectedTotals.grandTotal}`);
+    }
     
     // Second pass: Extract line items
     for (let i = 0; i < lines.length; i++) {
