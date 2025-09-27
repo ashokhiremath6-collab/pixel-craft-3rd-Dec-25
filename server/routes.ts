@@ -447,10 +447,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       lineItem: /^(.+?)\s+(?:₹|Rs\.?|\$)?\s*([0-9,]+(?:\.[0-9]{2})?)$/,
       // Match table-like data with multiple columns
       tableRow: /^(.+?)\s+(\d+(?:\.\d+)?)\s+(.+?)\s+([0-9,]+(?:\.[0-9]{2})?)(?:\s+([0-9,]+(?:\.[0-9]{2})?))?$/,
-      // Enhanced total detection patterns
-      grandTotal: /(grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due)[\s:]*(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi,
-      subTotal: /(sub\s*total|subtotal)[\s:]*(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi,
-      tax: /(tax|gst|vat|cgst|sgst|igst)[\s:]*(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi
+      // Enhanced total detection patterns - updated to handle no-space format
+      grandTotal: /(grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|total)[\s:]*(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi,
+      finalAmount: /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9]{7,}(?:\.[0-9]{2})?)\s*(?:E\.\s*&\s*O\.E\.|only\.?|$)/gi, // Detect large final amounts
+      subTotal: /(sub\s*total|subtotal|total\s*before\s*tax)[\s:]*(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi,
+      tax: /(tax|gst|vat|cgst|sgst|igst)[\s@]*\d*%?\s*(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi
     };
     
     let currentSection = '';
@@ -463,12 +464,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     // First pass: Scan for total amounts throughout the document
     for (const line of lines) {
-      // Look for grand total patterns
+      // Look for grand total patterns (including "Total1202104.59" format)
       const grandTotalMatches = Array.from(line.matchAll(patterns.grandTotal));
       if (grandTotalMatches.length > 0) {
         const lastMatch = grandTotalMatches[grandTotalMatches.length - 1];
-        detectedTotals.grandTotal = parseCurrency(lastMatch[2]);
-        detectedTotals.grandTotalLine = line;
+        const amount = parseCurrency(lastMatch[2]);
+        if (!detectedTotals.grandTotal || amount > detectedTotals.grandTotal) {
+          detectedTotals.grandTotal = amount;
+          detectedTotals.grandTotalLine = line;
+        }
+      }
+      
+      // Look for final amount patterns (large amounts near "E. & O.E." or "only")
+      const finalAmountMatches = Array.from(line.matchAll(patterns.finalAmount));
+      if (finalAmountMatches.length > 0) {
+        const lastMatch = finalAmountMatches[finalAmountMatches.length - 1];
+        const amount = parseCurrency(lastMatch[1]);
+        // Prefer final amounts over other totals
+        if (amount > 100000) { // Only consider significant amounts
+          detectedTotals.finalAmount = amount;
+          detectedTotals.finalAmountLine = line;
+        }
       }
       
       // Look for subtotal patterns
@@ -482,9 +498,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const taxMatches = Array.from(line.matchAll(patterns.tax));
       if (taxMatches.length > 0) {
         const lastMatch = taxMatches[taxMatches.length - 1];
-        detectedTotals.tax = parseCurrency(lastMatch[2]);
+        detectedTotals.tax = parseCurrency(lastMatch[1]);
       }
     }
+    
+    // Prioritize final amount over grand total
+    if (detectedTotals.finalAmount && detectedTotals.finalAmount > (detectedTotals.grandTotal || 0)) {
+      detectedTotals.grandTotal = detectedTotals.finalAmount;
+      detectedTotals.grandTotalLine = detectedTotals.finalAmountLine;
+    }
+    
+    // Debug logging for total detection
+    console.log('PDF Total Detection Results:', {
+      grandTotal: detectedTotals.grandTotal,
+      finalAmount: detectedTotals.finalAmount,
+      subTotal: detectedTotals.subTotal,
+      tax: detectedTotals.tax
+    });
     
     // Second pass: Extract line items
     for (let i = 0; i < lines.length; i++) {
