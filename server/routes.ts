@@ -4,6 +4,7 @@ import multer from "multer";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import pdfParse from "pdf-parse";
+import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
 import { storage } from "./storage";
@@ -1178,10 +1179,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { format } = req.params;
 
       // Strict format validation with explicit allow-list
-      const allowedFormats = ['csv', 'excel'] as const;
+      const allowedFormats = ['csv', 'excel', 'pdf'] as const;
       if (!allowedFormats.includes(format as any)) {
         return res.status(400).json({ 
-          error: "Invalid export format. Supported formats: csv, excel." 
+          error: "Invalid export format. Supported formats: csv, excel, pdf." 
         });
       }
 
@@ -1239,6 +1240,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(csv);
+      } else if (format === 'pdf') {
+        // PDF export using PDFKit
+        const filename = `quote_${vendorName}_${timestamp}.pdf`;
+        
+        // Create PDF document
+        const doc = new PDFDocument();
+        const chunks: Buffer[] = [];
+        
+        // Collect PDF data
+        doc.on('data', (chunk) => chunks.push(chunk));
+        
+        // Promise to handle PDF generation
+        const pdfBuffer = await new Promise<Buffer>((resolve) => {
+          doc.on('end', () => {
+            resolve(Buffer.concat(chunks));
+          });
+          
+          // PDF Content
+          doc.fontSize(20).text('QUOTATION SUMMARY', { align: 'center' });
+          doc.moveDown(2);
+          
+          // Quote details
+          doc.fontSize(12);
+          doc.text(`Vendor: ${quotation.vendorName}`, { continued: false });
+          doc.text(`Project: ${quotation.projectName}`);
+          doc.text(`Category: ${quotation.category}`);
+          doc.text(`Quote Value: ${exportRow['Quote Value (Formatted)']}`);
+          doc.text(`Date: ${exportRow['Date of Quotation']}`);
+          doc.text(`Status: ${quotation.status}`);
+          doc.text(`Quote ID: ${quotation.id}`);
+          
+          doc.moveDown();
+          doc.text(`Notes: ${quotation.notes || 'No additional notes'}`);
+          
+          doc.moveDown(2);
+          doc.fontSize(10).text(`Generated on: ${new Date().toLocaleDateString()}`, { align: 'right' });
+          
+          doc.end();
+        });
+        
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(pdfBuffer);
       } else {
         // Excel export
         const XLSX = await import('xlsx');

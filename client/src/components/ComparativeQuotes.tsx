@@ -70,7 +70,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   };
 
   // Handle individual quote export
-  const handleIndividualQuoteExport = async (quotation: QuotationData, group: any, format: 'csv' | 'excel') => {
+  const handleIndividualQuoteExport = async (quotation: QuotationData, group: any, format: 'csv' | 'excel' | 'pdf') => {
     try {
       setIsExporting(true);
 
@@ -109,8 +109,16 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
 
       // Get filename from response headers or create default
       const contentDisposition = response.headers.get('Content-Disposition');
+      const getFileExtension = () => {
+        switch (format) {
+          case 'excel': return 'xlsx';
+          case 'pdf': return 'pdf';
+          case 'csv': 
+          default: return 'csv';
+        }
+      };
       const filename = contentDisposition?.match(/filename="?([^"]+)"?/)?.[1] || 
-        `quote_${quotation.vendorName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : 'csv'}`;
+        `quote_${quotation.vendorName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.${getFileExtension()}`;
 
       // Download the file
       const blob = await response.blob();
@@ -550,7 +558,10 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         <TableCell data-testid="text-quotation-value">
                           <div className="flex items-center gap-2">
                             <span className="font-mono font-semibold">
-                              {quotation.quotationValue ? formatCurrency(quotation.quotationValue) : <span className="text-muted-foreground">No quote</span>}
+                              {(() => {
+                                const numericValue = parseFloat(quotation.quotationValue || '0');
+                                return !isNaN(numericValue) && numericValue > 0 ? formatCurrency(quotation.quotationValue) : <span className="text-muted-foreground">No quote</span>;
+                              })()}
                             </span>
                             {isLowest && (
                               <Badge variant="outline" className="text-green-600 border-green-200">
@@ -627,11 +638,18 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem 
-                                  onClick={() => handleIndividualQuoteExport(quotation, group, 'csv')}
-                                  data-testid={`export-quote-csv-${quotation.id}`}
+                                  onClick={() => handleQuoteClick(quotation, group.projectName)}
+                                  data-testid={`view-quote-${quotation.id}`}
+                                >
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View Quote
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleIndividualQuoteExport(quotation, group, 'pdf')}
+                                  data-testid={`export-quote-pdf-${quotation.id}`}
                                 >
                                   <FileText className="mr-2 h-4 w-4" />
-                                  Export as CSV
+                                  Export as PDF
                                 </DropdownMenuItem>
                                 <DropdownMenuItem 
                                   onClick={() => handleIndividualQuoteExport(quotation, group, 'excel')}
@@ -639,6 +657,13 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                 >
                                   <FileSpreadsheet className="mr-2 h-4 w-4" />
                                   Export as Excel
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleIndividualQuoteExport(quotation, group, 'csv')}
+                                  data-testid={`export-quote-csv-${quotation.id}`}
+                                >
+                                  <FileText className="mr-2 h-4 w-4" />
+                                  Export as CSV
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
