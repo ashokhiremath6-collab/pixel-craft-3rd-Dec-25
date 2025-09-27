@@ -447,11 +447,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       lineItem: /^(.+?)\s+(?:₹|Rs\.?|\$)?\s*([0-9,]+(?:\.[0-9]{2})?)$/,
       // Match table-like data with multiple columns
       tableRow: /^(.+?)\s+(\d+(?:\.\d+)?)\s+(.+?)\s+([0-9,]+(?:\.[0-9]{2})?)(?:\s+([0-9,]+(?:\.[0-9]{2})?))?$/,
-      // Enhanced total detection patterns - updated to handle no-space format
+      // Enhanced total detection patterns - more precise for invoice formats
       grandTotal: /(grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|total)[\s:]*(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi,
-      finalAmount: /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9]{7,}(?:\.[0-9]{2})?)\s*(?:E\.\s*&\s*O\.E\.|only\.?|$)/gi, // Detect large final amounts
+      finalAmountWithEOE: /([0-9]{7,}(?:\.[0-9]{2})?)\s*E\.\s*&\s*O\.E\./gi, // Amount just before "E. & O.E."
+      finalAmountStandalone: /^([0-9]{7,}(?:\.[0-9]{2})?)$/gm, // Standalone 7+ digit number on its own line
       subTotal: /(sub\s*total|subtotal|total\s*before\s*tax)[\s:]*(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi,
-      tax: /(tax|gst|vat|cgst|sgst|igst)[\s@]*\d*%?\s*(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi
+      tax: /(gst\s*@\s*18%|tax)[\s:]*(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi
     };
     
     let currentSection = '';
@@ -475,13 +476,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Look for final amount patterns (large amounts near "E. & O.E." or "only")
-      const finalAmountMatches = Array.from(line.matchAll(patterns.finalAmount));
-      if (finalAmountMatches.length > 0) {
-        const lastMatch = finalAmountMatches[finalAmountMatches.length - 1];
+      // Look for final amount patterns - amounts before "E. & O.E."
+      const finalAmountEOEMatches = Array.from(line.matchAll(patterns.finalAmountWithEOE));
+      if (finalAmountEOEMatches.length > 0) {
+        const lastMatch = finalAmountEOEMatches[finalAmountEOEMatches.length - 1];
         const amount = parseCurrency(lastMatch[1]);
-        // Prefer final amounts over other totals
         if (amount > 100000) { // Only consider significant amounts
+          detectedTotals.finalAmount = amount;
+          detectedTotals.finalAmountLine = line;
+        }
+      }
+      
+      // Look for standalone final amounts (7+ digits on their own line)
+      const finalAmountStandaloneMatches = Array.from(line.matchAll(patterns.finalAmountStandalone));
+      if (finalAmountStandaloneMatches.length > 0 && !detectedTotals.finalAmount) {
+        const lastMatch = finalAmountStandaloneMatches[finalAmountStandaloneMatches.length - 1];
+        const amount = parseCurrency(lastMatch[1]);
+        if (amount > 100000 && amount < 100000000) { // Reasonable invoice amount range
           detectedTotals.finalAmount = amount;
           detectedTotals.finalAmountLine = line;
         }
