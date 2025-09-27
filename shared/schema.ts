@@ -88,6 +88,21 @@ export const quoteFiles = pgTable("quote_files", {
   externalFileId: text("external_file_id"), // ID in external storage system
 });
 
+// Floor Plans table
+export const floorPlans = pgTable("floor_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  fileName: text("file_name").notNull(),
+  filePath: text("file_path").notNull(), // path in object storage
+  fileType: text("file_type").notNull(), // pdf, dwg, png, jpg, etc.
+  fileSize: decimal("file_size"), // in bytes
+  version: text("version").notNull().default("1.0"),
+  isActive: boolean("is_active").notNull().default(true),
+  uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+});
+
 // Insert schemas
 export const insertVendorCategorySchema = createInsertSchema(vendorCategories).omit({
   id: true,
@@ -120,6 +135,11 @@ export const insertQuoteFileSchema = createInsertSchema(quoteFiles).omit({
   uploadedAt: true,
 });
 
+export const insertFloorPlanSchema = createInsertSchema(floorPlans).omit({
+  id: true,
+  uploadedAt: true,
+});
+
 // Types
 export type InsertVendorCategory = z.infer<typeof insertVendorCategorySchema>;
 export type VendorCategory = typeof vendorCategories.$inferSelect;
@@ -141,6 +161,9 @@ export type Boq = typeof boq.$inferSelect;
 
 export type InsertQuoteFile = z.infer<typeof insertQuoteFileSchema>;
 export type QuoteFile = typeof quoteFiles.$inferSelect;
+
+export type InsertFloorPlan = z.infer<typeof insertFloorPlanSchema>;
+export type FloorPlan = typeof floorPlans.$inferSelect;
 
 // Legacy user schema (keeping for compatibility)
 export const users = pgTable("users", {
