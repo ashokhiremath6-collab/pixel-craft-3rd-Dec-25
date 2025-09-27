@@ -1,13 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import StatusBadge from "./StatusBadge";
 import QuoteDetailModal from "./QuoteDetailModal";
-import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2 } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -45,6 +50,13 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalData, setModalData] = useState<{ vendorName: string; projectName: string } | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingQuote, setEditingQuote] = useState<QuotationData | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    quotationValue: "",
+    dateOfQuotation: "",
+    notes: ""
+  });
   const { toast } = useToast();
 
   const handleProjectFilter = (projectId: string) => {
@@ -70,6 +82,60 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     setIsModalOpen(false);
     setSelectedQuoteId(null);
     setModalData(null);
+  };
+
+  const handleEditQuote = (quotation: QuotationData) => {
+    setEditingQuote(quotation);
+    setEditFormData({
+      quotationValue: quotation.quotationValue || "",
+      dateOfQuotation: quotation.dateOfQuotation || "",
+      notes: quotation.notes || ""
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingQuote(null);
+    setEditFormData({ quotationValue: "", dateOfQuotation: "", notes: "" });
+  };
+
+  // Update quote mutation
+  const updateQuoteMutation = useMutation({
+    mutationFn: async (data: { quoteId: string; updates: any }) => {
+      const response = await apiRequest('PUT', `/api/project-vendors/${data.quoteId}`, data.updates);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/project-vendors'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors-with-projects'] });
+      handleCloseEditModal();
+      toast({
+        title: "Success",
+        description: "Quote updated successfully",
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to update quote:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update quote. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const handleSaveEdit = () => {
+    if (!editingQuote) return;
+    
+    updateQuoteMutation.mutate({
+      quoteId: editingQuote.id,
+      updates: {
+        quotationValue: editFormData.quotationValue || null,
+        dateOfQuotation: editFormData.dateOfQuotation || null,
+        notes: editFormData.notes || null
+      }
+    });
   };
 
   // Handle quote deletion
@@ -635,6 +701,15 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleEditQuote(quotation)}
+                              data-testid={`button-edit-quote-${quotation.id}`}
+                              title="Edit quote values"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
                             {quotation.status !== "Selected" && (
                               <Button
                                 size="sm"
@@ -756,6 +831,62 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
         vendorName={modalData?.vendorName}
         projectName={modalData?.projectName}
       />
+
+      {/* Edit Quote Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={handleCloseEditModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Quote</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="quotationValue">Quotation Value</Label>
+              <Input
+                id="quotationValue"
+                type="number"
+                step="0.01"
+                placeholder="Enter amount"
+                value={editFormData.quotationValue}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, quotationValue: e.target.value }))}
+                data-testid="input-edit-quotation-value"
+              />
+            </div>
+            <div>
+              <Label htmlFor="dateOfQuotation">Date of Quotation</Label>
+              <Input
+                id="dateOfQuotation"
+                type="date"
+                value={editFormData.dateOfQuotation}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, dateOfQuotation: e.target.value }))}
+                data-testid="input-edit-quotation-date"
+              />
+            </div>
+            <div>
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea
+                id="notes"
+                placeholder="Add any additional notes"
+                value={editFormData.notes}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, notes: e.target.value }))}
+                data-testid="textarea-edit-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={handleCloseEditModal} data-testid="button-cancel-edit">
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveEdit} 
+              disabled={updateQuoteMutation.isPending}
+              data-testid="button-save-edit"
+            >
+              {updateQuoteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
