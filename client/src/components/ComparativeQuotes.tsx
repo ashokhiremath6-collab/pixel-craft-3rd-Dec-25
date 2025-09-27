@@ -603,16 +603,9 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
         return (
           <Card key={key} className="" data-testid={`comparison-group-${key}`}>
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">
-                    {group.category} - {group.projectName}
-                  </CardTitle>
-                </div>
-                <Badge variant="outline" className="text-xs" data-testid="badge-category">
-                  {group.category}
-                </Badge>
-              </div>
+              <CardTitle className="text-base">
+                {group.category} - {group.projectName}
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               <Table>
