@@ -15,6 +15,8 @@ import {
   type InsertBoq,
   type QuoteFile,
   type InsertQuoteFile,
+  type FloorPlan,
+  type InsertFloorPlan,
   users,
   vendorCategories,
   vendors,
@@ -23,10 +25,11 @@ import {
   quoteTemplates,
   boq,
   quoteFiles,
+  floorPlans,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, inArray, isNull } from "drizzle-orm";
+import { eq, inArray, isNull, and } from "drizzle-orm";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -96,6 +99,14 @@ export interface IStorage {
   createQuoteFile(quoteFile: InsertQuoteFile): Promise<QuoteFile>;
   updateQuoteFile(id: string, quoteFile: Partial<InsertQuoteFile>): Promise<QuoteFile | undefined>;
   deleteQuoteFile(id: string): Promise<boolean>;
+  
+  // Floor Plans
+  getAllFloorPlans(): Promise<FloorPlan[]>;
+  getFloorPlansByProject(projectId: string): Promise<FloorPlan[]>;
+  getFloorPlan(id: string): Promise<FloorPlan | undefined>;
+  createFloorPlan(floorPlan: InsertFloorPlan): Promise<FloorPlan>;
+  updateFloorPlan(id: string, floorPlan: Partial<InsertFloorPlan>): Promise<FloorPlan | undefined>;
+  deleteFloorPlan(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -107,6 +118,7 @@ export class MemStorage implements IStorage {
   private quoteTemplates: Map<string, QuoteTemplate>;
   private boq: Map<string, Boq>;
   private quoteFiles: Map<string, QuoteFile>;
+  private floorPlans: Map<string, FloorPlan>;
 
   constructor() {
     this.users = new Map();
@@ -117,6 +129,7 @@ export class MemStorage implements IStorage {
     this.quoteTemplates = new Map();
     this.boq = new Map();
     this.quoteFiles = new Map();
+    this.floorPlans = new Map();
     
     // No dummy data needed - using database storage
   }
@@ -321,6 +334,7 @@ export class MemStorage implements IStorage {
       dateOfQuotation: insertProjectVendor.dateOfQuotation || null,
       notes: insertProjectVendor.notes || null,
       templateId: insertProjectVendor.templateId || null,
+      status: insertProjectVendor.status || "Quoted",
       submittedAt: new Date()
     };
     this.projectVendors.set(id, projectVendor);
@@ -406,6 +420,9 @@ export class MemStorage implements IStorage {
       description: insertTemplate.description || null,
       templateFile: insertTemplate.templateFile || null,
       fields: insertTemplate.fields || null,
+      originalFileData: insertTemplate.originalFileData || null,
+      originalFileName: insertTemplate.originalFileName || null,
+      originalMimeType: insertTemplate.originalMimeType || null,
       isActive: insertTemplate.isActive ?? true,
       createdAt: new Date()
     };
@@ -523,6 +540,49 @@ export class MemStorage implements IStorage {
 
   async deleteQuoteFile(id: string): Promise<boolean> {
     return this.quoteFiles.delete(id);
+  }
+
+  // Floor Plans
+  async getAllFloorPlans(): Promise<FloorPlan[]> {
+    return Array.from(this.floorPlans.values());
+  }
+
+  async getFloorPlansByProject(projectId: string): Promise<FloorPlan[]> {
+    return Array.from(this.floorPlans.values()).filter(
+      plan => plan.projectId === projectId
+    );
+  }
+
+  async getFloorPlan(id: string): Promise<FloorPlan | undefined> {
+    return this.floorPlans.get(id);
+  }
+
+  async createFloorPlan(insertFloorPlan: InsertFloorPlan): Promise<FloorPlan> {
+    const id = randomUUID();
+    const floorPlan: FloorPlan = { 
+      ...insertFloorPlan, 
+      id,
+      description: insertFloorPlan.description || null,
+      fileSize: insertFloorPlan.fileSize || null,
+      version: insertFloorPlan.version || "1.0",
+      isActive: insertFloorPlan.isActive ?? true,
+      uploadedAt: new Date()
+    };
+    this.floorPlans.set(id, floorPlan);
+    return floorPlan;
+  }
+
+  async updateFloorPlan(id: string, updates: Partial<InsertFloorPlan>): Promise<FloorPlan | undefined> {
+    const existing = this.floorPlans.get(id);
+    if (!existing) return undefined;
+    
+    const updated = { ...existing, ...updates };
+    this.floorPlans.set(id, updated);
+    return updated;
+  }
+
+  async deleteFloorPlan(id: string): Promise<boolean> {
+    return this.floorPlans.delete(id);
   }
 }
 
@@ -773,6 +833,7 @@ export class DBStorage implements IStorage {
       description: quoteTemplates.description,
       templateFile: quoteTemplates.templateFile,
       fields: quoteTemplates.fields,
+      originalFileData: quoteTemplates.originalFileData,
       originalFileName: quoteTemplates.originalFileName,
       originalMimeType: quoteTemplates.originalMimeType,
       isActive: quoteTemplates.isActive,
@@ -789,6 +850,7 @@ export class DBStorage implements IStorage {
       description: quoteTemplates.description,
       templateFile: quoteTemplates.templateFile,
       fields: quoteTemplates.fields,
+      originalFileData: quoteTemplates.originalFileData,
       originalFileName: quoteTemplates.originalFileName,
       originalMimeType: quoteTemplates.originalMimeType,
       isActive: quoteTemplates.isActive,
@@ -812,6 +874,7 @@ export class DBStorage implements IStorage {
       description: quoteTemplates.description,
       templateFile: quoteTemplates.templateFile,
       fields: quoteTemplates.fields,
+      originalFileData: quoteTemplates.originalFileData,
       originalFileName: quoteTemplates.originalFileName,
       originalMimeType: quoteTemplates.originalMimeType,
       isActive: quoteTemplates.isActive,
@@ -891,6 +954,35 @@ export class DBStorage implements IStorage {
 
   async deleteQuoteFile(id: string): Promise<boolean> {
     const result = await db.delete(quoteFiles).where(eq(quoteFiles.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Floor Plans
+  async getAllFloorPlans(): Promise<FloorPlan[]> {
+    return await db.select().from(floorPlans);
+  }
+
+  async getFloorPlansByProject(projectId: string): Promise<FloorPlan[]> {
+    return await db.select().from(floorPlans).where(eq(floorPlans.projectId, projectId));
+  }
+
+  async getFloorPlan(id: string): Promise<FloorPlan | undefined> {
+    const result = await db.select().from(floorPlans).where(eq(floorPlans.id, id));
+    return result[0];
+  }
+
+  async createFloorPlan(floorPlan: InsertFloorPlan): Promise<FloorPlan> {
+    const result = await db.insert(floorPlans).values(floorPlan).returning();
+    return result[0];
+  }
+
+  async updateFloorPlan(id: string, updates: Partial<InsertFloorPlan>): Promise<FloorPlan | undefined> {
+    const result = await db.update(floorPlans).set(updates).where(eq(floorPlans.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteFloorPlan(id: string): Promise<boolean> {
+    const result = await db.delete(floorPlans).where(eq(floorPlans.id, id));
     return result.rowCount !== null && result.rowCount > 0;
   }
 }
