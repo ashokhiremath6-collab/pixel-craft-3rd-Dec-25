@@ -905,8 +905,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const parseTemplateFile = async (filePath: string, mimeType: string): Promise<any[]> => {
     try {
       if (mimeType.includes('excel') || mimeType.includes('sheet')) {
-        // Parse Excel file
-        const workbook = XLSX.readFile(filePath);
+        // Parse Excel file - use fs.readFileSync + XLSX.read for ESM compatibility
+        const buffer = fs.readFileSync(filePath);
+        const workbook = XLSX.read(buffer);
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         return XLSX.utils.sheet_to_json(worksheet);
