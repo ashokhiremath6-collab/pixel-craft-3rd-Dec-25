@@ -611,7 +611,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (item.description && item.quantity > 0 && item.unitRate > 0) {
           const totalAmount = item.quantity * item.unitRate;
+          
+          // Validate that values don't exceed database limits (precision 10, scale 2)
+          const maxValue = 99999999.99;
+          
+          if (item.quantity > maxValue) {
+            results.errors.push(`Quantity ${item.quantity} for "${item.description}" exceeds maximum allowed value (${maxValue})`);
+            continue;
+          }
+          
+          if (item.unitRate > maxValue) {
+            results.errors.push(`Unit rate ${item.unitRate} for "${item.description}" exceeds maximum allowed value (${maxValue})`);
+            continue;
+          }
+          
+          if (totalAmount > maxValue) {
+            results.errors.push(`Total amount ${totalAmount.toFixed(2)} for "${item.description}" exceeds maximum allowed value (${maxValue})`);
+            continue;
+          }
+          
           totalValue += totalAmount;
+          
+          // Additional check for total value overflow
+          if (totalValue > maxValue) {
+            results.errors.push(`Total quotation value ${totalValue.toFixed(2)} exceeds maximum allowed value (${maxValue}). Some items may be skipped.`);
+            totalValue = maxValue;
+            break;
+          }
           
           boqItems.push({
             itemDescription: item.description,
