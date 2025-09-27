@@ -908,10 +908,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (mimeType.includes('excel') || mimeType.includes('sheet')) {
         // Parse Excel file - use fs.readFileSync + XLSX.read for ESM compatibility
         const buffer = fs.readFileSync(filePath);
-        const workbook = XLSX.read(buffer);
+        const workbook = XLSX.read(buffer, { cellText: false, cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        return XLSX.utils.sheet_to_json(worksheet);
+        
+        // Get the raw data without parsing headers first to inspect structure
+        const rawData = XLSX.utils.sheet_to_json(worksheet, { 
+          header: 1, // Use array format first
+          defval: '',
+          blankrows: false
+        });
+        
+        console.log('Raw Excel data structure:', JSON.stringify(rawData.slice(0, 3), null, 2));
+        
+        // Find the first non-empty row that could be headers
+        let headerRowIndex = 0;
+        for (let i = 0; i < Math.min(5, rawData.length); i++) {
+          const row = rawData[i] as any[];
+          if (row && row.some(cell => cell && String(cell).trim() !== '')) {
+            // Check if this row looks like headers (non-numeric strings)
+            const nonEmptyCells = row.filter(cell => cell && String(cell).trim() !== '');
+            const textCells = nonEmptyCells.filter(cell => isNaN(Number(cell)));
+            if (textCells.length > nonEmptyCells.length * 0.5) {
+              headerRowIndex = i;
+              break;
+            }
+          }
+        }
+        
+        console.log('Using header row index:', headerRowIndex);
+        
+        // Parse with proper headers
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+          range: headerRowIndex, // Start from header row
+          defval: '',
+          blankrows: false
+        });
+        
+        console.log('Parsed Excel data:', JSON.stringify(jsonData.slice(0, 2), null, 2));
+        return jsonData;
       } else if (mimeType.includes('csv')) {
         // Parse CSV file
         const csvData = fs.readFileSync(filePath, 'utf8');
