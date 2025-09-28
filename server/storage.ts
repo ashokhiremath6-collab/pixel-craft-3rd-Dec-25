@@ -1,8 +1,8 @@
 import { 
   type User, 
-  type InsertUser,
-  type UserProjectAccess,
-  type InsertUserProjectAccess,
+  type UpsertUser,
+  type UserRole,
+  type InsertUserRole,
   type DesignerAllowlist,
   type InsertDesignerAllowlist,
   type VendorCategory,
@@ -22,7 +22,7 @@ import {
   type FloorPlan,
   type InsertFloorPlan,
   users,
-  userProjectAccess,
+  userRoles,
   designerAllowlist,
   vendorCategories,
   vendors,
@@ -41,21 +41,14 @@ import { eq, inArray, isNull, and } from "drizzle-orm";
 // you might need
 
 export interface IStorage {
-  // Users
-  getAllUsers(): Promise<User[]>;
+  // Users - Replit Auth required methods
   getUser(id: string): Promise<User | undefined>;
-  getUserByEmail(email: string): Promise<User | undefined>;
-  getUserByGoogleId(googleId: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
-  updateUserLastLogin(id: string): Promise<void>;
+  upsertUser(userData: UpsertUser): Promise<User>;
   
-  // User Project Access
-  getUserProjectAccess(userId: string): Promise<UserProjectAccess[]>;
-  getProjectUsers(projectId: string): Promise<UserProjectAccess[]>;
-  createUserProjectAccess(access: InsertUserProjectAccess): Promise<UserProjectAccess>;
-  deleteUserProjectAccess(userId: string, projectId: string): Promise<boolean>;
-  getUserAccessibleProjects(userId: string): Promise<string[]>;
+  // User Roles - for role-based access control
+  getUserRole(userId: string): Promise<UserRole | undefined>;
+  createUserRole(userRole: InsertUserRole): Promise<UserRole>;
+  updateUserRole(userId: string, role: string): Promise<UserRole | undefined>;
   
   // Designer Allowlist
   getDesignerAllowlist(): Promise<DesignerAllowlist[]>;
@@ -141,7 +134,7 @@ export interface IStorage {
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
-  private userProjectAccess: Map<string, UserProjectAccess>;
+  private userRoles: Map<string, UserRole>;
   private vendorCategories: Map<string, VendorCategory>;
   private vendors: Map<string, Vendor>;
   private projects: Map<string, Project>;
@@ -153,7 +146,7 @@ export class MemStorage implements IStorage {
 
   constructor() {
     this.users = new Map();
-    this.userProjectAccess = new Map();
+    this.userRoles = new Map();
     this.vendorCategories = new Map();
     this.vendors = new Map();
     this.projects = new Map();
@@ -168,63 +161,66 @@ export class MemStorage implements IStorage {
 
   // Removed dummy data methods - using database storage
 
-  // User methods
-  async getAllUsers(): Promise<User[]> {
-    return Array.from(this.users.values());
-  }
-
+  // User methods - Replit Auth
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.email === email,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { 
-      ...insertUser, 
-      id,
-      password: insertUser.password || null,
-      role: insertUser.role || "client",
-      authProvider: insertUser.authProvider || "local",
-      googleId: insertUser.googleId || null,
-      firstName: insertUser.firstName || null,
-      lastName: insertUser.lastName || null,
-      profilePicture: insertUser.profilePicture || null,
-      isActive: insertUser.isActive ?? true,
-      lastLoginAt: null,
-      createdAt: new Date()
-    };
-    this.users.set(id, user);
-    return user;
-  }
-
-  async updateUser(id: string, userUpdate: Partial<InsertUser>): Promise<User | undefined> {
-    const existingUser = this.users.get(id);
-    if (!existingUser) return undefined;
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const existingUser = this.users.get(userData.id!);
     
-    const updatedUser: User = { ...existingUser, ...userUpdate };
-    this.users.set(id, updatedUser);
-    return updatedUser;
-  }
-
-  // OAuth support methods  
-  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.googleId === googleId,
-    );
-  }
-
-  async updateUserLastLogin(id: string): Promise<void> {
-    const user = this.users.get(id);
-    if (user) {
-      user.lastLoginAt = new Date();
+    if (existingUser) {
+      // Update existing user
+      const updatedUser: User = {
+        ...existingUser,
+        ...userData,
+        updatedAt: new Date(),
+      };
+      this.users.set(existingUser.id, updatedUser);
+      return updatedUser;
+    } else {
+      // Create new user
+      const id = userData.id || randomUUID();
+      const user: User = {
+        id,
+        email: userData.email || null,
+        firstName: userData.firstName || null,
+        lastName: userData.lastName || null,
+        profileImageUrl: userData.profileImageUrl || null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
       this.users.set(id, user);
+      return user;
     }
+  }
+
+  // User Roles methods
+  async getUserRole(userId: string): Promise<UserRole | undefined> {
+    return Array.from(this.userRoles.values()).find(role => role.userId === userId && role.isActive);
+  }
+
+  async createUserRole(userRole: InsertUserRole): Promise<UserRole> {
+    const id = randomUUID();
+    const role: UserRole = {
+      ...userRole,
+      id,
+      role: userRole.role || "client",
+      isActive: userRole.isActive ?? true,
+      assignedAt: new Date(),
+    };
+    this.userRoles.set(id, role);
+    return role;
+  }
+
+  async updateUserRole(userId: string, newRole: string): Promise<UserRole | undefined> {
+    const existingRole = await this.getUserRole(userId);
+    if (existingRole) {
+      existingRole.role = newRole;
+      this.userRoles.set(existingRole.id, existingRole);
+      return existingRole;
+    }
+    return undefined;
   }
 
   // Designer Allowlist methods (MemStorage - not used in production)
@@ -246,100 +242,66 @@ export class MemStorage implements IStorage {
 
   // Role-based access helpers (MemStorage - simplified)
   async getProjectsForUser(userId: string, role: string): Promise<Project[]> {
-    if (role === 'designer') {
+    if (role === 'admin' || role === 'designer') {
       return Array.from(this.projects.values());
     }
-    const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
-    return Array.from(this.projects.values()).filter(p => accessibleProjectIds.includes(p.id));
+    // For clients, filter by clientEmail matching user's email
+    const user = await this.getUser(userId);
+    if (!user?.email) return [];
+    return Array.from(this.projects.values()).filter(p => p.clientEmail === user.email);
   }
 
   async getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]> {
-    if (role === 'designer') {
+    if (role === 'admin' || role === 'designer') {
       return projectId ? 
         Array.from(this.projectVendors.values()).filter(pv => pv.projectId === projectId) :
         Array.from(this.projectVendors.values());
     }
-    const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+    // For clients, get accessible projects first
+    const accessibleProjects = await this.getProjectsForUser(userId, role);
+    const accessibleProjectIds = accessibleProjects.map(p => p.id);
     return Array.from(this.projectVendors.values()).filter(pv => 
       accessibleProjectIds.includes(pv.projectId) && (!projectId || pv.projectId === projectId)
     );
   }
 
   async getBOQForUser(userId: string, role: string, projectVendorId: string): Promise<Boq[]> {
-    if (role === 'designer') {
+    if (role === 'admin' || role === 'designer') {
       return Array.from(this.boq.values()).filter(b => b.projectVendorId === projectVendorId);
     }
     // Check if user has access to the project vendor's project
     const projectVendor = this.projectVendors.get(projectVendorId);
     if (!projectVendor) return [];
-    const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
-    if (!accessibleProjectIds.includes(projectVendor.projectId)) return [];
+    const accessibleProjects = await this.getProjectsForUser(userId, role);
+    const hasAccess = accessibleProjects.some(p => p.id === projectVendor.projectId);
+    if (!hasAccess) return [];
     return Array.from(this.boq.values()).filter(b => b.projectVendorId === projectVendorId);
   }
 
   async getQuoteFilesForUser(userId: string, role: string, projectVendorId: string): Promise<QuoteFile[]> {
-    if (role === 'designer') {
+    if (role === 'admin' || role === 'designer') {
       return Array.from(this.quoteFiles.values()).filter(f => f.projectVendorId === projectVendorId);
     }
     // Check if user has access to the project vendor's project
     const projectVendor = this.projectVendors.get(projectVendorId);
     if (!projectVendor) return [];
-    const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
-    if (!accessibleProjectIds.includes(projectVendor.projectId)) return [];
+    const accessibleProjects = await this.getProjectsForUser(userId, role);
+    const hasAccess = accessibleProjects.some(p => p.id === projectVendor.projectId);
+    if (!hasAccess) return [];
     return Array.from(this.quoteFiles.values()).filter(f => f.projectVendorId === projectVendorId);
   }
 
   async getFloorPlansForUser(userId: string, role: string, projectId?: string): Promise<FloorPlan[]> {
-    if (role === 'designer') {
+    if (role === 'admin' || role === 'designer') {
       return projectId ?
         Array.from(this.floorPlans.values()).filter(f => f.projectId === projectId) :
         Array.from(this.floorPlans.values());
     }
-    const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+    const accessibleProjects = await this.getProjectsForUser(userId, role);
+    const accessibleProjectIds = accessibleProjects.map(p => p.id);
     return Array.from(this.floorPlans.values()).filter(f => 
       accessibleProjectIds.includes(f.projectId) && (!projectId || f.projectId === projectId)
     );
-  }
-
-  // User Project Access methods (MemStorage uses maps)
-  async getUserProjectAccess(userId: string): Promise<UserProjectAccess[]> {
-    return Array.from(this.userProjectAccess.values()).filter(
-      (access) => access.userId === userId
-    );
-  }
-
-  async getProjectUsers(projectId: string): Promise<UserProjectAccess[]> {
-    return Array.from(this.userProjectAccess.values()).filter(
-      (access) => access.projectId === projectId
-    );
-  }
-
-  async createUserProjectAccess(access: InsertUserProjectAccess): Promise<UserProjectAccess> {
-    const id = randomUUID();
-    const userProjectAccess: UserProjectAccess = {
-      ...access,
-      id,
-      accessLevel: access.accessLevel || "read",
-      assignedAt: new Date()
-    };
-    this.userProjectAccess.set(id, userProjectAccess);
-    return userProjectAccess;
-  }
-
-  async deleteUserProjectAccess(userId: string, projectId: string): Promise<boolean> {
-    const existing = Array.from(this.userProjectAccess.entries()).find(
-      ([_, access]) => access.userId === userId && access.projectId === projectId
-    );
-    if (existing) {
-      this.userProjectAccess.delete(existing[0]);
-      return true;
-    }
-    return false;
-  }
-
-  async getUserAccessibleProjects(userId: string): Promise<string[]> {
-    const userAccess = await this.getUserProjectAccess(userId);
-    return userAccess.map(access => access.projectId);
   }
 
   // Vendor Category methods
@@ -775,63 +737,45 @@ export class MemStorage implements IStorage {
 }
 
 export class DBStorage implements IStorage {
-  // Users
-  async getAllUsers(): Promise<User[]> {
-    return await db.select().from(users);
-  }
-
+  // Users - Replit Auth required methods
   async getUser(id: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.id, id));
     return result[0];
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.email, email));
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const result = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
     return result[0];
   }
 
-  async createUser(user: InsertUser): Promise<User> {
-    const result = await db.insert(users).values(user).returning();
+  // User Roles methods
+  async getUserRole(userId: string): Promise<UserRole | undefined> {
+    const result = await db.select().from(userRoles)
+      .where(and(eq(userRoles.userId, userId), eq(userRoles.isActive, true)));
     return result[0];
   }
 
-  async updateUser(id: string, userUpdate: Partial<InsertUser>): Promise<User | undefined> {
-    const result = await db.update(users).set(userUpdate).where(eq(users.id, id)).returning();
+  async createUserRole(userRole: InsertUserRole): Promise<UserRole> {
+    const result = await db.insert(userRoles).values(userRole).returning();
     return result[0];
   }
 
-  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.googleId, googleId));
+  async updateUserRole(userId: string, newRole: string): Promise<UserRole | undefined> {
+    const result = await db.update(userRoles)
+      .set({ role: newRole })
+      .where(and(eq(userRoles.userId, userId), eq(userRoles.isActive, true)))
+      .returning();
     return result[0];
-  }
-
-  async updateUserLastLogin(id: string): Promise<void> {
-    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, id));
-  }
-
-  // User Project Access methods
-  async getUserProjectAccess(userId: string): Promise<UserProjectAccess[]> {
-    return await db.select().from(userProjectAccess).where(eq(userProjectAccess.userId, userId));
-  }
-
-  async getProjectUsers(projectId: string): Promise<UserProjectAccess[]> {
-    return await db.select().from(userProjectAccess).where(eq(userProjectAccess.projectId, projectId));
-  }
-
-  async createUserProjectAccess(access: InsertUserProjectAccess): Promise<UserProjectAccess> {
-    const result = await db.insert(userProjectAccess).values(access).returning();
-    return result[0];
-  }
-
-  async deleteUserProjectAccess(userId: string, projectId: string): Promise<boolean> {
-    const result = await db.delete(userProjectAccess)
-      .where(and(eq(userProjectAccess.userId, userId), eq(userProjectAccess.projectId, projectId)));
-    return result.rowCount !== null && result.rowCount > 0;
-  }
-
-  async getUserAccessibleProjects(userId: string): Promise<string[]> {
-    const userAccess = await this.getUserProjectAccess(userId);
-    return userAccess.map(access => access.projectId);
   }
 
   // Designer Allowlist methods
