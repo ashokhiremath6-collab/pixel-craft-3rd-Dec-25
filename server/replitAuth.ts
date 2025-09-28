@@ -57,13 +57,31 @@ function updateUserSession(
 async function upsertUser(
   claims: any,
 ) {
-  await storage.upsertUser({
+  const user = await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
   });
+
+  // Check if user should have designer role based on email allowlist
+  if (claims["email"]) {
+    const isDesigner = await storage.isDesignerEmail(claims["email"]);
+    
+    // Check if user already has a role
+    const existingRole = await storage.getUserRole(user.id);
+    
+    if (!existingRole && isDesigner) {
+      // Assign designer role to new users who are on the allowlist
+      await storage.createUserRole({
+        userId: user.id,
+        role: 'designer',
+        isActive: true,
+        assignedBy: user.id, // self-assigned during signup
+      });
+    }
+  }
 }
 
 export async function setupAuth(app: Express) {
