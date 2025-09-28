@@ -18,11 +18,9 @@ import ImportPage from "@/pages/ImportPage";
 import SettingsPage from "@/pages/SettingsPage";
 import ClientAccessPage from "@/pages/ClientAccessPage";
 import LoginPage from "@/pages/LoginPage";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
   return (
@@ -43,31 +41,7 @@ function Router() {
 }
 
 function AuthenticatedApp() {
-  const { toast } = useToast();
-  
-  const handleLogout = async () => {
-    try {
-      await apiRequest('POST', '/api/auth/logout');
-      
-      // Clear auth cache
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
-      
-      // Reload the page to redirect to login
-      window.location.reload();
-      
-      toast({
-        title: "Logged out successfully",
-        description: "You have been logged out of your account.",
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-      toast({
-        title: "Logout failed",
-        description: "There was an error logging out. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
+  const { logout, isLogoutPending } = useAuth();
 
   const style = {
     "--sidebar-width": "14rem",
@@ -90,7 +64,8 @@ function AuthenticatedApp() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={handleLogout}
+                onClick={() => logout()}
+                disabled={isLogoutPending}
                 data-testid="button-logout"
                 title="Logout"
               >
@@ -109,36 +84,23 @@ function AuthenticatedApp() {
 }
 
 function AppContent() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
-  // Check authentication status
-  const { data: authStatus, isLoading } = useQuery({
-    queryKey: ['/api/auth/me'],
-    queryFn: async () => {
-      const response = await fetch('/api/auth/me', {
-        credentials: 'include'
-      });
-      return response.ok;
-    },
-    retry: false,
-    refetchOnWindowFocus: false
-  });
+  const { isAuthenticated, isLoading } = useAuth();
 
-  // If we get a successful auth check, user is authenticated
-  if (authStatus && !isAuthenticated) {
-    setIsAuthenticated(true);
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <h2 className="text-lg font-semibold mb-2">Loading...</h2>
+          <p className="text-muted-foreground">Checking authentication status</p>
+        </div>
+      </div>
+    );
   }
 
-  const handleLoginSuccess = () => {
-    setIsAuthenticated(true);
-    // Invalidate auth query to refetch user data
-    queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
-  };
-
-  if (isAuthenticated || authStatus) {
+  if (isAuthenticated) {
     return <AuthenticatedApp />;
   } else {
-    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+    return <LoginPage onLoginSuccess={() => {}} />;
   }
 }
 
