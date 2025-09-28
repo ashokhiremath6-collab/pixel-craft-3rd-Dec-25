@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { Project, InsertProject } from "@shared/schema";
+import type { Project, InsertProject, User } from "@shared/schema";
 import { insertProjectSchema } from "@shared/schema";
 
 interface ProjectData extends Project {
@@ -42,7 +42,7 @@ export default function ProjectsPage() {
   const [isAddingProject, setIsAddingProject] = useState(false);
 
   // Get user info to check role
-  const { data: user } = useQuery({
+  const { data: user } = useQuery<User>({
     queryKey: ['/api/auth/me'],
     retry: false,
   });
