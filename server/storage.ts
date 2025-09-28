@@ -1018,8 +1018,8 @@ export class DBStorage implements IStorage {
 
   // Role-based access helper methods
   async getProjectsForUser(userId: string, role: string): Promise<Project[]> {
-    if (role === 'designer') {
-      // Designers can access all projects
+    if (role === 'designer' || role === 'admin') {
+      // Designers and admins can access all projects
       return await db.select().from(projects);
     } else {
       // Clients can only access projects they have access to
@@ -1032,8 +1032,8 @@ export class DBStorage implements IStorage {
   }
 
   async getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]> {
-    if (role === 'designer') {
-      // Designers can access all project vendors
+    if (role === 'designer' || role === 'admin') {
+      // Designers and admins can access all project vendors
       if (projectId) {
         return await db.select().from(projectVendors).where(eq(projectVendors.projectId, projectId));
       }
@@ -1058,8 +1058,8 @@ export class DBStorage implements IStorage {
   }
 
   async getBOQForUser(userId: string, role: string, projectVendorId: string): Promise<Boq[]> {
-    if (role === 'designer') {
-      // Designers can access all BOQ data
+    if (role === 'designer' || role === 'admin') {
+      // Designers and admins can access all BOQ data
       return await db.select().from(boq).where(eq(boq.projectVendorId, projectVendorId));
     } else {
       // Clients can only access BOQ for project vendors in their accessible projects
@@ -1078,8 +1078,8 @@ export class DBStorage implements IStorage {
   }
 
   async getQuoteFilesForUser(userId: string, role: string, projectVendorId: string): Promise<QuoteFile[]> {
-    if (role === 'designer') {
-      // Designers can access all quote files
+    if (role === 'designer' || role === 'admin') {
+      // Designers and admins can access all quote files
       return await db.select().from(quoteFiles).where(eq(quoteFiles.projectVendorId, projectVendorId));
     } else {
       // Clients can only access quote files for project vendors in their accessible projects
@@ -1098,8 +1098,8 @@ export class DBStorage implements IStorage {
   }
 
   async getFloorPlansForUser(userId: string, role: string, projectId?: string): Promise<FloorPlan[]> {
-    if (role === 'designer') {
-      // Designers can access all floor plans
+    if (role === 'designer' || role === 'admin') {
+      // Designers and admins can access all floor plans
       if (projectId) {
         return await db.select().from(floorPlans).where(eq(floorPlans.projectId, projectId));
       }

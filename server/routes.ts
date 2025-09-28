@@ -47,8 +47,8 @@ const requireAuth = (req: express.Request, res: express.Response, next: express.
 };
 
 const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (!req.session.userId || req.session.userRole !== 'designer') {
-    return res.status(403).json({ error: "Designer access required" });
+  if (!req.session.userId || (req.session.userRole !== 'designer' && req.session.userRole !== 'admin')) {
+    return res.status(403).json({ error: "Admin or designer access required" });
   }
   next();
 };
@@ -121,8 +121,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userRole = req.session.userRole;
           const userId = req.session.userId;
           
-          if (userRole === 'designer') {
-            // Designer can access all files
+          if (userRole === 'designer' || userRole === 'admin') {
+            // Designer or admin can access all files
           } else if (userRole === 'client') {
             // Check if client has access to this project
             const userAccess = await storage.getUserProjectAccess(userId!);
@@ -135,8 +135,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return res.status(403).json({ error: 'Access denied - invalid role' });
           }
         } else {
-          // File not associated with any project - only designer can access
-          if (req.session.userRole !== 'designer') {
+          // File not associated with any project - only designer or admin can access
+          if (req.session.userRole !== 'designer' && req.session.userRole !== 'admin') {
             return res.status(403).json({ error: 'Access denied - file not associated with accessible project' });
           }
         }
@@ -198,8 +198,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userRole = req.session.userRole;
           const userId = req.session.userId;
           
-          if (userRole === 'designer') {
-            // Designer can access all files
+          if (userRole === 'designer' || userRole === 'admin') {
+            // Designer or admin can access all files
           } else if (userRole === 'client') {
             // Check if client has access to this project
             const userAccess = await storage.getUserProjectAccess(userId!);
@@ -212,8 +212,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return res.status(403).json({ error: 'Access denied - invalid role' });
           }
         } else {
-          // File not associated with any project - only designer can access
-          if (req.session.userRole !== 'designer') {
+          // File not associated with any project - only designer or admin can access
+          if (req.session.userRole !== 'designer' && req.session.userRole !== 'admin') {
             return res.status(403).json({ error: 'Access denied - floor plan not associated with accessible project' });
           }
         }
@@ -276,12 +276,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
       
-      // Security: Only allow designer role creation by existing designers
+      // Security: Only allow designer role creation by existing designers or admins
       let userRole = "client"; // Default to client
       if (role === "designer") {
-        // Check if the request is from an authenticated designer
-        if (!req.session.userId || req.session.userRole !== "designer") {
-          return res.status(403).json({ error: "Only designers can create designer accounts" });
+        // Check if the request is from an authenticated designer or admin
+        if (!req.session.userId || (req.session.userRole !== "designer" && req.session.userRole !== "admin")) {
+          return res.status(403).json({ error: "Only designers or admins can create designer accounts" });
         }
         userRole = "designer";
       }
