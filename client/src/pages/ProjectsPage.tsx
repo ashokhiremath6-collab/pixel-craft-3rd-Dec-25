@@ -3,6 +3,7 @@ import { useState } from "react";
 import ProjectView from '@/components/ProjectView';
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -10,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { Project, InsertProject, User } from "@shared/schema";
+import type { Project, InsertProject } from "@shared/schema";
 import { insertProjectSchema } from "@shared/schema";
 
 interface ProjectData extends Project {
@@ -41,11 +42,8 @@ export default function ProjectsPage() {
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
   const [isAddingProject, setIsAddingProject] = useState(false);
 
-  // Get user info to check role
-  const { data: user } = useQuery<User>({
-    queryKey: ['/api/auth/me'],
-    retry: false,
-  });
+  // Get user info to check role - use the auth hook which has the correct user data with role
+  const { user } = useAuth();
   
   const isDesigner = user?.role === 'designer' || user?.role === 'admin';
 
