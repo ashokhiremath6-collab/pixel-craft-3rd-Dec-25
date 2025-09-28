@@ -19,7 +19,8 @@ import SettingsPage from "@/pages/SettingsPage";
 import ClientAccessPage from "@/pages/ClientAccessPage";
 import LoginPage from "@/pages/LoginPage";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { LogOut, Shield, User, Crown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -41,7 +42,7 @@ function Router() {
 }
 
 function AuthenticatedApp() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   const style = {
     "--sidebar-width": "14rem",
@@ -60,7 +61,25 @@ function AuthenticatedApp() {
                 Vendor Management
               </h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {user && (
+                <div className="flex items-center gap-2">
+                  <Badge 
+                    variant={
+                      user.role === 'admin' ? 'destructive' : 
+                      user.role === 'designer' ? 'default' : 
+                      'secondary'
+                    }
+                    className="capitalize flex items-center gap-1 px-2 py-1"
+                    data-testid="badge-user-role"
+                  >
+                    {user.role === 'admin' && <Crown className="h-3 w-3" />}
+                    {user.role === 'designer' && <Shield className="h-3 w-3" />}
+                    {user.role === 'client' && <User className="h-3 w-3" />}
+                    {user.role}
+                  </Badge>
+                </div>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
