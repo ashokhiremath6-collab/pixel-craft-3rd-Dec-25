@@ -115,6 +115,8 @@ export const insertVendorSchema = createInsertSchema(vendors).omit({
 
 export const insertProjectSchema = createInsertSchema(projects).omit({
   id: true,
+}).extend({
+  clientEmail: z.string().email("Please enter a valid email address"),
 });
 
 export const insertQuoteTemplateSchema = createInsertSchema(quoteTemplates).omit({

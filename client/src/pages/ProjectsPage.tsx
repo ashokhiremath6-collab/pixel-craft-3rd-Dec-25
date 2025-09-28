@@ -60,6 +60,7 @@ export default function ProjectsPage() {
     defaultValues: {
       projectName: "",
       clientName: "",
+      clientEmail: "",
       startDate: "",
       endDate: "",
     },
@@ -71,6 +72,7 @@ export default function ProjectsPage() {
     defaultValues: {
       projectName: "",
       clientName: "",
+      clientEmail: "",
       startDate: "",
       endDate: "",
     },
@@ -160,6 +162,7 @@ export default function ProjectsPage() {
     form.reset({
       projectName: project.projectName,
       clientName: project.clientName,
+      clientEmail: project.clientEmail,
       startDate: project.startDate,
       endDate: project.endDate || "",
     });
@@ -264,6 +267,24 @@ export default function ProjectsPage() {
                         placeholder="Enter client name" 
                         {...field} 
                         data-testid="input-client-name"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="clientEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Client Email</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="email"
+                        placeholder="Enter client email" 
+                        {...field} 
+                        data-testid="input-client-email"
                       />
                     </FormControl>
                     <FormMessage />
@@ -390,6 +411,24 @@ export default function ProjectsPage() {
                         placeholder="Enter client name" 
                         {...field} 
                         data-testid="input-client-name"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="clientEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Client Email</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="email"
+                        placeholder="Enter client email" 
+                        {...field} 
+                        data-testid="input-client-email"
                       />
                     </FormControl>
                     <FormMessage />
