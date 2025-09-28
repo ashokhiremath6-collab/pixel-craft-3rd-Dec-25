@@ -19,6 +19,10 @@ import SettingsPage from "@/pages/SettingsPage";
 import ClientAccessPage from "@/pages/ClientAccessPage";
 import LoginPage from "@/pages/LoginPage";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 function Router() {
   return (
@@ -39,6 +43,32 @@ function Router() {
 }
 
 function AuthenticatedApp() {
+  const { toast } = useToast();
+  
+  const handleLogout = async () => {
+    try {
+      await apiRequest('POST', '/api/auth/logout');
+      
+      // Clear auth cache
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      
+      // Reload the page to redirect to login
+      window.location.reload();
+      
+      toast({
+        title: "Logged out successfully",
+        description: "You have been logged out of your account.",
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast({
+        title: "Logout failed",
+        description: "There was an error logging out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const style = {
     "--sidebar-width": "14rem",
     "--sidebar-width-icon": "3rem",
@@ -56,7 +86,18 @@ function AuthenticatedApp() {
                 Vendor Management
               </h1>
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleLogout}
+                data-testid="button-logout"
+                title="Logout"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+              <ThemeToggle />
+            </div>
           </header>
           <main className="flex-1 overflow-auto p-6 bg-background">
             <Router />
