@@ -3,7 +3,6 @@ import express from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import bcrypt from "bcrypt";
 import { pool } from "./db";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -13,8 +12,6 @@ import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
 import { storage } from "./storage";
-import { OAuth2Client } from "google-auth-library";
-import { randomBytes } from "crypto";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
@@ -24,9 +21,18 @@ import {
   insertBoqSchema,
   insertQuoteFileSchema,
   insertFloorPlanSchema,
-  insertUserSchema
+  insertUserRoleSchema
 } from "@shared/schema";
 import { z } from "zod";
+
+// Replit Auth login schema
+const replitAuthLoginSchema = z.object({
+  id: z.string().min(1, "User ID is required"),
+  email: z.string().email().optional(),
+  name: z.string().optional(),
+  username: z.string().optional(),
+  imageUrl: z.string().url().optional()
+});
 
 // Session configuration types
 declare module 'express-session' {
@@ -46,11 +52,21 @@ const requireAuth = (req: express.Request, res: express.Response, next: express.
   next();
 };
 
-const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (!req.session.userId || (req.session.userRole !== 'designer' && req.session.userRole !== 'admin')) {
-    return res.status(403).json({ error: "Admin or designer access required" });
+const requireAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Authentication required" });
   }
-  next();
+  
+  try {
+    const userRole = await storage.getUserRole(req.session.userId);
+    if (!userRole || (userRole.role !== 'designer' && userRole.role !== 'admin')) {
+      return res.status(403).json({ error: "Admin or designer access required" });
+    }
+    next();
+  } catch (error) {
+    console.error('Error checking user role:', error);
+    return res.status(500).json({ error: "Failed to check authorization" });
+  }
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -124,9 +140,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (userRole === 'designer' || userRole === 'admin') {
             // Designer or admin can access all files
           } else if (userRole === 'client') {
-            // Check if client has access to this project
-            const userAccess = await storage.getUserProjectAccess(userId!);
-            const hasAccess = userAccess.some(access => access.projectId === associatedProjectVendor.projectId);
+            // Check if client has access to this project (role-based access)
+            const accessibleProjects = await storage.getProjectsForUser(userId!, req.session.userRole!);
+            const hasAccess = accessibleProjects.some(project => project.id === associatedProjectVendor.projectId);
             
             if (!hasAccess) {
               return res.status(403).json({ error: 'Access denied - insufficient project permissions' });
@@ -202,8 +218,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Designer or admin can access all files
           } else if (userRole === 'client') {
             // Check if client has access to this project
-            const userAccess = await storage.getUserProjectAccess(userId!);
-            const hasAccess = userAccess.some(access => access.projectId === associatedFloorPlan.projectId);
+            const accessibleProjects = await storage.getProjectsForUser(userId!, req.session.userRole!);
+            const hasAccess = accessibleProjects.some(project => project.id === associatedFloorPlan.projectId);
             
             if (!hasAccess) {
               return res.status(403).json({ error: 'Access denied - insufficient project permissions' });
@@ -244,12 +260,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (req.session.userId) {
       try {
         const user = await storage.getUser(req.session.userId);
-        if (user && user.isActive) {
+        if (user) {
+          const userRole = await storage.getUserRole(req.session.userId);
           return res.json({
             id: user.id,
-            email: user.email,
-            role: user.role,
-            isActive: user.isActive
+            email: user.email || null,
+            name: user.firstName || null,
+            username: user.lastName || null,
+            image: user.profileImageUrl || null,
+            role: userRole?.role || 'client',
+            isActive: userRole?.isActive ?? true
           });
         }
       } catch (error) {
@@ -259,97 +279,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.status(401).json({ error: "Not authenticated" });
   });
   
-  app.post("/api/auth/register", async (req, res) => {
+  // Replit Auth login - handles user creation/login automatically
+  app.post("/api/auth/replit-login", async (req, res) => {
     try {
-      const { email, password, role } = req.body;
+      // Validate input with zod schema
+      const validatedData = replitAuthLoginSchema.parse(req.body);
+      const { id, email, name, username, imageUrl } = validatedData;
       
-      if (!email || !password) {
-        return res.status(400).json({ error: "Email and password are required" });
-      }
-      
-      // Check if user already exists
-      const existingUser = await storage.getUserByEmail(email);
-      if (existingUser) {
-        return res.status(400).json({ error: "Email already exists" });
-      }
-      
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
-      
-      // Security: Only allow designer role creation by existing designers or admins
-      let userRole = "client"; // Default to client
-      if (role === "designer") {
-        // Check if the request is from an authenticated designer or admin
-        if (!req.session.userId || (req.session.userRole !== "designer" && req.session.userRole !== "admin")) {
-          return res.status(403).json({ error: "Only designers or admins can create designer accounts" });
-        }
-        userRole = "designer";
-      }
-      
-      const user = await storage.createUser({
+      // Upsert user in database (create or update)
+      const user = await storage.upsertUser({
+        id,
         email,
-        password: hashedPassword,
-        role: userRole,
-        isActive: true
+        firstName: name || null,
+        lastName: username || null,
+        profileImageUrl: imageUrl || null
       });
       
-      // Set session
-      req.session.userId = user.id;
-      req.session.userRole = user.role;
+      // Get or create user role
+      let userRole = await storage.getUserRole(user.id);
       
-      res.status(201).json({
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        isActive: user.isActive
-      });
-    } catch (error) {
-      console.error('Registration error:', error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Invalid user data", details: error.errors });
-      }
-      res.status(500).json({ error: "Failed to register user" });
-    }
-  });
-  
-  app.post("/api/auth/login", async (req, res) => {
-    try {
-      const { email, password } = req.body;
-      
-      if (!email || !password) {
-        return res.status(400).json({ error: "Email and password are required" });
-      }
-      
-      // Find user
-      const user = await storage.getUserByEmail(email);
-      if (!user) {
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
-      
-      // Check if user is active
-      if (!user.isActive) {
-        return res.status(401).json({ error: "Account is disabled" });
-      }
-      
-      // Verify password (handle OAuth users who may not have passwords)
-      if (!user.password) {
-        return res.status(401).json({ error: "Please use OAuth login for this account" });
-      }
-      
-      const isValidPassword = await bcrypt.compare(password, user.password);
-      if (!isValidPassword) {
-        return res.status(401).json({ error: "Invalid credentials" });
+      if (!userRole) {
+        // Determine role based on email (designer allowlist) or default to client
+        const isDesigner = email ? await storage.isDesignerEmail(email) : false;
+        const role = isDesigner ? 'designer' : 'client';
+        
+        userRole = await storage.createUserRole({
+          userId: user.id,
+          role,
+          isActive: true,
+          assignedBy: null
+        });
       }
       
       // Set session
       req.session.userId = user.id;
-      req.session.userRole = user.role;
+      req.session.userRole = userRole.role;
       
       res.json({
         id: user.id,
         email: user.email,
-        role: user.role,
-        isActive: user.isActive
+        name: user.firstName || null,
+        username: user.lastName || null,
+        image: user.profileImageUrl || null,
+        role: userRole.role,
+        isActive: userRole.isActive
       });
     } catch (error) {
       console.error('Login error:', error);
@@ -368,167 +341,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Google OAuth configuration
-  const googleOAuthClient = new OAuth2Client({
-    clientId: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    redirectUri: process.env.GOOGLE_REDIRECT_URI || `${process.env.NODE_ENV === 'production' ? 'https' : 'http'}://${process.env.REPLIT_DOMAIN || 'localhost:5000'}/api/auth/google/callback`
-  });
-
-  // Google OAuth initiation endpoint
-  app.get("/api/auth/google", (req, res) => {
-    if (!process.env.GOOGLE_CLIENT_ID) {
-      return res.status(500).json({ error: "Google OAuth not configured" });
-    }
-
-    // Generate cryptographically secure state and nonce for CSRF protection
-    const state = randomBytes(16).toString('hex');
-    const nonce = randomBytes(16).toString('hex');
-    
-    // Store state and nonce in session for validation
-    req.session.oauthState = state;
-    req.session.oauthNonce = nonce;
-
-    const scopes = [
-      'https://www.googleapis.com/auth/userinfo.profile',
-      'https://www.googleapis.com/auth/userinfo.email'
-    ];
-
-    const authorizationUrl = googleOAuthClient.generateAuthUrl({
-      access_type: 'offline',
-      scope: scopes,
-      include_granted_scopes: true,
-      state: state,
-      nonce: nonce
-    });
-
-    res.redirect(authorizationUrl);
-  });
-
-  // Google OAuth callback endpoint
-  app.get("/api/auth/google/callback", async (req, res) => {
+  // Role management endpoint for admins
+  app.post("/api/auth/role", requireAdmin, async (req, res) => {
     try {
-      const { code, error, state } = req.query;
-
-      if (error) {
-        console.error('Google OAuth error:', error);
-        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=oauth_cancelled`);
+      const { userId, role } = req.body;
+      
+      if (!userId || !role) {
+        return res.status(400).json({ error: "User ID and role are required" });
       }
-
-      if (!code) {
-        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=missing_code`);
+      
+      if (!['client', 'designer', 'admin'].includes(role)) {
+        return res.status(400).json({ error: "Invalid role" });
       }
-
-      if (!process.env.GOOGLE_CLIENT_ID) {
-        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=oauth_not_configured`);
-      }
-
-      // Validate state parameter to prevent CSRF attacks
-      if (!state || state !== req.session.oauthState) {
-        console.error('OAuth state mismatch - potential CSRF attack');
-        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=invalid_state`);
-      }
-
-      // Clear state from session after validation
-      delete req.session.oauthState;
-
-      // Exchange authorization code for tokens
-      const { tokens } = await googleOAuthClient.getToken(code as string);
-      googleOAuthClient.setCredentials(tokens);
-
-      // Get user info from Google with nonce validation
-      const ticket = await googleOAuthClient.verifyIdToken({
-        idToken: tokens.id_token!,
-        audience: process.env.GOOGLE_CLIENT_ID,
-        maxExpiry: 3600, // 1 hour max
-        nonce: req.session.oauthNonce, // Pass stored nonce for validation
-      });
-
-      const payload = ticket.getPayload();
-      if (!payload) {
-        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=invalid_token`);
-      }
-
-      // Additional nonce validation (belt and suspenders approach)
-      if (payload.nonce !== req.session.oauthNonce) {
-        console.error('OAuth nonce mismatch - potential token replay attack');
-        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=invalid_nonce`);
-      }
-
-      // Clear nonce from session after successful validation
-      delete req.session.oauthNonce;
-
-      const { sub: googleId, email, given_name: firstName, family_name: lastName, picture } = payload;
-
-      if (!email) {
-        return res.redirect(`${process.env.FRONTEND_URL || '/'}?error=no_email`);
-      }
-
+      
       // Check if user exists
-      let user = await storage.getUserByEmail(email);
-      
+      const user = await storage.getUser(userId);
       if (!user) {
-        // Check if this email is in the designer allowlist to determine role
-        const isDesigner = await storage.isDesignerEmail(email);
-        const userRole = isDesigner ? 'designer' : 'client';
-
-        // Create new user
-        user = await storage.createUser({
-          email,
-          password: null, // No password for OAuth users
-          role: userRole,
-          authProvider: 'google',
-          googleId,
-          firstName: firstName || null,
-          lastName: lastName || null,
-          profilePicture: picture || null,
-          isActive: true
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      // Update user role
+      const updatedRole = await storage.updateUserRole(userId, role);
+      if (!updatedRole) {
+        // Create new role if none exists
+        await storage.createUserRole({
+          userId,
+          role,
+          isActive: true,
+          assignedBy: req.session.userId!,
+          assignedAt: new Date()
         });
-      } else {
-        // Update existing user with OAuth info if needed
-        if (!user.googleId) {
-          await storage.updateUser(user.id, {
-            googleId,
-            authProvider: 'google',
-            firstName: firstName || user.firstName,
-            lastName: lastName || user.lastName,
-            profilePicture: picture || user.profilePicture
-          });
-        }
-      }
-
-      // Update last login time
-      await storage.updateUserLastLogin(user.id);
-
-      // Set session
-      req.session.userId = user.id;
-      req.session.userRole = user.role;
-
-      // Redirect to frontend with success
-      res.redirect(`${process.env.FRONTEND_URL || '/'}?oauth=success`);
-    } catch (error) {
-      console.error('Google OAuth callback error:', error);
-      res.redirect(`${process.env.FRONTEND_URL || '/'}?error=oauth_failed`);
-    }
-  });
-  
-  app.get("/api/auth/me", requireAuth, async (req, res) => {
-    try {
-      const user = await storage.getUser(req.session.userId!);
-      if (!user) {
-        req.session.destroy(() => {});
-        return res.status(401).json({ error: "User not found" });
       }
       
-      res.json({
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        isActive: user.isActive
-      });
+      res.json({ message: "Role updated successfully" });
     } catch (error) {
-      console.error('Get current user error:', error);
-      res.status(500).json({ error: "Failed to get user information" });
+      console.error('Role update error:', error);
+      res.status(500).json({ error: "Failed to update role" });
     }
   });
   
