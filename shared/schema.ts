@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, decimal, date, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, decimal, date, boolean, jsonb, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -168,35 +168,36 @@ export type QuoteFile = typeof quoteFiles.$inferSelect;
 export type InsertFloorPlan = z.infer<typeof insertFloorPlanSchema>;
 export type FloorPlan = typeof floorPlans.$inferSelect;
 
-// Users table with role-based access control and OAuth support
+// Session storage table for Replit Auth
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
+// User storage table for Replit Auth
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: text("email").notNull().unique(), // Use email as primary identifier
-  password: text("password"), // Optional for OAuth users
-  role: text("role").notNull().default("client"), // designer (full access) or client (project-specific)
-  authProvider: text("auth_provider").notNull().default("local"), // local, google
-  googleId: text("google_id"), // Google OAuth ID
-  firstName: text("first_name"),
-  lastName: text("last_name"),
-  profilePicture: text("profile_picture"), // URL to profile image
-  isActive: boolean("is_active").notNull().default(true),
-  lastLoginAt: timestamp("last_login_at"),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  email: varchar("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// User-Project Access table for controlling which users can access which projects
-export const userProjectAccess = pgTable("user_project_access", {
+// User roles table to maintain role-based access control
+export const userRoles = pgTable("user_roles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
-  projectId: varchar("project_id").notNull().references(() => projects.id),
-  accessLevel: text("access_level").notNull().default("read"), // read, write, admin
-  assignedBy: varchar("assigned_by").notNull().references(() => users.id),
+  role: text("role").notNull().default("client"), // admin, designer, client
+  isActive: boolean("is_active").notNull().default(true),
+  assignedBy: varchar("assigned_by").references(() => users.id),
   assignedAt: timestamp("assigned_at").notNull().default(sql`now()`),
-});
-
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  createdAt: true,
 });
 
 // Designer Email Allowlist - predefined emails that should have designer role
@@ -204,11 +205,14 @@ export const designerAllowlist = pgTable("designer_allowlist", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
   isActive: boolean("is_active").notNull().default(true),
-  addedBy: varchar("added_by").notNull().references(() => users.id),
+  addedBy: varchar("added_by").references(() => users.id),
   addedAt: timestamp("added_at").notNull().default(sql`now()`),
 });
 
-export const insertUserProjectAccessSchema = createInsertSchema(userProjectAccess).omit({
+export type UpsertUser = typeof users.$inferInsert;
+export type User = typeof users.$inferSelect;
+
+export const insertUserRoleSchema = createInsertSchema(userRoles).omit({
   id: true,
   assignedAt: true,
 });
@@ -218,11 +222,8 @@ export const insertDesignerAllowlistSchema = createInsertSchema(designerAllowlis
   addedAt: true,
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
-
-export type InsertUserProjectAccess = z.infer<typeof insertUserProjectAccessSchema>;
-export type UserProjectAccess = typeof userProjectAccess.$inferSelect;
+export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
+export type UserRole = typeof userRoles.$inferSelect;
 
 export type InsertDesignerAllowlist = z.infer<typeof insertDesignerAllowlistSchema>;
 export type DesignerAllowlist = typeof designerAllowlist.$inferSelect;
