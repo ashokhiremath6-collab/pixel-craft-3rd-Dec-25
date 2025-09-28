@@ -12,6 +12,7 @@ import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
 import { storage } from "./storage";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
@@ -25,14 +26,7 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 
-// Replit Auth login schema
-const replitAuthLoginSchema = z.object({
-  id: z.string().min(1, "User ID is required"),
-  email: z.string().email().optional(),
-  name: z.string().optional(),
-  username: z.string().optional(),
-  imageUrl: z.string().url().optional()
-});
+// Replit Auth provides /api/login and /api/logout automatically
 
 // Session configuration types
 declare module 'express-session' {
@@ -44,21 +38,22 @@ declare module 'express-session' {
   }
 }
 
-// Authentication middleware
+// Authentication middleware for Replit Auth
 const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (!req.session.userId) {
+  if (!req.isAuthenticated() || !req.user) {
     return res.status(401).json({ error: "Authentication required" });
   }
   next();
 };
 
 const requireAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (!req.session.userId) {
+  if (!req.isAuthenticated() || !req.user) {
     return res.status(401).json({ error: "Authentication required" });
   }
   
   try {
-    const userRole = await storage.getUserRole(req.session.userId);
+    const userId = (req.user as any).claims.sub;
+    const userRole = await storage.getUserRole(userId);
     if (!userRole || (userRole.role !== 'designer' && userRole.role !== 'admin')) {
       return res.status(403).json({ error: "Admin or designer access required" });
     }
@@ -70,31 +65,8 @@ const requireAdmin = async (req: express.Request, res: express.Response, next: e
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Validate required environment variables
-  if (!process.env.SESSION_SECRET) {
-    throw new Error('SESSION_SECRET environment variable is required for secure session management');
-  }
-
-  // Session configuration
-  const PgSession = connectPgSimple(session);
-  
-  app.use(session({
-    store: new PgSession({
-      pool: pool,
-      tableName: 'session',
-      createTableIfMissing: true,
-    }),
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    rolling: true,
-    cookie: {
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax'
-    }
-  }));
+  // Setup real Replit Auth (handles session configuration internally)
+  await setupAuth(app);
 
   // Secure file download endpoints (replace static serving with authenticated handlers)
   // Files are now served through authenticated endpoints below instead of static routes
@@ -256,90 +228,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication Routes
   
   // Check authentication status
-  app.get("/api/auth/me", async (req, res) => {
-    if (req.session.userId) {
-      try {
-        const user = await storage.getUser(req.session.userId);
-        if (user) {
-          const userRole = await storage.getUserRole(req.session.userId);
-          return res.json({
-            id: user.id,
-            email: user.email || null,
-            name: user.firstName || null,
-            username: user.lastName || null,
-            image: user.profileImageUrl || null,
-            role: userRole?.role || 'client',
-            isActive: userRole?.isActive ?? true
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching user:', error);
-      }
-    }
-    return res.status(401).json({ error: "Not authenticated" });
-  });
-  
-  // Replit Auth login - handles user creation/login automatically
-  app.post("/api/auth/replit-login", async (req, res) => {
+  // Real auth endpoint to get current user
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      // Validate input with zod schema
-      const validatedData = replitAuthLoginSchema.parse(req.body);
-      const { id, email, name, username, imageUrl } = validatedData;
-      
-      // Upsert user in database (create or update)
-      const user = await storage.upsertUser({
-        id,
-        email,
-        firstName: name || null,
-        lastName: username || null,
-        profileImageUrl: imageUrl || null
-      });
-      
-      // Get or create user role
-      let userRole = await storage.getUserRole(user.id);
-      
-      if (!userRole) {
-        // Determine role based on email (designer allowlist) or default to client
-        const isDesigner = email ? await storage.isDesignerEmail(email) : false;
-        const role = isDesigner ? 'designer' : 'client';
-        
-        userRole = await storage.createUserRole({
-          userId: user.id,
-          role,
-          isActive: true,
-          assignedBy: null
-        });
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
       }
       
-      // Set session
-      req.session.userId = user.id;
-      req.session.userRole = userRole.role;
+      const userRole = await storage.getUserRole(user.id);
       
       res.json({
-        id: user.id,
-        email: user.email,
-        name: user.firstName || null,
-        username: user.lastName || null,
-        image: user.profileImageUrl || null,
-        role: userRole.role,
-        isActive: userRole.isActive
+        ...user,
+        role: userRole?.role || "client"
       });
     } catch (error) {
-      console.error('Login error:', error);
-      res.status(500).json({ error: "Failed to login" });
+      console.error("Error fetching user:", error);
+      res.status(500).json({ error: "Failed to fetch user" });
     }
   });
   
-  app.post("/api/auth/logout", (req, res) => {
-    req.session.destroy((err) => {
-      if (err) {
-        console.error('Logout error:', err);
-        return res.status(500).json({ error: "Failed to logout" });
-      }
-      res.clearCookie('connect.sid');
-      res.json({ message: "Logged out successfully" });
-    });
-  });
+  // Replit Auth handles login automatically at /api/login
+  
+  // Replit Auth handles logout automatically at /api/logout
 
   // Role management endpoint for admins
   app.post("/api/auth/role", requireAdmin, async (req, res) => {

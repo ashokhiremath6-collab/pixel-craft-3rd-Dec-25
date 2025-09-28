@@ -41,7 +41,7 @@ function Router() {
 }
 
 function AuthenticatedApp() {
-  const { logout, isLogoutPending } = useAuth();
+  const { logout } = useAuth();
 
   const style = {
     "--sidebar-width": "14rem",
@@ -65,7 +65,6 @@ function AuthenticatedApp() {
                 variant="ghost"
                 size="icon"
                 onClick={() => logout()}
-                disabled={isLogoutPending}
                 data-testid="button-logout"
                 title="Logout"
               >

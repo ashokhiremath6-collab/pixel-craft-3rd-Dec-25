@@ -10,26 +10,12 @@ interface LoginPageProps {
 
 export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const { toast } = useToast();
-  const { login, isLoginPending } = useAuth();
+  const { login } = useAuth();
 
-  // Mock Replit Auth data for development
+  // Real Replit Auth - redirect to /api/login
   const handleReplitLogin = () => {
-    const mockReplitData = {
-      id: `replit-user-${Date.now()}`,
-      email: "designer@replit.com",
-      name: "Replit Designer",
-      username: "replitdesigner",
-      imageUrl: "https://storage.googleapis.com/replit/images/1669329104821_6e35d0fda9b88f77d6b60b85a25b5933.png"
-    };
-
-    login(mockReplitData);
+    login(); // This redirects to /api/login for real authentication
   };
-
-  // Effect to handle successful login
-  useEffect(() => {
-    // This will be called when login mutation succeeds
-    // The useAuth hook handles the actual login flow
-  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -43,11 +29,10 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         <CardContent className="space-y-4">
           <Button 
             onClick={handleReplitLogin}
-            disabled={isLoginPending}
             className="w-full"
             data-testid="button-replit-login"
           >
-            {isLoginPending ? "Signing in..." : "Sign in with Replit"}
+            Sign in with Replit
           </Button>
           
           <p className="text-sm text-muted-foreground text-center">

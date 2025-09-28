@@ -23,11 +23,11 @@ interface ReplitAuthData {
 export function useAuth() {
   const { toast } = useToast();
 
-  // Check current authentication status
+  // Check current authentication status using real Replit Auth
   const { data: user, isLoading, error } = useQuery<User>({
-    queryKey: ['/api/auth/me'],
+    queryKey: ['/api/auth/user'],
     queryFn: async () => {
-      const response = await fetch('/api/auth/me', {
+      const response = await fetch('/api/auth/user', {
         credentials: 'include'
       });
       
@@ -46,63 +46,21 @@ export function useAuth() {
     refetchOnWindowFocus: false,
   });
 
-  // Login with Replit Auth
-  const loginMutation = useMutation({
-    mutationFn: async (authData: ReplitAuthData) => {
-      const response = await apiRequest('POST', '/api/auth/replit-login', authData);
-      return response.json();
-    },
-    onSuccess: () => {
-      // Invalidate auth query to refetch user data
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
-      toast({
-        title: "Login successful",
-        description: "Welcome to the vendor management system!",
-      });
-    },
-    onError: (error: Error) => {
-      console.error('Login error:', error);
-      toast({
-        title: "Login failed",
-        description: error.message || "Failed to login with Replit Auth",
-        variant: "destructive",
-      });
-    },
-  });
+  // Login function for Replit Auth - redirect to /api/login
+  const login = () => {
+    window.location.href = '/api/login';
+  };
 
-  // Logout
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/auth/logout');
-      return response;
-    },
-    onSuccess: () => {
-      // Clear auth cache
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
-      // Reload page to redirect to login
-      window.location.reload();
-      toast({
-        title: "Logged out successfully",
-        description: "You have been logged out of your account.",
-      });
-    },
-    onError: (error: Error) => {
-      console.error('Logout error:', error);
-      toast({
-        title: "Logout failed",
-        description: "There was an error logging out. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  // Logout function for Replit Auth - redirect to /api/logout
+  const logout = () => {
+    window.location.href = '/api/logout';
+  };
 
   return {
     user,
     isLoading,
-    isAuthenticated: !!user && user.isActive,
-    login: loginMutation.mutate,
-    logout: logoutMutation.mutate,
-    isLoginPending: loginMutation.isPending,
-    isLogoutPending: logoutMutation.isPending,
+    isAuthenticated: !!user,
+    login,
+    logout,
   };
 }
