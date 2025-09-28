@@ -280,8 +280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId,
           role,
           isActive: true,
-          assignedBy: req.session.userId!,
-          assignedAt: new Date()
+          assignedBy: req.session.userId!
         });
       }
       
@@ -292,29 +291,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // User management routes (designer only)
+  // User management routes (admin only)
   app.get("/api/users", requireAdmin, async (req, res) => {
     try {
       const users = await storage.getAllUsers();
-      // Remove passwords from response
-      const safeUsers = users.map(user => ({
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        authProvider: user.authProvider,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        isActive: user.isActive,
-        lastLoginAt: user.lastLoginAt,
-        createdAt: user.createdAt
-      }));
-      res.json(safeUsers);
+      res.json(users);
     } catch (error) {
       console.error('Get users error:', error);
       res.status(500).json({ error: "Failed to fetch users" });
     }
   });
   
+  // User project access routes
   app.post("/api/user-project-access", requireAdmin, async (req, res) => {
     try {
       const access = await storage.createUserProjectAccess(req.body);
