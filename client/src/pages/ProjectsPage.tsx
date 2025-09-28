@@ -47,7 +47,7 @@ export default function ProjectsPage() {
     retry: false,
   });
   
-  const isDesigner = user?.role === 'designer';
+  const isDesigner = user?.role === 'designer' || user?.role === 'admin';
 
   // Fetch quotations data which includes projects and their vendor relationships
   const { data: quotationsData, isLoading } = useQuery<QuotationsResponse>({
