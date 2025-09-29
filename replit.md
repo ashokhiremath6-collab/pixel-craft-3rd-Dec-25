@@ -1,4 +1,4 @@
-# Vendor Management System
+# PixelCraft Designer
 
 ## Overview
 

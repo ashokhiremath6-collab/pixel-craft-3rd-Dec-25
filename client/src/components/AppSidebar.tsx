@@ -90,7 +90,7 @@ export function AppSidebar() {
     <Sidebar data-testid="sidebar-main">
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Vendor Management</SidebarGroupLabel>
+          <SidebarGroupLabel>PixelCraft Designer</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainItems.map((item) => (

@@ -21,9 +21,9 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Welcome to Vendor Management</CardTitle>
+          <CardTitle className="text-2xl">Welcome to PixelCraft Designer</CardTitle>
           <CardDescription>
-            Sign in with your Replit account to access the vendor management system.
+            Sign in with your Replit account to access PixelCraft Designer.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
