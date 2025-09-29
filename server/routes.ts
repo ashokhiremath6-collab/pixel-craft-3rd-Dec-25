@@ -1196,11 +1196,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Calculate total quotation value, preferring detected grand total
       let totalValue = 0;
+      let useDetectedTotal = false;
       const boqItems = [];
 
       // Use detected grand total from PDF if available
       if (totals.grandTotal && totals.grandTotal > 0) {
         totalValue = totals.grandTotal;
+        useDetectedTotal = true;
         console.log(`Using detected grand total from PDF: ${totalValue}`);
       }
 
@@ -1237,10 +1239,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             continue;
           }
           
-          totalValue += totalAmount;
+          // Only add to total if we're not using a detected grand total from PDF
+          if (!useDetectedTotal) {
+            totalValue += totalAmount;
+          }
           
-          // Additional check for total value overflow
-          if (totalValue > maxValue) {
+          // Additional check for total value overflow (only when calculating)
+          if (!useDetectedTotal && totalValue > maxValue) {
             results.errors.push(`Total quotation value ${totalValue.toFixed(2)} exceeds maximum allowed value (${maxValue}). Some items may be skipped.`);
             totalValue = maxValue;
             break;
