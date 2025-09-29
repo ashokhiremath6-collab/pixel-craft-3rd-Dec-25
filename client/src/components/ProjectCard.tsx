@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Building, Edit, Eye, Trash2 } from "lucide-react";
+import { Calendar, Building, Edit, Eye, Trash2, ExternalLink } from "lucide-react";
 import type { Project } from "@shared/schema";
 
 interface ProjectCardProps {
@@ -102,6 +102,20 @@ export default function ProjectCard({ project, vendorCount = 0, onEdit, onView, 
             </>
           )}
         </div>
+        {project.canvaLink && (
+          <div className="flex items-center gap-2">
+            <a
+              href={project.canvaLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 hover:underline"
+              data-testid="link-canva"
+            >
+              <ExternalLink className="h-4 w-4" />
+              <span>View Canva Design</span>
+            </a>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

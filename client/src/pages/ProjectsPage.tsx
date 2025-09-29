@@ -61,6 +61,7 @@ export default function ProjectsPage() {
       clientEmail: "",
       startDate: "",
       endDate: "",
+      canvaLink: "",
     },
   });
 
@@ -73,6 +74,7 @@ export default function ProjectsPage() {
       clientEmail: "",
       startDate: "",
       endDate: "",
+      canvaLink: "",
     },
   });
 
@@ -324,6 +326,25 @@ export default function ProjectsPage() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="canvaLink"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Canva Link (Optional)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="url"
+                        placeholder="https://www.canva.com/design/..." 
+                        {...field} 
+                        value={field.value || ""}
+                        data-testid="input-canva-link"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className="flex justify-end space-x-2">
                 <Button 
                   type="button" 
@@ -462,6 +483,25 @@ export default function ProjectsPage() {
                         {...field} 
                         value={field.value || ""}
                         data-testid="input-end-date"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="canvaLink"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Canva Link (Optional)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="url"
+                        placeholder="https://www.canva.com/design/..." 
+                        {...field} 
+                        value={field.value || ""}
+                        data-testid="input-canva-link"
                       />
                     </FormControl>
                     <FormMessage />

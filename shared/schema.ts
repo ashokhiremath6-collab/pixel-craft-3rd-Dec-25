@@ -31,6 +31,7 @@ export const projects = pgTable("projects", {
   clientEmail: text("client_email").notNull(), // Email for client access control
   startDate: date("start_date").notNull(),
   endDate: date("end_date"),
+  canvaLink: text("canva_link"), // Canva design link for the project
 });
 
 // Quote Templates table
