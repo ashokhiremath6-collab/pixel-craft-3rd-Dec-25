@@ -142,9 +142,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   // Handle quote deletion
   const handleDeleteQuote = async (quotationId: string, vendorName: string) => {
     try {
-      await apiRequest(`/api/project-vendors/${quotationId}`, {
-        method: 'DELETE',
-      });
+      await apiRequest('DELETE', `/api/project-vendors/${quotationId}`);
       
       // Invalidate the quotations cache to refresh the data
       queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
