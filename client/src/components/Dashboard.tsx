@@ -179,6 +179,16 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
                   <div className="flex-1">
                     <div className="font-medium">
                       {formatVendorNameWithProjectAndCategory(quotation.vendorName, quotation.projectName, quotation.category)}
+                      {quotation.quotationName && quotation.quotationName !== "Main Quote" && (
+                        <span className="text-sm text-muted-foreground ml-1">
+                          - {quotation.quotationName}
+                        </span>
+                      )}
+                      {quotation.quotationType === "option" && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 ml-2">
+                          Option
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="text-right">
