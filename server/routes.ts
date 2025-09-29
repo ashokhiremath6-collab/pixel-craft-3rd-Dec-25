@@ -1439,7 +1439,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Reconstruct file path from tempFileId
-      const tempFilePath = path.join(__dirname, '../uploads', tempFileId);
+      const tempFilePath = path.join('uploads', tempFileId);
       
       if (!fs.existsSync(tempFilePath)) {
         return res.status(404).json({ error: "Temporary file not found. Please re-upload the file." });
