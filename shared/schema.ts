@@ -111,6 +111,7 @@ export const floorPlans = pgTable("floor_plans", {
 // Moodboards table
 export const moodboards = pgTable("moodboards", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").references(() => projects.id), // Optional - can be null for general moodboards
   name: text("name").notNull(),
   description: text("description"),
   fileName: text("file_name").notNull(),

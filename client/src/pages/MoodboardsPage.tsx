@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2 } from "lucide-react";
+import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Moodboard } from "@shared/schema";
+import type { Moodboard, Project } from "@shared/schema";
 
 export default function MoodboardsPage() {
   const { toast } = useToast();
@@ -18,10 +19,25 @@ export default function MoodboardsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
+  const [filterProjectId, setFilterProjectId] = useState<string>("all"); // For filtering display
 
-  // Fetch moodboards from backend
+  // Fetch projects for selection
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: ["/api/projects"],
+  });
+
+  // Fetch moodboards from backend (with optional project filter)
   const { data: moodboards = [], isLoading } = useQuery({
-    queryKey: ["/api/moodboards"],
+    queryKey: ["/api/moodboards", filterProjectId !== "all" ? { projectId: filterProjectId } : {}],
+    queryFn: async () => {
+      const url = filterProjectId === "all" 
+        ? "/api/moodboards" 
+        : `/api/moodboards?projectId=${filterProjectId}`;
+      const response = await fetch(url, { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to fetch moodboards");
+      return response.json();
+    },
   });
 
   // Upload moodboard mutation
@@ -43,6 +59,7 @@ export default function MoodboardsPage() {
       setSelectedFile(null);
       setDescription("");
       setTags("");
+      setSelectedProjectId("");
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -153,6 +170,9 @@ export default function MoodboardsPage() {
     if (tags.trim()) {
       formData.append("tags", tags.trim());
     }
+    if (selectedProjectId && selectedProjectId !== "general") {
+      formData.append("projectId", selectedProjectId);
+    }
     
     uploadMutation.mutate(formData);
   };
@@ -160,6 +180,13 @@ export default function MoodboardsPage() {
   // Delete moodboard
   const deleteMoodboard = (id: string) => {
     deleteMutation.mutate(id);
+  };
+
+  // Get project name for display
+  const getProjectName = (projectId: string | null) => {
+    if (!projectId) return "General";
+    const project = projects.find(p => p.id === projectId);
+    return project ? project.projectName : "Unknown Project";
   };
 
   // Create preview URL for display
@@ -180,13 +207,36 @@ export default function MoodboardsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold" data-testid="heading-moodboards">
-          Moodboards
-        </h1>
-        <p className="text-muted-foreground">
-          Upload and manage your moodboards from Canva for client presentations
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold" data-testid="heading-moodboards">
+            Moodboards
+          </h1>
+          <p className="text-muted-foreground">
+            Upload and manage your moodboards from Canva for client presentations
+          </p>
+        </div>
+        
+        {/* Project Filter */}
+        <div className="flex items-center gap-2 min-w-[240px]">
+          <Label htmlFor="filter-project" className="text-sm whitespace-nowrap">
+            Filter by:
+          </Label>
+          <Select value={filterProjectId} onValueChange={setFilterProjectId}>
+            <SelectTrigger id="filter-project" data-testid="select-filter-project">
+              <SelectValue placeholder="Select project..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Moodboards</SelectItem>
+              <SelectItem value="general">General (No Project)</SelectItem>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.projectName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Upload Section */}
@@ -272,6 +322,24 @@ export default function MoodboardsPage() {
                 />
               </div>
 
+              {/* Project Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="project">Project (Optional)</Label>
+                <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                  <SelectTrigger id="project" data-testid="select-project">
+                    <SelectValue placeholder="Select a project or leave general..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="general">General (No Project)</SelectItem>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.projectName} - {project.clientName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Tags */}
               <div className="space-y-2">
                 <Label htmlFor="tags">Tags (Optional)</Label>
@@ -348,9 +416,15 @@ export default function MoodboardsPage() {
                   
                   {/* Info */}
                   <div className="p-4 space-y-2">
-                    <h3 className="font-medium truncate" title={moodboard.name}>
-                      {moodboard.name}
-                    </h3>
+                    <div className="space-y-1">
+                      <h3 className="font-medium truncate" title={moodboard.name}>
+                        {moodboard.name}
+                      </h3>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <FolderOpen className="h-3 w-3" />
+                        <span>{getProjectName(moodboard.projectId)}</span>
+                      </div>
+                    </div>
                     
                     {moodboard.description && (
                       <p className="text-sm text-muted-foreground line-clamp-2">

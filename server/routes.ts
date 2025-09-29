@@ -2659,10 +2659,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== MOODBOARDS ROUTES ====================
 
-  // Get all moodboards
+  // Get all moodboards (with optional project filter)
   app.get("/api/moodboards", requireAuth, async (req, res) => {
     try {
-      const moodboards = await storage.getAllMoodboards();
+      const { projectId } = req.query;
+      
+      let moodboards;
+      if (projectId && typeof projectId === 'string') {
+        // Filter by specific project
+        moodboards = await storage.getMoodboardsByProject(projectId);
+      } else if (projectId === 'general') {
+        // Get general moodboards (not linked to any project)
+        moodboards = await storage.getGeneralMoodboards();
+      } else {
+        // Get all moodboards
+        moodboards = await storage.getAllMoodboards();
+      }
+      
       res.json(moodboards);
     } catch (error) {
       console.error('Error fetching moodboards:', error);
@@ -2692,7 +2705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { description, tags } = req.body;
+      const { description, tags, projectId } = req.body;
       
       // Parse tags if provided
       let parsedTags = null;
@@ -2706,7 +2719,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Validate projectId if provided
+      let validatedProjectId = null;
+      if (projectId && typeof projectId === 'string' && projectId !== 'general') {
+        // Check if project exists
+        const project = await storage.getProject(projectId);
+        if (!project) {
+          return res.status(400).json({ error: "Project not found" });
+        }
+        validatedProjectId = projectId;
+      }
+
       const moodboardData = {
+        projectId: validatedProjectId,
         name: req.file.originalname,
         description: description || null,
         fileName: req.file.originalname,

@@ -1377,6 +1377,14 @@ export class DBStorage implements IStorage {
     return await db.select().from(moodboards).orderBy(moodboards.uploadedAt);
   }
 
+  async getMoodboardsByProject(projectId: string): Promise<Moodboard[]> {
+    return await db.select().from(moodboards).where(eq(moodboards.projectId, projectId)).orderBy(moodboards.uploadedAt);
+  }
+
+  async getGeneralMoodboards(): Promise<Moodboard[]> {
+    return await db.select().from(moodboards).where(isNull(moodboards.projectId)).orderBy(moodboards.uploadedAt);
+  }
+
   async getMoodboard(id: string): Promise<Moodboard | undefined> {
     const result = await db.select().from(moodboards).where(eq(moodboards.id, id));
     return result[0];
