@@ -234,7 +234,7 @@ export function AddTemplateDialog({ open, onOpenChange, template }: AddTemplateD
   return (
     <>
       <Dialog open={open} onOpenChange={handleDialogChange}>
-      <DialogContent className="sm:max-w-[500px]" data-testid="dialog-add-template">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto" data-testid="dialog-add-template">
         <DialogHeader>
           <DialogTitle data-testid="text-dialog-title">
             {isEditing ? "Edit Quote Template" : "Create Quote Template"}
