@@ -106,6 +106,7 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
         setSelectedVendor("");
         onImportComplete?.(result);
         queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
       }
     },
     onError: (error) => {
@@ -156,6 +157,7 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
       setSelectedVendor("");
       onImportComplete?.(result);
       queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
     },
     onError: (error) => {
       toast({
