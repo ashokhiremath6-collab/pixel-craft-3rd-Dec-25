@@ -91,6 +91,16 @@ export default function QuotationRow({ quotation, onStatusChange, onDownload }: 
                 Select
               </Button>
             )}
+            {quotation.status === "Selected" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleStatusChange("Quoted")}
+                data-testid="button-unselect-vendor"
+              >
+                Unselect
+              </Button>
+            )}
             {quotation.status !== "Rejected" && quotation.status !== "Selected" && (
               <Button
                 size="sm"
