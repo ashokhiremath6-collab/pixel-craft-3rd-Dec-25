@@ -53,6 +53,10 @@ export const projectVendors = pgTable("project_vendors", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull().references(() => projects.id),
   vendorId: varchar("vendor_id").notNull().references(() => vendors.id),
+  quotationName: text("quotation_name").notNull().default("Main Quote"), // "Option A", "Kitchen Cabinets", etc.
+  quotationType: text("quotation_type").notNull().default("item"), // "item" or "option"
+  parentQuotationId: varchar("parent_quotation_id").references(() => projectVendors.id), // For grouping options
+  itemCategory: text("item_category"), // For folder organization
   quotationFile: text("quotation_file"), // file path/url
   quotationValue: decimal("quotation_value", { precision: 10, scale: 2 }),
   dateOfQuotation: date("date_of_quotation"),
