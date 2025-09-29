@@ -1174,7 +1174,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Helper function to process quote data and create records
-  const processQuoteImport = async (data: any, projectId: string, vendorId: string) => {
+  const processQuoteImport = async (data: any, projectId: string, vendorId: string, importParams?: {
+    quotationName?: string;
+    quotationType?: string;
+    itemCategory?: string;
+    parentQuotationId?: string;
+  }) => {
     const results = {
       projectVendor: null as any,
       boqItems: [] as any[],
@@ -1259,10 +1264,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         quotationValue: totalValue.toString(),
         dateOfQuotation: new Date().toISOString().split('T')[0],
         status: 'Quoted' as const,
-        notes: `Imported ${boqItems.length} BOQ items`
+        notes: `Imported ${boqItems.length} BOQ items`,
+        quotationName: importParams?.quotationName || "Main Quote",
+        quotationType: importParams?.quotationType || "item",
+        itemCategory: importParams?.itemCategory || null,
+        parentQuotationId: importParams?.parentQuotationId || null
       };
 
-      const projectVendor = await storage.upsertProjectVendor(projectVendorData);
+      // Use createProjectVendor when we have importParams to ensure multiple quotes are created
+      const projectVendor = importParams 
+        ? await storage.createProjectVendor(projectVendorData)
+        : await storage.upsertProjectVendor(projectVendorData);
       
       if (!projectVendor) {
         throw new Error('Failed to create project vendor record');
@@ -1320,7 +1332,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No valid data found in file" });
       }
 
-      // Process the quote import
+      // Check if vendor already has quotes for this project
+      const existingQuotes = await storage.getProjectVendorsByProjectAndVendor(projectId, vendorId);
+      
+      if (existingQuotes.length > 0) {
+        // Store the parsed data temporarily and return conflict response
+        return res.status(409).json({
+          conflictType: "existing_quotes",
+          message: "This vendor already has quotes for this project. Please specify if this is an option for existing items or a new item category.",
+          existingQuotes: existingQuotes.map(quote => ({
+            id: quote.id,
+            quotationName: quote.quotationName || "Main Quote",
+            quotationType: quote.quotationType || "item",
+            quotationValue: quote.quotationValue,
+            itemCategory: quote.itemCategory
+          })),
+          tempFileId: req.file.filename, // Store the temp file identifier
+          parsedDataPreview: {
+            totalItems: (data.items || data).length,
+            estimatedValue: data.totals?.grandTotal || 0
+          }
+        });
+      }
+
+      // Process the quote import (no conflict)
       const results = await processQuoteImport(data, projectId, vendorId);
       
       // Store file information - keep the uploaded file
@@ -1366,6 +1401,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(500).json({ 
         error: "Failed to import quote",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Resolve import conflict - when user decides if it's option or new item
+  app.post("/api/quotes/import/resolve", requireAuth, async (req, res) => {
+    try {
+      const { 
+        tempFileId, 
+        projectId, 
+        vendorId, 
+        resolutionType, 
+        quotationName, 
+        itemCategory, 
+        parentQuotationId 
+      } = req.body;
+      
+      if (!tempFileId || !projectId || !vendorId || !resolutionType) {
+        return res.status(400).json({ 
+          error: "Missing required parameters: tempFileId, projectId, vendorId, resolutionType" 
+        });
+      }
+
+      if (resolutionType === "option" && !parentQuotationId) {
+        return res.status(400).json({ 
+          error: "parentQuotationId is required when resolutionType is 'option'" 
+        });
+      }
+
+      if (resolutionType === "new_item" && (!quotationName || !itemCategory)) {
+        return res.status(400).json({ 
+          error: "quotationName and itemCategory are required when resolutionType is 'new_item'" 
+        });
+      }
+
+      // Reconstruct file path from tempFileId
+      const tempFilePath = path.join(__dirname, '../uploads', tempFileId);
+      
+      if (!fs.existsSync(tempFilePath)) {
+        return res.status(404).json({ error: "Temporary file not found. Please re-upload the file." });
+      }
+
+      // Determine file type
+      const extension = path.extname(tempFileId).toLowerCase();
+      let mimeType = 'application/octet-stream';
+      if (extension === '.xlsx') mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      else if (extension === '.xls') mimeType = 'application/vnd.ms-excel';
+      else if (extension === '.csv') mimeType = 'text/csv';
+      else if (extension === '.pdf') mimeType = 'application/pdf';
+
+      // Re-parse the file
+      const data = await parseQuoteFile(tempFilePath, mimeType);
+      
+      if (!data || data.length === 0) {
+        return res.status(400).json({ error: "No valid data found in temporary file" });
+      }
+
+      // Set up parameters based on resolution type
+      const importParams = {
+        quotationName: quotationName || "Main Quote",
+        quotationType: resolutionType === "option" ? "option" : "item",
+        itemCategory: itemCategory || null,
+        parentQuotationId: resolutionType === "option" ? parentQuotationId : null
+      };
+
+      // Process the quote import with additional parameters
+      const results = await processQuoteImport(data, projectId, vendorId, importParams);
+      
+      // Store file information
+      const filePath = `/uploads/${tempFileId}`;
+      const quoteFileData = {
+        projectVendorId: results.projectVendor.id,
+        fileName: `${quotationName || "Quote"}.${extension.substring(1)}`,
+        filePath: filePath,
+        fileType: extension,
+        fileSize: fs.statSync(tempFilePath).size.toString()
+      };
+      
+      await storage.createQuoteFile(quoteFileData);
+
+      // Update project vendor with file path
+      await storage.updateProjectVendor(results.projectVendor.id, {
+        quotationFile: filePath
+      });
+
+      res.status(201).json({
+        message: "Quote imported successfully",
+        projectVendor: results.projectVendor,
+        boqItems: results.boqItems,
+        totalItems: results.boqItems.length,
+        totalValue: results.projectVendor.quotationValue,
+        errors: results.errors
+      });
+
+    } catch (error) {
+      console.error('Resolve import conflict error:', error);
+      
+      res.status(500).json({ 
+        error: "Failed to resolve import conflict",
         details: error instanceof Error ? error.message : 'Unknown error'
       });
     }
