@@ -1339,9 +1339,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No valid data found in file" });
       }
 
-      // Check if vendor already has quotes for this project
+      // Check if vendor already has quotes for this project (only count records with actual quote data)
       const allProjectVendors = await storage.getProjectVendors(projectId);
-      const existingQuotes = allProjectVendors.filter(pv => pv.vendorId === vendorId);
+      const existingQuotes = allProjectVendors.filter(pv => 
+        pv.vendorId === vendorId && 
+        pv.quotationValue !== null && 
+        pv.quotationValue !== undefined
+      );
       
       if (existingQuotes.length > 0) {
         // Store the parsed data temporarily and return conflict response
