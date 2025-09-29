@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -521,43 +520,6 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
               </Alert>
             )}
 
-            {/* BOQ Items Preview */}
-            {importResult.boqItems.length > 0 && (
-              <div>
-                <h4 className="font-medium mb-3">BOQ Items Preview</h4>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Description</TableHead>
-                        <TableHead>Qty</TableHead>
-                        <TableHead>Unit</TableHead>
-                        <TableHead>Rate</TableHead>
-                        <TableHead>Amount</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {importResult.boqItems.slice(0, 5).map((item) => (
-                        <TableRow key={item.id} data-testid={`row-boq-${item.id}`}>
-                          <TableCell className="font-medium">
-                            {item.itemDescription}
-                          </TableCell>
-                          <TableCell>{item.quantity}</TableCell>
-                          <TableCell>{item.unit}</TableCell>
-                          <TableCell>{formatCurrency(item.unitRate)}</TableCell>
-                          <TableCell>{formatCurrency(item.totalAmount)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  {importResult.boqItems.length > 5 && (
-                    <div className="p-3 text-center text-sm text-muted-foreground border-t">
-                      ... and {importResult.boqItems.length - 5} more items
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
