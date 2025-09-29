@@ -182,6 +182,34 @@ export default function MoodboardsPage() {
     uploadMutation.mutate(formData);
   };
 
+  // Update moodboard with Canva link
+  const updateCanvaLinkMutation = useMutation({
+    mutationFn: async (data: { id: string; canvaLink: string }) => {
+      return apiRequest('PUT', `/api/moodboards/${data.id}`, { canvaLink: data.canvaLink });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+      setCanvaLink("");
+      toast({
+        title: "Success",
+        description: "Canva link added to moodboard",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update moodboard",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMoodboardCanvaLink = (moodboardId: string) => {
+    if (canvaLink.trim()) {
+      updateCanvaLinkMutation.mutate({ id: moodboardId, canvaLink: canvaLink.trim() });
+    }
+  };
+
   // Delete moodboard
   const deleteMoodboard = (id: string) => {
     deleteMutation.mutate(id);
@@ -303,6 +331,39 @@ export default function MoodboardsPage() {
               <p className="text-xs text-muted-foreground">
                 Add your Canva design link before or after uploading your file
               </p>
+              
+              {/* Show save options when there's a Canva link but no file selected */}
+              {canvaLink.trim() && !selectedFile && moodboards.length > 0 && (
+                <div className="pt-2">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Add this Canva link to an existing moodboard or upload a file to create a new one.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                    {moodboards.slice(0, 4).map((moodboard: Moodboard) => (
+                      <Button
+                        key={moodboard.id}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateMoodboardCanvaLink(moodboard.id)}
+                        className="justify-start h-auto p-2"
+                        data-testid={`button-add-link-${moodboard.id}`}
+                      >
+                        <div className="text-left">
+                          <div className="font-medium text-xs truncate">{moodboard.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {getProjectName(moodboard.projectId)}
+                          </div>
+                        </div>
+                      </Button>
+                    ))}
+                  </div>
+                  {moodboards.length > 4 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Showing first 4 moodboards. Upload a file to create a new one with this link.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
