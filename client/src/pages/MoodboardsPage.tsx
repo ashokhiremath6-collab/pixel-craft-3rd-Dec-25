@@ -288,6 +288,24 @@ export default function MoodboardsPage() {
             />
           </div>
 
+          {/* Always visible Canva Link field */}
+          <div className="space-y-4 p-4 border rounded-lg bg-muted/10">
+            <div className="space-y-2">
+              <Label htmlFor="canva-link-always">Canva Link (Optional)</Label>
+              <Input
+                id="canva-link-always"
+                type="url"
+                placeholder="https://www.canva.com/design/..."
+                value={canvaLink}
+                onChange={(e) => setCanvaLink(e.target.value)}
+                data-testid="input-canva-link-always"
+              />
+              <p className="text-xs text-muted-foreground">
+                Add your Canva design link before or after uploading your file
+              </p>
+            </div>
+          </div>
+
           {/* Selected File Info */}
           {selectedFile && (
             <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
