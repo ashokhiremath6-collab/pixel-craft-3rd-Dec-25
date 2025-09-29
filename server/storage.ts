@@ -1170,7 +1170,10 @@ export class DBStorage implements IStorage {
     // First delete all BOQ entries that reference this project vendor
     await db.delete(boq).where(eq(boq.projectVendorId, id));
     
-    // Then delete the project vendor
+    // Then delete all quote files that reference this project vendor
+    await db.delete(quoteFiles).where(eq(quoteFiles.projectVendorId, id));
+    
+    // Finally delete the project vendor
     const result = await db.delete(projectVendors).where(eq(projectVendors.id, id));
     return result.rowCount !== null && result.rowCount > 0;
   }
