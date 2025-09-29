@@ -58,7 +58,7 @@ function AuthenticatedApp() {
             <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
               <h1 className="text-lg font-semibold" data-testid="heading-app-title">
-                Vendor Management
+                PixelCraft Designer
               </h1>
             </div>
             <div className="flex items-center gap-3">

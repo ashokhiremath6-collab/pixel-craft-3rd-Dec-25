@@ -80,7 +80,7 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
       {/* Header */}
       <div className="space-y-2">
         <h1 className="text-3xl font-bold" data-testid="heading-dashboard">
-          Vendor Management Dashboard
+          PixelCraft Designer Dashboard
         </h1>
         <p className="text-muted-foreground">
           Overview of your vendors, projects, and quotations
