@@ -502,6 +502,10 @@ export class MemStorage implements IStorage {
     const projectVendor: ProjectVendor = { 
       ...insertProjectVendor, 
       id,
+      quotationName: insertProjectVendor.quotationName || "Main Quote",
+      quotationType: insertProjectVendor.quotationType || "item",
+      parentQuotationId: insertProjectVendor.parentQuotationId || null,
+      itemCategory: insertProjectVendor.itemCategory || null,
       quotationFile: insertProjectVendor.quotationFile || null,
       quotationValue: insertProjectVendor.quotationValue || null,
       dateOfQuotation: insertProjectVendor.dateOfQuotation || null,
@@ -515,9 +519,11 @@ export class MemStorage implements IStorage {
   }
 
   async upsertProjectVendor(insertProjectVendor: InsertProjectVendor): Promise<ProjectVendor> {
-    // Check if project-vendor relationship already exists
+    // Check if specific quotation already exists (project + vendor + quotation name)
     const existingProjectVendor = Array.from(this.projectVendors.values()).find(
-      pv => pv.projectId === insertProjectVendor.projectId && pv.vendorId === insertProjectVendor.vendorId
+      pv => pv.projectId === insertProjectVendor.projectId && 
+            pv.vendorId === insertProjectVendor.vendorId &&
+            pv.quotationName === (insertProjectVendor.quotationName || 'Main Quote')
     );
 
     if (existingProjectVendor) {
@@ -525,6 +531,10 @@ export class MemStorage implements IStorage {
       const updated = { 
         ...existingProjectVendor, 
         ...insertProjectVendor,
+        quotationName: insertProjectVendor.quotationName || existingProjectVendor.quotationName,
+        quotationType: insertProjectVendor.quotationType || existingProjectVendor.quotationType,
+        parentQuotationId: insertProjectVendor.parentQuotationId || existingProjectVendor.parentQuotationId,
+        itemCategory: insertProjectVendor.itemCategory || existingProjectVendor.itemCategory,
         quotationFile: insertProjectVendor.quotationFile || existingProjectVendor.quotationFile,
         quotationValue: insertProjectVendor.quotationValue || existingProjectVendor.quotationValue,
         dateOfQuotation: insertProjectVendor.dateOfQuotation || existingProjectVendor.dateOfQuotation,
@@ -535,7 +545,7 @@ export class MemStorage implements IStorage {
       this.projectVendors.set(existingProjectVendor.id, updated);
       return updated;
     } else {
-      // Create new record
+      // Create new record (allows multiple quotations per vendor per project)
       return await this.createProjectVendor(insertProjectVendor);
     }
   }
@@ -1130,12 +1140,13 @@ export class DBStorage implements IStorage {
   }
 
   async upsertProjectVendor(projectVendor: InsertProjectVendor): Promise<ProjectVendor> {
-    // Check if project-vendor relationship already exists
+    // Check if specific quotation already exists (project + vendor + quotation name)
     const existing = await db.select().from(projectVendors)
       .where(
         and(
           eq(projectVendors.projectId, projectVendor.projectId),
-          eq(projectVendors.vendorId, projectVendor.vendorId)
+          eq(projectVendors.vendorId, projectVendor.vendorId),
+          eq(projectVendors.quotationName, projectVendor.quotationName || 'Main Quote')
         )
       )
       .limit(1);
@@ -1156,7 +1167,7 @@ export class DBStorage implements IStorage {
         .returning();
       return result[0];
     } else {
-      // Create new record
+      // Create new record (allows multiple quotations per vendor per project)
       return await this.createProjectVendor(projectVendor);
     }
   }
