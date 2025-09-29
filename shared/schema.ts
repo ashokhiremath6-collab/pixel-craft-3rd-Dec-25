@@ -108,6 +108,19 @@ export const floorPlans = pgTable("floor_plans", {
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
 });
 
+// Moodboards table
+export const moodboards = pgTable("moodboards", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  fileName: text("file_name").notNull(),
+  filePath: text("file_path").notNull(), // path in object storage
+  fileType: text("file_type").notNull(), // jpeg, png, svg, webp, pdf, etc.
+  fileSize: decimal("file_size"), // in bytes
+  tags: jsonb("tags"), // Array of tags for organization
+  uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+});
+
 // Insert schemas
 export const insertVendorCategorySchema = createInsertSchema(vendorCategories).omit({
   id: true,
@@ -147,6 +160,11 @@ export const insertFloorPlanSchema = createInsertSchema(floorPlans).omit({
   uploadedAt: true,
 });
 
+export const insertMoodboardSchema = createInsertSchema(moodboards).omit({
+  id: true,
+  uploadedAt: true,
+});
+
 // Types
 export type InsertVendorCategory = z.infer<typeof insertVendorCategorySchema>;
 export type VendorCategory = typeof vendorCategories.$inferSelect;
@@ -171,6 +189,9 @@ export type QuoteFile = typeof quoteFiles.$inferSelect;
 
 export type InsertFloorPlan = z.infer<typeof insertFloorPlanSchema>;
 export type FloorPlan = typeof floorPlans.$inferSelect;
+
+export type InsertMoodboard = z.infer<typeof insertMoodboardSchema>;
+export type Moodboard = typeof moodboards.$inferSelect;
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(

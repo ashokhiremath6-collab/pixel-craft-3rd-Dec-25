@@ -1,0 +1,430 @@
+import { useState, useRef } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2 } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { Moodboard } from "@shared/schema";
+
+export default function MoodboardsPage() {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [description, setDescription] = useState("");
+  const [tags, setTags] = useState("");
+
+  // Fetch moodboards from backend
+  const { data: moodboards = [], isLoading } = useQuery({
+    queryKey: ["/api/moodboards"],
+  });
+
+  // Upload moodboard mutation
+  const uploadMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch("/api/moodboards", {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Upload failed");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+      // Reset form
+      setSelectedFile(null);
+      setDescription("");
+      setTags("");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      toast({
+        title: "Moodboard uploaded",
+        description: "Your moodboard has been added to your collection.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: error.message,
+      });
+    },
+  });
+
+  // Delete moodboard mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest("DELETE", `/api/moodboards/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+      toast({
+        title: "Moodboard deleted",
+        description: "Moodboard has been removed from your collection.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Delete failed",
+        description: error.message,
+      });
+    },
+  });
+
+  // Handle file selection
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    
+    // Validate file type (images and PDFs from Canva)
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml', 'image/webp', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid file type",
+        description: "Please upload images (JPEG, PNG, SVG, WebP) or PDFs from Canva.",
+      });
+      return;
+    }
+    
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        variant: "destructive", 
+        title: "File too large",
+        description: "Please select a file smaller than 10MB.",
+      });
+      return;
+    }
+    
+    setSelectedFile(file);
+    
+    // Create preview for images
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        // Preview will be handled in the upload process
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle drag and drop
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileSelect(e.dataTransfer.files);
+    }
+  };
+
+  // Upload moodboard
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+    
+    const formData = new FormData();
+    formData.append("moodboard", selectedFile);
+    if (description.trim()) {
+      formData.append("description", description.trim());
+    }
+    if (tags.trim()) {
+      formData.append("tags", tags.trim());
+    }
+    
+    uploadMutation.mutate(formData);
+  };
+
+  // Delete moodboard
+  const deleteMoodboard = (id: string) => {
+    deleteMutation.mutate(id);
+  };
+
+  // Create preview URL for display
+  const getPreviewUrl = (moodboard: Moodboard) => {
+    // Check for PDF using MIME type stored in database
+    if (moodboard.fileType === 'pdf' || moodboard.fileType === 'application/pdf') return null;
+    return `/uploads/moodboards/${moodboard.fileName}`;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold" data-testid="heading-moodboards">
+          Moodboards
+        </h1>
+        <p className="text-muted-foreground">
+          Upload and manage your moodboards from Canva for client presentations
+        </p>
+      </div>
+
+      {/* Upload Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Upload className="h-5 w-5" />
+            Upload Moodboard
+          </CardTitle>
+          <CardDescription>
+            Upload images (JPEG, PNG, SVG, WebP) or PDFs exported from Canva
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* File Upload Area */}
+          <div
+            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+              dragActive
+                ? "border-primary bg-primary/5"
+                : "border-muted-foreground/25 hover:border-primary/50"
+            }`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            data-testid="dropzone-moodboard"
+          >
+            <ImageIcon className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-lg font-medium mb-2">
+              Drop your moodboard here, or click to browse
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Support for JPEG, PNG, SVG, WebP, and PDF files up to 10MB
+            </p>
+            
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept="image/jpeg,image/png,image/svg+xml,image/webp,application/pdf"
+              onChange={(e) => handleFileSelect(e.target.files)}
+              data-testid="input-file"
+            />
+          </div>
+
+          {/* Selected File Info */}
+          {selectedFile && (
+            <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  {selectedFile.type.startsWith('image/') ? (
+                    <ImageIcon className="h-8 w-8 text-primary" />
+                  ) : (
+                    <FileText className="h-8 w-8 text-primary" />
+                  )}
+                  <div>
+                    <p className="font-medium">{selectedFile.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatFileSize(selectedFile.size)}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSelectedFile(null)}
+                  data-testid="button-clear-file"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <Label htmlFor="description">Description (Optional)</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Describe this moodboard (e.g., 'Living room concept - modern minimalist')"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  data-testid="input-description"
+                />
+              </div>
+
+              {/* Tags */}
+              <div className="space-y-2">
+                <Label htmlFor="tags">Tags (Optional)</Label>
+                <Input
+                  id="tags"
+                  placeholder="e.g., living room, modern, minimalist (comma separated)"
+                  value={tags}
+                  onChange={(e) => setTags(e.target.value)}
+                  data-testid="input-tags"
+                />
+              </div>
+
+              {/* Upload Button */}
+              <Button 
+                onClick={handleUpload}
+                disabled={uploadMutation.isPending}
+                className="w-full"
+                data-testid="button-upload-moodboard"
+              >
+                {uploadMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  "Upload Moodboard"
+                )}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Loading State */}
+      {isLoading && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Loader2 className="h-8 w-8 mx-auto mb-4 animate-spin" />
+            <p className="text-muted-foreground">Loading your moodboards...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Uploaded Moodboards */}
+      {!isLoading && moodboards.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Your Moodboards ({moodboards.length})</CardTitle>
+            <CardDescription>
+              Manage your uploaded moodboard collection
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {moodboards.map((moodboard: Moodboard) => (
+                <div key={moodboard.id} className="border rounded-lg overflow-hidden hover-elevate">
+                  {/* Preview */}
+                  <div className="aspect-video bg-muted/50 flex items-center justify-center">
+                    {getPreviewUrl(moodboard) ? (
+                      <img 
+                        src={getPreviewUrl(moodboard)!} 
+                        alt={moodboard.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Fallback to icon if image fails to load
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          target.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    <FileText className={`h-12 w-12 text-muted-foreground ${getPreviewUrl(moodboard) ? 'hidden' : ''}`} />
+                  </div>
+                  
+                  {/* Info */}
+                  <div className="p-4 space-y-2">
+                    <h3 className="font-medium truncate" title={moodboard.name}>
+                      {moodboard.name}
+                    </h3>
+                    
+                    {moodboard.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {moodboard.description}
+                      </p>
+                    )}
+                    
+                    {moodboard.tags && Array.isArray(moodboard.tags) && moodboard.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {moodboard.tags.slice(0, 3).map((tag, index) => (
+                          <Badge key={index} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {moodboard.tags.length > 3 && (
+                          <Badge variant="secondary" className="text-xs">
+                            +{moodboard.tags.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center justify-between pt-2">
+                      <span className="text-xs text-muted-foreground">
+                        {formatFileSize(parseInt(moodboard.fileSize || "0"))}
+                      </span>
+                      
+                      <div className="flex gap-1">
+                        {getPreviewUrl(moodboard) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => window.open(getPreviewUrl(moodboard)!, '_blank')}
+                            data-testid={`button-view-${moodboard.id}`}
+                          >
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-600 hover:text-red-700"
+                          onClick={() => deleteMoodboard(moodboard.id)}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-${moodboard.id}`}
+                        >
+                          {deleteMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {!isLoading && moodboards.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <ImageIcon className="h-16 w-16 mx-auto mb-4 opacity-50" />
+            <h3 className="text-lg font-medium mb-2">No moodboards yet</h3>
+            <p className="text-muted-foreground mb-4">
+              Upload your first moodboard from Canva to get started
+            </p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

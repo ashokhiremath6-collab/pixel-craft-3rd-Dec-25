@@ -17,6 +17,7 @@ import TemplateViewPage from "@/pages/TemplateViewPage";
 import ImportPage from "@/pages/ImportPage";
 import SettingsPage from "@/pages/SettingsPage";
 import ClientAccessPage from "@/pages/ClientAccessPage";
+import MoodboardsPage from "@/pages/MoodboardsPage";
 import LoginPage from "@/pages/LoginPage";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/templates" component={TemplatesPage} />
       <Route path="/templates/:id" component={TemplateViewPage} />
       <Route path="/import" component={ImportPage} />
+      <Route path="/moodboards" component={MoodboardsPage} />
       <Route path="/client-access" component={ClientAccessPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />

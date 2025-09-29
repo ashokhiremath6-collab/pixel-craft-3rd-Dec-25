@@ -22,6 +22,7 @@ import {
   insertBoqSchema,
   insertQuoteFileSchema,
   insertFloorPlanSchema,
+  insertMoodboardSchema,
   insertUserRoleSchema
 } from "@shared/schema";
 import { z } from "zod";
@@ -234,6 +235,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error serving floor plan file:', error);
       res.status(500).json({ error: 'Failed to serve floor plan file' });
+    }
+  });
+  
+  // Authenticated file download for moodboards
+  app.get('/uploads/moodboards/:filename', requireAuth, async (req, res) => {
+    try {
+      const { filename } = req.params;
+      
+      // Prevent path traversal attacks - validate filename
+      if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        return res.status(400).json({ error: 'Invalid filename' });
+      }
+      
+      const moodboardsDir = path.join(process.cwd(), 'uploads', 'moodboards');
+      const filePath = path.join(moodboardsDir, filename);
+      
+      // Double-check path safety - ensure resolved path is within moodboards directory
+      const resolvedPath = path.resolve(filePath);
+      const resolvedMoodboardsDir = path.resolve(moodboardsDir);
+      if (!resolvedPath.startsWith(resolvedMoodboardsDir)) {
+        return res.status(400).json({ error: 'Invalid file path' });
+      }
+      
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'Moodboard file not found' });
+      }
+      
+      // Moodboards are currently global (not project-specific), so basic auth check is sufficient
+      // In future, you could add project-level authorization similar to floor plans
+      
+      // Serve the file with proper headers for inline viewing
+      const stat = fs.statSync(filePath);
+      const fileStream = fs.createReadStream(filePath);
+      
+      // Set proper MIME type based on file extension
+      const ext = path.extname(filename).toLowerCase();
+      let mimeType = 'application/octet-stream';
+      switch (ext) {
+        case '.jpg':
+        case '.jpeg':
+          mimeType = 'image/jpeg';
+          break;
+        case '.png':
+          mimeType = 'image/png';
+          break;
+        case '.svg':
+          mimeType = 'image/svg+xml';
+          break;
+        case '.webp':
+          mimeType = 'image/webp';
+          break;
+        case '.pdf':
+          mimeType = 'application/pdf';
+          break;
+      }
+      
+      res.setHeader('Content-Length', stat.size);
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`); // inline for previews
+      
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error('Error serving moodboard file:', error);
+      res.status(500).json({ error: 'Failed to serve moodboard file' });
     }
   });
   
@@ -898,6 +964,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         cb(null, true);
       } else {
         cb(new Error('Invalid file type. Only Excel (.xlsx, .xls), CSV, and PDF files are allowed.'));
+      }
+    }
+  });
+
+  // Configure multer for moodboard uploads
+  const uploadMoodboard = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        // Ensure moodboards directory exists
+        if (!fs.existsSync('uploads/moodboards')) {
+          fs.mkdirSync('uploads/moodboards', { recursive: true });
+        }
+        cb(null, 'uploads/moodboards/');
+      },
+      filename: (req, file, cb) => {
+        // Keep original extension for proper file serving
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, `moodboard_${uniqueSuffix}${ext}`);
+      }
+    }),
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB limit
+      files: 1, // Only allow single file upload
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = [
+        'image/jpeg', 
+        'image/png',
+        'image/svg+xml',
+        'image/webp',
+        'application/pdf', // PDF exports from Canva
+      ];
+      
+      // Also check file extension as MIME types can be unreliable
+      const allowedExtensions = ['.jpg', '.jpeg', '.png', '.svg', '.webp', '.pdf'];
+      const fileExtension = path.extname(file.originalname).toLowerCase();
+      
+      if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only images (JPEG, PNG, SVG, WebP) and PDF files are allowed.'));
       }
     }
   });
@@ -2546,6 +2654,143 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting floor plan:', error);
       res.status(500).json({ error: "Failed to delete floor plan" });
+    }
+  });
+
+  // ==================== MOODBOARDS ROUTES ====================
+
+  // Get all moodboards
+  app.get("/api/moodboards", requireAuth, async (req, res) => {
+    try {
+      const moodboards = await storage.getAllMoodboards();
+      res.json(moodboards);
+    } catch (error) {
+      console.error('Error fetching moodboards:', error);
+      res.status(500).json({ error: "Failed to fetch moodboards" });
+    }
+  });
+
+  // Get single moodboard
+  app.get("/api/moodboards/:id", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const moodboard = await storage.getMoodboard(id);
+      if (!moodboard) {
+        return res.status(404).json({ error: "Moodboard not found" });
+      }
+      res.json(moodboard);
+    } catch (error) {
+      console.error('Error fetching moodboard:', error);
+      res.status(500).json({ error: "Failed to fetch moodboard" });
+    }
+  });
+
+  // Upload new moodboard
+  app.post("/api/moodboards", requireAuth, uploadMoodboard.single('moodboard'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const { description, tags } = req.body;
+      
+      // Parse tags if provided
+      let parsedTags = null;
+      if (tags && typeof tags === 'string') {
+        try {
+          parsedTags = tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0);
+          if (parsedTags.length === 0) parsedTags = null;
+        } catch (error) {
+          console.warn('Error parsing tags:', error);
+          parsedTags = null;
+        }
+      }
+
+      const moodboardData = {
+        name: req.file.originalname,
+        description: description || null,
+        fileName: req.file.originalname,
+        filePath: req.file.path,
+        fileType: path.extname(req.file.originalname).toLowerCase().substring(1), // Remove dot
+        fileSize: req.file.size.toString(), // Convert number to string for decimal schema
+        tags: parsedTags
+      };
+
+      // Validate with Zod schema
+      const validatedData = insertMoodboardSchema.parse(moodboardData);
+      
+      const moodboard = await storage.createMoodboard(validatedData);
+      res.status(201).json(moodboard);
+    } catch (error) {
+      console.error('Error creating moodboard:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid moodboard data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create moodboard" });
+    }
+  });
+
+  // Update moodboard metadata (not the file)
+  app.put("/api/moodboards/:id", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Allow updating only name, description, and tags
+      const { name, description, tags } = req.body;
+      const updates: any = {};
+      
+      if (name !== undefined) updates.name = name;
+      if (description !== undefined) updates.description = description;
+      if (tags !== undefined) {
+        if (Array.isArray(tags)) {
+          updates.tags = tags.filter(tag => typeof tag === 'string' && tag.trim().length > 0);
+        } else {
+          updates.tags = null;
+        }
+      }
+      
+      const updatedMoodboard = await storage.updateMoodboard(id, updates);
+      if (!updatedMoodboard) {
+        return res.status(404).json({ error: "Moodboard not found" });
+      }
+      
+      res.json(updatedMoodboard);
+    } catch (error) {
+      console.error('Error updating moodboard:', error);
+      res.status(500).json({ error: "Failed to update moodboard" });
+    }
+  });
+
+  // Delete moodboard
+  app.delete("/api/moodboards/:id", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get the moodboard first to delete the file
+      const moodboard = await storage.getMoodboard(id);
+      if (!moodboard) {
+        return res.status(404).json({ error: "Moodboard not found" });
+      }
+      
+      const deleted = await storage.deleteMoodboard(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Moodboard not found" });
+      }
+      
+      // Delete the physical file
+      try {
+        if (fs.existsSync(moodboard.filePath)) {
+          fs.unlinkSync(moodboard.filePath);
+        }
+      } catch (fileError) {
+        console.warn('Warning: Could not delete physical file:', fileError);
+        // Don't fail the request if file deletion fails
+      }
+      
+      res.json({ message: "Moodboard deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting moodboard:', error);
+      res.status(500).json({ error: "Failed to delete moodboard" });
     }
   });
 

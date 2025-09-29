@@ -21,6 +21,8 @@ import {
   type InsertQuoteFile,
   type FloorPlan,
   type InsertFloorPlan,
+  type Moodboard,
+  type InsertMoodboard,
   users,
   userRoles,
   designerAllowlist,
@@ -32,6 +34,7 @@ import {
   boq,
   quoteFiles,
   floorPlans,
+  moodboards,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -1366,6 +1369,31 @@ export class DBStorage implements IStorage {
 
   async deleteFloorPlan(id: string): Promise<boolean> {
     const result = await db.delete(floorPlans).where(eq(floorPlans.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Moodboards
+  async getAllMoodboards(): Promise<Moodboard[]> {
+    return await db.select().from(moodboards).orderBy(moodboards.uploadedAt);
+  }
+
+  async getMoodboard(id: string): Promise<Moodboard | undefined> {
+    const result = await db.select().from(moodboards).where(eq(moodboards.id, id));
+    return result[0];
+  }
+
+  async createMoodboard(moodboard: InsertMoodboard): Promise<Moodboard> {
+    const result = await db.insert(moodboards).values(moodboard).returning();
+    return result[0];
+  }
+
+  async updateMoodboard(id: string, updates: Partial<InsertMoodboard>): Promise<Moodboard | undefined> {
+    const result = await db.update(moodboards).set(updates).where(eq(moodboards.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteMoodboard(id: string): Promise<boolean> {
+    const result = await db.delete(moodboards).where(eq(moodboards.id, id));
     return result.rowCount !== null && result.rowCount > 0;
   }
 }
