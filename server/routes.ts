@@ -1461,8 +1461,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Set up parameters based on resolution type
+      let finalQuotationName = quotationName || "Main Quote";
+      
+      // For options, automatically generate option names if not provided
+      if (resolutionType === "option" && (!quotationName || quotationName === "Main Quote")) {
+        // Get existing options for the parent quote to determine next option number
+        const allProjectVendors = await storage.getProjectVendors(projectId);
+        const existingOptions = allProjectVendors.filter(pv => 
+          pv.vendorId === vendorId && 
+          pv.quotationType === "option" && 
+          pv.parentQuotationId === parentQuotationId
+        );
+        
+        const optionNumber = existingOptions.length + 1;
+        finalQuotationName = `Option ${optionNumber}`;
+      }
+      
       const importParams = {
-        quotationName: quotationName || "Main Quote",
+        quotationName: finalQuotationName,
         quotationType: resolutionType === "option" ? "option" : "item",
         itemCategory: itemCategory || null,
         parentQuotationId: resolutionType === "option" ? parentQuotationId : null
