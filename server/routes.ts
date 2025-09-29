@@ -507,6 +507,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.status(204).send();
     } catch (error) {
+      console.error('Error deleting vendor:', error);
+      if (error instanceof Error && error.message.includes("Cannot delete vendor with existing quotations")) {
+        return res.status(400).json({ error: error.message });
+      }
       res.status(500).json({ error: "Failed to delete vendor" });
     }
   });

@@ -439,6 +439,13 @@ export class MemStorage implements IStorage {
   }
 
   async deleteVendor(id: string): Promise<boolean> {
+    // Check if vendor has any quotations before deleting
+    const hasQuotations = Array.from(this.projectVendors.values()).some(pv => pv.vendorId === id);
+    
+    if (hasQuotations) {
+      throw new Error("Cannot delete vendor with existing quotations. Please remove all quotes first.");
+    }
+    
     return this.vendors.delete(id);
   }
 
