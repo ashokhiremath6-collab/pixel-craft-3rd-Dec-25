@@ -2148,11 +2148,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Floor Plans Routes (protected)
   app.get("/api/floor-plans", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole!;
-      const userId = req.session.userId!;
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
       
       // Use role-based helper method for consistent access control
-      const floorPlans = await storage.getFloorPlansForUser(userId, userRole);
+      const floorPlans = await storage.getFloorPlansForUser(userId, userRole.role);
       res.json(floorPlans);
     } catch (error) {
       console.error('Error fetching floor plans:', error);
@@ -2162,12 +2166,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/floor-plans/project/:projectId", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole!;
-      const userId = req.session.userId!;
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
       const { projectId } = req.params;
       
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
+      
       // Use role-based helper method with project ID filter
-      const floorPlans = await storage.getFloorPlansForUser(userId, userRole, projectId);
+      const floorPlans = await storage.getFloorPlansForUser(userId, userRole.role, projectId);
       res.json(floorPlans);
     } catch (error) {
       console.error('Error fetching floor plans for project:', error);
@@ -2177,12 +2185,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/floor-plans/:id", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole!;
-      const userId = req.session.userId!;
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
       const { id } = req.params;
       
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
+      
       // Get user's accessible floor plans and check if this one is included
-      const userFloorPlans = await storage.getFloorPlansForUser(userId, userRole);
+      const userFloorPlans = await storage.getFloorPlansForUser(userId, userRole.role);
       const floorPlan = userFloorPlans.find(fp => fp.id === id);
       
       if (!floorPlan) {
