@@ -634,7 +634,9 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         if (a.quotationType !== b.quotationType) {
                           return a.quotationType === "item" ? -1 : 1;
                         }
-                        return a.quotationName.localeCompare(b.quotationName);
+                        const aName = a.quotationName || "Main Quote";
+                        const bName = b.quotationName || "Main Quote";
+                        return aName.localeCompare(bName);
                       });
 
                       return sortedVendorQuotations.map((quotation, quotationIndex) => {
