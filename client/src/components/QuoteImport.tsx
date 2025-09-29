@@ -3,6 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -21,6 +25,23 @@ interface ImportResult {
   errors: string[];
 }
 
+interface ConflictData {
+  conflictType: string;
+  message: string;
+  existingQuotes: {
+    id: string;
+    quotationName: string;
+    quotationType: string;
+    quotationValue: string;
+    itemCategory?: string;
+  }[];
+  tempFileId: string;
+  parsedDataPreview: {
+    totalItems: number;
+    estimatedValue: number;
+  };
+}
+
 interface QuoteImportProps {
   onImportComplete?: (result: ImportResult) => void;
 }
@@ -31,6 +52,12 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
   const [selectedVendor, setSelectedVendor] = useState<string>("");
   const [dragActive, setDragActive] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [conflictData, setConflictData] = useState<ConflictData | null>(null);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [resolutionType, setResolutionType] = useState<string>("");
+  const [quotationName, setQuotationName] = useState<string>("");
+  const [itemCategory, setItemCategory] = useState<string>("");
+  const [selectedParentQuote, setSelectedParentQuote] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -52,9 +79,66 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
         body: formData,
       });
       
+      if (response.status === 409) {
+        // Handle conflict response
+        const conflictResponse = await response.json() as ConflictData;
+        setConflictData(conflictResponse);
+        setShowConflictDialog(true);
+        return null; // Don't treat this as an error
+      }
+      
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.details || error.error || 'Import failed');
+      }
+      
+      return response.json() as Promise<ImportResult>;
+    },
+    onSuccess: (result) => {
+      if (result) {
+        toast({
+          title: "Quote imported successfully",
+          description: `Imported ${result.totalItems} BOQ items with total value ₹${parseFloat(result.totalValue).toLocaleString('en-IN')}`,
+        });
+        setImportResult(result);
+        setSelectedFile(null);
+        setSelectedProject("");
+        setSelectedVendor("");
+        onImportComplete?.(result);
+        queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      }
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Import failed",
+        description: error.message,
+      });
+    },
+  });
+
+  // Resolve conflict mutation
+  const resolveConflictMutation = useMutation({
+    mutationFn: async (resolutionData: {
+      tempFileId: string;
+      projectId: string;
+      vendorId: string;
+      resolutionType: string;
+      quotationName?: string;
+      itemCategory?: string;
+      parentQuotationId?: string;
+    }) => {
+      const response = await fetch('/api/quotes/import/resolve', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(resolutionData),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.details || error.error || 'Resolution failed');
       }
       
       return response.json() as Promise<ImportResult>;
@@ -65,6 +149,8 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
         description: `Imported ${result.totalItems} BOQ items with total value ₹${parseFloat(result.totalValue).toLocaleString('en-IN')}`,
       });
       setImportResult(result);
+      setShowConflictDialog(false);
+      setConflictData(null);
       setSelectedFile(null);
       setSelectedProject("");
       setSelectedVendor("");
@@ -74,7 +160,7 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
     onError: (error) => {
       toast({
         variant: "destructive",
-        title: "Import failed",
+        title: "Resolution failed",
         description: error.message,
       });
     },
@@ -159,6 +245,54 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
     formData.append('vendorId', selectedVendor);
 
     importMutation.mutate(formData);
+  };
+
+  const handleConflictResolution = () => {
+    if (!conflictData || !resolutionType) {
+      toast({
+        variant: "destructive",
+        title: "Missing information",
+        description: "Please select how you want to handle this quote.",
+      });
+      return;
+    }
+
+    if (resolutionType === "option" && !selectedParentQuote) {
+      toast({
+        variant: "destructive",
+        title: "Missing information",
+        description: "Please select which existing quote this is an option for.",
+      });
+      return;
+    }
+
+    if (resolutionType === "new_item" && (!quotationName || !itemCategory)) {
+      toast({
+        variant: "destructive",
+        title: "Missing information",
+        description: "Please provide a quotation name and item description for the new item.",
+      });
+      return;
+    }
+
+    resolveConflictMutation.mutate({
+      tempFileId: conflictData.tempFileId,
+      projectId: selectedProject,
+      vendorId: selectedVendor,
+      resolutionType,
+      quotationName: resolutionType === "new_item" ? quotationName : undefined,
+      itemCategory: resolutionType === "new_item" ? itemCategory : undefined,
+      parentQuotationId: resolutionType === "option" ? selectedParentQuote : undefined,
+    });
+  };
+
+  const handleCloseConflictDialog = () => {
+    setShowConflictDialog(false);
+    setConflictData(null);
+    setResolutionType("");
+    setQuotationName("");
+    setItemCategory("");
+    setSelectedParentQuote("");
   };
 
   const formatCurrency = (value: string) => {
@@ -425,6 +559,168 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Conflict Resolution Dialog */}
+      <Dialog open={showConflictDialog} onOpenChange={handleCloseConflictDialog}>
+        <DialogContent className="sm:max-w-[600px]" data-testid="dialog-conflict-resolution">
+          <DialogHeader>
+            <DialogTitle>Quote Import Conflict</DialogTitle>
+            <DialogDescription>
+              {conflictData?.message}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {conflictData && (
+            <div className="space-y-6">
+              {/* Existing Quotes */}
+              <div>
+                <h4 className="font-medium mb-3">Existing Quotes:</h4>
+                <div className="space-y-2">
+                  {conflictData.existingQuotes.map((quote) => (
+                    <div key={quote.id} className="p-3 border rounded-lg bg-muted/50">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="font-medium">{quote.quotationName}</span>
+                          {quote.itemCategory && (
+                            <span className="text-sm text-muted-foreground ml-2">
+                              ({quote.itemCategory})
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className="font-medium">{formatCurrency(quote.quotationValue)}</span>
+                          <div className="text-xs text-muted-foreground capitalize">
+                            {quote.quotationType}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* New Quote Preview */}
+              <div>
+                <h4 className="font-medium mb-3">New Quote Preview:</h4>
+                <div className="p-3 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">
+                      {conflictData.parsedDataPreview.totalItems} items
+                    </span>
+                    <span className="font-medium">
+                      {conflictData.parsedDataPreview.estimatedValue > 0 
+                        ? formatCurrency(conflictData.parsedDataPreview.estimatedValue.toString())
+                        : "Value to be calculated"
+                      }
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Resolution Options */}
+              <div>
+                <h4 className="font-medium mb-3">How should this quote be handled?</h4>
+                <RadioGroup
+                  value={resolutionType}
+                  onValueChange={setResolutionType}
+                  data-testid="radio-resolution-type"
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-2">
+                      <RadioGroupItem value="option" id="option" data-testid="radio-option" />
+                      <div className="grid gap-1.5 leading-none">
+                        <Label htmlFor="option">
+                          This is an <strong>option</strong> for an existing item
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          The quote will appear grouped with the selected existing quote as an alternative option
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {resolutionType === "option" && (
+                      <div className="ml-6 space-y-2">
+                        <Label htmlFor="parent-quote">Select which existing quote this is an option for:</Label>
+                        <Select
+                          value={selectedParentQuote}
+                          onValueChange={setSelectedParentQuote}
+                          data-testid="select-parent-quote"
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Choose existing quote" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {conflictData.existingQuotes.map((quote) => (
+                              <SelectItem key={quote.id} value={quote.id}>
+                                {quote.quotationName} - {formatCurrency(quote.quotationValue)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-start space-x-2">
+                      <RadioGroupItem value="new_item" id="new_item" data-testid="radio-new-item" />
+                      <div className="grid gap-1.5 leading-none">
+                        <Label htmlFor="new_item">
+                          This is a <strong>different item</strong> category
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          The quote will be displayed separately with its own description
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {resolutionType === "new_item" && (
+                      <div className="ml-6 space-y-4">
+                        <div>
+                          <Label htmlFor="quotation-name">Quotation Name:</Label>
+                          <Input
+                            id="quotation-name"
+                            value={quotationName}
+                            onChange={(e) => setQuotationName(e.target.value)}
+                            placeholder="e.g., 'Premium Option', 'Alternative Quote'"
+                            data-testid="input-quotation-name"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="item-category">Item Description:</Label>
+                          <Input
+                            id="item-category"
+                            value={itemCategory}
+                            onChange={(e) => setItemCategory(e.target.value)}
+                            placeholder="e.g., 'Premium Fixtures', 'Electrical Package B'"
+                            data-testid="input-item-category"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </RadioGroup>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleCloseConflictDialog}
+              disabled={resolveConflictMutation.isPending}
+              data-testid="button-cancel-conflict"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConflictResolution}
+              disabled={resolveConflictMutation.isPending || !resolutionType}
+              data-testid="button-resolve-conflict"
+            >
+              {resolveConflictMutation.isPending ? "Processing..." : "Import Quote"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
