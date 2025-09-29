@@ -23,6 +23,10 @@ interface QuotationData {
   id: string;
   vendorName: string;
   category: string;
+  quotationName: string; // "Main Quote", "Option A", "Kitchen Cabinets", etc.
+  quotationType: "item" | "option"; // Type of quotation
+  parentQuotationId?: string | null; // For grouping options under main items
+  itemCategory?: string | null; // For organizing different items in folders
   quotationValue: string | null | undefined;
   dateOfQuotation: string | null | undefined;
   status: "Quoted" | "Selected" | "Rejected";
@@ -614,20 +618,55 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedQuotations.map((quotation, index) => {
-                    const variance = getQuoteVariance(quotation.quotationValue, average);
-                    const isLowest = index === 0;
-                    const isHighest = index === sortedQuotations.length - 1;
-                    
-                    return (
-                      <TableRow 
-                        key={quotation.id}
-                        className={`h-10 ${quotation.status === "Selected" ? "bg-green-50 dark:bg-green-900/10" : ""}`}
-                        data-testid={`quotation-row-${quotation.id}`}
-                      >
-                        <TableCell className="font-medium text-sm py-2" data-testid="text-vendor-name">
-                          {quotation.vendorName}
-                        </TableCell>
+                  {(() => {
+                    // Group quotations by vendor to support multiple quotes per vendor
+                    const vendorGroups = sortedQuotations.reduce((acc, quotation) => {
+                      if (!acc[quotation.vendorName]) {
+                        acc[quotation.vendorName] = [];
+                      }
+                      acc[quotation.vendorName].push(quotation);
+                      return acc;
+                    }, {} as Record<string, typeof sortedQuotations>);
+
+                    return Object.entries(vendorGroups).flatMap(([vendorName, vendorQuotations], vendorIndex) => {
+                      // Sort vendor quotations: items first, then options
+                      const sortedVendorQuotations = vendorQuotations.sort((a, b) => {
+                        if (a.quotationType !== b.quotationType) {
+                          return a.quotationType === "item" ? -1 : 1;
+                        }
+                        return a.quotationName.localeCompare(b.quotationName);
+                      });
+
+                      return sortedVendorQuotations.map((quotation, quotationIndex) => {
+                        const globalIndex = sortedQuotations.findIndex(q => q.id === quotation.id);
+                        const variance = getQuoteVariance(quotation.quotationValue, average);
+                        const isLowest = globalIndex === 0;
+                        const isFirstQuoteForVendor = quotationIndex === 0;
+                        
+                        return (
+                          <TableRow 
+                            key={quotation.id}
+                            className={`h-10 ${quotation.status === "Selected" ? "bg-green-50 dark:bg-green-900/10" : ""}`}
+                            data-testid={`quotation-row-${quotation.id}`}
+                          >
+                            <TableCell className="font-medium text-sm py-2" data-testid="text-vendor-name">
+                              <div className="flex flex-col">
+                                {/* Show vendor name only for first quotation */}
+                                {isFirstQuoteForVendor && (
+                                  <div className="font-semibold text-gray-900 dark:text-gray-100">
+                                    {quotation.vendorName}
+                                  </div>
+                                )}
+                                {/* Show quotation name and type */}
+                                <div className={`text-xs ${isFirstQuoteForVendor ? 'text-gray-600 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300 ml-2'} flex items-center gap-1`}>
+                                  {quotation.quotationType === "option" && <span className="text-orange-500">└</span>}
+                                  <span className="font-medium">{quotation.quotationName}</span>
+                                  {quotation.quotationType === "option" && (
+                                    <Badge variant="outline" className="text-xs px-1 py-0">Option</Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </TableCell>
                         
                         <TableCell className="py-2" data-testid="text-quotation-value">
                           <div className="flex items-center gap-1">
@@ -792,8 +831,10 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                           </div>
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
+                        );
+                      });
+                    });
+                  })()}
                 </TableBody>
               </Table>
             </CardContent>
