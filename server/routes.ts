@@ -1333,7 +1333,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if vendor already has quotes for this project
-      const existingQuotes = await storage.getProjectVendorsByProjectAndVendor(projectId, vendorId);
+      const allProjectVendors = await storage.getProjectVendors(projectId);
+      const existingQuotes = allProjectVendors.filter(pv => pv.vendorId === vendorId);
       
       if (existingQuotes.length > 0) {
         // Store the parsed data temporarily and return conflict response
