@@ -733,6 +733,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: pv.id,
             vendorName: vendor.name,
             category: category.name,
+            quotationName: pv.quotationName,
+            quotationType: pv.quotationType,
             quotationValue: pv.quotationValue,
             dateOfQuotation: pv.dateOfQuotation,
             status: pv.status,
