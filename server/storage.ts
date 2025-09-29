@@ -1178,15 +1178,32 @@ export class DBStorage implements IStorage {
   }
 
   async deleteProjectVendor(id: string): Promise<boolean> {
-    // First delete all BOQ entries that reference this project vendor
-    await db.delete(boq).where(eq(boq.projectVendorId, id));
-    
-    // Then delete all quote files that reference this project vendor
-    await db.delete(quoteFiles).where(eq(quoteFiles.projectVendorId, id));
-    
-    // Finally delete the project vendor
-    const result = await db.delete(projectVendors).where(eq(projectVendors.id, id));
-    return result.rowCount !== null && result.rowCount > 0;
+    // Use a transaction to ensure atomic cascading deletes
+    return await db.transaction(async (tx) => {
+      // Helper function to recursively delete within the transaction
+      const deleteWithinTransaction = async (deleteId: string) => {
+        // First, find and delete any child quotes (options) that reference this quote as parent
+        const childQuotes = await tx.select().from(projectVendors)
+          .where(eq(projectVendors.parentQuotationId, deleteId));
+        
+        for (const child of childQuotes) {
+          // Recursively delete child quotes and their dependencies
+          await deleteWithinTransaction(child.id);
+        }
+        
+        // Delete all BOQ entries that reference this project vendor
+        await tx.delete(boq).where(eq(boq.projectVendorId, deleteId));
+        
+        // Delete all quote files that reference this project vendor
+        await tx.delete(quoteFiles).where(eq(quoteFiles.projectVendorId, deleteId));
+        
+        // Finally delete the project vendor itself
+        const result = await tx.delete(projectVendors).where(eq(projectVendors.id, deleteId));
+        return result.rowCount !== null && result.rowCount > 0;
+      };
+      
+      return await deleteWithinTransaction(id);
+    });
   }
 
   // Quote Templates
