@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen } from "lucide-react";
+import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Moodboard, Project } from "@shared/schema";
@@ -19,6 +19,7 @@ export default function MoodboardsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
+  const [canvaLink, setCanvaLink] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
   const [filterProjectId, setFilterProjectId] = useState<string>("all"); // For filtering display
 
@@ -59,6 +60,7 @@ export default function MoodboardsPage() {
       setSelectedFile(null);
       setDescription("");
       setTags("");
+      setCanvaLink("");
       setSelectedProjectId("");
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -172,6 +174,9 @@ export default function MoodboardsPage() {
     }
     if (selectedProjectId && selectedProjectId !== "general") {
       formData.append("projectId", selectedProjectId);
+    }
+    if (canvaLink.trim()) {
+      formData.append("canvaLink", canvaLink.trim());
     }
     
     uploadMutation.mutate(formData);
@@ -352,6 +357,19 @@ export default function MoodboardsPage() {
                 />
               </div>
 
+              {/* Canva Link */}
+              <div className="space-y-2">
+                <Label htmlFor="canva-link">Canva Link (Optional)</Label>
+                <Input
+                  id="canva-link"
+                  type="url"
+                  placeholder="https://www.canva.com/design/..."
+                  value={canvaLink}
+                  onChange={(e) => setCanvaLink(e.target.value)}
+                  data-testid="input-canva-link"
+                />
+              </div>
+
               {/* Upload Button */}
               <Button 
                 onClick={handleUpload}
@@ -444,6 +462,21 @@ export default function MoodboardsPage() {
                             +{moodboard.tags.length - 3}
                           </Badge>
                         )}
+                      </div>
+                    )}
+                    
+                    {moodboard.canvaLink && (
+                      <div className="pt-1">
+                        <a
+                          href={moodboard.canvaLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline"
+                          data-testid={`link-canva-${moodboard.id}`}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          <span>View Canva Design</span>
+                        </a>
                       </div>
                     )}
                     

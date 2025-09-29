@@ -2705,7 +2705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { description, tags, projectId } = req.body;
+      const { description, tags, projectId, canvaLink } = req.body;
       
       // Parse tags if provided
       let parsedTags = null;
@@ -2738,7 +2738,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         filePath: req.file.path,
         fileType: path.extname(req.file.originalname).toLowerCase().substring(1), // Remove dot
         fileSize: req.file.size.toString(), // Convert number to string for decimal schema
-        tags: parsedTags
+        tags: parsedTags,
+        canvaLink: canvaLink && typeof canvaLink === 'string' ? canvaLink.trim() : null
       };
 
       // Validate with Zod schema
@@ -2760,8 +2761,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      // Allow updating only name, description, and tags
-      const { name, description, tags } = req.body;
+      // Allow updating only name, description, tags, and canvaLink
+      const { name, description, tags, canvaLink } = req.body;
       const updates: any = {};
       
       if (name !== undefined) updates.name = name;
@@ -2772,6 +2773,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           updates.tags = null;
         }
+      }
+      if (canvaLink !== undefined) {
+        updates.canvaLink = canvaLink && typeof canvaLink === 'string' ? canvaLink.trim() : null;
       }
       
       const updatedMoodboard = await storage.updateMoodboard(id, updates);

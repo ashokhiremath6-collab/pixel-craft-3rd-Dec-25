@@ -120,6 +120,7 @@ export const moodboards = pgTable("moodboards", {
   fileType: text("file_type").notNull(), // jpeg, png, svg, webp, pdf, etc.
   fileSize: decimal("file_size"), // in bytes
   tags: jsonb("tags"), // Array of tags for organization
+  canvaLink: text("canva_link"), // Canva design link for the moodboard
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
 });
 
