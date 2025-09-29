@@ -106,14 +106,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (associatedProjectVendor) {
           // Check if user has access to this project
-          const userRole = req.session.userRole;
-          const userId = req.session.userId;
+          const userId = (req.user as any).claims.sub;
+          const userRole = await storage.getUserRole(userId);
           
-          if (userRole === 'designer' || userRole === 'admin') {
+          if (!userRole) {
+            return res.status(403).json({ error: 'User role not found' });
+          }
+          
+          if (userRole.role === 'designer' || userRole.role === 'admin') {
             // Designer or admin can access all files
-          } else if (userRole === 'client') {
+          } else if (userRole.role === 'client') {
             // Check if client has access to this project (role-based access)
-            const accessibleProjects = await storage.getProjectsForUser(userId!, req.session.userRole!);
+            const accessibleProjects = await storage.getProjectsForUser(userId, userRole.role);
             const hasAccess = accessibleProjects.some(project => project.id === associatedProjectVendor.projectId);
             
             if (!hasAccess) {
@@ -124,7 +128,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } else {
           // File not associated with any project - only designer or admin can access
-          if (req.session.userRole !== 'designer' && req.session.userRole !== 'admin') {
+          const userId = (req.user as any).claims.sub;
+          const userRole = await storage.getUserRole(userId);
+          if (!userRole || (userRole.role !== 'designer' && userRole.role !== 'admin')) {
             return res.status(403).json({ error: 'Access denied - file not associated with accessible project' });
           }
         }
@@ -183,14 +189,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (associatedFloorPlan) {
           // Check if user has access to this project
-          const userRole = req.session.userRole;
-          const userId = req.session.userId;
+          const userId = (req.user as any).claims.sub;
+          const userRole = await storage.getUserRole(userId);
           
-          if (userRole === 'designer' || userRole === 'admin') {
+          if (!userRole) {
+            return res.status(403).json({ error: 'User role not found' });
+          }
+          
+          if (userRole.role === 'designer' || userRole.role === 'admin') {
             // Designer or admin can access all files
-          } else if (userRole === 'client') {
+          } else if (userRole.role === 'client') {
             // Check if client has access to this project
-            const accessibleProjects = await storage.getProjectsForUser(userId!, req.session.userRole!);
+            const accessibleProjects = await storage.getProjectsForUser(userId, userRole.role);
             const hasAccess = accessibleProjects.some(project => project.id === associatedFloorPlan.projectId);
             
             if (!hasAccess) {
@@ -201,7 +211,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } else {
           // File not associated with any project - only designer or admin can access
-          if (req.session.userRole !== 'designer' && req.session.userRole !== 'admin') {
+          const userId = (req.user as any).claims.sub;
+          const userRole = await storage.getUserRole(userId);
+          if (!userRole || (userRole.role !== 'designer' && userRole.role !== 'admin')) {
             return res.status(403).json({ error: 'Access denied - floor plan not associated with accessible project' });
           }
         }
@@ -276,11 +288,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedRole = await storage.updateUserRole(userId, role);
       if (!updatedRole) {
         // Create new role if none exists
+        const currentUserId = (req.user as any).claims.sub;
         await storage.createUserRole({
           userId,
           role,
           isActive: true,
-          assignedBy: req.session.userId!
+          assignedBy: currentUserId
         });
       }
       
@@ -579,11 +592,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Project Vendors Routes
   app.get("/api/project-vendors", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole!;
-      const userId = req.session.userId!;
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
       
       // Use role-based helper method for consistent access control
-      const projectVendors = await storage.getProjectVendorsForUser(userId, userRole);
+      const projectVendors = await storage.getProjectVendorsForUser(userId, userRole.role);
       res.json(projectVendors);
     } catch (error) {
       console.error('Get project vendors error:', error);
@@ -593,12 +610,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/project-vendors/project/:projectId", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole!;
-      const userId = req.session.userId!;
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
       const projectId = req.params.projectId;
       
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
+      
       // Use role-based helper method with project ID filter
-      const projectVendors = await storage.getProjectVendorsForUser(userId, userRole, projectId);
+      const projectVendors = await storage.getProjectVendorsForUser(userId, userRole.role, projectId);
       res.json(projectVendors);
     } catch (error) {
       console.error('Get project vendors by project error:', error);
@@ -658,8 +679,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Quotations API - aggregated data for comparative quotes (protected)
   app.get("/api/quotations", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole;
-      const userId = req.session.userId!;
+      const userId = (req.user as any).claims.sub;
+      const userRoleData = await storage.getUserRole(userId);
+      
+      if (!userRoleData) {
+        return res.status(403).json({ error: "User role not found" });
+      }
+      
+      const userRole = userRoleData.role;
       
       // Get all project vendors
       const projectVendors = await storage.getAllProjectVendors();
@@ -1544,12 +1571,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get BOQ items for a project vendor (protected)
   app.get("/api/project-vendors/:id/boq", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole!;
-      const userId = req.session.userId!;
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
       const projectVendorId = req.params.id;
       
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
+      
       // Use role-based helper method for consistent access control
-      const boqItems = await storage.getBOQForUser(userId, userRole, projectVendorId);
+      const boqItems = await storage.getBOQForUser(userId, userRole.role, projectVendorId);
       res.json(boqItems);
     } catch (error) {
       console.error('Get BOQ error:', error);
@@ -1560,12 +1591,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get quote files for a project vendor (protected)
   app.get("/api/project-vendors/:id/files", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole!;
-      const userId = req.session.userId!;
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
       const projectVendorId = req.params.id;
       
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
+      
       // Use role-based helper method for consistent access control
-      const files = await storage.getQuoteFilesForUser(userId, userRole, projectVendorId);
+      const files = await storage.getQuoteFilesForUser(userId, userRole.role, projectVendorId);
       res.json(files);
     } catch (error) {
       console.error('Get quote files error:', error);
