@@ -501,11 +501,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Projects Routes (protected)
   app.get("/api/projects", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole!;
-      const userId = req.session.userId!;
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
       
       // Use role-based helper method for consistent access control
-      const projects = await storage.getProjectsForUser(userId, userRole);
+      const projects = await storage.getProjectsForUser(userId, userRole.role);
       res.json(projects);
     } catch (error) {
       console.error('Get projects error:', error);
@@ -515,11 +519,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/projects/:id", requireAuth, async (req, res) => {
     try {
-      const userRole = req.session.userRole!;
-      const userId = req.session.userId!;
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
       
       // Get user's accessible projects and check if this project is included
-      const userProjects = await storage.getProjectsForUser(userId, userRole);
+      const userProjects = await storage.getProjectsForUser(userId, userRole.role);
       const project = userProjects.find(p => p.id === req.params.id);
       
       if (!project) {
