@@ -501,11 +501,11 @@ export default function FloorPlansPage() {
                   </Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <CardContent className="p-4">
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                   {projectFloorPlans.map((floorPlan) => (
-                    <Card key={floorPlan.id} className="p-4" data-testid={`card-floor-plan-${floorPlan.id}`}>
-                      <div className="space-y-3">
+                    <Card key={floorPlan.id} className="p-3" data-testid={`card-floor-plan-${floorPlan.id}`}>
+                      <div className="space-y-2">
                         <div className="flex items-start justify-between">
                           <div className="flex items-center space-x-2">
                             {getFileIcon(floorPlan.fileType)}
