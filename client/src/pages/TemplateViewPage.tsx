@@ -181,7 +181,7 @@ export default function TemplateViewPage() {
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
                 <FileSpreadsheet className="h-5 w-5" />
-                {isSpreadsheetTemplate ? 'Excel Data' : 'Template Fields'}
+                {isSpreadsheetTemplate ? 'Template Fields' : 'Template Fields'}
                 {hasSpreadsheetData && (
                   <Badge variant="secondary" className="text-xs">
                     {lineItems.length} line items
@@ -194,17 +194,19 @@ export default function TemplateViewPage() {
                 )}
               </CardTitle>
               <CardDescription>
-                {template.description || 'Template line items and content'}
+                {hasSpreadsheetData ? 'Standard Line Items' : (template.description || 'Template line items and content')}
               </CardDescription>
             </div>
-            <Button 
-              variant="default"
-              onClick={handleDownloadExcel}
-              data-testid="button-open-in-excel"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Open in Excel
-            </Button>
+            {(hasSpreadsheetData || hasLegacyFields) ? (
+              <Button 
+                variant="default"
+                onClick={handleDownloadExcel}
+                data-testid="button-open-in-excel"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Open in Excel
+              </Button>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent>
