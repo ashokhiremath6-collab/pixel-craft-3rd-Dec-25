@@ -13,6 +13,8 @@ import fs from "fs";
 import path from "path";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { ObjectPermission } from "./objectAcl";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
@@ -68,6 +70,101 @@ const requireAdmin = async (req: express.Request, res: express.Response, next: e
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup real Replit Auth (handles session configuration internally)
   await setupAuth(app);
+
+  // Object Storage endpoints for permanent file storage
+  // Endpoint to get presigned upload URL
+  app.post("/api/objects/upload", requireAuth, async (req, res) => {
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      res.json({ uploadURL });
+    } catch (error) {
+      console.error("Error generating upload URL:", error);
+      res.status(500).json({ error: "Failed to generate upload URL" });
+    }
+  });
+
+  // Endpoint to serve private objects from object storage
+  app.get("/objects/:objectPath(*)", requireAuth, async (req, res) => {
+    const userId = (req.user as any).claims.sub;
+    const objectStorageService = new ObjectStorageService();
+    try {
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      const canAccess = await objectStorageService.canAccessObjectEntity({
+        objectFile,
+        userId: userId,
+        requestedPermission: ObjectPermission.READ,
+      });
+      if (!canAccess) {
+        return res.sendStatus(403);
+      }
+      objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error("Error accessing object:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.sendStatus(404);
+      }
+      return res.sendStatus(500);
+    }
+  });
+
+  // Helper function to upload file buffer to object storage and return the object path
+  async function uploadToObjectStorage(
+    fileBuffer: Buffer,
+    originalName: string,
+    userId: string,
+    mimeType: string
+  ): Promise<string> {
+    const objectStorageService = new ObjectStorageService();
+    
+    // Get presigned upload URL
+    const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+    
+    // Upload file to object storage
+    const uploadResponse = await fetch(uploadURL, {
+      method: 'PUT',
+      body: fileBuffer,
+      headers: {
+        'Content-Type': mimeType,
+      },
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Failed to upload file to object storage: ${uploadResponse.statusText}`);
+    }
+    
+    // Extract the object path from the signed URL
+    // The URL format is: https://storage.googleapis.com/bucket-name/path/to/object?signature=...
+    const url = new URL(uploadURL);
+    const pathname = url.pathname; // e.g., /bucket-name/path/to/object
+    
+    // Extract the entity ID from the pathname
+    // Assuming the private object dir format is /bucket-name/.private
+    // and uploads go to /bucket-name/.private/uploads/uuid
+    const pathParts = pathname.split('/uploads/');
+    if (pathParts.length < 2) {
+      throw new Error('Invalid upload URL format');
+    }
+    const entityId = 'uploads/' + pathParts[pathParts.length - 1];
+    const objectPath = `/objects/${entityId}`;
+    
+    // Set ACL policy for the uploaded file
+    try {
+      const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+      await objectStorageService.trySetObjectEntityAclPolicy(
+        objectPath,
+        {
+          owner: userId,
+          visibility: "private",
+        }
+      );
+    } catch (error) {
+      console.error('Error setting ACL policy:', error);
+      // Continue even if ACL fails - file is uploaded
+    }
+    
+    return objectPath;
+  }
 
   // Secure file download endpoints (replace static serving with authenticated handlers)
   // Files are now served through authenticated endpoints below instead of static routes
@@ -951,23 +1048,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Configure multer for file uploads
+  // Configure multer for file uploads (using memoryStorage for object storage)
   const upload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => {
-        // Ensure uploads directory exists
-        if (!fs.existsSync('uploads')) {
-          fs.mkdirSync('uploads', { recursive: true });
-        }
-        cb(null, 'uploads/');
-      },
-      filename: (req, file, cb) => {
-        // Keep original extension for proper file serving
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
-        cb(null, uniqueSuffix + ext);
-      }
-    }),
+    storage: multer.memoryStorage(), // Store in memory, then upload to object storage
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB limit
       files: 1, // Only allow single file upload
@@ -992,23 +1075,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Configure multer for moodboard uploads
+  // Configure multer for moodboard uploads (using memoryStorage for object storage)
   const uploadMoodboard = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => {
-        // Ensure moodboards directory exists
-        if (!fs.existsSync('uploads/moodboards')) {
-          fs.mkdirSync('uploads/moodboards', { recursive: true });
-        }
-        cb(null, 'uploads/moodboards/');
-      },
-      filename: (req, file, cb) => {
-        // Keep original extension for proper file serving
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
-        cb(null, `moodboard_${uniqueSuffix}${ext}`);
-      }
-    }),
+    storage: multer.memoryStorage(), // Store in memory, then upload to object storage
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB limit
       files: 1, // Only allow single file upload
@@ -2542,23 +2611,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Configure multer for floor plan uploads with additional file types
+  // Configure multer for floor plan uploads with additional file types (using memoryStorage for object storage)
   const floorPlanUpload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => {
-        // Ensure uploads directory exists
-        if (!fs.existsSync('uploads/floor-plans')) {
-          fs.mkdirSync('uploads/floor-plans', { recursive: true });
-        }
-        cb(null, 'uploads/floor-plans/');
-      },
-      filename: (req, file, cb) => {
-        // Keep original extension for proper file serving
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
-        cb(null, uniqueSuffix + ext);
-      }
-    }),
+    storage: multer.memoryStorage(), // Store in memory, then upload to object storage
     limits: {
       fileSize: 50 * 1024 * 1024, // 50MB limit for floor plan files
       files: 1, // Only allow single file upload
@@ -2601,12 +2656,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Project ID and name are required" });
       }
 
+      // Upload file to object storage
+      const userId = (req.user as any).claims.sub;
+      const objectPath = await uploadToObjectStorage(
+        req.file.buffer,
+        req.file.originalname,
+        userId,
+        req.file.mimetype
+      );
+
       const floorPlanData = {
         projectId,
         name,
         description: description || null,
         fileName: req.file.originalname,
-        filePath: req.file.path,
+        filePath: objectPath, // Save object storage path instead of local path
         fileType: path.extname(req.file.originalname).toLowerCase().substring(1), // Remove dot
         fileSize: req.file.size.toString(), // Convert number to string for decimal schema
         version: version || "1.0",
@@ -2759,6 +2823,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         validatedProjectId = projectId;
       }
 
+      // Upload file to object storage if not link-only
+      let objectPath = null;
+      if (!isLinkOnly && req.file) {
+        const userId = (req.user as any).claims.sub;
+        objectPath = await uploadToObjectStorage(
+          req.file.buffer,
+          req.file.originalname,
+          userId,
+          req.file.mimetype
+        );
+      }
+
       const moodboardData = isLinkOnly ? {
         projectId: validatedProjectId,
         assetType: assetType || 'moodboard',
@@ -2776,7 +2852,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name: req.file!.originalname,
         description: description || null,
         fileName: req.file!.originalname,
-        filePath: req.file!.path,
+        filePath: objectPath, // Save object storage path instead of local path
         fileType: path.extname(req.file!.originalname).toLowerCase().substring(1), // Remove dot
         fileSize: req.file!.size.toString(), // Convert number to string for decimal schema
         tags: parsedTags,
