@@ -210,6 +210,28 @@ export default function MoodboardsPage() {
     }
   };
 
+  // Save Canva link only (without file upload)
+  const handleSaveCanvaLinkOnly = async () => {
+    if (!canvaLink.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a Canva link",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("canvaLink", canvaLink.trim());
+    formData.append("linkOnly", "true");
+    
+    if (selectedProjectId && selectedProjectId !== "general") {
+      formData.append("projectId", selectedProjectId);
+    }
+    
+    uploadMutation.mutate(formData);
+  };
+
   // Delete moodboard
   const deleteMoodboard = (id: string) => {
     deleteMutation.mutate(id);
@@ -224,6 +246,8 @@ export default function MoodboardsPage() {
 
   // Create preview URL for display
   const getPreviewUrl = (moodboard: Moodboard) => {
+    // Return null for link-only entries (no file uploaded)
+    if (!moodboard.fileName) return null;
     // Check for PDF using MIME type stored in database
     if (moodboard.fileType === 'pdf' || moodboard.fileType === 'application/pdf') return null;
     return `/uploads/moodboards/${moodboard.fileName}`;
@@ -319,7 +343,7 @@ export default function MoodboardsPage() {
           {/* Always visible Canva Link field */}
           <div className="space-y-4 p-4 border rounded-lg bg-muted/10">
             <div className="space-y-2">
-              <Label htmlFor="canva-link-always">Canva Link (Optional)</Label>
+              <Label htmlFor="canva-link-always">Canva Link</Label>
               <Input
                 id="canva-link-always"
                 type="url"
@@ -329,39 +353,44 @@ export default function MoodboardsPage() {
                 data-testid="input-canva-link-always"
               />
               <p className="text-xs text-muted-foreground">
-                Add your Canva design link before or after uploading your file
+                Paste your Canva design link here
               </p>
               
-              {/* Show save options when there's a Canva link but no file selected */}
-              {canvaLink.trim() && !selectedFile && moodboards.length > 0 && (
-                <div className="pt-2">
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Add this Canva link to an existing moodboard or upload a file to create a new one.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto">
-                    {moodboards.slice(0, 4).map((moodboard: Moodboard) => (
-                      <Button
-                        key={moodboard.id}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => updateMoodboardCanvaLink(moodboard.id)}
-                        className="justify-start h-auto p-2"
-                        data-testid={`button-add-link-${moodboard.id}`}
-                      >
-                        <div className="text-left">
-                          <div className="font-medium text-xs truncate">{moodboard.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {getProjectName(moodboard.projectId)}
-                          </div>
-                        </div>
-                      </Button>
-                    ))}
+              {/* Show save/create options when there's a Canva link but no file selected */}
+              {canvaLink.trim() && !selectedFile && (
+                <div className="pt-3 space-y-3 border-t">
+                  <div className="space-y-2">
+                    <Label htmlFor="project-for-link">Select Project</Label>
+                    <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                      <SelectTrigger id="project-for-link" data-testid="select-project-for-link">
+                        <SelectValue placeholder="Select a project..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="general">General (No Project)</SelectItem>
+                        {projects.map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.projectName} - {project.clientName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  {moodboards.length > 4 && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Showing first 4 moodboards. Upload a file to create a new one with this link.
-                    </p>
-                  )}
+                  
+                  <Button 
+                    onClick={handleSaveCanvaLinkOnly}
+                    disabled={updateCanvaLinkMutation.isPending}
+                    className="w-full"
+                    data-testid="button-save-canva-link"
+                  >
+                    {updateCanvaLinkMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Canva Link"
+                    )}
+                  </Button>
                 </div>
               )}
             </div>
@@ -507,8 +536,15 @@ export default function MoodboardsPage() {
                           target.nextElementSibling?.classList.remove('hidden');
                         }}
                       />
+                    ) : moodboard.canvaLink && !moodboard.filePath ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <ExternalLink className="h-12 w-12 text-primary" />
+                        <span className="text-xs text-muted-foreground">Canva Design</span>
+                      </div>
                     ) : null}
-                    <FileText className={`h-12 w-12 text-muted-foreground ${getPreviewUrl(moodboard) ? 'hidden' : ''}`} />
+                    {!moodboard.canvaLink || moodboard.filePath ? (
+                      <FileText className={`h-12 w-12 text-muted-foreground ${getPreviewUrl(moodboard) ? 'hidden' : ''}`} />
+                    ) : null}
                   </div>
                   
                   {/* Info */}
@@ -561,7 +597,7 @@ export default function MoodboardsPage() {
                     
                     <div className="flex items-center justify-between pt-2">
                       <span className="text-xs text-muted-foreground">
-                        {formatFileSize(parseInt(moodboard.fileSize || "0"))}
+                        {moodboard.fileSize ? formatFileSize(parseInt(moodboard.fileSize)) : 'Link only'}
                       </span>
                       
                       <div className="flex gap-1">

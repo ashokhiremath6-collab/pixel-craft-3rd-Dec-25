@@ -115,10 +115,10 @@ export const moodboards = pgTable("moodboards", {
   projectId: varchar("project_id").references(() => projects.id), // Optional - can be null for general moodboards
   name: text("name").notNull(),
   description: text("description"),
-  fileName: text("file_name").notNull(),
-  filePath: text("file_path").notNull(), // path in object storage
-  fileType: text("file_type").notNull(), // jpeg, png, svg, webp, pdf, etc.
-  fileSize: decimal("file_size"), // in bytes
+  fileName: text("file_name"), // Optional - can be null for Canva-link-only entries
+  filePath: text("file_path"), // Optional - path in object storage
+  fileType: text("file_type"), // Optional - jpeg, png, svg, webp, pdf, etc.
+  fileSize: decimal("file_size"), // Optional - in bytes
   tags: jsonb("tags"), // Array of tags for organization
   canvaLink: text("canva_link"), // Canva design link for the moodboard
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),

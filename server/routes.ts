@@ -2701,11 +2701,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload new moodboard
   app.post("/api/moodboards", requireAuth, uploadMoodboard.single('moodboard'), async (req, res) => {
     try {
-      if (!req.file) {
+      const { description, tags, projectId, canvaLink, linkOnly } = req.body;
+      
+      // Check if this is a Canva link-only upload (no file)
+      const isLinkOnly = linkOnly === 'true';
+      
+      if (!req.file && !isLinkOnly) {
         return res.status(400).json({ error: "No file uploaded" });
       }
-
-      const { description, tags, projectId, canvaLink } = req.body;
+      
+      if (isLinkOnly && !canvaLink) {
+        return res.status(400).json({ error: "Canva link is required for link-only uploads" });
+      }
       
       // Parse tags if provided
       let parsedTags = null;
@@ -2730,14 +2737,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         validatedProjectId = projectId;
       }
 
-      const moodboardData = {
+      const moodboardData = isLinkOnly ? {
         projectId: validatedProjectId,
-        name: req.file.originalname,
+        name: `Canva Design - ${new Date().toLocaleDateString()}`,
         description: description || null,
-        fileName: req.file.originalname,
-        filePath: req.file.path,
-        fileType: path.extname(req.file.originalname).toLowerCase().substring(1), // Remove dot
-        fileSize: req.file.size.toString(), // Convert number to string for decimal schema
+        fileName: null,
+        filePath: null,
+        fileType: null,
+        fileSize: null,
+        tags: parsedTags,
+        canvaLink: canvaLink.trim()
+      } : {
+        projectId: validatedProjectId,
+        name: req.file!.originalname,
+        description: description || null,
+        fileName: req.file!.originalname,
+        filePath: req.file!.path,
+        fileType: path.extname(req.file!.originalname).toLowerCase().substring(1), // Remove dot
+        fileSize: req.file!.size.toString(), // Convert number to string for decimal schema
         tags: parsedTags,
         canvaLink: canvaLink && typeof canvaLink === 'string' ? canvaLink.trim() : null
       };
