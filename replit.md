@@ -31,6 +31,11 @@ Preferred communication style: Simple, everyday language.
 - **ORM**: Drizzle ORM with schema-first approach
 - **Connection Pooling**: Neon serverless connection pooling
 - **Migrations**: Drizzle Kit for database schema management
+- **File Storage**: Replit Object Storage (Google Cloud Storage) for permanent file persistence
+  - All uploaded files (floor plans, moodboards, renders, quotations, BOQ files) stored in object storage
+  - Files persist across deployments and workflow restarts
+  - ACL-based access control for file security
+  - Paths stored in database as `/objects/uploads/<uuid>`
 
 ### Core Data Models
 - **Vendor Categories**: Hierarchical structure with parent-child relationships
@@ -75,7 +80,7 @@ Preferred communication style: Simple, everyday language.
 ### Third-Party Integrations
 - **Google Fonts**: Inter and JetBrains Mono font families
 - **Replit Integration**: Development environment integration with runtime error overlay
-- **File Storage**: Template and quotation file management (file paths stored in database)
+- **Replit Object Storage**: Permanent cloud file storage via Google Cloud Storage backend
 
 ### Runtime Dependencies
 - **TanStack Query**: Server state management with caching and synchronization
