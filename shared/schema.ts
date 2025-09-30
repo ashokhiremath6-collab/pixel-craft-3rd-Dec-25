@@ -109,10 +109,11 @@ export const floorPlans = pgTable("floor_plans", {
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
 });
 
-// Moodboards table
+// Moodboards table (also used for working drawings and renders)
 export const moodboards = pgTable("moodboards", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").references(() => projects.id), // Optional - can be null for general moodboards
+  assetType: text("asset_type").notNull().default("moodboard"), // "moodboard", "working_drawing", "render"
   name: text("name").notNull(),
   description: text("description"),
   fileName: text("file_name"), // Optional - can be null for Canva-link-only entries
@@ -166,6 +167,8 @@ export const insertFloorPlanSchema = createInsertSchema(floorPlans).omit({
 export const insertMoodboardSchema = createInsertSchema(moodboards).omit({
   id: true,
   uploadedAt: true,
+}).extend({
+  assetType: z.enum(["moodboard", "working_drawing", "render"]).default("moodboard"),
 });
 
 // Types
