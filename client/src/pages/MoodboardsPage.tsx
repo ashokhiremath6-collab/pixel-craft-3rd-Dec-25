@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -22,19 +23,24 @@ export default function MoodboardsPage() {
   const [canvaLink, setCanvaLink] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
   const [filterProjectId, setFilterProjectId] = useState<string>("all"); // For filtering display
+  const [activeTab, setActiveTab] = useState<string>("moodboard"); // Active asset type tab
 
   // Fetch projects for selection
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
   });
 
-  // Fetch moodboards from backend (with optional project filter)
+  // Fetch moodboards from backend (with optional project and assetType filters)
   const { data: moodboards = [], isLoading } = useQuery({
-    queryKey: ["/api/moodboards", filterProjectId !== "all" ? { projectId: filterProjectId } : {}],
+    queryKey: ["/api/moodboards", filterProjectId !== "all" ? { projectId: filterProjectId } : {}, activeTab],
     queryFn: async () => {
-      const url = filterProjectId === "all" 
-        ? "/api/moodboards" 
-        : `/api/moodboards?projectId=${filterProjectId}`;
+      const params = new URLSearchParams();
+      if (filterProjectId !== "all") {
+        params.append("projectId", filterProjectId);
+      }
+      params.append("assetType", activeTab);
+      
+      const url = `/api/moodboards?${params.toString()}`;
       const response = await fetch(url, { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch moodboards");
       return response.json();
@@ -166,6 +172,7 @@ export default function MoodboardsPage() {
     
     const formData = new FormData();
     formData.append("moodboard", selectedFile);
+    formData.append("assetType", activeTab); // Add asset type
     if (description.trim()) {
       formData.append("description", description.trim());
     }
@@ -224,6 +231,7 @@ export default function MoodboardsPage() {
     const formData = new FormData();
     formData.append("canvaLink", canvaLink.trim());
     formData.append("linkOnly", "true");
+    formData.append("assetType", activeTab); // Add asset type
     
     if (selectedProjectId && selectedProjectId !== "general") {
       formData.append("projectId", selectedProjectId);
@@ -261,16 +269,28 @@ export default function MoodboardsPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Get dynamic title based on active tab
+  const getTabTitle = () => {
+    switch (activeTab) {
+      case "working_drawing":
+        return "Working Drawings";
+      case "render":
+        return "Renders";
+      default:
+        return "Moodboards";
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold" data-testid="heading-moodboards">
-            Moodboards
+            {getTabTitle()}
           </h1>
           <p className="text-muted-foreground">
-            Upload and manage your moodboards from Canva for client presentations
+            Upload and manage your creative assets from Canva for client presentations
           </p>
         </div>
         
@@ -284,7 +304,7 @@ export default function MoodboardsPage() {
               <SelectValue placeholder="Select project..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Moodboards</SelectItem>
+              <SelectItem value="all">All Assets</SelectItem>
               <SelectItem value="general">General (No Project)</SelectItem>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
@@ -296,7 +316,16 @@ export default function MoodboardsPage() {
         </div>
       </div>
 
-      {/* Loading State */}
+      {/* Tabs for Asset Types */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="moodboard" data-testid="tab-moodboards">Moodboards</TabsTrigger>
+          <TabsTrigger value="working_drawing" data-testid="tab-working-drawings">Working Drawings</TabsTrigger>
+          <TabsTrigger value="render" data-testid="tab-renders">Renders</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={activeTab} className="mt-6 space-y-6">
+          {/* Loading State */}
       {isLoading && (
         <Card>
           <CardContent className="text-center py-12">
@@ -592,6 +621,8 @@ export default function MoodboardsPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
