@@ -1,17 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams, useLocation } from "wouter";
+import { useParams } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
-import { ArrowLeft, FileText, Activity, Calendar, User, MoreHorizontal, Download } from "lucide-react";
+import { ArrowLeft, FileText, Download, FileSpreadsheet } from "lucide-react";
 import { Link } from "wouter";
 import { QuoteTemplate } from "@shared/schema";
 import { getTemplateDisplayName } from "@/lib/templateUtils";
 
 export default function TemplateViewPage() {
   const { id } = useParams<{ id: string }>();
-  const [, setLocation] = useLocation();
 
   const { data: template, isLoading, error } = useQuery<QuoteTemplate>({
     queryKey: ['/api/quote-templates', id],
@@ -42,6 +41,18 @@ export default function TemplateViewPage() {
     : '';
   const displayName = categoryName ? getTemplateDisplayName(template?.name || '', categoryName) : template?.name || '';
 
+  // Handle Excel download
+  const handleDownloadExcel = () => {
+    if (!template) return;
+    const downloadUrl = `/api/quote-templates/${template.id}/download`;
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `${displayName}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -71,12 +82,72 @@ export default function TemplateViewPage() {
     );
   }
 
-  // Handle different field formats
+  // Check if this template has spreadsheet data
   const isSpreadsheetTemplate = template.fields && typeof template.fields === 'object' && 
     (template.fields as any).type === 'spreadsheet';
+  
+  // For legacy/non-spreadsheet templates
   const templateFields = !isSpreadsheetTemplate && template.fields ? 
-    JSON.parse(JSON.stringify(template.fields)) : [];
-  const hasFields = Array.isArray(templateFields) && templateFields.length > 0;
+    (Array.isArray(template.fields) ? template.fields : []) : [];
+  const hasLegacyFields = Array.isArray(templateFields) && templateFields.length > 0;
+  
+  // Extract line items from spreadsheet data
+  const getLineItems = () => {
+    if (!isSpreadsheetTemplate || !(template.fields as any).data) {
+      return [];
+    }
+    
+    const data = (template.fields as any).data as any[][];
+    
+    if (data.length === 0) return [];
+    
+    // Simple middle-ground: Skip the first non-empty row (usually main header) and show rest
+    let firstNonEmptyRowIndex = -1;
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      if (row && row.length > 0 && row.some(cell => cell && String(cell).trim())) {
+        firstNonEmptyRowIndex = i;
+        break;
+      }
+    }
+    
+    // Start from the row after the first non-empty row
+    const startIndex = firstNonEmptyRowIndex >= 0 ? firstNonEmptyRowIndex + 1 : 0;
+    
+    return data
+      .slice(startIndex)
+      .map((row, index) => {
+        // Skip completely empty rows
+        if (!row || row.length === 0 || row.every(cell => !cell || String(cell).trim() === '')) {
+          return null;
+        }
+        
+        // Find first non-empty cell as description
+        const descriptionIndex = row.findIndex(cell => cell && String(cell).trim());
+        if (descriptionIndex < 0) return null;
+        
+        const description = String(row[descriptionIndex]);
+        
+        // Get remaining cells as details
+        const details = row
+          .slice(descriptionIndex + 1)
+          .filter(cell => cell && String(cell).trim())
+          .map(cell => String(cell))
+          .join(' | ');
+        
+        return {
+          id: index,
+          description,
+          details
+        };
+      })
+      .filter((item): item is { id: number; description: string; details: string } => 
+        item !== null && item.description.trim() !== ''
+      );
+  };
+
+  const lineItems = getLineItems();
+  const hasSpreadsheetData = lineItems.length > 0;
 
   return (
     <div className="space-y-6">
@@ -98,113 +169,127 @@ export default function TemplateViewPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={template.isActive ? "default" : "secondary"}>
-            {template.isActive ? "Active" : "Inactive"}
-          </Badge>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => {
-              // Download Excel file to open in Excel application
-              const downloadUrl = `/api/quote-templates/${template.id}/download`;
-              const link = document.createElement('a');
-              link.href = downloadUrl;
-              link.download = `${displayName}.xlsx`;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }}
-            data-testid="button-download-excel"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Open in Excel
-          </Button>
-        </div>
+        <Badge variant={template.isActive ? "default" : "secondary"}>
+          {template.isActive ? "Active" : "Inactive"}
+        </Badge>
       </div>
 
-      {/* Excel Spreadsheet Data - Full Width */}
+      {/* Template Content */}
       <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Excel Data
-              {isSpreadsheetTemplate ? (
-                <Badge variant="secondary" className="text-xs">
-                  {(template.fields as any).rowCount || 0} rows × {(template.fields as any).columnCount || 0} columns
-                </Badge>
-              ) : null}
-            </CardTitle>
-            <CardDescription>
-              Original Excel file content displayed in spreadsheet format
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isSpreadsheetTemplate && (template.fields as any).data ? (
-              <div className="border rounded-lg overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
-                <Table className="text-xs">
-                  <TableBody>
-                    {((template.fields as any).data as any[][]).map((row: any[], rowIndex: number) => (
-                      <TableRow key={rowIndex} data-testid={`excel-row-${rowIndex}`}>
-                        {row.map((cell: any, colIndex: number) => (
-                          <TableCell 
-                            key={colIndex} 
-                            className={`p-3 border-r border-b font-mono break-words max-w-xs ${
-                              rowIndex === 0 ? 'font-bold bg-muted text-sm' : 
-                              rowIndex === 1 ? 'font-semibold bg-muted/50 text-sm' : 'text-xs'
-                            }`}
-                            data-testid={`excel-cell-${rowIndex}-${colIndex}`}
-                          >
-                            {String(cell || '')}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : hasFields ? (
-              // Fallback to old field format if not spreadsheet type
-              <div className="border rounded-lg">
-                <Table>
-                  <TableBody>
-                    {templateFields.map((field: any, index: number) => (
-                      <TableRow key={index} data-testid={`template-field-${index}`}>
-                        <TableCell className="font-medium">
-                          {field.name || field.fieldName || `Field ${index + 1}`}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {field.type || field.fieldType || 'Text'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={field.required ? "default" : "secondary"}
-                            className="text-xs"
-                          >
-                            {field.required ? 'Required' : 'Optional'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {field.description || 'No description'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <h3 className="text-lg font-medium mb-2">No Data Available</h3>
-                <p className="text-sm">
-                  This template doesn't have any Excel data or field definitions.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5" />
+                {isSpreadsheetTemplate ? 'Excel Data' : 'Template Fields'}
+                {hasSpreadsheetData && (
+                  <Badge variant="secondary" className="text-xs">
+                    {lineItems.length} line items
+                  </Badge>
+                )}
+                {hasLegacyFields && (
+                  <Badge variant="secondary" className="text-xs">
+                    {templateFields.length} fields
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                {template.description || 'Template line items and content'}
+              </CardDescription>
+            </div>
+            <Button 
+              variant="default"
+              onClick={handleDownloadExcel}
+              data-testid="button-open-in-excel"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Open in Excel
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Spreadsheet Template - List Format */}
+          {isSpreadsheetTemplate && hasSpreadsheetData && (
+            <div className="space-y-3">
+              {lineItems.map((item, index) => (
+                <div 
+                  key={item.id}
+                  className="flex items-start gap-4 p-4 border rounded-lg hover-elevate"
+                  data-testid={`line-item-${index}`}
+                >
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-sm font-semibold text-primary">
+                      {index + 1}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-base mb-1" data-testid={`item-description-${index}`}>
+                      {item.description}
+                    </h3>
+                    {item.details && (
+                      <p className="text-sm text-muted-foreground" data-testid={`item-details-${index}`}>
+                        {item.details}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Legacy Template - Field Table Format */}
+          {!isSpreadsheetTemplate && hasLegacyFields && (
+            <div className="border rounded-lg">
+              <Table>
+                <TableBody>
+                  {templateFields.map((field: any, index: number) => (
+                    <TableRow key={index} data-testid={`template-field-${index}`}>
+                      <TableCell className="font-medium">
+                        {field.name || field.fieldName || `Field ${index + 1}`}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {field.type || field.fieldType || 'Text'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={field.required ? "default" : "secondary"}
+                          className="text-xs"
+                        >
+                          {field.required ? 'Required' : 'Optional'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {field.description || 'No description'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          
+          {/* Empty State */}
+          {!hasSpreadsheetData && !hasLegacyFields && (
+            <div className="text-center py-12 text-muted-foreground">
+              <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
+              <h3 className="text-lg font-medium mb-2">No Data Available</h3>
+              <p className="text-sm mb-4">
+                This template doesn't have any Excel data or field definitions.
+              </p>
+              <Button 
+                variant="outline"
+                onClick={handleDownloadExcel}
+                data-testid="button-download-empty-template"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Open in Excel
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
