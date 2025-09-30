@@ -143,10 +143,15 @@ export interface IStorage {
   getAllMoodboards(assetType?: string): Promise<Moodboard[]>;
   getMoodboardsByProject(projectId: string, assetType?: string): Promise<Moodboard[]>;
   getGeneralMoodboards(assetType?: string): Promise<Moodboard[]>;
+  getMoodboardsForUser(userId: string, role: string, projectId?: string, assetType?: string): Promise<Moodboard[]>;
   getMoodboard(id: string): Promise<Moodboard | undefined>;
   createMoodboard(moodboard: InsertMoodboard): Promise<Moodboard>;
   updateMoodboard(id: string, moodboard: Partial<InsertMoodboard>): Promise<Moodboard | undefined>;
   deleteMoodboard(id: string): Promise<boolean>;
+  
+  // Vendors (with role-based filtering)
+  getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
+  getProjectVendorsForUser(userId: string, role: string): Promise<ProjectVendor[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -779,6 +784,53 @@ export class MemStorage implements IStorage {
   async deleteFloorPlan(id: string): Promise<boolean> {
     return this.floorPlans.delete(id);
   }
+
+  // Moodboards (stubs for MemStorage - not used in production)
+  async getAllMoodboards(assetType?: string): Promise<Moodboard[]> {
+    return [];
+  }
+
+  async getMoodboardsByProject(projectId: string, assetType?: string): Promise<Moodboard[]> {
+    return [];
+  }
+
+  async getGeneralMoodboards(assetType?: string): Promise<Moodboard[]> {
+    return [];
+  }
+
+  async getMoodboardsForUser(userId: string, role: string, projectId?: string, assetType?: string): Promise<Moodboard[]> {
+    return [];
+  }
+
+  async getMoodboard(id: string): Promise<Moodboard | undefined> {
+    return undefined;
+  }
+
+  async createMoodboard(moodboard: InsertMoodboard): Promise<Moodboard> {
+    throw new Error("MemStorage not supported for moodboards");
+  }
+
+  async updateMoodboard(id: string, moodboard: Partial<InsertMoodboard>): Promise<Moodboard | undefined> {
+    return undefined;
+  }
+
+  async deleteMoodboard(id: string): Promise<boolean> {
+    return false;
+  }
+
+  async getVendorsForUser(userId: string, role: string): Promise<Vendor[]> {
+    if (role === 'designer' || role === 'admin') {
+      return this.getAllVendors();
+    }
+    return [];
+  }
+
+  async getProjectVendorsForUser(userId: string, role: string): Promise<ProjectVendor[]> {
+    if (role === 'designer' || role === 'admin') {
+      return Array.from(this.projectVendors.values());
+    }
+    return [];
+  }
 }
 
 export class DBStorage implements IStorage {
@@ -1026,6 +1078,19 @@ export class DBStorage implements IStorage {
   }
 
   // Role-based access helper methods
+  // Private helper to get accessible project IDs for a user
+  private async getUserAccessibleProjects(userId: string): Promise<string[]> {
+    const user = await this.getUser(userId);
+    if (!user?.email) return [];
+    
+    // Get projects where user's email matches clientEmail
+    const userProjects = await db.select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.clientEmail, user.email));
+    
+    return userProjects.map(p => p.id);
+  }
+
   async getProjectsForUser(userId: string, role: string): Promise<Project[]> {
     if (role === 'designer' || role === 'admin') {
       // Designers and admins can access all projects
@@ -1423,6 +1488,86 @@ export class DBStorage implements IStorage {
   async deleteMoodboard(id: string): Promise<boolean> {
     const result = await db.delete(moodboards).where(eq(moodboards.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async getMoodboardsForUser(userId: string, role: string, projectId?: string, assetType?: string): Promise<Moodboard[]> {
+    if (role === 'designer' || role === 'admin') {
+      // Designers and admins can access all moodboards
+      const conditions = [];
+      if (projectId && projectId !== 'general') {
+        conditions.push(eq(moodboards.projectId, projectId));
+      } else if (projectId === 'general') {
+        conditions.push(isNull(moodboards.projectId));
+      }
+      if (assetType) {
+        conditions.push(eq(moodboards.assetType, assetType));
+      }
+      
+      if (conditions.length > 0) {
+        return await db.select().from(moodboards).where(and(...conditions)).orderBy(moodboards.uploadedAt);
+      }
+      return await db.select().from(moodboards).orderBy(moodboards.uploadedAt);
+    } else {
+      // Clients can only access moodboards for their accessible projects
+      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+      if (accessibleProjectIds.length === 0) {
+        return [];
+      }
+      
+      const conditions = [inArray(moodboards.projectId, accessibleProjectIds)];
+      if (projectId && projectId !== 'general') {
+        // Verify client has access to the specific project
+        if (!accessibleProjectIds.includes(projectId)) {
+          return [];
+        }
+        conditions.push(eq(moodboards.projectId, projectId));
+      }
+      if (assetType) {
+        conditions.push(eq(moodboards.assetType, assetType));
+      }
+      
+      return await db.select().from(moodboards).where(and(...conditions)).orderBy(moodboards.uploadedAt);
+    }
+  }
+
+  async getVendorsForUser(userId: string, role: string): Promise<Vendor[]> {
+    if (role === 'designer' || role === 'admin') {
+      // Designers and admins can access all vendors
+      return await db.select().from(vendors);
+    } else {
+      // Clients can only access vendors associated with their projects
+      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+      if (accessibleProjectIds.length === 0) {
+        return [];
+      }
+      
+      // Get vendors that are associated with the client's projects through project_vendors
+      const vendorIds = await db
+        .selectDistinct({ vendorId: projectVendors.vendorId })
+        .from(projectVendors)
+        .where(inArray(projectVendors.projectId, accessibleProjectIds));
+      
+      if (vendorIds.length === 0) {
+        return [];
+      }
+      
+      return await db.select().from(vendors).where(inArray(vendors.id, vendorIds.map(v => v.vendorId)));
+    }
+  }
+
+  async getProjectVendorsForUser(userId: string, role: string): Promise<ProjectVendor[]> {
+    if (role === 'designer' || role === 'admin') {
+      // Designers and admins can access all project vendors
+      return await db.select().from(projectVendors);
+    } else {
+      // Clients can only access project vendors for their accessible projects
+      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
+      if (accessibleProjectIds.length === 0) {
+        return [];
+      }
+      
+      return await db.select().from(projectVendors).where(inArray(projectVendors.projectId, accessibleProjectIds));
+    }
   }
 }
 

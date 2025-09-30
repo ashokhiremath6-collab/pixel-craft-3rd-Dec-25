@@ -496,7 +496,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Vendors Routes
   app.get("/api/vendors", requireAuth, async (req, res) => {
     try {
-      const vendors = await storage.getAllVendors();
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
+      
+      // Use role-based helper method for consistent access control
+      const vendors = await storage.getVendorsForUser(userId, userRole.role);
       res.json(vendors);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch vendors" });
@@ -505,7 +513,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/vendors-with-projects", requireAuth, async (req, res) => {
     try {
-      const vendorsWithProjects = await storage.getVendorsWithProjects();
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
+      
+      // Use role-based helper method to get filtered vendors
+      const vendors = await storage.getVendorsForUser(userId, userRole.role);
+      const projectVendors = await storage.getProjectVendorsForUser(userId, userRole.role);
+      
+      // Map vendors with their associated projects
+      const vendorsWithProjects = vendors.map(vendor => ({
+        ...vendor,
+        projects: projectVendors.filter(pv => pv.vendorId === vendor.id)
+      }));
+      
       res.json(vendorsWithProjects);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch vendors with projects" });
@@ -2662,21 +2686,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all moodboards (with optional project and assetType filters)
   app.get("/api/moodboards", requireAuth, async (req, res) => {
     try {
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
       const { projectId, assetType } = req.query;
       const validAssetType = typeof assetType === 'string' ? assetType : undefined;
+      const validProjectId = typeof projectId === 'string' ? projectId : undefined;
       
-      let moodboards;
-      if (projectId && typeof projectId === 'string') {
-        // Filter by specific project
-        moodboards = await storage.getMoodboardsByProject(projectId, validAssetType);
-      } else if (projectId === 'general') {
-        // Get general moodboards (not linked to any project)
-        moodboards = await storage.getGeneralMoodboards(validAssetType);
-      } else {
-        // Get all moodboards
-        moodboards = await storage.getAllMoodboards(validAssetType);
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
       }
       
+      // Use role-based helper method for consistent access control
+      const moodboards = await storage.getMoodboardsForUser(userId, userRole.role, validProjectId, validAssetType);
       res.json(moodboards);
     } catch (error) {
       console.error('Error fetching moodboards:', error);
