@@ -36,6 +36,8 @@ function Router() {
       <Route path="/templates/:id" component={TemplateViewPage} />
       <Route path="/import" component={ImportPage} />
       <Route path="/moodboards" component={MoodboardsPage} />
+      <Route path="/working-drawings" component={MoodboardsPage} />
+      <Route path="/renders" component={MoodboardsPage} />
       <Route path="/client-access" component={ClientAccessPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />

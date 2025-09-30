@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -15,6 +15,7 @@ import type { Moodboard, Project } from "@shared/schema";
 
 export default function MoodboardsPage() {
   const { toast } = useToast();
+  const [location] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -23,7 +24,120 @@ export default function MoodboardsPage() {
   const [canvaLink, setCanvaLink] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
   const [filterProjectId, setFilterProjectId] = useState<string>("all"); // For filtering display
-  const [activeTab, setActiveTab] = useState<string>("moodboard"); // Active asset type tab
+  
+  // Determine asset type based on route
+  const assetType = useMemo(() => {
+    if (location === "/working-drawings") return "working_drawing";
+    if (location === "/renders") return "render";
+    return "moodboard";
+  }, [location]);
+
+  // Dynamic labels based on asset type
+  const labels = useMemo(() => {
+    if (assetType === "working_drawing") {
+      return {
+        title: "Working Drawings",
+        description: "Upload and manage your technical drawings for client presentations",
+        uploadButton: "Upload Working Drawing",
+        linkLabel: "Upload Link",
+        emptyState: "No working drawings yet",
+        emptyStateDescription: "Upload your first working drawing to get started",
+        successTitle: "Working drawing uploaded",
+        successDescription: "Your working drawing has been added to your collection.",
+        deleteTitle: "Working drawing deleted",
+        deleteDescription: "Working drawing has been removed from your collection.",
+        uploadFailedTitle: "Upload failed",
+        deleteFailedTitle: "Delete failed",
+        dropzoneText: "Drop your working drawing here, or click to browse",
+        linkOnlyError: "Please enter a link",
+        linkAddedTitle: "Success",
+        linkAddedDescription: "Link added to working drawing",
+        updateFailedTitle: "Error",
+        updateFailedDescription: "Failed to update working drawing",
+        linkFieldLabel: "Upload Link",
+        linkFieldPlaceholder: "https://...",
+        linkFieldDescription: "Paste your design link here",
+        saveOnlyLinkButton: "Save Link Only",
+        listMetadataText: "Design",
+        viewLinkText: "View Design",
+        loadingText: "Loading your working drawings...",
+        uploadDescription: "Upload images (JPEG, PNG, SVG, WebP) or PDFs",
+        invalidFileTypeTitle: "Invalid file type",
+        invalidFileTypeDescription: "Please upload images (JPEG, PNG, SVG, WebP) or PDFs.",
+        fileTooLargeTitle: "File too large",
+        fileTooLargeDescription: "Please select a file smaller than 10MB.",
+        descriptionPlaceholder: "Describe this working drawing...",
+      };
+    }
+    if (assetType === "render") {
+      return {
+        title: "Renders",
+        description: "Upload and manage your rendered visuals for client presentations",
+        uploadButton: "Upload Render",
+        linkLabel: "Upload Link",
+        emptyState: "No renders yet",
+        emptyStateDescription: "Upload your first render to get started",
+        successTitle: "Render uploaded",
+        successDescription: "Your render has been added to your collection.",
+        deleteTitle: "Render deleted",
+        deleteDescription: "Render has been removed from your collection.",
+        uploadFailedTitle: "Upload failed",
+        deleteFailedTitle: "Delete failed",
+        dropzoneText: "Drop your render here, or click to browse",
+        linkOnlyError: "Please enter a link",
+        linkAddedTitle: "Success",
+        linkAddedDescription: "Link added to render",
+        updateFailedTitle: "Error",
+        updateFailedDescription: "Failed to update render",
+        linkFieldLabel: "Upload Link",
+        linkFieldPlaceholder: "https://...",
+        linkFieldDescription: "Paste your design link here",
+        saveOnlyLinkButton: "Save Link Only",
+        listMetadataText: "Design",
+        viewLinkText: "View Design",
+        loadingText: "Loading your renders...",
+        uploadDescription: "Upload images (JPEG, PNG, SVG, WebP) or PDFs",
+        invalidFileTypeTitle: "Invalid file type",
+        invalidFileTypeDescription: "Please upload images (JPEG, PNG, SVG, WebP) or PDFs.",
+        fileTooLargeTitle: "File too large",
+        fileTooLargeDescription: "Please select a file smaller than 10MB.",
+        descriptionPlaceholder: "Describe this render...",
+      };
+    }
+    return {
+      title: "Moodboards",
+      description: "Upload and manage your creative assets from Canva for client presentations",
+      uploadButton: "Upload Moodboard",
+      linkLabel: "Canva Link",
+      emptyState: "No moodboards yet",
+      emptyStateDescription: "Upload your first moodboard from Canva to get started",
+      successTitle: "Moodboard uploaded",
+      successDescription: "Your moodboard has been added to your collection.",
+      deleteTitle: "Moodboard deleted",
+      deleteDescription: "Moodboard has been removed from your collection.",
+      uploadFailedTitle: "Upload failed",
+      deleteFailedTitle: "Delete failed",
+      dropzoneText: "Drop your moodboard here, or click to browse",
+      linkOnlyError: "Please enter a Canva link",
+      linkAddedTitle: "Success",
+      linkAddedDescription: "Canva link added to moodboard",
+      updateFailedTitle: "Error",
+      updateFailedDescription: "Failed to update moodboard",
+      linkFieldLabel: "Canva Link",
+      linkFieldPlaceholder: "https://www.canva.com/design/...",
+      linkFieldDescription: "Paste your Canva design link here",
+      saveOnlyLinkButton: "Save Canva Link Only",
+      listMetadataText: "Canva Design",
+      viewLinkText: "View Canva Design",
+      loadingText: "Loading your moodboards...",
+      uploadDescription: "Upload images (JPEG, PNG, SVG, WebP) or PDFs exported from Canva",
+      invalidFileTypeTitle: "Invalid file type",
+      invalidFileTypeDescription: "Please upload images (JPEG, PNG, SVG, WebP) or PDFs from Canva.",
+      fileTooLargeTitle: "File too large",
+      fileTooLargeDescription: "Please select a file smaller than 10MB.",
+      descriptionPlaceholder: "Describe this moodboard...",
+    };
+  }, [assetType]);
 
   // Fetch projects for selection
   const { data: projects = [] } = useQuery<Project[]>({
@@ -32,13 +146,13 @@ export default function MoodboardsPage() {
 
   // Fetch moodboards from backend (with optional project and assetType filters)
   const { data: moodboards = [], isLoading } = useQuery({
-    queryKey: ["/api/moodboards", filterProjectId !== "all" ? { projectId: filterProjectId } : {}, activeTab],
+    queryKey: ["/api/moodboards", filterProjectId !== "all" ? { projectId: filterProjectId } : {}, assetType],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filterProjectId !== "all") {
         params.append("projectId", filterProjectId);
       }
-      params.append("assetType", activeTab);
+      params.append("assetType", assetType);
       
       const url = `/api/moodboards?${params.toString()}`;
       const response = await fetch(url, { credentials: "include" });
@@ -72,14 +186,14 @@ export default function MoodboardsPage() {
         fileInputRef.current.value = "";
       }
       toast({
-        title: "Moodboard uploaded",
-        description: "Your moodboard has been added to your collection.",
+        title: labels.successTitle,
+        description: labels.successDescription,
       });
     },
     onError: (error: Error) => {
       toast({
         variant: "destructive",
-        title: "Upload failed",
+        title: labels.uploadFailedTitle,
         description: error.message,
       });
     },
@@ -93,14 +207,14 @@ export default function MoodboardsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
       toast({
-        title: "Moodboard deleted",
-        description: "Moodboard has been removed from your collection.",
+        title: labels.deleteTitle,
+        description: labels.deleteDescription,
       });
     },
     onError: (error: Error) => {
       toast({
         variant: "destructive",
-        title: "Delete failed",
+        title: labels.deleteFailedTitle,
         description: error.message,
       });
     },
@@ -117,8 +231,8 @@ export default function MoodboardsPage() {
     if (!allowedTypes.includes(file.type)) {
       toast({
         variant: "destructive",
-        title: "Invalid file type",
-        description: "Please upload images (JPEG, PNG, SVG, WebP) or PDFs from Canva.",
+        title: labels.invalidFileTypeTitle,
+        description: labels.invalidFileTypeDescription,
       });
       return;
     }
@@ -127,8 +241,8 @@ export default function MoodboardsPage() {
     if (file.size > 10 * 1024 * 1024) {
       toast({
         variant: "destructive", 
-        title: "File too large",
-        description: "Please select a file smaller than 10MB.",
+        title: labels.fileTooLargeTitle,
+        description: labels.fileTooLargeDescription,
       });
       return;
     }
@@ -172,7 +286,7 @@ export default function MoodboardsPage() {
     
     const formData = new FormData();
     formData.append("moodboard", selectedFile);
-    formData.append("assetType", activeTab); // Add asset type
+    formData.append("assetType", assetType); // Add asset type
     if (description.trim()) {
       formData.append("description", description.trim());
     }
@@ -198,14 +312,14 @@ export default function MoodboardsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
       setCanvaLink("");
       toast({
-        title: "Success",
-        description: "Canva link added to moodboard",
+        title: labels.linkAddedTitle,
+        description: labels.linkAddedDescription,
       });
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to update moodboard",
+        title: labels.updateFailedTitle,
+        description: labels.updateFailedDescription,
         variant: "destructive",
       });
     },
@@ -221,8 +335,8 @@ export default function MoodboardsPage() {
   const handleSaveCanvaLinkOnly = async () => {
     if (!canvaLink.trim()) {
       toast({
-        title: "Error",
-        description: "Please enter a Canva link",
+        title: labels.updateFailedTitle,
+        description: labels.linkOnlyError,
         variant: "destructive",
       });
       return;
@@ -231,7 +345,7 @@ export default function MoodboardsPage() {
     const formData = new FormData();
     formData.append("canvaLink", canvaLink.trim());
     formData.append("linkOnly", "true");
-    formData.append("assetType", activeTab); // Add asset type
+    formData.append("assetType", assetType); // Add asset type
     
     if (selectedProjectId && selectedProjectId !== "general") {
       formData.append("projectId", selectedProjectId);
@@ -269,28 +383,16 @@ export default function MoodboardsPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Get dynamic title based on active tab
-  const getTabTitle = () => {
-    switch (activeTab) {
-      case "working_drawing":
-        return "Working Drawings";
-      case "render":
-        return "Renders";
-      default:
-        return "Moodboards";
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold" data-testid="heading-moodboards">
-            {getTabTitle()}
+            {labels.title}
           </h1>
           <p className="text-muted-foreground">
-            Upload and manage your creative assets from Canva for client presentations
+            {labels.description}
           </p>
         </div>
         
@@ -316,21 +418,12 @@ export default function MoodboardsPage() {
         </div>
       </div>
 
-      {/* Tabs for Asset Types */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="moodboard" data-testid="tab-moodboards">Moodboards</TabsTrigger>
-          <TabsTrigger value="working_drawing" data-testid="tab-working-drawings">Working Drawings</TabsTrigger>
-          <TabsTrigger value="render" data-testid="tab-renders">Renders</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value={activeTab} className="mt-6 space-y-6">
-          {/* Loading State */}
+      {/* Loading State */}
       {isLoading && (
         <Card>
           <CardContent className="text-center py-12">
             <Loader2 className="h-8 w-8 mx-auto mb-4 animate-spin" />
-            <p className="text-muted-foreground">Loading your moodboards...</p>
+            <p className="text-muted-foreground">{labels.loadingText}</p>
           </CardContent>
         </Card>
       )}
@@ -339,9 +432,9 @@ export default function MoodboardsPage() {
       {!isLoading && moodboards.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Your Moodboards ({moodboards.length})</CardTitle>
+            <CardTitle>{labels.title} ({moodboards.length})</CardTitle>
             <CardDescription>
-              Manage your uploaded moodboard collection
+              Manage your uploaded collection
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -354,7 +447,7 @@ export default function MoodboardsPage() {
                       {getProjectName(moodboard.projectId)}
                     </h3>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span>Canva Design</span>
+                      <span>{labels.listMetadataText}</span>
                       <span>•</span>
                       <span>{new Date(moodboard.uploadedAt).toLocaleDateString()}</span>
                     </div>
@@ -368,7 +461,7 @@ export default function MoodboardsPage() {
                         data-testid={`link-canva-${moodboard.id}`}
                       >
                         <ExternalLink className="h-3 w-3" />
-                        <span>View Canva Design</span>
+                        <span>{labels.viewLinkText}</span>
                       </a>
                     )}
                   </div>
@@ -412,9 +505,9 @@ export default function MoodboardsPage() {
         <Card>
           <CardContent className="text-center py-12">
             <ImageIcon className="h-16 w-16 mx-auto mb-4 opacity-50" />
-            <h3 className="text-lg font-medium mb-2">No moodboards yet</h3>
+            <h3 className="text-lg font-medium mb-2">{labels.emptyState}</h3>
             <p className="text-muted-foreground mb-4">
-              Upload your first moodboard from Canva to get started
+              {labels.emptyStateDescription}
             </p>
           </CardContent>
         </Card>
@@ -425,10 +518,10 @@ export default function MoodboardsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
-            Upload Moodboard
+            {labels.uploadButton}
           </CardTitle>
           <CardDescription>
-            Upload images (JPEG, PNG, SVG, WebP) or PDFs exported from Canva
+            {labels.uploadDescription}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -447,7 +540,7 @@ export default function MoodboardsPage() {
             data-testid="dropzone-moodboard"
           >
             <p className="text-lg font-medium mb-2">
-              Drop your moodboard here, or click to browse
+              {labels.dropzoneText}
             </p>
             <p className="text-sm text-muted-foreground">
               Support for JPEG, PNG, SVG, WebP, and PDF files up to 10MB
@@ -466,17 +559,17 @@ export default function MoodboardsPage() {
           {/* Always visible Canva Link field */}
           <div className="space-y-4 p-4 border rounded-lg bg-muted/10">
             <div className="space-y-2">
-              <Label htmlFor="canva-link-always">Canva Link</Label>
+              <Label htmlFor="canva-link-always">{labels.linkFieldLabel}</Label>
               <Input
                 id="canva-link-always"
                 type="url"
-                placeholder="https://www.canva.com/design/..."
+                placeholder={labels.linkFieldPlaceholder}
                 value={canvaLink}
                 onChange={(e) => setCanvaLink(e.target.value)}
                 data-testid="input-canva-link-always"
               />
               <p className="text-xs text-muted-foreground">
-                Paste your Canva design link here
+                {labels.linkFieldDescription}
               </p>
               
               {/* Show save/create options when there's a Canva link but no file selected */}
@@ -511,7 +604,7 @@ export default function MoodboardsPage() {
                         Saving...
                       </>
                     ) : (
-                      "Save Canva Link"
+                      labels.saveOnlyLinkButton
                     )}
                   </Button>
                 </div>
@@ -551,7 +644,7 @@ export default function MoodboardsPage() {
                 <Label htmlFor="description">Description (Optional)</Label>
                 <Textarea
                   id="description"
-                  placeholder="Describe this moodboard (e.g., 'Living room concept - modern minimalist')"
+                  placeholder={labels.descriptionPlaceholder}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   data-testid="input-description"
@@ -590,11 +683,11 @@ export default function MoodboardsPage() {
 
               {/* Canva Link */}
               <div className="space-y-2">
-                <Label htmlFor="canva-link">Canva Link (Optional)</Label>
+                <Label htmlFor="canva-link">{labels.linkLabel} (Optional)</Label>
                 <Input
                   id="canva-link"
                   type="url"
-                  placeholder="https://www.canva.com/design/..."
+                  placeholder={labels.linkFieldPlaceholder}
                   value={canvaLink}
                   onChange={(e) => setCanvaLink(e.target.value)}
                   data-testid="input-canva-link"
@@ -614,15 +707,13 @@ export default function MoodboardsPage() {
                     Uploading...
                   </>
                 ) : (
-                  "Upload Moodboard"
+                  labels.uploadButton
                 )}
               </Button>
             </div>
           )}
         </CardContent>
       </Card>
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }

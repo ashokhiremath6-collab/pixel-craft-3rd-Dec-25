@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -53,6 +53,16 @@ const mainItems: NavigationItem[] = [
     title: "Moodboards",
     url: "/moodboards",
     icon: ImageIcon,
+  },
+  {
+    title: "Working Drawings",
+    url: "/working-drawings",
+    icon: PenTool,
+  },
+  {
+    title: "Renders",
+    url: "/renders",
+    icon: Sparkles,
   },
 ];
 
