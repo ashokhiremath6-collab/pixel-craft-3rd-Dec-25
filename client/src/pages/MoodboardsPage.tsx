@@ -296,6 +296,122 @@ export default function MoodboardsPage() {
         </div>
       </div>
 
+      {/* Loading State */}
+      {isLoading && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Loader2 className="h-8 w-8 mx-auto mb-4 animate-spin" />
+            <p className="text-muted-foreground">Loading your moodboards...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Uploaded Moodboards */}
+      {!isLoading && moodboards.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Your Moodboards ({moodboards.length})</CardTitle>
+            <CardDescription>
+              Manage your uploaded moodboard collection
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {moodboards.map((moodboard: Moodboard) => (
+                <div key={moodboard.id} className="flex items-center gap-4 p-4 border rounded-lg hover-elevate">
+                  {/* Icon/Preview */}
+                  <div className="flex-shrink-0">
+                    {getPreviewUrl(moodboard) ? (
+                      <div className="w-16 h-16 rounded overflow-hidden">
+                        <img 
+                          src={getPreviewUrl(moodboard)!} 
+                          alt={moodboard.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : moodboard.canvaLink && !moodboard.filePath ? (
+                      <div className="w-16 h-16 rounded bg-primary/10 flex items-center justify-center">
+                        <ExternalLink className="h-8 w-8 text-primary" />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded bg-muted flex items-center justify-center">
+                        <FileText className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-bold truncate" title={getProjectName(moodboard.projectId)}>
+                      {getProjectName(moodboard.projectId)}
+                    </h3>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>Canva Design</span>
+                      <span>•</span>
+                      <span>{new Date(moodboard.uploadedAt).toLocaleDateString()}</span>
+                    </div>
+                    
+                    {moodboard.canvaLink && (
+                      <a
+                        href={moodboard.canvaLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
+                        data-testid={`link-canva-${moodboard.id}`}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        <span>View Canva Design</span>
+                      </a>
+                    )}
+                  </div>
+                  
+                  {/* Actions */}
+                  <div className="flex items-center gap-2">
+                    {getPreviewUrl(moodboard) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => window.open(getPreviewUrl(moodboard)!, '_blank')}
+                        data-testid={`button-view-${moodboard.id}`}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-600 hover:text-red-700"
+                      onClick={() => deleteMoodboard(moodboard.id)}
+                      disabled={deleteMutation.isPending}
+                      data-testid={`button-delete-${moodboard.id}`}
+                    >
+                      {deleteMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {!isLoading && moodboards.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <ImageIcon className="h-16 w-16 mx-auto mb-4 opacity-50" />
+            <h3 className="text-lg font-medium mb-2">No moodboards yet</h3>
+            <p className="text-muted-foreground mb-4">
+              Upload your first moodboard from Canva to get started
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Upload Section */}
       <Card>
         <CardHeader>
@@ -497,122 +613,6 @@ export default function MoodboardsPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Loading State */}
-      {isLoading && (
-        <Card>
-          <CardContent className="text-center py-12">
-            <Loader2 className="h-8 w-8 mx-auto mb-4 animate-spin" />
-            <p className="text-muted-foreground">Loading your moodboards...</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Uploaded Moodboards */}
-      {!isLoading && moodboards.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Moodboards ({moodboards.length})</CardTitle>
-            <CardDescription>
-              Manage your uploaded moodboard collection
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {moodboards.map((moodboard: Moodboard) => (
-                <div key={moodboard.id} className="flex items-center gap-4 p-4 border rounded-lg hover-elevate">
-                  {/* Icon/Preview */}
-                  <div className="flex-shrink-0">
-                    {getPreviewUrl(moodboard) ? (
-                      <div className="w-16 h-16 rounded overflow-hidden">
-                        <img 
-                          src={getPreviewUrl(moodboard)!} 
-                          alt={moodboard.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ) : moodboard.canvaLink && !moodboard.filePath ? (
-                      <div className="w-16 h-16 rounded bg-primary/10 flex items-center justify-center">
-                        <ExternalLink className="h-8 w-8 text-primary" />
-                      </div>
-                    ) : (
-                      <div className="w-16 h-16 rounded bg-muted flex items-center justify-center">
-                        <FileText className="h-8 w-8 text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-bold truncate" title={getProjectName(moodboard.projectId)}>
-                      {getProjectName(moodboard.projectId)}
-                    </h3>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span>Canva Design</span>
-                      <span>•</span>
-                      <span>{new Date(moodboard.uploadedAt).toLocaleDateString()}</span>
-                    </div>
-                    
-                    {moodboard.canvaLink && (
-                      <a
-                        href={moodboard.canvaLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
-                        data-testid={`link-canva-${moodboard.id}`}
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        <span>View Canva Design</span>
-                      </a>
-                    )}
-                  </div>
-                  
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
-                    {getPreviewUrl(moodboard) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => window.open(getPreviewUrl(moodboard)!, '_blank')}
-                        data-testid={`button-view-${moodboard.id}`}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-600 hover:text-red-700"
-                      onClick={() => deleteMoodboard(moodboard.id)}
-                      disabled={deleteMutation.isPending}
-                      data-testid={`button-delete-${moodboard.id}`}
-                    >
-                      {deleteMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
-      {!isLoading && moodboards.length === 0 && (
-        <Card>
-          <CardContent className="text-center py-12">
-            <ImageIcon className="h-16 w-16 mx-auto mb-4 opacity-50" />
-            <h3 className="text-lg font-medium mb-2">No moodboards yet</h3>
-            <p className="text-muted-foreground mb-4">
-              Upload your first moodboard from Canva to get started
-            </p>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
