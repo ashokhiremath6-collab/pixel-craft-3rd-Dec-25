@@ -175,10 +175,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { filename } = req.params;
       
       // Prevent path traversal attacks - validate filename
-      if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      if (!filename || filename.includes('..') || filename.includes('\\')) {
         return res.status(400).json({ error: 'Invalid filename' });
       }
       
+      // First, try to find the file in the database to get the actual path
+      const allProjectVendors = await storage.getAllProjectVendors();
+      const projectVendor = allProjectVendors.find(pv => 
+        pv.quotationFile && pv.quotationFile.includes(filename)
+      );
+      
+      const allQuoteFiles = await storage.getAllQuoteFiles();
+      const quoteFile = allQuoteFiles.find(qf => 
+        qf.filePath && qf.filePath.includes(filename)
+      );
+      
+      const actualPath = projectVendor?.quotationFile || quoteFile?.filePath;
+      
+      // If we found a database record with an object storage path, serve from object storage
+      if (actualPath && actualPath.startsWith('/objects/')) {
+        const objectStorageService = new ObjectStorageService();
+        try {
+          const objectFile = await objectStorageService.getObjectEntityFile(actualPath);
+          const userId = (req.user as any).claims.sub;
+          const canAccess = await objectStorageService.canAccessObjectEntity({
+            objectFile,
+            userId: userId,
+            requestedPermission: ObjectPermission.READ,
+          });
+          if (canAccess) {
+            return await objectStorageService.downloadObject(objectFile, res);
+          } else {
+            return res.status(403).json({ error: 'Access denied' });
+          }
+        } catch (error) {
+          console.error('Error accessing object storage:', error);
+          if (error instanceof ObjectNotFoundError) {
+            return res.status(404).json({ error: 'File not found in object storage' });
+          }
+          throw error;
+        }
+      }
+      
+      // Fall back to local filesystem for legacy files
       const uploadsDir = path.join(process.cwd(), 'uploads');
       const filePath = path.join(uploadsDir, filename);
       
@@ -258,10 +297,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { filename } = req.params;
       
       // Prevent path traversal attacks - validate filename
-      if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      if (!filename || filename.includes('..') || filename.includes('\\')) {
         return res.status(400).json({ error: 'Invalid filename' });
       }
       
+      // Look up the actual file path from the database
+      const allFloorPlans = await storage.getAllFloorPlans();
+      const floorPlan = allFloorPlans.find(fp => 
+        fp.filePath && fp.filePath.includes(filename)
+      );
+      
+      const actualPath = floorPlan?.filePath;
+      
+      // If we found a database record with an object storage path, serve from object storage
+      if (actualPath && actualPath.startsWith('/objects/')) {
+        const objectStorageService = new ObjectStorageService();
+        try {
+          const objectFile = await objectStorageService.getObjectEntityFile(actualPath);
+          const userId = (req.user as any).claims.sub;
+          const canAccess = await objectStorageService.canAccessObjectEntity({
+            objectFile,
+            userId: userId,
+            requestedPermission: ObjectPermission.READ,
+          });
+          if (canAccess) {
+            return await objectStorageService.downloadObject(objectFile, res);
+          } else {
+            return res.status(403).json({ error: 'Access denied' });
+          }
+        } catch (error) {
+          console.error('Error accessing object storage:', error);
+          if (error instanceof ObjectNotFoundError) {
+            return res.status(404).json({ error: 'Floor plan not found in object storage' });
+          }
+          throw error;
+        }
+      }
+      
+      // Fall back to local filesystem for legacy files
       const floorPlansDir = path.join(process.cwd(), 'uploads', 'floor-plans');
       const filePath = path.join(floorPlansDir, filename);
       
@@ -341,10 +414,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { filename } = req.params;
       
       // Prevent path traversal attacks - validate filename
-      if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      if (!filename || filename.includes('..') || filename.includes('\\')) {
         return res.status(400).json({ error: 'Invalid filename' });
       }
       
+      // Look up the actual file path from the database
+      const allMoodboards = await storage.getAllMoodboards();
+      const moodboard = allMoodboards.find(mb => 
+        mb.filePath && mb.filePath.includes(filename)
+      );
+      
+      const actualPath = moodboard?.filePath;
+      
+      // If we found a database record with an object storage path, serve from object storage
+      if (actualPath && actualPath.startsWith('/objects/')) {
+        const objectStorageService = new ObjectStorageService();
+        try {
+          const objectFile = await objectStorageService.getObjectEntityFile(actualPath);
+          const userId = (req.user as any).claims.sub;
+          const canAccess = await objectStorageService.canAccessObjectEntity({
+            objectFile,
+            userId: userId,
+            requestedPermission: ObjectPermission.READ,
+          });
+          if (canAccess) {
+            return await objectStorageService.downloadObject(objectFile, res);
+          } else {
+            return res.status(403).json({ error: 'Access denied' });
+          }
+        } catch (error) {
+          console.error('Error accessing object storage:', error);
+          if (error instanceof ObjectNotFoundError) {
+            return res.status(404).json({ error: 'Moodboard not found in object storage' });
+          }
+          throw error;
+        }
+      }
+      
+      // Fall back to local filesystem for legacy files
       const moodboardsDir = path.join(process.cwd(), 'uploads', 'moodboards');
       const filePath = path.join(moodboardsDir, filename);
       
@@ -1316,12 +1423,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
   };
 
-  // Helper function to parse Excel/CSV/PDF files
-  const parseQuoteFile = async (filePath: string, mimeType: string) => {
+  // Helper function to parse Excel/CSV/PDF files from buffer
+  const parseQuoteFile = async (fileBuffer: Buffer, mimeType: string, fileName?: string) => {
     try {
       if (mimeType.includes('csv')) {
-        // Parse CSV file
-        const csvData = fs.readFileSync(filePath, 'utf8');
+        // Parse CSV file from buffer
+        const csvData = fileBuffer.toString('utf8');
         const parsed = Papa.parse(csvData, {
           header: true,
           skipEmptyLines: true,
@@ -1329,9 +1436,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return parsed.data;
       } else if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) {
-        // Parse Excel file - use fs.readFileSync + XLSX.read for ESM compatibility
-        const buffer = fs.readFileSync(filePath);
-        const workbook = XLSX.read(buffer);
+        // Parse Excel file from buffer
+        const workbook = XLSX.read(fileBuffer);
         const sheetName = workbook.SheetNames[0]; // Use first sheet
         const worksheet = workbook.Sheets[sheetName];
         const data = XLSX.utils.sheet_to_json(worksheet, {
@@ -1352,10 +1458,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           return obj;
         }).filter(row => Object.values(row).some(val => val !== ''));
-      } else if (mimeType.includes('pdf') || filePath.toLowerCase().endsWith('.pdf')) {
-        // Parse PDF file
-        const pdfBuffer = fs.readFileSync(filePath);
-        const pdfData = await pdfParse(pdfBuffer);
+      } else if (mimeType.includes('pdf') || (fileName && fileName.toLowerCase().endsWith('.pdf'))) {
+        // Parse PDF file from buffer
+        const pdfData = await pdfParse(fileBuffer);
         const text = pdfData.text;
         
         // Extract quote information using pattern matching
@@ -1533,8 +1638,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Vendor not found" });
       }
 
-      // Parse the uploaded file
-      const data = await parseQuoteFile(req.file.path, req.file.mimetype);
+      // Parse the uploaded file from buffer
+      const data = await parseQuoteFile(req.file.buffer, req.file.mimetype, req.file.originalname);
       
       if (!data || data.length === 0) {
         return res.status(400).json({ error: "No valid data found in file" });
@@ -1571,12 +1676,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process the quote import (no conflict)
       const results = await processQuoteImport(data, projectId, vendorId);
       
-      // Store file information - keep the uploaded file
-      const filePath = `/uploads/${req.file.filename}`;
+      // Upload file to object storage
+      const userId = (req.user as any).claims.sub;
+      const objectPath = await uploadToObjectStorage(
+        req.file.buffer,
+        req.file.originalname,
+        userId,
+        req.file.mimetype
+      );
+      
+      // Store file information
       const quoteFileData = {
         projectVendorId: results.projectVendor.id,
         fileName: req.file.originalname,
-        filePath: filePath,
+        filePath: objectPath,
         fileType: path.extname(req.file.originalname).toLowerCase(),
         fileSize: req.file.size.toString()
       };
@@ -1585,11 +1698,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Update project vendor with file path
       await storage.updateProjectVendor(results.projectVendor.id, {
-        quotationFile: filePath
+        quotationFile: objectPath
       });
 
-      // Don't delete the file - keep it for viewing
-      console.log(`Stored quote file at: ${filePath}`);
+      console.log(`Stored quote file at object storage: ${objectPath}`);
 
       res.status(201).json({
         message: "Quote imported successfully",
@@ -1602,15 +1714,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error('Quote import error:', error);
-      
-      // Clean up temporary file if it exists
-      if (req.file?.path) {
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (e) {
-          console.warn('Failed to clean up temporary file:', e);
-        }
-      }
       
       res.status(500).json({ 
         error: "Failed to import quote",
@@ -1736,12 +1839,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Template processing functions
-  const parseTemplateFile = async (filePath: string, mimeType: string): Promise<any[]> => {
+  const parseTemplateFile = async (fileBuffer: Buffer, mimeType: string): Promise<any[]> => {
     try {
       if (mimeType.includes('excel') || mimeType.includes('sheet')) {
-        // Parse Excel file - use fs.readFileSync + XLSX.read for ESM compatibility
-        const buffer = fs.readFileSync(filePath);
-        const workbook = XLSX.read(buffer, { cellText: false, cellDates: true });
+        // Parse Excel file from buffer
+        const workbook = XLSX.read(fileBuffer, { cellText: false, cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         
@@ -1781,8 +1883,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('Parsed Excel data:', JSON.stringify(jsonData.slice(0, 2), null, 2));
         return jsonData;
       } else if (mimeType.includes('csv')) {
-        // Parse CSV file
-        const csvData = fs.readFileSync(filePath, 'utf8');
+        // Parse CSV file from buffer
+        const csvData = fileBuffer.toString('utf8');
         const parsed = Papa.parse(csvData, { header: true, skipEmptyLines: true });
         return parsed.data as any[];
       }
@@ -1842,7 +1944,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Template Import Routes
   app.post("/api/quote-templates/import", requireAdmin, upload.single('templateFile'), async (req, res) => {
-    let tempFilePath: string | undefined;
     let statusCode = 500;
     let responseData: any = { error: "Failed to import template" };
 
@@ -1853,7 +1954,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      tempFilePath = req.file.path;
       const { categoryId } = req.body;
       
       if (!categoryId) {
@@ -1871,8 +1971,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      // Parse the uploaded file
-      const data = await parseTemplateFile(req.file.path, req.file.mimetype);
+      // Parse the uploaded file from buffer
+      const data = await parseTemplateFile(req.file.buffer, req.file.mimetype);
       
       if (!data || data.length === 0) {
         statusCode = 400;
@@ -1880,9 +1980,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      // Get raw Excel data for spreadsheet storage
-      const buffer = fs.readFileSync(req.file.path);
-      const workbook = XLSX.read(buffer);
+      // Get raw Excel data for spreadsheet storage from buffer
+      const workbook = XLSX.read(req.file.buffer);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const rawExcelData = XLSX.utils.sheet_to_json(worksheet, { 
         header: 1, 
@@ -1891,7 +1990,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Store original file data as Base64 for downloads
-      const originalFileData = buffer.toString('base64');
+      const originalFileData = req.file.buffer.toString('base64');
       const originalFileName = req.file.originalname;
       const originalMimeType = req.file.mimetype;
 
@@ -1922,15 +2021,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         details: error instanceof Error ? error.message : 'Unknown error'
       };
     } finally {
-      // Guaranteed cleanup of temporary file
-      if (tempFilePath) {
-        try {
-          fs.unlinkSync(tempFilePath);
-        } catch (e) {
-          console.warn('Failed to clean up temporary file:', e);
-        }
-      }
-      
       // Send response
       res.status(statusCode).json(responseData);
     }
