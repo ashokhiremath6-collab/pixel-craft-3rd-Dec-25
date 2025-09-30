@@ -322,7 +322,6 @@ export default function MoodboardsPage() {
             onClick={() => fileInputRef.current?.click()}
             data-testid="dropzone-moodboard"
           >
-            <ImageIcon className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
             <p className="text-lg font-medium mb-2">
               Drop your moodboard here, or click to browse
             </p>
@@ -550,7 +549,7 @@ export default function MoodboardsPage() {
                   {/* Info */}
                   <div className="p-4 space-y-2">
                     <div className="space-y-1">
-                      <h3 className="font-medium truncate" title={moodboard.name}>
+                      <h3 className="font-bold truncate" title={moodboard.name}>
                         {moodboard.name}
                       </h3>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
