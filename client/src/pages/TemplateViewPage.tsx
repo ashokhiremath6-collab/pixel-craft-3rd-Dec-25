@@ -274,22 +274,24 @@ export default function TemplateViewPage() {
           
           {/* Empty State - but if template has original file, show Excel button prominently */}
           {!hasSpreadsheetData && !hasLegacyFields && (
-            <div className="text-center py-6">
-              <FileSpreadsheet className="h-12 w-12 mx-auto mb-3 text-primary opacity-70" />
-              <h3 className="text-base font-medium mb-1">View Template in Excel</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                {template.originalFileName 
-                  ? "This template is best viewed in Excel for proper formatting and full content." 
-                  : "This template doesn't have any data to preview."}
-              </p>
-              <Button 
-                variant="default"
-                onClick={handleDownloadExcel}
-                data-testid="button-download-empty-template"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Open in Excel
-              </Button>
+            <div className="flex justify-center py-6">
+              <div className="text-center w-1/2">
+                <FileSpreadsheet className="h-12 w-12 mx-auto mb-3 text-primary opacity-70" />
+                <h3 className="text-base font-medium mb-1">View Template in Excel</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {template.originalFileName 
+                    ? "This template is best viewed in Excel for proper formatting and full content." 
+                    : "This template doesn't have any data to preview."}
+                </p>
+                <Button 
+                  variant="default"
+                  onClick={handleDownloadExcel}
+                  data-testid="button-download-empty-template"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Open in Excel
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
