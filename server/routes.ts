@@ -2659,21 +2659,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== MOODBOARDS ROUTES ====================
 
-  // Get all moodboards (with optional project filter)
+  // Get all moodboards (with optional project and assetType filters)
   app.get("/api/moodboards", requireAuth, async (req, res) => {
     try {
-      const { projectId } = req.query;
+      const { projectId, assetType } = req.query;
+      const validAssetType = typeof assetType === 'string' ? assetType : undefined;
       
       let moodboards;
       if (projectId && typeof projectId === 'string') {
         // Filter by specific project
-        moodboards = await storage.getMoodboardsByProject(projectId);
+        moodboards = await storage.getMoodboardsByProject(projectId, validAssetType);
       } else if (projectId === 'general') {
         // Get general moodboards (not linked to any project)
-        moodboards = await storage.getGeneralMoodboards();
+        moodboards = await storage.getGeneralMoodboards(validAssetType);
       } else {
         // Get all moodboards
-        moodboards = await storage.getAllMoodboards();
+        moodboards = await storage.getAllMoodboards(validAssetType);
       }
       
       res.json(moodboards);
@@ -2701,7 +2702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload new moodboard
   app.post("/api/moodboards", requireAuth, uploadMoodboard.single('moodboard'), async (req, res) => {
     try {
-      const { description, tags, projectId, canvaLink, linkOnly } = req.body;
+      const { description, tags, projectId, canvaLink, linkOnly, assetType } = req.body;
       
       // Check if this is a Canva link-only upload (no file)
       const isLinkOnly = linkOnly === 'true';
@@ -2739,6 +2740,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const moodboardData = isLinkOnly ? {
         projectId: validatedProjectId,
+        assetType: assetType || 'moodboard',
         name: `Canva Design - ${new Date().toLocaleDateString()}`,
         description: description || null,
         fileName: null,
@@ -2749,6 +2751,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         canvaLink: canvaLink.trim()
       } : {
         projectId: validatedProjectId,
+        assetType: assetType || 'moodboard',
         name: req.file!.originalname,
         description: description || null,
         fileName: req.file!.originalname,
