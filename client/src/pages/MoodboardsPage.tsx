@@ -318,28 +318,7 @@ export default function MoodboardsPage() {
           <CardContent>
             <div className="space-y-3">
               {moodboards.map((moodboard: Moodboard) => (
-                <div key={moodboard.id} className="flex items-center gap-4 p-4 border rounded-lg hover-elevate">
-                  {/* Icon/Preview */}
-                  <div className="flex-shrink-0">
-                    {getPreviewUrl(moodboard) ? (
-                      <div className="w-16 h-16 rounded overflow-hidden">
-                        <img 
-                          src={getPreviewUrl(moodboard)!} 
-                          alt={moodboard.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ) : moodboard.canvaLink && !moodboard.filePath ? (
-                      <div className="w-16 h-16 rounded bg-primary/10 flex items-center justify-center">
-                        <ExternalLink className="h-8 w-8 text-primary" />
-                      </div>
-                    ) : (
-                      <div className="w-16 h-16 rounded bg-muted flex items-center justify-center">
-                        <FileText className="h-8 w-8 text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
-                  
+                <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate">
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-bold truncate" title={getProjectName(moodboard.projectId)}>
