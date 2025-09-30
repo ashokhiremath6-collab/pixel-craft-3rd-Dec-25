@@ -138,6 +138,15 @@ export interface IStorage {
   createFloorPlan(floorPlan: InsertFloorPlan): Promise<FloorPlan>;
   updateFloorPlan(id: string, floorPlan: Partial<InsertFloorPlan>): Promise<FloorPlan | undefined>;
   deleteFloorPlan(id: string): Promise<boolean>;
+  
+  // Moodboards (also handles working drawings and renders via assetType)
+  getAllMoodboards(assetType?: string): Promise<Moodboard[]>;
+  getMoodboardsByProject(projectId: string, assetType?: string): Promise<Moodboard[]>;
+  getGeneralMoodboards(assetType?: string): Promise<Moodboard[]>;
+  getMoodboard(id: string): Promise<Moodboard | undefined>;
+  createMoodboard(moodboard: InsertMoodboard): Promise<Moodboard>;
+  updateMoodboard(id: string, moodboard: Partial<InsertMoodboard>): Promise<Moodboard | undefined>;
+  deleteMoodboard(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -1373,16 +1382,27 @@ export class DBStorage implements IStorage {
   }
 
   // Moodboards
-  async getAllMoodboards(): Promise<Moodboard[]> {
+  async getAllMoodboards(assetType?: string): Promise<Moodboard[]> {
+    if (assetType) {
+      return await db.select().from(moodboards).where(eq(moodboards.assetType, assetType)).orderBy(moodboards.uploadedAt);
+    }
     return await db.select().from(moodboards).orderBy(moodboards.uploadedAt);
   }
 
-  async getMoodboardsByProject(projectId: string): Promise<Moodboard[]> {
-    return await db.select().from(moodboards).where(eq(moodboards.projectId, projectId)).orderBy(moodboards.uploadedAt);
+  async getMoodboardsByProject(projectId: string, assetType?: string): Promise<Moodboard[]> {
+    const conditions = [eq(moodboards.projectId, projectId)];
+    if (assetType) {
+      conditions.push(eq(moodboards.assetType, assetType));
+    }
+    return await db.select().from(moodboards).where(and(...conditions)).orderBy(moodboards.uploadedAt);
   }
 
-  async getGeneralMoodboards(): Promise<Moodboard[]> {
-    return await db.select().from(moodboards).where(isNull(moodboards.projectId)).orderBy(moodboards.uploadedAt);
+  async getGeneralMoodboards(assetType?: string): Promise<Moodboard[]> {
+    const conditions = [isNull(moodboards.projectId)];
+    if (assetType) {
+      conditions.push(eq(moodboards.assetType, assetType));
+    }
+    return await db.select().from(moodboards).where(and(...conditions)).orderBy(moodboards.uploadedAt);
   }
 
   async getMoodboard(id: string): Promise<Moodboard | undefined> {
