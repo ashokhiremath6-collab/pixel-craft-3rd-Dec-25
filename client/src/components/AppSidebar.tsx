@@ -35,6 +35,21 @@ const mainItems: NavigationItem[] = [
     icon: Map,
   },
   {
+    title: "Moodboards",
+    url: "/moodboards",
+    icon: ImageIcon,
+  },
+  {
+    title: "Renders",
+    url: "/renders",
+    icon: Sparkles,
+  },
+  {
+    title: "Working Drawings",
+    url: "/working-drawings",
+    icon: PenTool,
+  },
+  {
     title: "Vendors by Category",
     url: "/vendors",
     icon: Users,
@@ -49,24 +64,6 @@ const mainItems: NavigationItem[] = [
     url: "/import",
     icon: Upload,
   },
-  {
-    title: "Moodboards",
-    url: "/moodboards",
-    icon: ImageIcon,
-  },
-  {
-    title: "Working Drawings",
-    url: "/working-drawings",
-    icon: PenTool,
-  },
-  {
-    title: "Renders",
-    url: "/renders",
-    icon: Sparkles,
-  },
-];
-
-const templateItems: NavigationItem[] = [
   {
     title: "Quote Templates",
     url: "/templates",
@@ -109,28 +106,6 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {mainItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild
-                    data-active={location === item.url}
-                    data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Templates</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {templateItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     asChild
