@@ -270,16 +270,19 @@ export default function TemplateViewPage() {
             </div>
           )}
           
-          {/* Empty State */}
+          {/* Empty State - but if template has original file, show Excel button prominently */}
           {!hasSpreadsheetData && !hasLegacyFields && (
-            <div className="text-center py-12 text-muted-foreground">
-              <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
-              <h3 className="text-lg font-medium mb-2">No Data Available</h3>
-              <p className="text-sm mb-4">
-                This template doesn't have any Excel data or field definitions.
+            <div className="text-center py-12">
+              <FileSpreadsheet className="h-16 w-16 mx-auto mb-4 text-primary opacity-70" />
+              <h3 className="text-lg font-medium mb-2">View Template in Excel</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                {template.originalFileName 
+                  ? "This template is best viewed in Excel for proper formatting and full content." 
+                  : "This template doesn't have any data to preview."}
               </p>
               <Button 
-                variant="outline"
+                variant="default"
+                size="lg"
                 onClick={handleDownloadExcel}
                 data-testid="button-download-empty-template"
               >
