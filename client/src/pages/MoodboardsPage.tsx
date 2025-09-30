@@ -518,115 +518,82 @@ export default function MoodboardsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-3">
               {moodboards.map((moodboard: Moodboard) => (
-                <div key={moodboard.id} className="border rounded-lg overflow-hidden hover-elevate">
-                  {/* Preview */}
-                  <div className="aspect-video bg-muted/50 flex items-center justify-center">
+                <div key={moodboard.id} className="flex items-center gap-4 p-4 border rounded-lg hover-elevate">
+                  {/* Icon/Preview */}
+                  <div className="flex-shrink-0">
                     {getPreviewUrl(moodboard) ? (
-                      <img 
-                        src={getPreviewUrl(moodboard)!} 
-                        alt={moodboard.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          // Fallback to icon if image fails to load
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          target.nextElementSibling?.classList.remove('hidden');
-                        }}
-                      />
-                    ) : moodboard.canvaLink && !moodboard.filePath ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <ExternalLink className="h-12 w-12 text-primary" />
-                        <span className="text-xs text-muted-foreground">Canva Design</span>
+                      <div className="w-16 h-16 rounded overflow-hidden">
+                        <img 
+                          src={getPreviewUrl(moodboard)!} 
+                          alt={moodboard.name}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
-                    ) : null}
-                    {!moodboard.canvaLink || moodboard.filePath ? (
-                      <FileText className={`h-12 w-12 text-muted-foreground ${getPreviewUrl(moodboard) ? 'hidden' : ''}`} />
-                    ) : null}
+                    ) : moodboard.canvaLink && !moodboard.filePath ? (
+                      <div className="w-16 h-16 rounded bg-primary/10 flex items-center justify-center">
+                        <ExternalLink className="h-8 w-8 text-primary" />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded bg-muted flex items-center justify-center">
+                        <FileText className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                    )}
                   </div>
                   
                   {/* Info */}
-                  <div className="p-4 space-y-2">
-                    <div className="space-y-1">
-                      <h3 className="font-bold truncate" title={moodboard.name}>
-                        {moodboard.name}
-                      </h3>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <FolderOpen className="h-3 w-3" />
-                        <span>{getProjectName(moodboard.projectId)}</span>
-                      </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-bold truncate" title={getProjectName(moodboard.projectId)}>
+                      {getProjectName(moodboard.projectId)}
+                    </h3>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>Canva Design</span>
+                      <span>•</span>
+                      <span>{new Date(moodboard.uploadedAt).toLocaleDateString()}</span>
                     </div>
-                    
-                    {moodboard.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {moodboard.description}
-                      </p>
-                    )}
-                    
-                    {moodboard.tags && Array.isArray(moodboard.tags) && moodboard.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {moodboard.tags.slice(0, 3).map((tag, index) => (
-                          <Badge key={index} variant="secondary" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                        {moodboard.tags.length > 3 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{moodboard.tags.length - 3}
-                          </Badge>
-                        )}
-                      </div>
-                    )}
                     
                     {moodboard.canvaLink && (
-                      <div className="pt-1">
-                        <a
-                          href={moodboard.canvaLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline"
-                          data-testid={`link-canva-${moodboard.id}`}
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          <span>View Canva Design</span>
-                        </a>
-                      </div>
+                      <a
+                        href={moodboard.canvaLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
+                        data-testid={`link-canva-${moodboard.id}`}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        <span>View Canva Design</span>
+                      </a>
                     )}
-                    
-                    <div className="flex items-center justify-between pt-2">
-                      <span className="text-xs text-muted-foreground">
-                        {moodboard.fileSize ? formatFileSize(parseInt(moodboard.fileSize)) : 'Link only'}
-                      </span>
-                      
-                      <div className="flex gap-1">
-                        {getPreviewUrl(moodboard) && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => window.open(getPreviewUrl(moodboard)!, '_blank')}
-                            data-testid={`button-view-${moodboard.id}`}
-                          >
-                            <Eye className="h-3 w-3" />
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-red-600 hover:text-red-700"
-                          onClick={() => deleteMoodboard(moodboard.id)}
-                          disabled={deleteMutation.isPending}
-                          data-testid={`button-delete-${moodboard.id}`}
-                        >
-                          {deleteMutation.isPending ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3 w-3" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
+                  </div>
+                  
+                  {/* Actions */}
+                  <div className="flex items-center gap-2">
+                    {getPreviewUrl(moodboard) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => window.open(getPreviewUrl(moodboard)!, '_blank')}
+                        data-testid={`button-view-${moodboard.id}`}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-600 hover:text-red-700"
+                      onClick={() => deleteMoodboard(moodboard.id)}
+                      disabled={deleteMutation.isPending}
+                      data-testid={`button-delete-${moodboard.id}`}
+                    >
+                      {deleteMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
               ))}
