@@ -1613,6 +1613,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return results;
   };
 
+  // Temporary storage for conflict resolution (in-memory)
+  const tempQuoteStorage = new Map<string, {
+    buffer: Buffer;
+    originalname: string;
+    mimetype: string;
+    size: number;
+    parsedData: any;
+    projectId: string;
+    vendorId: string;
+  }>();
+
   // Quote Import Routes
   app.post("/api/quotes/import", requireAuth, upload.single('quoteFile'), async (req, res) => {
     try {
@@ -1654,7 +1665,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       if (existingQuotes.length > 0) {
-        // Store the parsed data temporarily and return conflict response
+        // Generate a temporary ID and store file data in memory for conflict resolution
+        const tempFileId = crypto.randomUUID();
+        tempQuoteStorage.set(tempFileId, {
+          buffer: req.file.buffer,
+          originalname: req.file.originalname,
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+          parsedData: data,
+          projectId,
+          vendorId
+        });
+        
+        // Return conflict response
         return res.status(409).json({
           conflictType: "existing_quotes",
           message: "This vendor already has quotes for this project. Please specify if this is an option for existing items or a new item category.",
@@ -1665,7 +1688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             quotationValue: quote.quotationValue,
             itemCategory: quote.itemCategory
           })),
-          tempFileId: req.file.filename, // Store the temp file identifier
+          tempFileId: tempFileId,
           parsedDataPreview: {
             totalItems: (data.items || data).length,
             estimatedValue: data.totals?.grandTotal || 0
@@ -1753,27 +1776,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Reconstruct file path from tempFileId
-      const tempFilePath = path.join('uploads', tempFileId);
+      // Retrieve stored file data from memory
+      const tempData = tempQuoteStorage.get(tempFileId);
       
-      if (!fs.existsSync(tempFilePath)) {
+      if (!tempData) {
         return res.status(404).json({ error: "Temporary file not found. Please re-upload the file." });
       }
 
-      // Determine file type
-      const extension = path.extname(tempFileId).toLowerCase();
-      let mimeType = 'application/octet-stream';
-      if (extension === '.xlsx') mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      else if (extension === '.xls') mimeType = 'application/vnd.ms-excel';
-      else if (extension === '.csv') mimeType = 'text/csv';
-      else if (extension === '.pdf') mimeType = 'application/pdf';
-
-      // Re-parse the file
-      const data = await parseQuoteFile(tempFilePath, mimeType);
+      // Use the already-parsed data from memory
+      const data = tempData.parsedData;
       
       if (!data || data.length === 0) {
         return res.status(400).json({ error: "No valid data found in temporary file" });
       }
+      
+      // Get extension for file storage
+      const extension = path.extname(tempData.originalname).toLowerCase();
 
       // Set up parameters based on resolution type
       let finalQuotationName = quotationName || "Main Quote";
@@ -1802,22 +1820,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process the quote import with additional parameters
       const results = await processQuoteImport(data, projectId, vendorId, importParams);
       
+      // Upload file to object storage
+      const userId = (req.user as any).claims.sub;
+      const objectPath = await uploadToObjectStorage(
+        tempData.buffer,
+        tempData.originalname,
+        userId,
+        tempData.mimetype
+      );
+      
       // Store file information
-      const filePath = `/uploads/${tempFileId}`;
       const quoteFileData = {
         projectVendorId: results.projectVendor.id,
-        fileName: `${quotationName || "Quote"}.${extension.substring(1)}`,
-        filePath: filePath,
+        fileName: tempData.originalname,
+        filePath: objectPath,
         fileType: extension,
-        fileSize: fs.statSync(tempFilePath).size.toString()
+        fileSize: tempData.size.toString()
       };
       
       await storage.createQuoteFile(quoteFileData);
 
       // Update project vendor with file path
       await storage.updateProjectVendor(results.projectVendor.id, {
-        quotationFile: filePath
+        quotationFile: objectPath
       });
+      
+      // Clean up temporary storage
+      tempQuoteStorage.delete(tempFileId);
 
       res.status(201).json({
         message: "Quote imported successfully",
