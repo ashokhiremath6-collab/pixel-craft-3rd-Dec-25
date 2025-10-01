@@ -8,6 +8,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -89,6 +90,7 @@ const designerOnlyItems: NavigationItem[] = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { isMobile, setOpenMobile } = useSidebar();
   
   // Get user info to check role
   const { data: user } = useQuery({
@@ -96,7 +98,14 @@ export function AppSidebar() {
     retry: false,
   });
   
-  const isDesigner = user?.role === 'designer';
+  const isDesigner = (user as any)?.role === 'designer';
+
+  // Close mobile sidebar when a link is clicked
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   return (
     <Sidebar data-testid="sidebar-main">
@@ -112,7 +121,7 @@ export function AppSidebar() {
                     data-active={location === item.url}
                     data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
                   >
-                    <Link href={item.url}>
+                    <Link href={item.url} onClick={handleLinkClick}>
                       <item.icon />
                       <span>{item.title}</span>
                     </Link>
@@ -135,7 +144,7 @@ export function AppSidebar() {
                       data-active={location === item.url}
                       data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
                     >
-                      <Link href={item.url}>
+                      <Link href={item.url} onClick={handleLinkClick}>
                         <item.icon />
                         <span>{item.title}</span>
                       </Link>
@@ -158,7 +167,7 @@ export function AppSidebar() {
                     data-active={location === item.url}
                     data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
                   >
-                    <Link href={item.url}>
+                    <Link href={item.url} onClick={handleLinkClick}>
                       <item.icon />
                       <span>{item.title}</span>
                     </Link>
