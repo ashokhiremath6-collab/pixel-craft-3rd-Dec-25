@@ -540,14 +540,6 @@ export default function FloorPlansPage() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              onClick={() => handleDownload(floorPlan)}
-                              data-testid={`button-download-${floorPlan.id}`}
-                            >
-                              <Download className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
                               onClick={() => handleEdit(floorPlan)}
                               data-testid={`button-edit-${floorPlan.id}`}
                             >
