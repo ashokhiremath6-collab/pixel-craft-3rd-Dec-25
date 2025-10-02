@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -29,6 +29,11 @@ const mainItems: NavigationItem[] = [
     title: "Projects",
     url: "/projects",
     icon: Building2,
+  },
+  {
+    title: "Gantt Chart",
+    url: "/gantt-chart",
+    icon: GanttChart,
   },
   {
     title: "Floor Plans",
