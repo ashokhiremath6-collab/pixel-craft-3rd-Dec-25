@@ -493,22 +493,23 @@ export default function GanttChartPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="relative">
-            {/* Timeline header with month markers */}
-            <div className="relative h-8 border-b mb-6">
-              {monthMarkers.map((marker, idx) => (
-                <div
-                  key={idx}
-                  className="absolute top-0 h-full flex flex-col justify-between"
-                  style={{ left: `${marker.position}%` }}
-                >
-                  <div className="text-xs text-muted-foreground font-medium">
-                    {marker.label}
+          <div className="overflow-x-auto">
+            <div className="relative min-w-[800px]">
+              {/* Timeline header with month markers */}
+              <div className="relative h-8 border-b mb-6">
+                {monthMarkers.map((marker, idx) => (
+                  <div
+                    key={idx}
+                    className="absolute top-0 h-full flex flex-col justify-between"
+                    style={{ left: `${marker.position}%` }}
+                  >
+                    <div className="text-xs text-muted-foreground font-medium">
+                      {marker.label}
+                    </div>
+                    <div className="w-px h-2 bg-border" />
                   </div>
-                  <div className="w-px h-2 bg-border" />
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
 
             {/* Today indicator */}
             {todayPosition >= 0 && todayPosition <= 100 && (
@@ -655,6 +656,7 @@ export default function GanttChartPage() {
                 })}
               </div>
             )}
+            </div>
           </div>
         </CardContent>
       </Card>
