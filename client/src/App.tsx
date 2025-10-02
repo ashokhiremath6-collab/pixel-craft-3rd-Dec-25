@@ -11,6 +11,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import VendorsPage from "@/pages/VendorsPage";
 import ProjectsPage from "@/pages/ProjectsPage";
 import FloorPlansPage from "@/pages/FloorPlansPage";
+import GanttChartPage from "@/pages/GanttChartPage";
 import QuotesPage from "@/pages/QuotesPage";
 import TemplatesPage from "@/pages/TemplatesPage";
 import TemplateViewPage from "@/pages/TemplateViewPage";
@@ -29,6 +30,7 @@ function Router() {
     <Switch>
       <Route path="/" component={DashboardPage} />
       <Route path="/projects" component={ProjectsPage} />
+      <Route path="/gantt-chart" component={GanttChartPage} />
       <Route path="/floor-plans" component={FloorPlansPage} />
       <Route path="/vendors" component={VendorsPage} />
       <Route path="/quotes" component={QuotesPage} />
