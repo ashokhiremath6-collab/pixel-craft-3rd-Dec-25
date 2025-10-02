@@ -125,6 +125,60 @@ export const moodboards = pgTable("moodboards", {
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
 });
 
+// Tasks table for Gantt chart task management
+export const tasks = pgTable("tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  duration: decimal("duration", { precision: 10, scale: 2 }), // in days
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  status: text("status").notNull().default("not_started"), // not_started, in_progress, blocked, completed, overdue
+  progressPercentage: decimal("progress_percentage", { precision: 5, scale: 2 }).default("0"),
+  predecessorIds: text("predecessor_ids").array(), // array of task IDs
+  approvalRequired: boolean("approval_required").notNull().default(false),
+  approvalStatus: text("approval_status"), // pending, approved, rejected
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  priority: text("priority").notNull().default("medium"), // low, medium, high, critical
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+// Task Dependencies table for managing task relationships
+export const taskDependencies = pgTable("task_dependencies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromTaskId: varchar("from_task_id").notNull().references(() => tasks.id),
+  toTaskId: varchar("to_task_id").notNull().references(() => tasks.id),
+  dependencyType: text("dependency_type").notNull().default("finish_to_start"), // finish_to_start, start_to_start, finish_to_finish, start_to_finish
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+// Task Alerts table for tracking notifications
+export const taskAlerts = pgTable("task_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull().references(() => tasks.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  alertType: text("alert_type").notNull(), // deadline_upcoming, overdue, dependency_complete, approval_pending, status_change, critical_path_change
+  message: text("message").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  triggeredAt: timestamp("triggered_at").notNull().default(sql`now()`),
+});
+
+// Approvals table for task approval workflow
+export const approvals = pgTable("approvals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull().references(() => tasks.id),
+  requestedBy: varchar("requested_by").notNull().references(() => users.id),
+  approverId: varchar("approver_id").notNull().references(() => users.id),
+  status: text("status").notNull().default("pending"), // pending, approved, rejected
+  comments: text("comments"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  resolvedAt: timestamp("resolved_at"),
+});
+
 // Insert schemas
 export const insertVendorCategorySchema = createInsertSchema(vendorCategories).omit({
   id: true,
@@ -171,6 +225,37 @@ export const insertMoodboardSchema = createInsertSchema(moodboards).omit({
   assetType: z.enum(["moodboard", "working_drawing", "render"]).default("moodboard"),
 });
 
+export const insertTaskSchema = createInsertSchema(tasks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  status: z.enum(["not_started", "in_progress", "blocked", "completed", "overdue"]).default("not_started"),
+  priority: z.enum(["low", "medium", "high", "critical"]).default("medium"),
+  approvalStatus: z.enum(["pending", "approved", "rejected"]).optional(),
+});
+
+export const insertTaskDependencySchema = createInsertSchema(taskDependencies).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  dependencyType: z.enum(["finish_to_start", "start_to_start", "finish_to_finish", "start_to_finish"]).default("finish_to_start"),
+});
+
+export const insertTaskAlertSchema = createInsertSchema(taskAlerts).omit({
+  id: true,
+  triggeredAt: true,
+}).extend({
+  alertType: z.enum(["deadline_upcoming", "overdue", "dependency_complete", "approval_pending", "status_change", "critical_path_change"]),
+});
+
+export const insertApprovalSchema = createInsertSchema(approvals).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  status: z.enum(["pending", "approved", "rejected"]).default("pending"),
+});
+
 // Types
 export type InsertVendorCategory = z.infer<typeof insertVendorCategorySchema>;
 export type VendorCategory = typeof vendorCategories.$inferSelect;
@@ -198,6 +283,18 @@ export type FloorPlan = typeof floorPlans.$inferSelect;
 
 export type InsertMoodboard = z.infer<typeof insertMoodboardSchema>;
 export type Moodboard = typeof moodboards.$inferSelect;
+
+export type InsertTask = z.infer<typeof insertTaskSchema>;
+export type Task = typeof tasks.$inferSelect;
+
+export type InsertTaskDependency = z.infer<typeof insertTaskDependencySchema>;
+export type TaskDependency = typeof taskDependencies.$inferSelect;
+
+export type InsertTaskAlert = z.infer<typeof insertTaskAlertSchema>;
+export type TaskAlert = typeof taskAlerts.$inferSelect;
+
+export type InsertApproval = z.infer<typeof insertApprovalSchema>;
+export type Approval = typeof approvals.$inferSelect;
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(
