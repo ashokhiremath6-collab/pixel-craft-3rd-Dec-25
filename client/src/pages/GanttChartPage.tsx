@@ -214,8 +214,7 @@ export default function GanttChartPage() {
 
   // Generate month markers - filter to prevent overlap
   const monthMarkers: { label: string; position: number }[] = [];
-  const currentMarker = new Date(paddedMinDate);
-  currentMarker.setDate(1);
+  const currentMarker = new Date(paddedMinDate.getFullYear(), paddedMinDate.getMonth(), 1);
 
   while (currentMarker <= paddedMaxDate) {
     const position = ((currentMarker.getTime() - paddedMinDate.getTime()) / (paddedMaxDate.getTime() - paddedMinDate.getTime())) * 100;
@@ -531,16 +530,25 @@ export default function GanttChartPage() {
                 {monthMarkers.map((marker, idx) => (
                   <div
                     key={idx}
-                    className="absolute top-0 h-full flex flex-col justify-between"
+                    className="absolute top-0 flex flex-col justify-start"
                     style={{ left: `${marker.position}%` }}
                   >
-                    <div className="text-xs text-muted-foreground font-medium">
+                    <div className="text-xs text-muted-foreground font-medium whitespace-nowrap">
                       {marker.label}
                     </div>
                     <div className="w-px h-2 bg-border" />
                   </div>
                 ))}
               </div>
+              
+              {/* Month grid lines */}
+              {monthMarkers.map((marker, idx) => (
+                <div
+                  key={`grid-${idx}`}
+                  className="absolute top-8 bottom-0 w-px bg-border opacity-20 pointer-events-none"
+                  style={{ left: `${marker.position}%` }}
+                />
+              ))}
 
             {/* Today indicator */}
             {showTodayLine && todayPosition >= 0 && todayPosition <= 100 && (
