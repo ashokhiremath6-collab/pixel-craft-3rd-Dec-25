@@ -26,7 +26,7 @@ interface QuotationsResponse {
 export default function DashboardPage() {
   // Get user info to check role
   const { data: user } = useQuery({
-    queryKey: ['/api/auth/me'],
+    queryKey: ['/api/auth/user'],
     retry: false,
   });
   
