@@ -526,7 +526,7 @@ export default function GanttChartPage() {
           <div className="overflow-x-auto">
             <div className="relative min-w-[800px]">
               {/* Timeline header with month markers */}
-              <div className="relative h-8 border-b mb-6">
+              <div className="relative h-8 border-b mb-6 ml-64">
                 {monthMarkers.map((marker, idx) => (
                   <div
                     key={idx}
@@ -545,7 +545,7 @@ export default function GanttChartPage() {
               {monthMarkers.map((marker, idx) => (
                 <div
                   key={`grid-${idx}`}
-                  className="absolute top-8 bottom-0 w-px bg-border opacity-20 pointer-events-none"
+                  className="absolute top-8 bottom-0 w-px bg-border opacity-20 pointer-events-none ml-64"
                   style={{ left: `${marker.position}%` }}
                 />
               ))}
@@ -553,7 +553,7 @@ export default function GanttChartPage() {
             {/* Today indicator */}
             {showTodayLine && todayPosition >= 0 && todayPosition <= 100 && (
               <div 
-                className="absolute top-8 bottom-0 w-px bg-primary z-10 pointer-events-none"
+                className="absolute top-8 bottom-0 w-px bg-primary z-10 pointer-events-none ml-64"
                 style={{ left: `${todayPosition}%` }}
                 title="Today"
               />
