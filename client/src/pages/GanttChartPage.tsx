@@ -197,18 +197,24 @@ export default function GanttChartPage() {
 
   const today = new Date();
   const todayPosition = ((today.getTime() - paddedMinDate.getTime()) / (paddedMaxDate.getTime() - paddedMinDate.getTime())) * 100;
+  const showTodayLine = today >= minDate && today <= maxDate;
 
-  // Generate month markers
+  // Generate month markers - filter to prevent overlap
   const monthMarkers: { label: string; position: number }[] = [];
   const currentMarker = new Date(paddedMinDate);
   currentMarker.setDate(1);
 
   while (currentMarker <= paddedMaxDate) {
     const position = ((currentMarker.getTime() - paddedMinDate.getTime()) / (paddedMaxDate.getTime() - paddedMinDate.getTime())) * 100;
-    monthMarkers.push({
-      label: currentMarker.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-      position
-    });
+    
+    // Only add if no marker within 8% to prevent overlap
+    const tooClose = monthMarkers.some(m => Math.abs(m.position - position) < 8);
+    if (!tooClose) {
+      monthMarkers.push({
+        label: currentMarker.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        position
+      });
+    }
     currentMarker.setMonth(currentMarker.getMonth() + 1);
   }
 
@@ -512,7 +518,7 @@ export default function GanttChartPage() {
               </div>
 
             {/* Today indicator */}
-            {todayPosition >= 0 && todayPosition <= 100 && (
+            {showTodayLine && todayPosition >= 0 && todayPosition <= 100 && (
               <div 
                 className="absolute top-8 bottom-0 w-px bg-primary z-10 pointer-events-none"
                 style={{ left: `${todayPosition}%` }}
@@ -570,14 +576,6 @@ export default function GanttChartPage() {
                                 {task.status.replace('_', ' ')}
                               </span>
                             </div>
-                          </div>
-                          <div className="w-32 flex-shrink-0 pl-4">
-                            <Badge 
-                              variant={task.status === 'completed' ? 'default' : 'secondary'} 
-                              data-testid={`badge-task-status-${task.id}`}
-                            >
-                              {task.status.replace('_', ' ')}
-                            </Badge>
                           </div>
                         </div>
                       </div>
@@ -643,11 +641,6 @@ export default function GanttChartPage() {
                                 </span>
                               </div>
                             </div>
-                          </div>
-                          <div className="w-32 flex-shrink-0 pl-4">
-                            <Badge variant={isActive ? "default" : "secondary"} data-testid={`badge-status-${project.id}`}>
-                              {isActive ? 'Active' : 'Completed'}
-                            </Badge>
                           </div>
                         </div>
                       </div>
