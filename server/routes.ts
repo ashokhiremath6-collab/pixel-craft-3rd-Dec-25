@@ -25,7 +25,11 @@ import {
   insertQuoteFileSchema,
   insertFloorPlanSchema,
   insertMoodboardSchema,
-  insertUserRoleSchema
+  insertUserRoleSchema,
+  insertTaskSchema,
+  insertTaskDependencySchema,
+  insertTaskAlertSchema,
+  insertApprovalSchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -3056,6 +3060,304 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting moodboard:', error);
       res.status(500).json({ error: "Failed to delete moodboard" });
+    }
+  });
+
+  // Task Management API Routes
+
+  // Get all tasks for a project
+  app.get("/api/tasks/project/:projectId", requireAuth, async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      const tasks = await storage.getTasksByProject(projectId);
+      res.json(tasks);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      res.status(500).json({ error: "Failed to fetch tasks" });
+    }
+  });
+
+  // Get single task
+  app.get("/api/tasks/:id", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const task = await storage.getTask(id);
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+      res.json(task);
+    } catch (error) {
+      console.error('Error fetching task:', error);
+      res.status(500).json({ error: "Failed to fetch task" });
+    }
+  });
+
+  // Create task
+  app.post("/api/tasks", requireAuth, async (req, res) => {
+    try {
+      const validatedData = insertTaskSchema.parse(req.body);
+      const task = await storage.createTask(validatedData);
+      res.status(201).json(task);
+    } catch (error) {
+      console.error('Error creating task:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid task data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create task" });
+    }
+  });
+
+  // Update task
+  app.put("/api/tasks/:id", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Validate with partial schema for updates
+      const validatedData = insertTaskSchema.partial().parse(req.body);
+      
+      const task = await storage.updateTask(id, validatedData);
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+      res.json(task);
+    } catch (error) {
+      console.error('Error updating task:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid task data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update task" });
+    }
+  });
+
+  // Delete task
+  app.delete("/api/tasks/:id", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteTask(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+      res.json({ message: "Task deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      res.status(500).json({ error: "Failed to delete task" });
+    }
+  });
+
+  // Import tasks from CSV
+  app.post("/api/tasks/import/csv", requireAuth, multer().single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const { projectId } = req.body;
+      if (!projectId) {
+        return res.status(400).json({ error: "Project ID required" });
+      }
+
+      // Verify project exists
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const csvContent = req.file.buffer.toString('utf-8');
+      const parseResult = Papa.parse(csvContent, {
+        header: true,
+        skipEmptyLines: true,
+      });
+
+      if (parseResult.errors && parseResult.errors.length > 0) {
+        return res.status(400).json({ 
+          error: "CSV parsing failed", 
+          details: parseResult.errors 
+        });
+      }
+
+      const createdTasks = [];
+      const errors: Array<{ row: number; error: string; data: any }> = [];
+      
+      for (let i = 0; i < parseResult.data.length; i++) {
+        const row: any = parseResult.data[i];
+        
+        try {
+          // Map CSV columns to task fields (flexible column names)
+          const taskData = {
+            projectId,
+            name: row.name || row.Name || row.task || row.Task || row.TASK,
+            description: row.description || row.Description || row.DESCRIPTION || '',
+            startDate: row.startDate || row.start_date || row['Start Date'] || row.START_DATE,
+            endDate: row.endDate || row.end_date || row['End Date'] || row.END_DATE,
+            duration: row.duration || row.Duration || row.DURATION || null,
+            assignedTo: row.assignedTo || row.assigned_to || row['Assigned To'] || row.ASSIGNED_TO || null,
+            status: row.status || row.Status || row.STATUS || 'not_started',
+            priority: row.priority || row.Priority || row.PRIORITY || 'medium',
+            progressPercentage: row.progress || row.Progress || row.PROGRESS || row.progressPercentage || '0',
+            approvalRequired: row.approvalRequired === 'true' || row.approval_required === 'true' || false,
+          };
+
+          // Validate required fields before schema validation
+          if (!taskData.name) {
+            throw new Error("Task name is required");
+          }
+          if (!taskData.startDate) {
+            throw new Error("Start date is required");
+          }
+          if (!taskData.endDate) {
+            throw new Error("End date is required");
+          }
+
+          // Validate with schema
+          const validatedData = insertTaskSchema.parse(taskData);
+          const task = await storage.createTask(validatedData);
+          createdTasks.push(task);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Invalid data';
+          errors.push({
+            row: i + 2, // +2 for header row and 1-based indexing
+            error: errorMessage,
+            data: row
+          });
+        }
+      }
+
+      res.status(201).json({
+        message: `Imported ${createdTasks.length} of ${parseResult.data.length} tasks successfully`,
+        success: createdTasks.length,
+        failed: errors.length,
+        tasks: createdTasks,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (error) {
+      console.error('Error importing tasks:', error);
+      res.status(500).json({ error: "Failed to import tasks" });
+    }
+  });
+
+  // Task Dependencies
+  app.get("/api/task-dependencies/:taskId", requireAuth, async (req, res) => {
+    try {
+      const { taskId } = req.params;
+      const dependencies = await storage.getTaskDependencies(taskId);
+      res.json(dependencies);
+    } catch (error) {
+      console.error('Error fetching dependencies:', error);
+      res.status(500).json({ error: "Failed to fetch dependencies" });
+    }
+  });
+
+  app.post("/api/task-dependencies", requireAuth, async (req, res) => {
+    try {
+      const validatedData = insertTaskDependencySchema.parse(req.body);
+      const dependency = await storage.createTaskDependency(validatedData);
+      res.status(201).json(dependency);
+    } catch (error) {
+      console.error('Error creating dependency:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid dependency data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create dependency" });
+    }
+  });
+
+  app.delete("/api/task-dependencies/:id", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteTaskDependency(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Dependency not found" });
+      }
+      res.json({ message: "Dependency deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting dependency:', error);
+      res.status(500).json({ error: "Failed to delete dependency" });
+    }
+  });
+
+  // Task Alerts
+  app.get("/api/task-alerts/user/:userId", requireAuth, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const alerts = await storage.getTaskAlertsByUser(userId);
+      res.json(alerts);
+    } catch (error) {
+      console.error('Error fetching alerts:', error);
+      res.status(500).json({ error: "Failed to fetch alerts" });
+    }
+  });
+
+  app.post("/api/task-alerts", requireAuth, async (req, res) => {
+    try {
+      const validatedData = insertTaskAlertSchema.parse(req.body);
+      const alert = await storage.createTaskAlert(validatedData);
+      res.status(201).json(alert);
+    } catch (error) {
+      console.error('Error creating alert:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid alert data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create alert" });
+    }
+  });
+
+  app.put("/api/task-alerts/:id/read", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const alert = await storage.markAlertAsRead(id);
+      if (!alert) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
+      res.json(alert);
+    } catch (error) {
+      console.error('Error marking alert as read:', error);
+      res.status(500).json({ error: "Failed to mark alert as read" });
+    }
+  });
+
+  // Approvals
+  app.get("/api/approvals/task/:taskId", requireAuth, async (req, res) => {
+    try {
+      const { taskId } = req.params;
+      const approvals = await storage.getApprovalsByTask(taskId);
+      res.json(approvals);
+    } catch (error) {
+      console.error('Error fetching approvals:', error);
+      res.status(500).json({ error: "Failed to fetch approvals" });
+    }
+  });
+
+  app.post("/api/approvals", requireAuth, async (req, res) => {
+    try {
+      const validatedData = insertApprovalSchema.parse(req.body);
+      const approval = await storage.createApproval(validatedData);
+      res.status(201).json(approval);
+    } catch (error) {
+      console.error('Error creating approval:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid approval data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create approval" });
+    }
+  });
+
+  app.put("/api/approvals/:id/resolve", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, comments } = req.body;
+      
+      if (!['approved', 'rejected'].includes(status)) {
+        return res.status(400).json({ error: "Status must be 'approved' or 'rejected'" });
+      }
+
+      const approval = await storage.resolveApproval(id, status, comments);
+      if (!approval) {
+        return res.status(404).json({ error: "Approval not found" });
+      }
+      res.json(approval);
+    } catch (error) {
+      console.error('Error resolving approval:', error);
+      res.status(500).json({ error: "Failed to resolve approval" });
     }
   });
 

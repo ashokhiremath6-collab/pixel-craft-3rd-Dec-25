@@ -23,6 +23,14 @@ import {
   type InsertFloorPlan,
   type Moodboard,
   type InsertMoodboard,
+  type Task,
+  type InsertTask,
+  type TaskDependency,
+  type InsertTaskDependency,
+  type TaskAlert,
+  type InsertTaskAlert,
+  type Approval,
+  type InsertApproval,
   users,
   userRoles,
   designerAllowlist,
@@ -35,6 +43,10 @@ import {
   quoteFiles,
   floorPlans,
   moodboards,
+  tasks,
+  taskDependencies,
+  taskAlerts,
+  approvals,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -148,6 +160,28 @@ export interface IStorage {
   createMoodboard(moodboard: InsertMoodboard): Promise<Moodboard>;
   updateMoodboard(id: string, moodboard: Partial<InsertMoodboard>): Promise<Moodboard | undefined>;
   deleteMoodboard(id: string): Promise<boolean>;
+  
+  // Task Management
+  getTasksByProject(projectId: string): Promise<Task[]>;
+  getTask(id: string): Promise<Task | undefined>;
+  createTask(task: InsertTask): Promise<Task>;
+  updateTask(id: string, task: Partial<InsertTask>): Promise<Task | undefined>;
+  deleteTask(id: string): Promise<boolean>;
+  
+  // Task Dependencies
+  getTaskDependencies(taskId: string): Promise<TaskDependency[]>;
+  createTaskDependency(dependency: InsertTaskDependency): Promise<TaskDependency>;
+  deleteTaskDependency(id: string): Promise<boolean>;
+  
+  // Task Alerts
+  getTaskAlertsByUser(userId: string): Promise<TaskAlert[]>;
+  createTaskAlert(alert: InsertTaskAlert): Promise<TaskAlert>;
+  markAlertAsRead(id: string): Promise<TaskAlert | undefined>;
+  
+  // Approvals
+  getApprovalsByTask(taskId: string): Promise<Approval[]>;
+  createApproval(approval: InsertApproval): Promise<Approval>;
+  resolveApproval(id: string, status: string, comments?: string): Promise<Approval | undefined>;
   
   // Vendors (with role-based filtering)
   getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
@@ -816,6 +850,63 @@ export class MemStorage implements IStorage {
 
   async deleteMoodboard(id: string): Promise<boolean> {
     return false;
+  }
+
+  // Task Management (stubs for MemStorage - not used in production)
+  async getTasksByProject(projectId: string): Promise<Task[]> {
+    return [];
+  }
+
+  async getTask(id: string): Promise<Task | undefined> {
+    return undefined;
+  }
+
+  async createTask(task: InsertTask): Promise<Task> {
+    throw new Error("MemStorage not supported for tasks");
+  }
+
+  async updateTask(id: string, task: Partial<InsertTask>): Promise<Task | undefined> {
+    return undefined;
+  }
+
+  async deleteTask(id: string): Promise<boolean> {
+    return false;
+  }
+
+  async getTaskDependencies(taskId: string): Promise<TaskDependency[]> {
+    return [];
+  }
+
+  async createTaskDependency(dependency: InsertTaskDependency): Promise<TaskDependency> {
+    throw new Error("MemStorage not supported for task dependencies");
+  }
+
+  async deleteTaskDependency(id: string): Promise<boolean> {
+    return false;
+  }
+
+  async getTaskAlertsByUser(userId: string): Promise<TaskAlert[]> {
+    return [];
+  }
+
+  async createTaskAlert(alert: InsertTaskAlert): Promise<TaskAlert> {
+    throw new Error("MemStorage not supported for task alerts");
+  }
+
+  async markAlertAsRead(id: string): Promise<TaskAlert | undefined> {
+    return undefined;
+  }
+
+  async getApprovalsByTask(taskId: string): Promise<Approval[]> {
+    return [];
+  }
+
+  async createApproval(approval: InsertApproval): Promise<Approval> {
+    throw new Error("MemStorage not supported for approvals");
+  }
+
+  async resolveApproval(id: string, status: string, comments?: string): Promise<Approval | undefined> {
+    return undefined;
   }
 
   async getVendorsForUser(userId: string, role: string): Promise<Vendor[]> {
@@ -1568,6 +1659,78 @@ export class DBStorage implements IStorage {
       
       return await db.select().from(projectVendors).where(inArray(projectVendors.projectId, accessibleProjectIds));
     }
+  }
+
+  // Task Management
+  async getTasksByProject(projectId: string): Promise<Task[]> {
+    return await db.select().from(tasks).where(eq(tasks.projectId, projectId)).orderBy(tasks.startDate);
+  }
+
+  async getTask(id: string): Promise<Task | undefined> {
+    const result = await db.select().from(tasks).where(eq(tasks.id, id));
+    return result[0];
+  }
+
+  async createTask(task: InsertTask): Promise<Task> {
+    const result = await db.insert(tasks).values(task).returning();
+    return result[0];
+  }
+
+  async updateTask(id: string, updates: Partial<InsertTask>): Promise<Task | undefined> {
+    const result = await db.update(tasks).set({ ...updates, updatedAt: new Date() }).where(eq(tasks.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteTask(id: string): Promise<boolean> {
+    const result = await db.delete(tasks).where(eq(tasks.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Task Dependencies
+  async getTaskDependencies(taskId: string): Promise<TaskDependency[]> {
+    return await db.select().from(taskDependencies).where(eq(taskDependencies.toTaskId, taskId));
+  }
+
+  async createTaskDependency(dependency: InsertTaskDependency): Promise<TaskDependency> {
+    const result = await db.insert(taskDependencies).values(dependency).returning();
+    return result[0];
+  }
+
+  async deleteTaskDependency(id: string): Promise<boolean> {
+    const result = await db.delete(taskDependencies).where(eq(taskDependencies.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Task Alerts
+  async getTaskAlertsByUser(userId: string): Promise<TaskAlert[]> {
+    return await db.select().from(taskAlerts).where(eq(taskAlerts.userId, userId)).orderBy(taskAlerts.triggeredAt);
+  }
+
+  async createTaskAlert(alert: InsertTaskAlert): Promise<TaskAlert> {
+    const result = await db.insert(taskAlerts).values(alert).returning();
+    return result[0];
+  }
+
+  async markAlertAsRead(id: string): Promise<TaskAlert | undefined> {
+    const result = await db.update(taskAlerts).set({ isRead: true }).where(eq(taskAlerts.id, id)).returning();
+    return result[0];
+  }
+
+  // Approvals
+  async getApprovalsByTask(taskId: string): Promise<Approval[]> {
+    return await db.select().from(approvals).where(eq(approvals.taskId, taskId)).orderBy(approvals.createdAt);
+  }
+
+  async createApproval(approval: InsertApproval): Promise<Approval> {
+    const result = await db.insert(approvals).values(approval).returning();
+    return result[0];
+  }
+
+  async resolveApproval(id: string, status: string, comments?: string): Promise<Approval | undefined> {
+    const updates: any = { status, resolvedAt: new Date() };
+    if (comments) updates.comments = comments;
+    const result = await db.update(approvals).set(updates).where(eq(approvals.id, id)).returning();
+    return result[0];
   }
 }
 
