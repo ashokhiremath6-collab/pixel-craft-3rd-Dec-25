@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Download, Trash2, Edit, FileImage, File, Plus } from "lucide-react";
+import { Upload, Download, Trash2, Edit, FileImage, File, Plus, ExternalLink } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
@@ -250,6 +250,15 @@ export default function FloorPlansPage() {
       return <FileImage className="h-4 w-4" />;
     }
     return <File className="h-4 w-4" />;
+  };
+
+  // Helper function to ensure file paths have leading slash
+  const getFileUrl = (filePath: string) => {
+    return filePath.startsWith('/') ? filePath : `/${filePath}`;
+  };
+
+  const handleView = (floorPlan: FloorPlan) => {
+    window.open(getFileUrl(floorPlan.filePath), '_blank', 'noopener,noreferrer');
   };
 
   const formatFileSize = (bytes: string) => {
@@ -519,6 +528,15 @@ export default function FloorPlansPage() {
                             </div>
                           </div>
                           <div className="flex space-x-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleView(floorPlan)}
+                              data-testid={`button-view-${floorPlan.id}`}
+                              title="View in new tab"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
                             <Button
                               size="icon"
                               variant="ghost"
