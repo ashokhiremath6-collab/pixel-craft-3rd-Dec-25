@@ -563,7 +563,7 @@ export default function GanttChartPage() {
                           <div className="flex-1 relative h-8">
                             <div className="absolute inset-0 rounded-sm bg-muted" />
                             <div
-                              className="absolute top-0.5 bottom-0.5 rounded-sm transition-all hover-elevate cursor-pointer flex items-center px-2"
+                              className="absolute top-0.5 bottom-0.5 rounded-sm transition-all hover-elevate cursor-pointer flex items-center justify-between px-2"
                               style={{
                                 left: bar.left,
                                 width: bar.width,
@@ -573,7 +573,10 @@ export default function GanttChartPage() {
                               data-testid={`gantt-bar-task-${task.id}`}
                             >
                               <span className="text-xs text-white font-medium truncate">
-                                {task.status.replace('_', ' ')}
+                                {new Date(task.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                              <span className="text-xs text-white font-medium truncate">
+                                {new Date(task.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               </span>
                             </div>
                           </div>
