@@ -23,6 +23,8 @@ interface DashboardProps {
     status: "Quoted" | "Selected" | "Rejected";
     dateOfQuotation: string;
     category?: string;
+    quotationName?: string;
+    quotationType?: string;
   }>;
   allQuotations?: Array<{
     id: string;
@@ -32,6 +34,8 @@ interface DashboardProps {
     status: "Quoted" | "Selected" | "Rejected";
     dateOfQuotation: string;
     category?: string;
+    quotationName?: string;
+    quotationType?: string;
   }>;
   onNavigate?: (path: string) => void;
 }

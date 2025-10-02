@@ -1,6 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import Dashboard from '@/components/Dashboard';
 import type { Vendor, Project, VendorCategory } from "@shared/schema";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface VendorWithCategory extends Omit<Vendor, 'categoryName'> {
   category: string;
@@ -24,8 +29,11 @@ interface QuotationsResponse {
 }
 
 export default function DashboardPage() {
+  // State for project filter
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+
   // Get user info to check role
-  const { data: user } = useQuery({
+  const { data: user } = useQuery<{ role: string }>({
     queryKey: ['/api/auth/user'],
     retry: false,
   });
@@ -94,13 +102,83 @@ export default function DashboardPage() {
     })
     .slice(0, 10);
 
+  // Filter data based on selected project
+  const filteredProjects = selectedProjectId 
+    ? (quotationsData?.projects || []).filter(p => p.id === selectedProjectId)
+    : quotationsData?.projects || [];
+
+  const filteredQuotations = selectedProjectId
+    ? allQuotations.filter(q => {
+        const project = quotationsData?.projects.find(p => p.projectName === q.projectName);
+        return project?.id === selectedProjectId;
+      })
+    : allQuotations;
+
+  const filteredRecentQuotations = selectedProjectId
+    ? recentQuotations.filter(q => {
+        const project = quotationsData?.projects.find(p => p.projectName === q.projectName);
+        return project?.id === selectedProjectId;
+      })
+    : recentQuotations;
+
+  // Filter vendors to only show those associated with the selected project
+  const filteredVendors = selectedProjectId
+    ? vendorsWithCategory.filter(vendor => {
+        const projectQuotations = quotationsData?.quotations[selectedProjectId] || [];
+        return projectQuotations.some(q => q.vendorName === vendor.name);
+      })
+    : vendorsWithCategory;
+
   return (
-    <Dashboard 
-      vendors={vendorsWithCategory}
-      projects={quotationsData?.projects || []}
-      recentQuotations={recentQuotations}
-      allQuotations={allQuotations} // Pass all quotations for total calculation
-      onNavigate={handleNavigate}
-    />
+    <div className="space-y-4">
+      {/* Project Filter */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <label className="text-sm font-medium mb-2 block">
+                Filter by Project
+              </label>
+              <Select 
+                value={selectedProjectId || "all"} 
+                onValueChange={(value) => setSelectedProjectId(value === "all" ? null : value)}
+              >
+                <SelectTrigger data-testid="select-project-filter">
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {(quotationsData?.projects || []).map(project => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.projectName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedProjectId && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSelectedProjectId(null)}
+                className="mt-6"
+                data-testid="button-clear-filter"
+                title="Clear filter"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dashboard 
+        vendors={filteredVendors}
+        projects={filteredProjects}
+        recentQuotations={filteredRecentQuotations}
+        allQuotations={filteredQuotations}
+        onNavigate={handleNavigate}
+      />
+    </div>
   );
 }
