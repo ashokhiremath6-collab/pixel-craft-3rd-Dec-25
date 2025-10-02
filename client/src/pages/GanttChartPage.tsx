@@ -166,17 +166,30 @@ export default function GanttChartPage() {
     );
   }
 
+  // Helper to parse dates consistently
+  const parseLocalDate = (dateStr: string | Date | null) => {
+    if (!dateStr) return null;
+    if (dateStr instanceof Date) return dateStr;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    }
+    return new Date(dateStr);
+  };
+
   // Calculate date range for the chart
   const allDates = projects.flatMap(p => [
-    p.startDate ? new Date(p.startDate) : null,
-    p.endDate ? new Date(p.endDate) : null
+    parseLocalDate(p.startDate),
+    parseLocalDate(p.endDate)
   ].filter(Boolean) as Date[]);
 
   // Include task dates if a project is selected
   if (selectedProjectId && tasks.length > 0) {
     tasks.forEach(task => {
-      if (task.startDate) allDates.push(new Date(task.startDate));
-      if (task.endDate) allDates.push(new Date(task.endDate));
+      const start = parseLocalDate(task.startDate);
+      const end = parseLocalDate(task.endDate);
+      if (start) allDates.push(start);
+      if (end) allDates.push(end);
     });
   }
 
@@ -219,8 +232,20 @@ export default function GanttChartPage() {
   }
 
   const getBar = (startDate: string | Date | null, endDate: string | Date | null) => {
-    const start = startDate ? new Date(startDate) : paddedMinDate;
-    const end = endDate ? new Date(endDate) : paddedMaxDate;
+    // Parse dates without timezone issues by treating as local dates
+    const parseDate = (dateStr: string | Date | null) => {
+      if (!dateStr) return null;
+      if (dateStr instanceof Date) return dateStr;
+      // Parse YYYY-MM-DD format as local date
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      }
+      return new Date(dateStr);
+    };
+    
+    const start = parseDate(startDate) || paddedMinDate;
+    const end = parseDate(endDate) || paddedMaxDate;
     
     const startPosition = ((start.getTime() - paddedMinDate.getTime()) / (paddedMaxDate.getTime() - paddedMinDate.getTime())) * 100;
     const endPosition = ((end.getTime() - paddedMinDate.getTime()) / (paddedMaxDate.getTime() - paddedMinDate.getTime())) * 100;
@@ -573,10 +598,10 @@ export default function GanttChartPage() {
                               data-testid={`gantt-bar-task-${task.id}`}
                             >
                               <span className="text-xs text-white font-medium truncate">
-                                {new Date(task.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                {parseLocalDate(task.startDate)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               </span>
                               <span className="text-xs text-white font-medium truncate">
-                                {new Date(task.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                {parseLocalDate(task.endDate)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               </span>
                             </div>
                           </div>
@@ -636,9 +661,9 @@ export default function GanttChartPage() {
                                 <span className="text-xs text-primary-foreground font-medium truncate">
                                   {project.startDate && project.endDate && (
                                     <>
-                                      {new Date(project.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                      {parseLocalDate(project.startDate)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                       {' - '}
-                                      {new Date(project.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                      {parseLocalDate(project.endDate)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                     </>
                                   )}
                                 </span>
