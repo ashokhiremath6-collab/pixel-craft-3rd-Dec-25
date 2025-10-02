@@ -559,69 +559,8 @@ export default function GanttChartPage() {
               />
             )}
 
-            {/* Display based on selected project */}
-            {selectedProjectId ? (
-              /* Show tasks for selected project */
-              <div className="space-y-2">
-                {isLoadingTasks ? (
-                  <div className="text-center py-8 text-muted-foreground">Loading tasks...</div>
-                ) : tasks.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No tasks yet. Add your first task or import from CSV.
-                  </div>
-                ) : (
-                  tasks.map((task) => {
-                    const bar = getBar(task.startDate, task.endDate);
-                    return (
-                      <div key={task.id} className="relative group" data-testid={`gantt-task-${task.id}`}>
-                        <div className="flex items-center mb-1">
-                          <div className="w-64 flex-shrink-0 pr-4 flex items-center justify-between">
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm truncate" data-testid={`text-task-name-${task.id}`}>
-                                {task.name}
-                              </div>
-                              <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs px-1 py-0">
-                                  {task.priority}
-                                </Badge>
-                                <span>{task.progressPercentage}%</span>
-                              </div>
-                            </div>
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 ml-2">
-                              <Button size="icon" variant="ghost" className="h-6 w-6" data-testid={`button-delete-task-${task.id}`} onClick={() => deleteTaskMutation.mutate(task.id)}>
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="flex-1 relative h-8">
-                            <div className="absolute inset-0 rounded-sm bg-muted" />
-                            <div
-                              className="absolute top-0.5 bottom-0.5 rounded-sm transition-all hover-elevate cursor-pointer flex items-center justify-between px-2"
-                              style={{
-                                left: bar.left,
-                                width: bar.width,
-                                backgroundColor: getStatusColor(task.status),
-                              }}
-                              title={`${task.name}\n${task.status}\n${task.startDate} - ${task.endDate}`}
-                              data-testid={`gantt-bar-task-${task.id}`}
-                            >
-                              <span className="text-xs text-white font-medium truncate">
-                                {parseLocalDate(task.startDate)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              </span>
-                              <span className="text-xs text-white font-medium truncate">
-                                {parseLocalDate(task.endDate)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            ) : (
-              /* Show all projects */
-              <div className="space-y-3">
+            {/* Always show all projects overview */}
+            <div className="space-y-3">
                 {projects.map((project) => {
                   const bar = getBar(project.startDate, project.endDate);
                   const isExpanded = expandedProjects.has(project.id);
@@ -683,6 +622,71 @@ export default function GanttChartPage() {
                     </div>
                   );
                 })}
+              </div>
+
+            {/* Detailed tasks for selected project */}
+            {selectedProjectId && (
+              <div className="mt-8 pt-6 border-t">
+                <h3 className="text-lg font-semibold mb-4">
+                  Detailed Tasks - {selectedProject?.projectName}
+                </h3>
+                {isLoadingTasks ? (
+                  <div className="text-center py-8 text-muted-foreground">Loading tasks...</div>
+                ) : tasks.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No tasks yet. Add your first task or import from CSV.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {tasks.map((task) => {
+                      const bar = getBar(task.startDate, task.endDate);
+                      return (
+                        <div key={task.id} className="relative group" data-testid={`gantt-task-${task.id}`}>
+                          <div className="flex items-center mb-1">
+                            <div className="w-64 flex-shrink-0 pr-4 flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm truncate" data-testid={`text-task-name-${task.id}`}>
+                                  {task.name}
+                                </div>
+                                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs px-1 py-0">
+                                    {task.priority}
+                                  </Badge>
+                                  <span>{task.progressPercentage}%</span>
+                                </div>
+                              </div>
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 ml-2">
+                                <Button size="icon" variant="ghost" className="h-6 w-6" data-testid={`button-delete-task-${task.id}`} onClick={() => deleteTaskMutation.mutate(task.id)}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="flex-1 relative h-8">
+                              <div className="absolute inset-0 rounded-sm bg-muted" />
+                              <div
+                                className="absolute top-0.5 bottom-0.5 rounded-sm transition-all hover-elevate cursor-pointer flex items-center justify-between px-2"
+                                style={{
+                                  left: bar.left,
+                                  width: bar.width,
+                                  backgroundColor: getStatusColor(task.status),
+                                }}
+                                title={`${task.name}\n${task.status}\n${task.startDate} - ${task.endDate}`}
+                                data-testid={`gantt-bar-task-${task.id}`}
+                              >
+                                <span className="text-xs text-white font-medium truncate">
+                                  {parseLocalDate(task.startDate)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </span>
+                                <span className="text-xs text-white font-medium truncate">
+                                  {parseLocalDate(task.endDate)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
             </div>
