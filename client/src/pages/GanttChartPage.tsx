@@ -126,9 +126,10 @@ export default function GanttChartPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
+          {/* Wrap the entire chart in a relative container for proper positioning */}
+          <div className="relative">
             {/* Timeline header with month markers */}
-            <div className="relative h-8 border-b">
+            <div className="relative h-8 border-b mb-6">
               {monthMarkers.map((marker, idx) => (
                 <div
                   key={idx}
@@ -143,17 +144,17 @@ export default function GanttChartPage() {
               ))}
             </div>
 
-            {/* Today indicator */}
+            {/* Today indicator - positioned relative to the chart container */}
             {todayPosition >= 0 && todayPosition <= 100 && (
               <div 
-                className="absolute top-8 bottom-0 w-px bg-primary z-10"
+                className="absolute top-8 bottom-0 w-px bg-primary z-10 pointer-events-none"
                 style={{ left: `${todayPosition}%` }}
                 title="Today"
               />
             )}
 
             {/* Projects */}
-            <div className="space-y-4 relative">
+            <div className="space-y-4">
               {projects.map((project) => {
                 const bar = getProjectBar(project);
                 return (
@@ -176,7 +177,7 @@ export default function GanttChartPage() {
                           className="absolute top-1 bottom-1 rounded-md transition-all hover-elevate cursor-pointer"
                           style={{
                             left: bar.left,
-                            width: bar.width,
+                            width: Math.max(parseFloat(bar.width), 1) + '%', // Minimum 1% width for visibility
                             backgroundColor: bar.isActive 
                               ? 'hsl(var(--primary))' 
                               : 'hsl(var(--muted-foreground))',
