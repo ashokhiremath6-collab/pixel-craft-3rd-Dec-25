@@ -8,11 +8,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Calendar, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertTaskSchema } from "@shared/schema";
-import type { Project, Task } from "@shared/schema";
+import type { Project, Task, ProjectSchedule } from "@shared/schema";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -33,6 +33,7 @@ export default function GanttChartPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importProjectId, setImportProjectId] = useState<string>("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
@@ -42,6 +43,11 @@ export default function GanttChartPage() {
 
   const { data: tasks = [], isLoading: isLoadingTasks } = useQuery<Task[]>({
     queryKey: ['/api/tasks/project', selectedProjectId],
+    enabled: !!selectedProjectId,
+  });
+
+  const { data: schedules = [] } = useQuery<ProjectSchedule[]>({
+    queryKey: ['/api/schedules/project', selectedProjectId],
     enabled: !!selectedProjectId,
   });
 
@@ -79,13 +85,14 @@ export default function GanttChartPage() {
     },
   });
 
-  const importTasksMutation = useMutation({
-    mutationFn: async (file: File) => {
+  const importScheduleMutation = useMutation({
+    mutationFn: async ({ file, projectId }: { file: File; projectId: string }) => {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('projectId', selectedProjectId);
+      formData.append('projectId', projectId);
+      formData.append('version', '1.0');
 
-      const response = await fetch('/api/tasks/import/csv', {
+      const response = await fetch('/api/schedules/import', {
         method: 'POST',
         body: formData,
       });
@@ -97,19 +104,21 @@ export default function GanttChartPage() {
 
       return response.json();
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/schedules/project', variables.projectId] });
       toast({ 
-        title: "Import Complete", 
-        description: data.message || `Imported ${data.success} tasks successfully`,
+        title: "Schedule Imported", 
+        description: `Successfully imported ${data.tasksCreated} tasks`,
       });
       setIsImportOpen(false);
       setSelectedFile(null);
+      setImportProjectId("");
     },
     onError: (error: any) => {
       toast({ 
         title: "Import Failed", 
-        description: error.message || "Failed to import tasks",
+        description: error.message || "Failed to import schedule",
         variant: "destructive" 
       });
     },
@@ -281,8 +290,29 @@ export default function GanttChartPage() {
   };
 
   const handleImport = () => {
-    if (selectedFile) {
-      importTasksMutation.mutate(selectedFile);
+    if (selectedFile && importProjectId) {
+      importScheduleMutation.mutate({ file: selectedFile, projectId: importProjectId });
+    }
+  };
+
+  const handleDownloadTemplate = async (type: 'gantt' | 'dependencies') => {
+    try {
+      const response = await fetch(`/api/templates/${type}`);
+      if (!response.ok) throw new Error('Download failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = type === 'gantt' ? 'Interior_Gantt_Template.xlsx' : 'Dependencies_Template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({ title: "Template Downloaded", description: `${type === 'gantt' ? 'Gantt' : 'Dependencies'} template ready for use` });
+    } catch (error) {
+      toast({ title: "Download Failed", description: "Could not download template", variant: "destructive" });
     }
   };
 
@@ -307,6 +337,83 @@ export default function GanttChartPage() {
           </p>
         </div>
       </div>
+
+      {/* Template Downloads */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Download Templates</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-4 flex-wrap">
+            <Button 
+              variant="outline" 
+              onClick={() => handleDownloadTemplate('gantt')}
+              data-testid="button-download-gantt-template"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Gantt Template (250 tasks)
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => handleDownloadTemplate('dependencies')}
+              data-testid="button-download-dependencies-template"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Dependencies Template
+            </Button>
+            <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+              <DialogTrigger asChild>
+                <Button variant="default" data-testid="button-import-schedule">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import Completed Schedule
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Import Project Schedule</DialogTitle>
+                  <DialogDescription>
+                    Upload a filled Gantt chart (XLSX or CSV) with tasks and dependencies
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Select Project</label>
+                    <Select value={importProjectId} onValueChange={setImportProjectId}>
+                      <SelectTrigger data-testid="select-import-project">
+                        <SelectValue placeholder="Choose project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projects.map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.projectName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Upload File</label>
+                    <Input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                      data-testid="input-import-file"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleImport}
+                    disabled={!selectedFile || !importProjectId || importScheduleMutation.isPending}
+                    className="w-full"
+                    data-testid="button-confirm-import"
+                  >
+                    {importScheduleMutation.isPending ? "Importing..." : "Import Schedule"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Project Selector and Actions */}
       <Card>
@@ -463,54 +570,63 @@ export default function GanttChartPage() {
                     </Form>
                   </DialogContent>
                 </Dialog>
-
-                <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" variant="outline" data-testid="button-import-csv">
-                      <Upload className="h-4 w-4 mr-2" />
-                      Import CSV
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Import Tasks from CSV</DialogTitle>
-                      <DialogDescription>
-                        Upload a CSV file with task data for {selectedProject?.projectName}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">CSV File</label>
-                        <Input
-                          type="file"
-                          accept=".csv"
-                          onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                          data-testid="input-csv-file"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Required columns: name, startDate, endDate. Optional: description, status, priority, progress
-                        </p>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setIsImportOpen(false)} data-testid="button-cancel-import">
-                          Cancel
-                        </Button>
-                        <Button 
-                          onClick={handleImport} 
-                          disabled={!selectedFile || importTasksMutation.isPending}
-                          data-testid="button-submit-import"
-                        >
-                          {importTasksMutation.isPending ? "Importing..." : "Import"}
-                        </Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
               </div>
             )}
           </div>
         </CardHeader>
       </Card>
+
+      {/* Schedule Files */}
+      {selectedProjectId && schedules.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center justify-between">
+              <span>Uploaded Schedules</span>
+              <Badge variant="secondary">{schedules.length} file{schedules.length !== 1 ? 's' : ''}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {schedules.map((schedule) => (
+                <Card key={schedule.id} className="hover-elevate" data-testid={`schedule-card-${schedule.id}`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1">
+                        <FileText className="h-8 w-8 text-primary" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate" data-testid={`text-schedule-name-${schedule.id}`}>
+                            {schedule.fileName}
+                          </div>
+                          <div className="text-sm text-muted-foreground">v{schedule.version}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {schedule.fileSize ? `${(Number(schedule.fileSize) / 1024).toFixed(2)} KB` : ''} • 
+                            {new Date(schedule.uploadedAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={schedule.status === 'active' ? 'default' : 'secondary'} data-testid={`badge-schedule-status-${schedule.id}`}>
+                          {schedule.status}
+                        </Badge>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          asChild
+                          data-testid={`button-view-schedule-${schedule.id}`}
+                        >
+                          <a href={schedule.filePath} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Gantt Chart */}
       <Card>
