@@ -3276,6 +3276,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Download test file with 5 sample tasks
+  app.get("/api/templates/test-sample", requireAuth, (req, res) => {
+    const filePath = path.join(process.cwd(), 'attached_assets', 'test_import_5tasks.xlsx');
+    res.download(filePath, 'Sample_5_Tasks.xlsx', (err) => {
+      if (err) {
+        console.error('Error downloading test sample:', err);
+        res.status(500).json({ error: "Failed to download test file" });
+      }
+    });
+  });
+
   // Get project schedules
   app.get("/api/schedules/project/:projectId", requireAuth, async (req, res) => {
     try {

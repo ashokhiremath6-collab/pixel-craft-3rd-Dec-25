@@ -379,6 +379,31 @@ export default function GanttChartPage() {
               <Download className="h-4 w-4 mr-2" />
               Dependencies Template
             </Button>
+            <Button 
+              variant="default" 
+              onClick={async () => {
+                try {
+                  const response = await fetch('/api/templates/test-sample');
+                  if (!response.ok) throw new Error('Download failed');
+                  const blob = await response.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'Sample_5_Tasks.xlsx';
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+                  toast({ title: "Test File Downloaded", description: "Sample file with 5 tasks ready to import!" });
+                } catch (error) {
+                  toast({ title: "Download Failed", description: "Could not download test file", variant: "destructive" });
+                }
+              }}
+              data-testid="button-download-test-sample"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Test Sample (5 Tasks)
+            </Button>
             <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
               <DialogTrigger asChild>
                 <Button variant="default" data-testid="button-import-schedule">
