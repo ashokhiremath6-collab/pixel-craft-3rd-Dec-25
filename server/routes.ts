@@ -3190,6 +3190,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const durationValue = row.duration || row.Duration || row.DURATION || null;
           const durationString = durationValue ? String(parseInt(String(durationValue).replace(/[^\d]/g, '')) || 0) : null;
           
+          // Progress percentage must also be a string for decimal field
+          const progressValue = row.progress || row.Progress || row.PROGRESS || row.progressPercentage || row['% Complete'];
+          const progressString = progressValue !== undefined && progressValue !== '' && progressValue !== null 
+            ? String(progressValue) 
+            : '0';
+          
           const taskData = {
             projectId,
             name: row.name || row.Name || row.task || row.Task || row.TASK,
@@ -3200,7 +3206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             assignedTo: row.assignedTo || row.assigned_to || row['Assigned To'] || row.ASSIGNED_TO || row['Resource Names'] || null,
             status: row.status || row.Status || row.STATUS || 'not_started',
             priority: row.priority || row.Priority || row.PRIORITY || 'medium',
-            progressPercentage: row.progress || row.Progress || row.PROGRESS || row.progressPercentage || row['% Complete'] || '0',
+            progressPercentage: progressString,
             approvalRequired: row.approvalRequired === 'true' || row.approval_required === 'true' || false,
           };
 
