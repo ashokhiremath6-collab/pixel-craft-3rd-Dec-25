@@ -173,6 +173,7 @@ export interface IStorage {
   
   // Task Management
   getTasksByProject(projectId: string): Promise<Task[]>;
+  getTasksBySchedule(scheduleId: string): Promise<Task[]>;
   getTask(id: string): Promise<Task | undefined>;
   createTask(task: InsertTask): Promise<Task>;
   updateTask(id: string, task: Partial<InsertTask>): Promise<Task | undefined>;
@@ -864,6 +865,10 @@ export class MemStorage implements IStorage {
 
   // Task Management (stubs for MemStorage - not used in production)
   async getTasksByProject(projectId: string): Promise<Task[]> {
+    return [];
+  }
+
+  async getTasksBySchedule(scheduleId: string): Promise<Task[]> {
     return [];
   }
 
@@ -1699,6 +1704,10 @@ export class DBStorage implements IStorage {
   // Task Management
   async getTasksByProject(projectId: string): Promise<Task[]> {
     return await db.select().from(tasks).where(eq(tasks.projectId, projectId)).orderBy(tasks.startDate);
+  }
+
+  async getTasksBySchedule(scheduleId: string): Promise<Task[]> {
+    return await db.select().from(tasks).where(eq(tasks.scheduleId, scheduleId)).orderBy(tasks.startDate);
   }
 
   async getTask(id: string): Promise<Task | undefined> {

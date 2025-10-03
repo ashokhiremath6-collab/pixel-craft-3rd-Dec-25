@@ -3526,8 +3526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { calculateCriticalPath } = await import('./criticalPath');
       
       // Get all tasks for this schedule
-      const allTasks = await storage.getTasks();
-      const scheduleTasks = allTasks.filter(t => t.scheduleId === scheduleId);
+      const scheduleTasks = await storage.getTasksBySchedule(scheduleId);
       
       if (scheduleTasks.length === 0) {
         return res.json({
@@ -3571,8 +3570,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { calculateCriticalPath } = await import('./criticalPath');
       
       // Get all tasks for this project
-      const allTasks = await storage.getTasks();
-      const projectTasks = allTasks.filter(t => t.projectId === projectId);
+      const projectTasks = await storage.getTasksByProject(projectId);
       
       if (projectTasks.length === 0) {
         return res.json({
