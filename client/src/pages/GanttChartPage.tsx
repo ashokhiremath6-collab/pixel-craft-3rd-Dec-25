@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink } from "lucide-react";
+import { Calendar, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertTaskSchema } from "@shared/schema";
@@ -28,6 +28,23 @@ const taskFormSchema = insertTaskSchema.extend({
   progressPercentage: z.coerce.number().min(0).max(100).default(0),
 });
 
+interface CriticalPathTask {
+  task: Task;
+  earlyStart: number;
+  earlyFinish: number;
+  lateStart: number;
+  lateFinish: number;
+  totalFloat: number;
+  isCritical: boolean;
+}
+
+interface CriticalPathResult {
+  tasks: CriticalPathTask[];
+  criticalPath: string[];
+  projectDuration: number;
+  criticalPathDuration: number;
+}
+
 export default function GanttChartPage() {
   const { toast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
@@ -36,6 +53,7 @@ export default function GanttChartPage() {
   const [importProjectId, setImportProjectId] = useState<string>("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [expandedCriticalPath, setExpandedCriticalPath] = useState<Set<string>>(new Set());
 
   const { data: quotationsData, isLoading: isLoadingProjects } = useQuery<QuotationsResponse>({
     queryKey: ['/api/quotations'],
@@ -630,55 +648,86 @@ export default function GanttChartPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {schedules.map((schedule) => (
-                <Card key={schedule.id} className="hover-elevate" data-testid={`schedule-card-${schedule.id}`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 flex-1">
-                        <FileText className="h-8 w-8 text-primary" />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate" data-testid={`text-schedule-name-${schedule.id}`}>
-                            {schedule.fileName}
+              {schedules.map((schedule) => {
+                const isExpanded = expandedCriticalPath.has(schedule.id);
+                
+                return (
+                  <Card key={schedule.id} className="hover-elevate" data-testid={`schedule-card-${schedule.id}`}>
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1">
+                            <FileText className="h-8 w-8 text-primary" />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium truncate" data-testid={`text-schedule-name-${schedule.id}`}>
+                                {schedule.fileName}
+                              </div>
+                              <div className="text-sm text-muted-foreground">v{schedule.version}</div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {schedule.fileSize ? `${(Number(schedule.fileSize) / 1024).toFixed(2)} KB` : ''} • 
+                                {new Date(schedule.uploadedAt).toLocaleDateString()}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-sm text-muted-foreground">v{schedule.version}</div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {schedule.fileSize ? `${(Number(schedule.fileSize) / 1024).toFixed(2)} KB` : ''} • 
-                            {new Date(schedule.uploadedAt).toLocaleDateString()}
+                          <div className="flex items-center gap-2">
+                            <Badge variant={schedule.status === 'active' ? 'default' : 'secondary'} data-testid={`badge-schedule-status-${schedule.id}`}>
+                              {schedule.status}
+                            </Badge>
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              asChild
+                              data-testid={`button-view-schedule-${schedule.id}`}
+                            >
+                              <a href={schedule.filePath} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              onClick={() => {
+                                if (confirm(`Delete schedule "${schedule.fileName}"? This will remove all associated tasks.`)) {
+                                  deleteScheduleMutation.mutate(schedule.id);
+                                }
+                              }}
+                              disabled={deleteScheduleMutation.isPending}
+                              data-testid={`button-delete-schedule-${schedule.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
+
+                        {/* Critical Path Analysis */}
+                        <div className="border-t pt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const newSet = new Set(expandedCriticalPath);
+                              if (isExpanded) {
+                                newSet.delete(schedule.id);
+                              } else {
+                                newSet.add(schedule.id);
+                              }
+                              setExpandedCriticalPath(newSet);
+                            }}
+                            className="w-full"
+                            data-testid={`button-critical-path-${schedule.id}`}
+                          >
+                            <Activity className="h-4 w-4 mr-2" />
+                            {isExpanded ? 'Hide' : 'Show'} Critical Path Analysis
+                            {isExpanded ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronRight className="h-4 w-4 ml-2" />}
+                          </Button>
+
+                          {isExpanded && <CriticalPathDisplay scheduleId={schedule.id} />}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={schedule.status === 'active' ? 'default' : 'secondary'} data-testid={`badge-schedule-status-${schedule.id}`}>
-                          {schedule.status}
-                        </Badge>
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          asChild
-                          data-testid={`button-view-schedule-${schedule.id}`}
-                        >
-                          <a href={schedule.filePath} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          onClick={() => {
-                            if (confirm(`Delete schedule "${schedule.fileName}"? This will remove all associated tasks.`)) {
-                              deleteScheduleMutation.mutate(schedule.id);
-                            }
-                          }}
-                          disabled={deleteScheduleMutation.isPending}
-                          data-testid={`button-delete-schedule-${schedule.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -893,6 +942,154 @@ export default function GanttChartPage() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// Critical Path Display Component
+function CriticalPathDisplay({ scheduleId }: { scheduleId: string }) {
+  const { data: criticalPathData, isLoading } = useQuery<CriticalPathResult>({
+    queryKey: ['/api/schedules', scheduleId, 'critical-path'],
+    queryFn: async () => {
+      const response = await fetch(`/api/schedules/${scheduleId}/critical-path`);
+      if (!response.ok) throw new Error('Failed to fetch critical path');
+      return response.json();
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="mt-3 p-4 bg-muted/50 rounded-md">
+        <div className="text-sm text-muted-foreground">Calculating critical path...</div>
+      </div>
+    );
+  }
+
+  if (!criticalPathData || criticalPathData.tasks.length === 0) {
+    return (
+      <div className="mt-3 p-4 bg-muted/50 rounded-md">
+        <div className="text-sm text-muted-foreground">No tasks found in this schedule</div>
+      </div>
+    );
+  }
+
+  const criticalTasks = criticalPathData.tasks.filter(t => t.isCritical);
+  const totalTasks = criticalPathData.tasks.length;
+  const criticalPercentage = ((criticalTasks.length / totalTasks) * 100).toFixed(0);
+
+  return (
+    <div className="mt-3 space-y-3">
+      {/* Summary Stats */}
+      <div className="grid grid-cols-4 gap-3">
+        <Card className="bg-primary/5">
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground mb-1">Project Duration</div>
+            <div className="text-xl font-bold text-primary" data-testid="text-project-duration">
+              {criticalPathData.projectDuration} days
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-destructive/5">
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground mb-1">Critical Tasks</div>
+            <div className="text-xl font-bold text-destructive" data-testid="text-critical-tasks-count">
+              {criticalTasks.length} / {totalTasks}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-orange-500/5">
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground mb-1">Critical %</div>
+            <div className="text-xl font-bold" style={{ color: 'hsl(var(--chart-2))' }}>
+              {criticalPercentage}%
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-green-500/5">
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground mb-1">Non-Critical</div>
+            <div className="text-xl font-bold" style={{ color: 'hsl(var(--chart-3))' }}>
+              {totalTasks - criticalTasks.length}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Critical Tasks List */}
+      <Card className="bg-destructive/5">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-destructive" />
+            <CardTitle className="text-sm">Critical Path Tasks (Zero Float)</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {criticalTasks.length === 0 ? (
+              <div className="text-sm text-muted-foreground">All tasks have float - no critical path identified</div>
+            ) : (
+              criticalTasks
+                .sort((a, b) => a.earlyStart - b.earlyStart)
+                .map((taskNode) => (
+                  <div 
+                    key={taskNode.task.id} 
+                    className="flex items-center justify-between p-2 bg-background rounded border border-destructive/20"
+                    data-testid={`critical-task-${taskNode.task.id}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{taskNode.task.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        ES: Day {taskNode.earlyStart.toFixed(0)} → EF: Day {taskNode.earlyFinish.toFixed(0)}
+                      </div>
+                    </div>
+                    <Badge variant="destructive" className="ml-2">
+                      Float: 0
+                    </Badge>
+                  </div>
+                ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Non-Critical Tasks with Float */}
+      {totalTasks > criticalTasks.length && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Tasks with Float</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {criticalPathData.tasks
+                .filter(t => !t.isCritical)
+                .sort((a, b) => b.totalFloat - a.totalFloat)
+                .slice(0, 10)
+                .map((taskNode) => (
+                  <div 
+                    key={taskNode.task.id} 
+                    className="flex items-center justify-between p-2 bg-muted/30 rounded"
+                    data-testid={`noncritical-task-${taskNode.task.id}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{taskNode.task.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        LS: Day {taskNode.lateStart.toFixed(0)} → LF: Day {taskNode.lateFinish.toFixed(0)}
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="ml-2">
+                      Float: {taskNode.totalFloat.toFixed(1)} days
+                    </Badge>
+                  </div>
+                ))}
+              {criticalPathData.tasks.filter(t => !t.isCritical).length > 10 && (
+                <div className="text-xs text-muted-foreground text-center pt-2">
+                  + {criticalPathData.tasks.filter(t => !t.isCritical).length - 10} more tasks
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
