@@ -3342,8 +3342,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileSize: String(req.file.size),
         status: 'active',
       });
-      
-      console.log('Created schedule:', schedule.id, 'for project:', projectId);
 
       // Parse the file and import tasks
       let taskData: any[] = [];
@@ -3373,10 +3371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const taskId = String(row.ID || row.id || '');
           const name = row.Name || row.name || '';
-          if (!name || !taskId) {
-            console.log(`Skipping row ${i}: missing name or taskId`, row);
-            continue;
-          }
+          if (!name || !taskId) continue;
 
           const durationValue = row.Duration || row.duration || null;
           const durationString = durationValue ? String(parseInt(String(durationValue).replace(/[^\d]/g, '')) || 0) : null;
@@ -3407,11 +3402,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             color: row.Color || row.color || null,
           };
 
-          console.log(`Validating task ${i}:`, taskRecord);
           const validatedData = insertTaskSchema.parse(taskRecord);
-          console.log(`Creating task ${i} in database...`);
           const task = await storage.createTask(validatedData);
-          console.log(`Task ${i} created successfully:`, task.id);
           createdTasks.push(task);
 
           // Store predecessor info for later processing
