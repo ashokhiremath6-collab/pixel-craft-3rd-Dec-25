@@ -300,10 +300,10 @@ export default function GanttChartPage() {
       <div className="flex items-start justify-between">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold" data-testid="heading-gantt-chart">
-            Task Management & Timeline
+            Project scheduling
           </h1>
           <p className="text-muted-foreground">
-            Manage tasks and visualize project timelines with Gantt chart
+            Manage tasks and visualize project timelines
           </p>
         </div>
       </div>

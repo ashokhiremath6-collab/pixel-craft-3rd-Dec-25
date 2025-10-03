@@ -31,7 +31,7 @@ const mainItems: NavigationItem[] = [
     icon: Building2,
   },
   {
-    title: "Gantt Chart",
+    title: "Project scheduling",
     url: "/gantt-chart",
     icon: GanttChart,
   },
