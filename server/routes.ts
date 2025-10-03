@@ -3254,6 +3254,193 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Download Gantt template
+  app.get("/api/templates/gantt", requireAuth, (req, res) => {
+    const filePath = path.join(process.cwd(), 'attached_assets', 'gantt_template.xlsx');
+    res.download(filePath, 'Interior_Gantt_Template.xlsx', (err) => {
+      if (err) {
+        console.error('Error downloading Gantt template:', err);
+        res.status(500).json({ error: "Failed to download template" });
+      }
+    });
+  });
+
+  // Download Dependencies template
+  app.get("/api/templates/dependencies", requireAuth, (req, res) => {
+    const filePath = path.join(process.cwd(), 'attached_assets', 'dependencies_template.xlsx');
+    res.download(filePath, 'Dependencies_Template.xlsx', (err) => {
+      if (err) {
+        console.error('Error downloading Dependencies template:', err);
+        res.status(500).json({ error: "Failed to download template" });
+      }
+    });
+  });
+
+  // Get project schedules
+  app.get("/api/schedules/project/:projectId", requireAuth, async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      const schedules = await storage.getProjectSchedules(projectId);
+      res.json(schedules);
+    } catch (error) {
+      console.error('Error fetching schedules:', error);
+      res.status(500).json({ error: "Failed to fetch schedules" });
+    }
+  });
+
+  // Import schedule (CSV/XLSX) with file storage and dependency parsing
+  app.post("/api/schedules/import", requireAuth, multer().single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const { projectId, version } = req.body;
+      if (!projectId) {
+        return res.status(400).json({ error: "Project ID required" });
+      }
+
+      const userId = (req.user as any).claims.sub;
+      
+      // Upload file to object storage
+      const filePath = await uploadToObjectStorage(
+        req.file.buffer,
+        req.file.originalname,
+        userId,
+        req.file.mimetype
+      );
+
+      // Create schedule record
+      const schedule = await storage.createProjectSchedule({
+        projectId,
+        fileName: req.file.originalname,
+        version: version || '1.0',
+        filePath,
+        fileSize: String(req.file.size),
+        status: 'active',
+      });
+
+      // Parse the file and import tasks
+      let taskData: any[] = [];
+      const fileExtension = req.file.originalname.split('.').pop()?.toLowerCase();
+
+      if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+        const workbook = XLSX.read(req.file.buffer);
+        const ganttSheet = workbook.Sheets['Gantt'];
+        if (ganttSheet) {
+          taskData = XLSX.utils.sheet_to_json(ganttSheet, { defval: null });
+        }
+      } else if (fileExtension === 'csv') {
+        const csvContent = req.file.buffer.toString('utf-8');
+        const parseResult = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
+        taskData = parseResult.data;
+      } else {
+        return res.status(400).json({ error: "Unsupported file format. Use CSV or XLSX" });
+      }
+
+      const createdTasks = [];
+      const errors: Array<{ row: number; error: string; data: any }> = [];
+      const dependenciesToCreate: Array<{ taskId: string; predecessorStr: string }> = [];
+
+      for (let i = 0; i < taskData.length; i++) {
+        const row: any = taskData[i];
+        
+        try {
+          const taskId = String(row.ID || row.id || '');
+          const name = row.Name || row.name || '';
+          if (!name || !taskId) continue;
+
+          const durationValue = row.Duration || row.duration || null;
+          const durationString = durationValue ? String(parseInt(String(durationValue).replace(/[^\d]/g, '')) || 0) : null;
+          
+          const progressValue = row['% Complete'] || row.progress || 0;
+          const progressString = String(progressValue || 0);
+
+          const taskRecord = {
+            projectId,
+            scheduleId: schedule.id,
+            taskId,
+            name,
+            description: row.Remarks || row.remarks || row.Notes || '',
+            startDate: row.Start || row.start || new Date().toISOString().split('T')[0],
+            endDate: row.Finish || row.finish || row.End || new Date().toISOString().split('T')[0],
+            duration: durationString,
+            assignedTo: row['Resource Names'] || row.assignedTo || null,
+            status: 'not_started',
+            priority: 'medium',
+            progressPercentage: progressString,
+            approvalRequired: (row['Approval Required'] || row.approvalRequired || 'N') === 'Y',
+            materials: row.Materials || row.materials || null,
+            owner: row.Owner || row.owner || null,
+            targetStartDate: row['Target Start'] || row.targetStart || null,
+            targetEndDate: row['Target Finish'] || row.targetFinish || null,
+            remarks: row.Remarks || row.remarks || null,
+            outlineLevel: row['Outline Level'] || row.outlineLevel || null,
+            color: row.Color || row.color || null,
+          };
+
+          const validatedData = insertTaskSchema.parse(taskRecord);
+          const task = await storage.createTask(validatedData);
+          createdTasks.push(task);
+
+          // Store predecessor info for later processing
+          const predecessorStr = row.Predecessors || row.predecessors || '';
+          if (predecessorStr && String(predecessorStr).trim()) {
+            dependenciesToCreate.push({ taskId: task.id!, predecessorStr: String(predecessorStr) });
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Invalid data';
+          errors.push({ row: i + 2, error: errorMessage, data: row });
+        }
+      }
+
+      // Create dependencies after all tasks are created
+      for (const { taskId, predecessorStr } of dependenciesToCreate) {
+        try {
+          // Parse predecessor format: "2FS+0" or "3,4FS" etc
+          const predecessors = String(predecessorStr).split(/[,;]/).map(p => p.trim()).filter(Boolean);
+          
+          for (const pred of predecessors) {
+            const match = pred.match(/^(\d+)([A-Z]{2})([+-]\d+)?$/);
+            if (match) {
+              const [, predTaskId, depType, lagStr] = match;
+              const task = createdTasks.find(t => t.taskId === predTaskId);
+              
+              if (task) {
+                const typeMap: Record<string, 'finish_to_start' | 'start_to_start' | 'finish_to_finish' | 'start_to_finish'> = {
+                  'FS': 'finish_to_start',
+                  'SS': 'start_to_start',
+                  'FF': 'finish_to_finish',
+                  'SF': 'start_to_finish',
+                };
+                
+                await storage.createTaskDependency({
+                  fromTaskId: task.id!,
+                  toTaskId: taskId,
+                  dependencyType: typeMap[depType] as any || 'finish_to_start',
+                  lag: lagStr ? String(parseInt(lagStr)) : '0',
+                });
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error creating dependency:', error);
+        }
+      }
+
+      res.status(201).json({
+        message: `Imported schedule with ${createdTasks.length} tasks`,
+        schedule,
+        tasksCreated: createdTasks.length,
+        tasksFailed: errors.length,
+        errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
+      });
+    } catch (error) {
+      console.error('Error importing schedule:', error);
+      res.status(500).json({ error: "Failed to import schedule" });
+    }
+  });
+
   // Task Dependencies
   app.get("/api/task-dependencies/:taskId", requireAuth, async (req, res) => {
     try {

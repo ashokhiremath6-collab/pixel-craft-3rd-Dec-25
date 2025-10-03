@@ -23,6 +23,8 @@ import {
   type InsertFloorPlan,
   type Moodboard,
   type InsertMoodboard,
+  type ProjectSchedule,
+  type InsertProjectSchedule,
   type Task,
   type InsertTask,
   type TaskDependency,
@@ -43,6 +45,7 @@ import {
   quoteFiles,
   floorPlans,
   moodboards,
+  projectSchedules,
   tasks,
   taskDependencies,
   taskAlerts,
@@ -160,6 +163,13 @@ export interface IStorage {
   createMoodboard(moodboard: InsertMoodboard): Promise<Moodboard>;
   updateMoodboard(id: string, moodboard: Partial<InsertMoodboard>): Promise<Moodboard | undefined>;
   deleteMoodboard(id: string): Promise<boolean>;
+  
+  // Project Schedules
+  getProjectSchedules(projectId: string): Promise<ProjectSchedule[]>;
+  getProjectSchedule(id: string): Promise<ProjectSchedule | undefined>;
+  createProjectSchedule(schedule: InsertProjectSchedule): Promise<ProjectSchedule>;
+  updateProjectSchedule(id: string, schedule: Partial<InsertProjectSchedule>): Promise<ProjectSchedule | undefined>;
+  deleteProjectSchedule(id: string): Promise<boolean>;
   
   // Task Management
   getTasksByProject(projectId: string): Promise<Task[]>;
@@ -1659,6 +1669,31 @@ export class DBStorage implements IStorage {
       
       return await db.select().from(projectVendors).where(inArray(projectVendors.projectId, accessibleProjectIds));
     }
+  }
+
+  // Project Schedules
+  async getProjectSchedules(projectId: string): Promise<ProjectSchedule[]> {
+    return await db.select().from(projectSchedules).where(eq(projectSchedules.projectId, projectId)).orderBy(projectSchedules.uploadedAt);
+  }
+
+  async getProjectSchedule(id: string): Promise<ProjectSchedule | undefined> {
+    const result = await db.select().from(projectSchedules).where(eq(projectSchedules.id, id));
+    return result[0];
+  }
+
+  async createProjectSchedule(schedule: InsertProjectSchedule): Promise<ProjectSchedule> {
+    const result = await db.insert(projectSchedules).values(schedule).returning();
+    return result[0];
+  }
+
+  async updateProjectSchedule(id: string, updates: Partial<InsertProjectSchedule>): Promise<ProjectSchedule | undefined> {
+    const result = await db.update(projectSchedules).set(updates).where(eq(projectSchedules.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteProjectSchedule(id: string): Promise<boolean> {
+    const result = await db.delete(projectSchedules).where(eq(projectSchedules.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 
   // Task Management
