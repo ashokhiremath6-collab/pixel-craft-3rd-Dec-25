@@ -3215,12 +3215,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdTasks.push(task);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Invalid data';
+          console.log(`CSV Import Error on row ${i + 2}:`, errorMessage, 'Data:', row);
           errors.push({
             row: i + 2, // +2 for header row and 1-based indexing
             error: errorMessage,
             data: row
           });
         }
+      }
+
+      console.log(`CSV Import complete: ${createdTasks.length} success, ${errors.length} failed`);
+      if (errors.length > 0) {
+        console.log('First 3 errors:', errors.slice(0, 3));
       }
 
       res.status(201).json({
