@@ -3388,7 +3388,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             startDate: row.Start || row.start || new Date().toISOString().split('T')[0],
             endDate: row.Finish || row.finish || row.End || new Date().toISOString().split('T')[0],
             duration: durationString,
-            assignedTo: row['Resource Names'] || row.assignedTo || null,
+            assignedTo: null, // Don't import resource names as user IDs - set manually later
             status: 'not_started',
             priority: 'medium',
             progressPercentage: progressString,
@@ -3407,7 +3407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdTasks.push(task);
 
           // Store predecessor info for later processing
-          const predecessorStr = row.Predecessors || row.predecessors || '';
+          const predecessorStr = row.Predecessor || row.Predecessors || row.predecessor || row.predecessors || '';
           if (predecessorStr && String(predecessorStr).trim()) {
             dependenciesToCreate.push({ taskId: task.id!, predecessorStr: String(predecessorStr) });
           }
