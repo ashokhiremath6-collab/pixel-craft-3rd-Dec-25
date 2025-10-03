@@ -401,13 +401,13 @@ export default function GanttChartPage() {
               variant="default" 
               onClick={async () => {
                 try {
-                  const response = await fetch('/api/templates/test-sample');
+                  const response = await fetch(`/api/templates/test-sample?v=${Date.now()}`);
                   if (!response.ok) throw new Error('Download failed');
                   const blob = await response.blob();
                   const url = window.URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = 'Sample_5_Tasks.xlsx';
+                  a.download = 'Sample_New_5_Tasks.xlsx';
                   document.body.appendChild(a);
                   a.click();
                   window.URL.revokeObjectURL(url);
