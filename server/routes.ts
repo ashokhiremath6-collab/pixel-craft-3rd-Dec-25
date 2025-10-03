@@ -3342,6 +3342,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileSize: String(req.file.size),
         status: 'active',
       });
+      
+      console.log('Created schedule:', schedule.id, 'for project:', projectId);
 
       // Parse the file and import tasks
       let taskData: any[] = [];
