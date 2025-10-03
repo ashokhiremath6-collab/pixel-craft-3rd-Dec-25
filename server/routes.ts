@@ -3517,6 +3517,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Critical Path Calculation
+  app.get("/api/schedules/:scheduleId/critical-path", requireAuth, async (req, res) => {
+    try {
+      const { scheduleId } = req.params;
+      
+      // Import the CPM calculator
+      const { calculateCriticalPath } = await import('./criticalPath');
+      
+      // Get all tasks for this schedule
+      const allTasks = await storage.getTasks();
+      const scheduleTasks = allTasks.filter(t => t.scheduleId === scheduleId);
+      
+      if (scheduleTasks.length === 0) {
+        return res.json({
+          tasks: [],
+          criticalPath: [],
+          projectDuration: 0,
+          criticalPathDuration: 0
+        });
+      }
+      
+      // Get all dependencies for these tasks
+      const taskIds = scheduleTasks.map(t => t.id);
+      const allDependencies = await Promise.all(
+        taskIds.map(id => storage.getTaskDependencies(id))
+      );
+      const dependencies = allDependencies.flat();
+      
+      // Calculate critical path
+      const result = calculateCriticalPath(scheduleTasks, dependencies);
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Error calculating critical path:', error);
+      res.status(500).json({ error: "Failed to calculate critical path" });
+    }
+  });
+
+  // Calculate critical path for a project (all schedules)
+  app.get("/api/projects/:projectId/critical-path", requireAuth, async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Import the CPM calculator
+      const { calculateCriticalPath } = await import('./criticalPath');
+      
+      // Get all tasks for this project
+      const allTasks = await storage.getTasks();
+      const projectTasks = allTasks.filter(t => t.projectId === projectId);
+      
+      if (projectTasks.length === 0) {
+        return res.json({
+          tasks: [],
+          criticalPath: [],
+          projectDuration: 0,
+          criticalPathDuration: 0
+        });
+      }
+      
+      // Get all dependencies for these tasks
+      const taskIds = projectTasks.map(t => t.id);
+      const allDependencies = await Promise.all(
+        taskIds.map(id => storage.getTaskDependencies(id))
+      );
+      const dependencies = allDependencies.flat();
+      
+      // Calculate critical path
+      const result = calculateCriticalPath(projectTasks, dependencies);
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Error calculating critical path:', error);
+      res.status(500).json({ error: "Failed to calculate critical path" });
+    }
+  });
+
   // Task Alerts
   app.get("/api/task-alerts/user/:userId", requireAuth, async (req, res) => {
     try {
