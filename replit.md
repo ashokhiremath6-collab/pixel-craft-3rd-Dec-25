@@ -44,6 +44,9 @@ Preferred communication style: Simple, everyday language.
 - **Project-Vendor Relations**: Junction table for many-to-many relationships with quotation data
 - **Quote Templates**: Reusable templates for different vendor categories
 - **BOQ & Quote Files**: File management for quotation documents
+- **Project Schedules**: Gantt chart schedules with 250-task capacity
+- **Tasks**: Individual project tasks with dependencies, dates, and progress tracking
+- **Task Dependencies**: Support for all 4 dependency types (FS, SS, FF, SF) with lag
 
 ### Design System
 - **Component Library**: Custom components built on Radix UI primitives
@@ -57,8 +60,29 @@ Preferred communication style: Simple, everyday language.
 - **Dashboard**: Overview with vendor statistics and recent quotations
 - **Vendor Management**: Category-based vendor listing with CRUD operations
 - **Project Management**: Project creation and vendor association
+- **Project Scheduling**: Advanced Gantt chart with Critical Path Method (CPM) analysis
 - **Comparative Quotes**: Cross-project quotation analysis and comparison
 - **Templates**: Quote template management for different categories
+
+### Advanced Project Scheduling
+- **Gantt Chart Template**: 250-row Excel template with Instructions sheet
+  - 18 columns: ID, Name, Start, Finish, Duration, % Complete, Predecessors, Resource Names, Status, Priority, Approval Required, Materials, Owner, Target Start/Finish, Remarks, Outline Level, Color
+  - Includes 3 sample tasks with dependency examples
+  - Built-in Instructions sheet with column descriptions, format examples, and dependency syntax guide
+- **Critical Path Analysis**: Full CPM algorithm implementation
+  - Forward pass: Calculates Early Start (ES) and Early Finish (EF) for all tasks
+  - Backward pass: Calculates Late Start (LS) and Late Finish (LF) for all tasks
+  - Total Float calculation: Identifies slack time available for each task
+  - Critical path identification: Highlights tasks with zero float (must complete on time)
+  - Project duration calculation: Shows total project timeline
+  - Cycle detection: Prevents circular dependencies
+- **Dependency Types**: All 4 standard precedence relationships
+  - FS (Finish-to-Start): Task must finish before successor starts
+  - SS (Start-to-Start): Task must start before successor starts
+  - FF (Finish-to-Finish): Task must finish before successor finishes
+  - SF (Start-to-Finish): Task must start before successor finishes
+  - Lag support: Positive/negative time offsets (e.g., `2(FS)+3` or `3(FF)-1`)
+- **Visual Display**: Compact summary banner showing project metrics, numbered critical tasks, hover effects
 
 ## External Dependencies
 
