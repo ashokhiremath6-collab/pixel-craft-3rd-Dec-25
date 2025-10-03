@@ -19,8 +19,67 @@ interface CriticalPathResult {
 }
 
 /**
+ * Detect circular dependencies using DFS
+ */
+function detectCycle(
+  tasks: Task[],
+  dependencies: TaskDependency[]
+): string | null {
+  const taskMap = new Map<string, Task>();
+  tasks.forEach(task => taskMap.set(task.id, task));
+
+  const successors = new Map<string, string[]>();
+  dependencies.forEach(dep => {
+    if (!successors.has(dep.fromTaskId)) {
+      successors.set(dep.fromTaskId, []);
+    }
+    successors.get(dep.fromTaskId)!.push(dep.toTaskId);
+  });
+
+  const visited = new Set<string>();
+  const recursionStack = new Set<string>();
+
+  const dfs = (taskId: string, path: string[]): string | null => {
+    visited.add(taskId);
+    recursionStack.add(taskId);
+    path.push(taskId);
+
+    const succs = successors.get(taskId) || [];
+    for (const succId of succs) {
+      if (!taskMap.has(succId)) continue;
+
+      if (recursionStack.has(succId)) {
+        // Cycle detected
+        const cycleStart = path.indexOf(succId);
+        const cycle = path.slice(cycleStart).concat(succId);
+        return `Circular dependency detected: ${cycle.join(' → ')}`;
+      }
+
+      if (!visited.has(succId)) {
+        const result = dfs(succId, path);
+        if (result) return result;
+      }
+    }
+
+    recursionStack.delete(taskId);
+    path.pop();
+    return null;
+  };
+
+  for (const task of tasks) {
+    if (!visited.has(task.id)) {
+      const cycleError = dfs(task.id, []);
+      if (cycleError) return cycleError;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Calculate the critical path for a set of tasks using the Critical Path Method (CPM)
  * Supports all 4 dependency types: FS, SS, FF, SF
+ * Throws an error if circular dependencies are detected
  */
 export function calculateCriticalPath(
   tasks: Task[],
@@ -33,6 +92,12 @@ export function calculateCriticalPath(
       projectDuration: 0,
       criticalPathDuration: 0
     };
+  }
+
+  // Detect circular dependencies
+  const cycleError = detectCycle(tasks, dependencies);
+  if (cycleError) {
+    throw new Error(cycleError);
   }
 
   // Create task map for quick lookup

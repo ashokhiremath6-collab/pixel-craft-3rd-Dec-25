@@ -3549,8 +3549,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = calculateCriticalPath(scheduleTasks, dependencies);
       
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error calculating critical path:', error);
+      // Check if it's a circular dependency error
+      if (error?.message?.includes('Circular dependency')) {
+        return res.status(400).json({ 
+          error: error.message,
+          type: 'circular_dependency' 
+        });
+      }
       res.status(500).json({ error: "Failed to calculate critical path" });
     }
   });
@@ -3587,8 +3594,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = calculateCriticalPath(projectTasks, dependencies);
       
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error calculating critical path:', error);
+      // Check if it's a circular dependency error
+      if (error?.message?.includes('Circular dependency')) {
+        return res.status(400).json({ 
+          error: error.message,
+          type: 'circular_dependency' 
+        });
+      }
       res.status(500).json({ error: "Failed to calculate critical path" });
     }
   });

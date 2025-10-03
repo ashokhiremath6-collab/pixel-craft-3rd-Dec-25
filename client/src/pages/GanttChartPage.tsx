@@ -948,11 +948,14 @@ export default function GanttChartPage() {
 
 // Critical Path Display Component
 function CriticalPathDisplay({ scheduleId }: { scheduleId: string }) {
-  const { data: criticalPathData, isLoading } = useQuery<CriticalPathResult>({
+  const { data: criticalPathData, isLoading, error, isError } = useQuery<CriticalPathResult>({
     queryKey: ['/api/schedules', scheduleId, 'critical-path'],
     queryFn: async () => {
       const response = await fetch(`/api/schedules/${scheduleId}/critical-path`);
-      if (!response.ok) throw new Error('Failed to fetch critical path');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch critical path');
+      }
       return response.json();
     },
   });
@@ -961,6 +964,34 @@ function CriticalPathDisplay({ scheduleId }: { scheduleId: string }) {
     return (
       <div className="mt-3 p-4 bg-muted/50 rounded-md">
         <div className="text-sm text-muted-foreground">Calculating critical path...</div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to calculate critical path';
+    const isCircularDependency = errorMessage.includes('Circular dependency');
+    
+    return (
+      <div className="mt-3 p-4 bg-destructive/10 rounded-md border border-destructive/20">
+        <div className="flex items-start gap-2">
+          <div className="text-destructive mt-0.5">
+            <Activity className="h-4 w-4" />
+          </div>
+          <div className="flex-1">
+            <div className="font-medium text-destructive text-sm mb-1">
+              {isCircularDependency ? 'Circular Dependency Detected' : 'Calculation Error'}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {errorMessage}
+            </div>
+            {isCircularDependency && (
+              <div className="text-xs text-muted-foreground mt-2">
+                Please review your task dependencies and remove any circular references where tasks depend on each other in a loop.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
