@@ -3185,9 +3185,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Map CSV columns to task fields (flexible column names)
           // Support both standard and Gantt chart CSV formats
           
-          // Extract numeric value from duration (e.g., "70 day" -> 70)
+          // Extract numeric value from duration (e.g., "70 day" -> "70")
+          // Duration is decimal type so needs to be a string
           const durationValue = row.duration || row.Duration || row.DURATION || null;
-          const durationNumeric = durationValue ? parseInt(String(durationValue).replace(/[^\d]/g, '')) || null : null;
+          const durationString = durationValue ? String(parseInt(String(durationValue).replace(/[^\d]/g, '')) || 0) : null;
           
           const taskData = {
             projectId,
@@ -3195,7 +3196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             description: row.description || row.Description || row.DESCRIPTION || row.Notes || '',
             startDate: row.startDate || row.start_date || row['Start Date'] || row.START_DATE || row.Start,
             endDate: row.endDate || row.end_date || row['End Date'] || row.END_DATE || row.Finish,
-            duration: durationNumeric,
+            duration: durationString,
             assignedTo: row.assignedTo || row.assigned_to || row['Assigned To'] || row.ASSIGNED_TO || row['Resource Names'] || null,
             status: row.status || row.Status || row.STATUS || 'not_started',
             priority: row.priority || row.Priority || row.PRIORITY || 'medium',
