@@ -1,0 +1,38 @@
+Outline Level,ID,Name,Start,Finish,Duration,% Complete,Predecessors,Resource Names,Color,Notes
+1,1,DESIGNS,2025-06-02,2025-09-05,70 day,0,,,,<p><br></p>
+2,2,Mood Board preparation,2025-06-02,2025-07-30,43 day,0,,,,<p><br></p>
+2,3,Mood Board presentation primilnery,2025-07-15,2025-07-15,1 day,0,2FS-12 days,,,<p><br></p>
+2,34,Mood Board presentation Final,2025-07-30,2025-07-30,1 day,0,,,,<p><br></p>
+2,4,Modifications & Prep for 3D renders,2025-08-01,2025-08-15,11 day,0,,,,<p><br></p>
+2,35,Review Of 3D Renders,2025-08-15,2025-08-21,5 day,0,,,,<p><br></p>
+2,36,Signoff & Finalization of 3D renders,2025-08-22,2025-09-05,11 day,0,,,,<p><br></p>
+1,5,PLANNING,2025-07-15,2025-10-15,67 day,0,,,,<p><br></p>
+2,7,Liason with Consultants (lighting),2025-07-15,2025-08-15,24 day,0,,,,<p><br></p>
+2,38,Liason with Consultants (HVAC),2025-07-15,2025-08-15,24 day,0,,,,<p><br></p>
+2,37,"Liason with Consultants (Security, Automation)",2025-07-15,2025-08-15,24 day,0,,,,<p><br></p>
+2,8,Material Selection,2025-09-02,2025-09-25,18 day,0,,,,<p><br></p>
+2,9,"Layouts, Built furniture, Panelling, 3D  Final Design Intent",2025-09-26,2025-10-15,14 day,0,,,,<p><br></p>
+2,11,"Electricals, Lighting, Plumbing, HVAC, security, automation Final Design Intent",2025-09-26,2025-10-15,14 day,0,,,,<p><br></p>
+2,10,Material Selection Final design Intent,2025-09-26,2025-10-15,14 day,0,,,,<p><br></p>
+1,12,CONSTRUCTION DOCUMENTS,2025-10-16,2025-12-17,45 day,0,,,,<p><br></p>
+2,13,"Plans, Sectional Elevations.",2025-10-16,2025-11-05,15 day,0,,,,<p><br></p>
+2,14,"Electricals, Plumbing, HVAC, Security, Automation",2025-11-06,2025-11-26,15 day,0,,,,<p><br></p>
+2,15,Construction Details,2025-11-27,2025-12-17,15 day,0,,,,<p><br></p>
+1,16,CONSTRUCTION DRAWING REVIEW,2025-12-18,2026-01-16,22 day,0,,,,<p><br></p>
+2,17,Review & highlight changes ,2025-12-18,2025-12-26,7 day,0,,,,<p><br></p>
+2,18,Implement Corrections ,2025-12-29,2026-01-06,7 day,0,,,,<p><br></p>
+2,19,Sign off,2026-01-07,2026-01-09,3 day,0,,,,<p><br></p>
+2,31,BILL OF QUANTITIES,2026-01-07,2026-01-09,3 day,0,,,,<p><br></p>
+2,32,Contractors to Fill Quantities,2026-01-09,2026-01-13,3 day,0,,,,<p><br></p>
+2,33,Review Bill Of Quantities,2026-01-14,2026-01-16,3 day,0,,,,<p><br></p>
+1,20,SITE WORKS,2025-07-15,2026-01-27,141 day,0,,,,<p><br></p>
+2,21,Addition & Alterations. ,2026-01-12,2026-01-27,12 day,0,,,,<p><br></p>
+2,22,Marking up of line levels & right angles,2025-07-15,2025-08-15,24 day,0,,,,<p><br></p>
+2,23,Cement Plaster,2025-07-15,2025-08-15,24 day,0,,,,<p><br></p>
+2,24,"Electricals & Plumbing, HVAC, Security & Automation",2025-07-15,2025-08-15,24 day,0,,,,<p><br></p>
+2,25,False Ceiling,2025-07-15,2025-08-15,24 day,0,,,,<p><br></p>
+2,27,Built in Carpentary Works,2025-07-15,2025-08-15,24 day,0,,,,<p><br></p>
+2,29,Order Loose furniture,2025-07-15,2025-08-15,24 day,0,,,,<p><br></p>
+2,26,Installations,2025-07-15,2025-08-15,24 day,0,,,,<p><br></p>
+2,28,Styling & Finishing,2025-07-15,2025-08-15,24 day,0,,,,<p><br></p>
+2,30,Handover,2025-07-15,2025-08-15,24 day,0,,,,<p><br></p>

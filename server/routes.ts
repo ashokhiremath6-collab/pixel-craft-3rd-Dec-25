@@ -3183,17 +3183,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         try {
           // Map CSV columns to task fields (flexible column names)
+          // Support both standard and Gantt chart CSV formats
           const taskData = {
             projectId,
             name: row.name || row.Name || row.task || row.Task || row.TASK,
-            description: row.description || row.Description || row.DESCRIPTION || '',
-            startDate: row.startDate || row.start_date || row['Start Date'] || row.START_DATE,
-            endDate: row.endDate || row.end_date || row['End Date'] || row.END_DATE,
+            description: row.description || row.Description || row.DESCRIPTION || row.Notes || '',
+            startDate: row.startDate || row.start_date || row['Start Date'] || row.START_DATE || row.Start,
+            endDate: row.endDate || row.end_date || row['End Date'] || row.END_DATE || row.Finish,
             duration: row.duration || row.Duration || row.DURATION || null,
-            assignedTo: row.assignedTo || row.assigned_to || row['Assigned To'] || row.ASSIGNED_TO || null,
+            assignedTo: row.assignedTo || row.assigned_to || row['Assigned To'] || row.ASSIGNED_TO || row['Resource Names'] || null,
             status: row.status || row.Status || row.STATUS || 'not_started',
             priority: row.priority || row.Priority || row.PRIORITY || 'medium',
-            progressPercentage: row.progress || row.Progress || row.PROGRESS || row.progressPercentage || '0',
+            progressPercentage: row.progress || row.Progress || row.PROGRESS || row.progressPercentage || row['% Complete'] || '0',
             approvalRequired: row.approvalRequired === 'true' || row.approval_required === 'true' || false,
           };
 
