@@ -125,10 +125,24 @@ export const moodboards = pgTable("moodboards", {
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
 });
 
+// Project Schedules table for tracking uploaded Gantt files
+export const projectSchedules = pgTable("project_schedules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id),
+  fileName: text("file_name").notNull(),
+  version: text("version").notNull().default("1.0"),
+  filePath: text("file_path").notNull(), // path in object storage
+  fileSize: decimal("file_size"), // in bytes
+  status: text("status").notNull().default("active"), // active, archived
+  uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+});
+
 // Tasks table for Gantt chart task management
 export const tasks = pgTable("tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull().references(() => projects.id),
+  scheduleId: varchar("schedule_id").references(() => projectSchedules.id), // link to uploaded schedule
+  taskId: text("task_id"), // external task ID from uploaded file (e.g., "1", "2.1", etc.)
   name: text("name").notNull(),
   description: text("description"),
   startDate: date("start_date").notNull(),
@@ -138,6 +152,7 @@ export const tasks = pgTable("tasks", {
   status: text("status").notNull().default("not_started"), // not_started, in_progress, blocked, completed, overdue
   progressPercentage: decimal("progress_percentage", { precision: 5, scale: 2 }).default("0"),
   predecessorIds: text("predecessor_ids").array(), // array of task IDs
+  isCriticalPath: boolean("is_critical_path").notNull().default(false), // calculated field for critical path
   approvalRequired: boolean("approval_required").notNull().default(false),
   approvalStatus: text("approval_status"), // pending, approved, rejected
   approvedBy: varchar("approved_by").references(() => users.id),
@@ -153,6 +168,7 @@ export const taskDependencies = pgTable("task_dependencies", {
   fromTaskId: varchar("from_task_id").notNull().references(() => tasks.id),
   toTaskId: varchar("to_task_id").notNull().references(() => tasks.id),
   dependencyType: text("dependency_type").notNull().default("finish_to_start"), // finish_to_start, start_to_start, finish_to_finish, start_to_finish
+  lag: decimal("lag", { precision: 10, scale: 2 }).default("0"), // lag time in days (can be negative for lead time)
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
@@ -225,6 +241,13 @@ export const insertMoodboardSchema = createInsertSchema(moodboards).omit({
   assetType: z.enum(["moodboard", "working_drawing", "render"]).default("moodboard"),
 });
 
+export const insertProjectScheduleSchema = createInsertSchema(projectSchedules).omit({
+  id: true,
+  uploadedAt: true,
+}).extend({
+  status: z.enum(["active", "archived"]).default("active"),
+});
+
 export const insertTaskSchema = createInsertSchema(tasks).omit({
   id: true,
   createdAt: true,
@@ -283,6 +306,9 @@ export type FloorPlan = typeof floorPlans.$inferSelect;
 
 export type InsertMoodboard = z.infer<typeof insertMoodboardSchema>;
 export type Moodboard = typeof moodboards.$inferSelect;
+
+export type InsertProjectSchedule = z.infer<typeof insertProjectScheduleSchema>;
+export type ProjectSchedule = typeof projectSchedules.$inferSelect;
 
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type Task = typeof tasks.$inferSelect;
