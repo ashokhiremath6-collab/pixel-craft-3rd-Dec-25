@@ -3404,23 +3404,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const match = pred.match(/^(\d+)([A-Z]{2})([+-]\d+)?$/);
             if (match) {
               const [, predTaskId, depType, lagStr] = match;
-              const task = createdTasks.find(t => t.taskId === predTaskId);
               
-              if (task) {
-                const typeMap: Record<string, 'finish_to_start' | 'start_to_start' | 'finish_to_finish' | 'start_to_finish'> = {
-                  'FS': 'finish_to_start',
-                  'SS': 'start_to_start',
-                  'FF': 'finish_to_finish',
-                  'SF': 'start_to_finish',
-                };
-                
-                await storage.createTaskDependency({
-                  fromTaskId: task.id!,
-                  toTaskId: taskId,
-                  dependencyType: typeMap[depType] as any || 'finish_to_start',
-                  lag: lagStr ? String(parseInt(lagStr)) : '0',
-                });
+              // Validate dependency type
+              const typeMap: Record<string, 'finish_to_start' | 'start_to_start' | 'finish_to_finish' | 'start_to_finish'> = {
+                'FS': 'finish_to_start',
+                'SS': 'start_to_start',
+                'FF': 'finish_to_finish',
+                'SF': 'start_to_finish',
+              };
+              
+              const normalizedType = typeMap[depType];
+              if (!normalizedType) {
+                console.warn(`Invalid dependency type "${depType}" in predecessor "${pred}", skipping`);
+                continue;
               }
+              
+              // Find predecessor task in the same schedule
+              const task = createdTasks.find(t => t.taskId === predTaskId);
+              if (!task) {
+                console.warn(`Predecessor task ID "${predTaskId}" not found in this schedule, skipping dependency`);
+                continue;
+              }
+              
+              await storage.createTaskDependency({
+                fromTaskId: task.id!,
+                toTaskId: taskId,
+                dependencyType: normalizedType,
+                lag: lagStr ? String(parseInt(lagStr)) : '0',
+              });
+            } else {
+              console.warn(`Malformed predecessor format "${pred}", expected format: "TaskID(FS|SS|FF|SF)[+/-lag]"`);
             }
           }
         } catch (error) {
