@@ -3288,6 +3288,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete schedule
+  app.delete("/api/schedules/:scheduleId", requireAuth, async (req, res) => {
+    try {
+      const { scheduleId } = req.params;
+      await storage.deleteProjectSchedule(scheduleId);
+      res.json({ success: true, message: "Schedule deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting schedule:', error);
+      res.status(500).json({ error: "Failed to delete schedule" });
+    }
+  });
+
   // Import schedule (CSV/XLSX) with file storage and dependency parsing
   app.post("/api/schedules/import", requireAuth, multer().single('file'), async (req, res) => {
     try {

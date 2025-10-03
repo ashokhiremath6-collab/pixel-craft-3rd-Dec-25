@@ -141,6 +141,24 @@ export default function GanttChartPage() {
     },
   });
 
+  const deleteScheduleMutation = useMutation({
+    mutationFn: async (scheduleId: string) => {
+      const response = await fetch(`/api/schedules/${scheduleId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to delete schedule');
+      return response.json();
+    },
+    onSuccess: (_, scheduleId) => {
+      if (selectedProjectId) {
+        queryClient.invalidateQueries({ queryKey: ['/api/schedules/project', selectedProjectId] });
+        queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
+      }
+      toast({ title: "Schedule Deleted", description: "Schedule and associated tasks have been removed" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Delete Failed", description: error.message || "Could not delete schedule", variant: "destructive" });
+    }
+  });
+
   const projects = quotationsData?.projects || [];
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 
@@ -617,6 +635,19 @@ export default function GanttChartPage() {
                           <a href={schedule.filePath} target="_blank" rel="noopener noreferrer">
                             <ExternalLink className="h-4 w-4" />
                           </a>
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => {
+                            if (confirm(`Delete schedule "${schedule.fileName}"? This will remove all associated tasks.`)) {
+                              deleteScheduleMutation.mutate(schedule.id);
+                            }
+                          }}
+                          disabled={deleteScheduleMutation.isPending}
+                          data-testid={`button-delete-schedule-${schedule.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
