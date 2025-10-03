@@ -1009,88 +1009,99 @@ function CriticalPathDisplay({ scheduleId }: { scheduleId: string }) {
   const criticalPercentage = ((criticalTasks.length / totalTasks) * 100).toFixed(0);
 
   return (
-    <div className="mt-3 space-y-3">
-      {/* Summary Stats */}
-      <div className="grid grid-cols-4 gap-3">
-        <Card className="bg-primary/5">
-          <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground mb-1">Project Duration</div>
-            <div className="text-xl font-bold text-primary" data-testid="text-project-duration">
+    <div className="mt-3 space-y-4">
+      {/* Compact Summary Banner */}
+      <div className="bg-muted/30 rounded-lg p-4">
+        <div className="flex items-center justify-between gap-6 flex-wrap">
+          <div className="flex items-center gap-2">
+            <div className="text-sm text-muted-foreground">Project Duration</div>
+            <div className="text-2xl font-bold text-primary" data-testid="text-project-duration">
               {criticalPathData.projectDuration} days
             </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-destructive/5">
-          <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground mb-1">Critical Tasks</div>
-            <div className="text-xl font-bold text-destructive" data-testid="text-critical-tasks-count">
+          </div>
+          <div className="h-8 w-px bg-border" />
+          <div className="flex items-center gap-2">
+            <div className="text-sm text-muted-foreground">Critical Tasks</div>
+            <div className="text-2xl font-bold text-destructive" data-testid="text-critical-tasks-count">
               {criticalTasks.length} / {totalTasks}
             </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-orange-500/5">
-          <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground mb-1">Critical %</div>
-            <div className="text-xl font-bold" style={{ color: 'hsl(var(--chart-2))' }}>
+          </div>
+          <div className="h-8 w-px bg-border" />
+          <div className="flex items-center gap-2">
+            <div className="text-sm text-muted-foreground">Critical %</div>
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
               {criticalPercentage}%
             </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-green-500/5">
-          <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground mb-1">Non-Critical</div>
-            <div className="text-xl font-bold" style={{ color: 'hsl(var(--chart-3))' }}>
+          </div>
+          <div className="h-8 w-px bg-border" />
+          <div className="flex items-center gap-2">
+            <div className="text-sm text-muted-foreground">Non-Critical</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {totalTasks - criticalTasks.length}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Critical Tasks List */}
-      <Card className="bg-destructive/5">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-destructive" />
-            <CardTitle className="text-sm">Critical Path Tasks (Zero Float)</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {criticalTasks.length === 0 ? (
-              <div className="text-sm text-muted-foreground">All tasks have float - no critical path identified</div>
-            ) : (
-              criticalTasks
+      {criticalTasks.length > 0 && (
+        <Card className="border-destructive/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-destructive" />
+                <CardTitle className="text-base">Critical Path Tasks (Zero Float)</CardTitle>
+              </div>
+              <Badge variant="destructive" className="font-mono">
+                {criticalTasks.length} tasks
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+              {criticalTasks
                 .sort((a, b) => a.earlyStart - b.earlyStart)
-                .map((taskNode) => (
+                .map((taskNode, index) => (
                   <div 
                     key={taskNode.task.id} 
-                    className="flex items-center justify-between p-2 bg-background rounded border border-destructive/20"
+                    className="group flex items-center gap-3 p-3 bg-destructive/5 hover-elevate rounded-lg border border-destructive/20"
                     data-testid={`critical-task-${taskNode.task.id}`}
                   >
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-destructive/10 text-destructive font-semibold text-sm flex-shrink-0">
+                      {index + 1}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{taskNode.task.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        ES: Day {taskNode.earlyStart.toFixed(0)} → EF: Day {taskNode.earlyFinish.toFixed(0)}
+                      <div className="font-medium text-sm mb-1 truncate">{taskNode.task.name}</div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
+                        <span>ES: Day {taskNode.earlyStart.toFixed(0)}</span>
+                        <span>→</span>
+                        <span>EF: Day {taskNode.earlyFinish.toFixed(0)}</span>
                       </div>
                     </div>
-                    <Badge variant="destructive" className="ml-2">
+                    <Badge variant="destructive" className="flex-shrink-0 font-mono">
                       Float: 0
                     </Badge>
                   </div>
                 ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              }
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Non-Critical Tasks with Float */}
       {totalTasks > criticalTasks.length && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Tasks with Float</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Tasks with Float</CardTitle>
+              <Badge variant="secondary" className="font-mono">
+                {totalTasks - criticalTasks.length} tasks
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
               {criticalPathData.tasks
                 .filter(t => !t.isCritical)
                 .sort((a, b) => b.totalFloat - a.totalFloat)
@@ -1098,23 +1109,25 @@ function CriticalPathDisplay({ scheduleId }: { scheduleId: string }) {
                 .map((taskNode) => (
                   <div 
                     key={taskNode.task.id} 
-                    className="flex items-center justify-between p-2 bg-muted/30 rounded"
+                    className="group flex items-center gap-3 p-3 bg-muted/20 hover-elevate rounded-lg"
                     data-testid={`noncritical-task-${taskNode.task.id}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{taskNode.task.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        LS: Day {taskNode.lateStart.toFixed(0)} → LF: Day {taskNode.lateFinish.toFixed(0)}
+                      <div className="font-medium text-sm mb-1 truncate">{taskNode.task.name}</div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
+                        <span>LS: Day {taskNode.lateStart.toFixed(0)}</span>
+                        <span>→</span>
+                        <span>LF: Day {taskNode.lateFinish.toFixed(0)}</span>
                       </div>
                     </div>
-                    <Badge variant="secondary" className="ml-2">
-                      Float: {taskNode.totalFloat.toFixed(1)} days
+                    <Badge variant="secondary" className="flex-shrink-0 font-mono">
+                      Float: {taskNode.totalFloat.toFixed(1)}d
                     </Badge>
                   </div>
                 ))}
               {criticalPathData.tasks.filter(t => !t.isCritical).length > 10 && (
-                <div className="text-xs text-muted-foreground text-center pt-2">
-                  + {criticalPathData.tasks.filter(t => !t.isCritical).length - 10} more tasks
+                <div className="text-xs text-center pt-2 text-muted-foreground">
+                  + {criticalPathData.tasks.filter(t => !t.isCritical).length - 10} more tasks with float
                 </div>
               )}
             </div>
