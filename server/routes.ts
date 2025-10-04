@@ -3307,16 +3307,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // First pass: collect all existing external IDs
       tasks.forEach(task => {
-        if (task.externalTaskId) {
-          usedExternalIds.add(task.externalTaskId);
+        if (task.taskId) {
+          usedExternalIds.add(task.taskId);
         }
       });
       
       // Second pass: assign external IDs (using existing or generating non-colliding fallbacks)
       let fallbackCounter = 1;
       tasks.forEach(task => {
-        if (task.externalTaskId) {
-          taskIdMap[task.id] = task.externalTaskId;
+        if (task.taskId) {
+          taskIdMap[task.id] = task.taskId;
         } else {
           // Find next available sequential ID that doesn't collide
           while (usedExternalIds.has(String(fallbackCounter))) {
@@ -3334,6 +3334,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dependencyResults = await Promise.all(dependencyPromises);
       
       // Build dependencies map
+      const depTypeAbbrev: Record<string, string> = {
+        'finish_to_start': 'FS',
+        'start_to_start': 'SS',
+        'finish_to_finish': 'FF',
+        'start_to_finish': 'SF',
+      };
+      
       const allDependencies: Record<string, string[]> = {};
       tasks.forEach((task, index) => {
         const deps = dependencyResults[index];
@@ -3341,10 +3348,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Format dependencies as TaskID(Type) or TaskID(Type)+lag
           allDependencies[task.id] = deps.map(dep => {
             const taskId = taskIdMap[dep.fromTaskId] || dep.fromTaskId;
+            const typeAbbrev = depTypeAbbrev[dep.dependencyType] || 'FS';
             
-            let formatted = `${taskId}(${dep.dependencyType})`;
-            if (dep.lagDays && dep.lagDays !== 0) {
-              formatted += dep.lagDays > 0 ? `+${dep.lagDays}` : `${dep.lagDays}`;
+            let formatted = `${taskId}(${typeAbbrev})`;
+            const lagValue = dep.lag ? parseFloat(dep.lag) : 0;
+            if (lagValue && lagValue !== 0) {
+              formatted += lagValue > 0 ? `+${lagValue}` : `${lagValue}`;
             }
             return formatted;
           });
@@ -3550,7 +3559,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const workbook = XLSX.read(req.file.buffer);
         const ganttSheet = workbook.Sheets['Gantt'];
         if (ganttSheet) {
-          taskData = XLSX.utils.sheet_to_json(ganttSheet, { defval: null });
+          // Use raw: false to convert Excel date serial numbers to date strings
+          taskData = XLSX.utils.sheet_to_json(ganttSheet, { defval: null, raw: false });
         }
       } else if (fileExtension === 'csv') {
         const csvContent = req.file.buffer.toString('utf-8');
@@ -3559,6 +3569,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         return res.status(400).json({ error: "Unsupported file format. Use CSV or XLSX" });
       }
+
+      // Helper function to parse and normalize dates
+      const parseDate = (dateValue: any): string => {
+        if (!dateValue) return new Date().toISOString().split('T')[0];
+        
+        // If it's already a valid date string (YYYY-MM-DD), return it
+        if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+          return dateValue;
+        }
+        
+        // Try to parse as a date
+        try {
+          const date = new Date(dateValue);
+          if (!isNaN(date.getTime())) {
+            return date.toISOString().split('T')[0];
+          }
+        } catch (e) {
+          // Fall through to default
+        }
+        
+        return new Date().toISOString().split('T')[0];
+      };
 
       const createdTasks = [];
       const errors: Array<{ row: number; error: string; data: any }> = [];
@@ -3584,8 +3616,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             taskId,
             name,
             description: row.Remarks || row.remarks || row.Notes || '',
-            startDate: row.Start || row.start || new Date().toISOString().split('T')[0],
-            endDate: row.Finish || row.finish || row.End || new Date().toISOString().split('T')[0],
+            startDate: parseDate(row.Start || row.start),
+            endDate: parseDate(row.Finish || row.finish || row.End),
             duration: durationString,
             assignedTo: null, // Don't import resource names as user IDs - set manually later
             status: 'not_started',
@@ -3594,8 +3626,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             approvalRequired: (row['Approval Required'] || row.approvalRequired || 'N') === 'Y',
             materials: row.Materials || row.materials || null,
             owner: row.Owner || row.owner || null,
-            targetStartDate: row['Target Start'] || row.targetStart || null,
-            targetEndDate: row['Target Finish'] || row.targetFinish || null,
+            targetStartDate: row['Target Start'] || row.targetStart ? parseDate(row['Target Start'] || row.targetStart) : null,
+            targetEndDate: row['Target Finish'] || row.targetFinish ? parseDate(row['Target Finish'] || row.targetFinish) : null,
             remarks: row.Remarks || row.remarks || null,
             outlineLevel: row['Outline Level'] || row.outlineLevel || null,
             color: row.Color || row.color || null,
@@ -3619,11 +3651,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create dependencies after all tasks are created
       for (const { taskId, predecessorStr } of dependenciesToCreate) {
         try {
-          // Parse predecessor format: "2FS+0" or "3,4FS" etc
+          // Parse predecessor format: "2(FS)+0" or "2FS+0" or "3,4FS" etc
           const predecessors = String(predecessorStr).split(/[,;]/).map(p => p.trim()).filter(Boolean);
           
           for (const pred of predecessors) {
-            const match = pred.match(/^(\d+)([A-Z]{2})([+-]\d+)?$/);
+            // Support both formats: "2(FS)+0" and "2FS+0", allowing alphanumeric IDs like "2.1" or "A1" and decimal lags
+            const match = pred.match(/^([\w.-]+)\(?([A-Z]{2})\)?([+-]?\d+(?:\.\d+)?)?$/) || pred.match(/^([\w.-]+)([A-Z]{2})([+-]?\d+(?:\.\d+)?)?$/);
             if (match) {
               const [, predTaskId, depType, lagStr] = match;
               
@@ -3652,7 +3685,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 fromTaskId: task.id!,
                 toTaskId: taskId,
                 dependencyType: normalizedType,
-                lag: lagStr ? String(parseInt(lagStr)) : '0',
+                lag: lagStr ? String(parseFloat(lagStr)) : '0',
               });
             } else {
               console.warn(`Malformed predecessor format "${pred}", expected format: "TaskID(FS|SS|FF|SF)[+/-lag]"`);
