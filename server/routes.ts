@@ -3287,6 +3287,205 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Export schedule to Excel
+  app.get("/api/schedules/export/:projectId", requireAuth, async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Get project details
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      
+      // Get all tasks for this project
+      const tasks = await storage.getProjectTasks(projectId);
+      
+      // Create a map of task ID to external task ID (with fallback that avoids collisions)
+      const taskIdMap: Record<string, string> = {};
+      const usedExternalIds = new Set<string>();
+      
+      // First pass: collect all existing external IDs
+      tasks.forEach(task => {
+        if (task.externalTaskId) {
+          usedExternalIds.add(task.externalTaskId);
+        }
+      });
+      
+      // Second pass: assign external IDs (using existing or generating non-colliding fallbacks)
+      let fallbackCounter = 1;
+      tasks.forEach(task => {
+        if (task.externalTaskId) {
+          taskIdMap[task.id] = task.externalTaskId;
+        } else {
+          // Find next available sequential ID that doesn't collide
+          while (usedExternalIds.has(String(fallbackCounter))) {
+            fallbackCounter++;
+          }
+          const fallbackId = String(fallbackCounter);
+          taskIdMap[task.id] = fallbackId;
+          usedExternalIds.add(fallbackId);
+          fallbackCounter++;
+        }
+      });
+      
+      // Fetch all task dependencies in parallel (avoid N+1 query problem)
+      const dependencyPromises = tasks.map(task => storage.getTaskDependencies(task.id));
+      const dependencyResults = await Promise.all(dependencyPromises);
+      
+      // Build dependencies map
+      const allDependencies: Record<string, string[]> = {};
+      tasks.forEach((task, index) => {
+        const deps = dependencyResults[index];
+        if (deps.length > 0) {
+          // Format dependencies as TaskID(Type) or TaskID(Type)+lag
+          allDependencies[task.id] = deps.map(dep => {
+            const taskId = taskIdMap[dep.fromTaskId] || dep.fromTaskId;
+            
+            let formatted = `${taskId}(${dep.dependencyType})`;
+            if (dep.lagDays && dep.lagDays !== 0) {
+              formatted += dep.lagDays > 0 ? `+${dep.lagDays}` : `${dep.lagDays}`;
+            }
+            return formatted;
+          });
+        }
+      });
+      
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Headers matching the template format
+      const headers = [
+        'ID',
+        'Name',
+        'Start',
+        'Finish',
+        'Duration',
+        '% Complete',
+        'Predecessors',
+        'Resource Names',
+        'Status',
+        'Priority',
+        'Approval Required',
+        'Materials',
+        'Owner',
+        'Target Start',
+        'Target Finish',
+        'Remarks',
+        'Outline Level',
+        'Color'
+      ];
+      
+      const data = [headers];
+      
+      // Add each task as a row
+      for (const task of tasks) {
+        const row = [
+          taskIdMap[task.id], // ID (using consistent external ID)
+          task.name || '', // Name
+          task.startDate || '', // Start
+          task.endDate || '', // Finish
+          task.duration || '', // Duration
+          task.progressPercentage || '0', // % Complete
+          allDependencies[task.id]?.join(',') || '', // Predecessors (from dependencies table)
+          task.resourceNames || '', // Resource Names
+          task.status || 'not_started', // Status
+          task.priority || 'medium', // Priority
+          task.approvalRequired ? 'Y' : 'N', // Approval Required
+          task.materials || '', // Materials
+          task.owner || '', // Owner
+          task.targetStartDate || '', // Target Start
+          task.targetEndDate || '', // Target Finish
+          task.remarks || task.description || '', // Remarks
+          task.outlineLevel || '2', // Outline Level
+          task.color || '' // Color
+        ];
+        data.push(row);
+      }
+      
+      // Create worksheet
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 6 },   // ID
+        { wch: 45 },  // Name
+        { wch: 12 },  // Start
+        { wch: 12 },  // Finish
+        { wch: 10 },  // Duration
+        { wch: 12 },  // % Complete
+        { wch: 20 },  // Predecessors
+        { wch: 20 },  // Resource Names
+        { wch: 14 },  // Status
+        { wch: 10 },  // Priority
+        { wch: 16 },  // Approval Required
+        { wch: 25 },  // Materials
+        { wch: 20 },  // Owner
+        { wch: 12 },  // Target Start
+        { wch: 12 },  // Target Finish
+        { wch: 30 },  // Remarks
+        { wch: 14 },  // Outline Level
+        { wch: 10 }   // Color
+      ];
+      
+      // Add freeze panes and auto-filter
+      ws['!freeze'] = { xSplit: 2, ySplit: 1 };
+      ws['!autofilter'] = { ref: `A1:R${data.length}` };
+      
+      XLSX.utils.book_append_sheet(wb, ws, 'Tasks');
+      
+      // Create Instructions sheet
+      const instructions = [
+        ['PixelCraft Designer - Project Schedule Export'],
+        [''],
+        [`Project: ${project.name}`],
+        [`Exported: ${new Date().toISOString().split('T')[0]}`],
+        [`Total Tasks: ${tasks.length}`],
+        [''],
+        ['This file contains your complete project schedule with all task data.'],
+        ['You can edit it and re-import to update your project schedule.'],
+        [''],
+        ['COLUMN REFERENCE'],
+        ['Column', 'Description'],
+        ['ID', 'Task identifier'],
+        ['Name', 'Task name'],
+        ['Start', 'Start date (YYYY-MM-DD)'],
+        ['Finish', 'End date (YYYY-MM-DD)'],
+        ['Duration', 'Working days'],
+        ['% Complete', 'Progress (0-100)'],
+        ['Predecessors', 'Dependencies (TaskID(Type) format)'],
+        ['Resource Names', 'Assigned team'],
+        ['Status', 'Current status'],
+        ['Priority', 'Task priority'],
+        ['Approval Required', 'Y or N'],
+        ['Materials', 'Required materials'],
+        ['Owner', 'Task owner'],
+        ['Target Start', 'Planned start date'],
+        ['Target Finish', 'Planned finish date'],
+        ['Remarks', 'Additional notes'],
+        ['Outline Level', '1=Phase/Package, 2=Task'],
+        ['Color', 'Task color (hex code)']
+      ];
+      
+      const wsInstructions = XLSX.utils.aoa_to_sheet(instructions);
+      wsInstructions['!cols'] = [{ wch: 20 }, { wch: 55 }];
+      XLSX.utils.book_append_sheet(wb, wsInstructions, 'Instructions');
+      
+      // Write to buffer
+      const excelBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      
+      // Send file
+      const filename = `${project.name.replace(/[^a-z0-9]/gi, '_')}_Schedule_${new Date().toISOString().split('T')[0]}.xlsx`;
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(excelBuffer);
+      
+    } catch (error) {
+      console.error('Error exporting schedule:', error);
+      res.status(500).json({ error: "Failed to export schedule" });
+    }
+  });
+
   // Get project schedules
   app.get("/api/schedules/project/:projectId", requireAuth, async (req, res) => {
     try {

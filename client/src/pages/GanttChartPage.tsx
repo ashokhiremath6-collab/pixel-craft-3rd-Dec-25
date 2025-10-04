@@ -352,6 +352,37 @@ export default function GanttChartPage() {
     }
   };
 
+  const handleExportSchedule = async () => {
+    if (!selectedProjectId) {
+      toast({ title: "No Project Selected", description: "Please select a project first", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/schedules/export/${selectedProjectId}`);
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      // Get filename from response header or use default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
+      a.download = filenameMatch ? filenameMatch[1] : 'Project_Schedule.xlsx';
+      
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({ title: "Schedule Exported", description: `Schedule downloaded with ${tasks.length} tasks` });
+    } catch (error) {
+      toast({ title: "Export Failed", description: "Could not export schedule", variant: "destructive" });
+    }
+  };
+
   // When form opens, update projectId
   const handleAddTaskOpen = (open: boolean) => {
     if (open && selectedProjectId) {
@@ -421,6 +452,15 @@ export default function GanttChartPage() {
             >
               <Download className="h-4 w-4 mr-2" />
               Test Sample (5 Tasks)
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleExportSchedule}
+              disabled={!selectedProjectId || tasks.length === 0}
+              data-testid="button-export-schedule"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export Current Schedule
             </Button>
             <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
               <DialogTrigger asChild>
