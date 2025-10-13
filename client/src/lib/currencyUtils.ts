@@ -14,13 +14,13 @@ export function formatCurrencyCompact(value: string | number): string {
   // For values >= 1 lakh (100,000), show in lakhs
   if (numValue >= 100000) {
     const lakhs = numValue / 100000;
-    return `₹${lakhs.toFixed(2).replace(/\.?0+$/, '')}L`;
+    return `₹${lakhs.toFixed(2).replace(/\.?0+$/, '')} L`;
   }
   
   // For values >= 1 thousand, show in thousands
   if (numValue >= 1000) {
     const thousands = numValue / 1000;
-    return `₹${thousands.toFixed(1).replace(/\.?0+$/, '')}K`;
+    return `₹${thousands.toFixed(2).replace(/\.?0+$/, '')} K`;
   }
   
   // For smaller values, show normally
