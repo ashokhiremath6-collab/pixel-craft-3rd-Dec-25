@@ -1285,15 +1285,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
     
     // First pass: Scan for total amounts throughout the document
-    for (const line of lines) {
+    // Also merge keyword lines with numeric lines that follow within 1-2 lines
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
       // Look for grand total patterns (including "Total1202104.59" format)
       const grandTotalMatches = Array.from(line.matchAll(patterns.grandTotal));
       if (grandTotalMatches.length > 0) {
         const lastMatch = grandTotalMatches[grandTotalMatches.length - 1];
         const amount = parseCurrency(lastMatch[2]);
-        if (!detectedTotals.grandTotal || amount > detectedTotals.grandTotal) {
+        // Only accept amounts > 100 to avoid picking up decimals like .96
+        if (amount > 100 && (!detectedTotals.grandTotal || amount > detectedTotals.grandTotal)) {
           detectedTotals.grandTotal = amount;
           detectedTotals.grandTotalLine = line;
+        }
+      }
+      
+      // Check if line contains a total keyword without an amount
+      const hasKeywordOnly = /(grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|^total[\s:]*$)/gi.test(line);
+      if (hasKeywordOnly) {
+        // Look at the next 1-2 lines for a number
+        for (let j = 1; j <= 2 && i + j < lines.length; j++) {
+          const nextLine = lines[i + j];
+          // Extract all numbers from the next line
+          const numberPattern = /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/g;
+          const numberMatches = Array.from(nextLine.matchAll(numberPattern));
+          if (numberMatches.length > 0) {
+            // Take the largest number from the next line
+            const amounts = numberMatches.map(m => parseCurrency(m[1]));
+            const maxAmount = Math.max(...amounts);
+            if (maxAmount > 100 && (!detectedTotals.grandTotal || maxAmount > detectedTotals.grandTotal)) {
+              detectedTotals.grandTotal = maxAmount;
+              detectedTotals.grandTotalLine = `${line} ${nextLine}`;
+              break;
+            }
+          }
         }
       }
       
@@ -1338,6 +1364,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (detectedTotals.finalAmount && detectedTotals.finalAmount > (detectedTotals.grandTotal || 0)) {
       detectedTotals.grandTotal = detectedTotals.finalAmount;
       detectedTotals.grandTotalLine = detectedTotals.finalAmountLine;
+    }
+    
+    // Fallback: If no total detected yet, scan lines for "Total" rows with amounts
+    if (!detectedTotals.grandTotal || detectedTotals.grandTotal < 100) {
+      for (const line of lines) {
+        // Look for lines that start with "Total" or contain "Total" as a standalone word
+        if (/^total[\s\t]/i.test(line) || /\btotal\b/i.test(line)) {
+          // Extract all numbers from this line
+          const numberPattern = /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/g;
+          const numberMatches = Array.from(line.matchAll(numberPattern));
+          if (numberMatches.length > 0) {
+            // Take the largest number from this "Total" line
+            const amounts = numberMatches.map(m => parseCurrency(m[1]));
+            const maxAmount = Math.max(...amounts.filter(a => a > 100)); // Ignore small numbers
+            if (maxAmount > 100 && (!detectedTotals.grandTotal || maxAmount > detectedTotals.grandTotal)) {
+              detectedTotals.grandTotal = maxAmount;
+              detectedTotals.grandTotalLine = line;
+              console.log(`PDF Total Detection: Found total in "Total" row: ${maxAmount} from line: ${line.substring(0, 100)}`);
+            }
+          }
+        }
+      }
     }
     
     // Optional: Log total detection for troubleshooting (can be removed in production)
