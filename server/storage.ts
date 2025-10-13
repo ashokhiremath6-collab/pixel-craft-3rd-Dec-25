@@ -1145,6 +1145,13 @@ export class DBStorage implements IStorage {
   }
 
   async deleteVendor(id: string): Promise<boolean> {
+    // Check if vendor has any quotations before deleting
+    const hasQuotations = await db.select().from(projectVendors).where(eq(projectVendors.vendorId, id));
+    
+    if (hasQuotations.length > 0) {
+      throw new Error("Cannot delete vendor with existing quotations. Please remove all quotes first.");
+    }
+    
     const result = await db.delete(vendors).where(eq(vendors.id, id));
     return result.rowCount !== null && result.rowCount > 0;
   }
