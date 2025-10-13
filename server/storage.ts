@@ -925,17 +925,8 @@ export class MemStorage implements IStorage {
   }
 
   async getVendorsForUser(userId: string, role: string): Promise<Vendor[]> {
-    if (role === 'designer' || role === 'admin') {
-      return this.getAllVendors();
-    }
-    return [];
-  }
-
-  async getProjectVendorsForUser(userId: string, role: string): Promise<ProjectVendor[]> {
-    if (role === 'designer' || role === 'admin') {
-      return Array.from(this.projectVendors.values());
-    }
-    return [];
+    // ALL authenticated users can access all vendors
+    return this.getAllVendors();
   }
 }
 
@@ -1592,43 +1583,8 @@ export class DBStorage implements IStorage {
   }
 
   async getVendorsForUser(userId: string, role: string): Promise<Vendor[]> {
-    if (role === 'designer' || role === 'admin') {
-      // Designers and admins can access all vendors
-      return await db.select().from(vendors);
-    } else {
-      // Clients can only access vendors associated with their projects
-      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
-      if (accessibleProjectIds.length === 0) {
-        return [];
-      }
-      
-      // Get vendors that are associated with the client's projects through project_vendors
-      const vendorIds = await db
-        .selectDistinct({ vendorId: projectVendors.vendorId })
-        .from(projectVendors)
-        .where(inArray(projectVendors.projectId, accessibleProjectIds));
-      
-      if (vendorIds.length === 0) {
-        return [];
-      }
-      
-      return await db.select().from(vendors).where(inArray(vendors.id, vendorIds.map(v => v.vendorId)));
-    }
-  }
-
-  async getProjectVendorsForUser(userId: string, role: string): Promise<ProjectVendor[]> {
-    if (role === 'designer' || role === 'admin') {
-      // Designers and admins can access all project vendors
-      return await db.select().from(projectVendors);
-    } else {
-      // Clients can only access project vendors for their accessible projects
-      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
-      if (accessibleProjectIds.length === 0) {
-        return [];
-      }
-      
-      return await db.select().from(projectVendors).where(inArray(projectVendors.projectId, accessibleProjectIds));
-    }
+    // ALL authenticated users can access all vendors
+    return await db.select().from(vendors);
   }
 
   // Project Schedules
