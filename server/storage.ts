@@ -1198,43 +1198,16 @@ export class DBStorage implements IStorage {
   }
 
   async getProjectsForUser(userId: string, role: string): Promise<Project[]> {
-    if (role === 'designer' || role === 'admin') {
-      // Designers and admins can access all projects
-      return await db.select().from(projects);
-    } else {
-      // Clients can only access projects they have access to
-      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
-      if (accessibleProjectIds.length === 0) {
-        return [];
-      }
-      return await db.select().from(projects).where(inArray(projects.id, accessibleProjectIds));
-    }
+    // ALL authenticated users (designers, admins, and clients) can access all projects
+    return await db.select().from(projects);
   }
 
   async getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]> {
-    if (role === 'designer' || role === 'admin') {
-      // Designers and admins can access all project vendors
-      if (projectId) {
-        return await db.select().from(projectVendors).where(eq(projectVendors.projectId, projectId));
-      }
-      return await db.select().from(projectVendors);
-    } else {
-      // Clients can only access project vendors for their projects
-      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
-      if (accessibleProjectIds.length === 0) {
-        return [];
-      }
-      
-      if (projectId) {
-        // Verify client has access to the specific project
-        if (!accessibleProjectIds.includes(projectId)) {
-          return [];
-        }
-        return await db.select().from(projectVendors).where(eq(projectVendors.projectId, projectId));
-      }
-      
-      return await db.select().from(projectVendors).where(inArray(projectVendors.projectId, accessibleProjectIds));
+    // ALL authenticated users (designers, admins, and clients) can access all project vendors/quotations
+    if (projectId) {
+      return await db.select().from(projectVendors).where(eq(projectVendors.projectId, projectId));
     }
+    return await db.select().from(projectVendors);
   }
 
   async getBOQForUser(userId: string, role: string, projectVendorId: string): Promise<Boq[]> {
@@ -1278,29 +1251,11 @@ export class DBStorage implements IStorage {
   }
 
   async getFloorPlansForUser(userId: string, role: string, projectId?: string): Promise<FloorPlan[]> {
-    if (role === 'designer' || role === 'admin') {
-      // Designers and admins can access all floor plans
-      if (projectId) {
-        return await db.select().from(floorPlans).where(eq(floorPlans.projectId, projectId));
-      }
-      return await db.select().from(floorPlans);
-    } else {
-      // Clients can only access floor plans for their accessible projects
-      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
-      if (accessibleProjectIds.length === 0) {
-        return [];
-      }
-      
-      if (projectId) {
-        // Verify client has access to the specific project
-        if (!accessibleProjectIds.includes(projectId)) {
-          return [];
-        }
-        return await db.select().from(floorPlans).where(eq(floorPlans.projectId, projectId));
-      }
-      
-      return await db.select().from(floorPlans).where(inArray(floorPlans.projectId, accessibleProjectIds));
+    // ALL authenticated users (designers, admins, and clients) can access all floor plans
+    if (projectId) {
+      return await db.select().from(floorPlans).where(eq(floorPlans.projectId, projectId));
     }
+    return await db.select().from(floorPlans);
   }
 
   // Project Vendors
