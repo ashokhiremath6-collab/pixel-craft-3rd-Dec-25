@@ -1284,108 +1284,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return parseFloat(amountStr.replace(/[₹,\$Rs\s]/g, '')) || 0;
     };
     
-    // First pass: Scan for total amounts throughout the document
-    // Also merge keyword lines with numeric lines that follow within 1-2 lines
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+    // Simplified approach: Scan ALL numbers in the PDF and take the biggest value
+    const allNumbers: number[] = [];
+    
+    for (const line of lines) {
+      // Extract all numbers from each line
+      const numberPattern = /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/g;
+      const numberMatches = Array.from(line.matchAll(numberPattern));
       
-      // Look for grand total patterns (including "Total1202104.59" format)
-      const grandTotalMatches = Array.from(line.matchAll(patterns.grandTotal));
-      if (grandTotalMatches.length > 0) {
-        const lastMatch = grandTotalMatches[grandTotalMatches.length - 1];
-        const amount = parseCurrency(lastMatch[2]);
-        // Only accept amounts > 100 to avoid picking up decimals like .96
-        if (amount > 100 && (!detectedTotals.grandTotal || amount > detectedTotals.grandTotal)) {
-          detectedTotals.grandTotal = amount;
-          detectedTotals.grandTotalLine = line;
+      for (const match of numberMatches) {
+        const num = parseCurrency(match[1]);
+        if (num > 100) { // Filter out small numbers (line numbers, quantities, etc.)
+          allNumbers.push(num);
         }
-      }
-      
-      // Check if line contains a total keyword without an amount
-      const hasKeywordOnly = /(grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|^total[\s:]*$)/gi.test(line);
-      if (hasKeywordOnly) {
-        // Look at the next 1-2 lines for a number
-        for (let j = 1; j <= 2 && i + j < lines.length; j++) {
-          const nextLine = lines[i + j];
-          // Extract all numbers from the next line
-          const numberPattern = /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/g;
-          const numberMatches = Array.from(nextLine.matchAll(numberPattern));
-          if (numberMatches.length > 0) {
-            // Take the largest number from the next line
-            const amounts = numberMatches.map(m => parseCurrency(m[1]));
-            const maxAmount = Math.max(...amounts);
-            if (maxAmount > 100 && (!detectedTotals.grandTotal || maxAmount > detectedTotals.grandTotal)) {
-              detectedTotals.grandTotal = maxAmount;
-              detectedTotals.grandTotalLine = `${line} ${nextLine}`;
-              break;
-            }
-          }
-        }
-      }
-      
-      // Look for final amount patterns - amounts before "E. & O.E."
-      const finalAmountEOEMatches = Array.from(line.matchAll(patterns.finalAmountWithEOE));
-      if (finalAmountEOEMatches.length > 0) {
-        const lastMatch = finalAmountEOEMatches[finalAmountEOEMatches.length - 1];
-        const amount = parseCurrency(lastMatch[1]);
-        if (amount > 100000) { // Only consider significant amounts
-          detectedTotals.finalAmount = amount;
-          detectedTotals.finalAmountLine = line;
-        }
-      }
-      
-      // Look for standalone final amounts (7+ digits on their own line)
-      const finalAmountStandaloneMatches = Array.from(line.matchAll(patterns.finalAmountStandalone));
-      if (finalAmountStandaloneMatches.length > 0 && !detectedTotals.finalAmount) {
-        const lastMatch = finalAmountStandaloneMatches[finalAmountStandaloneMatches.length - 1];
-        const amount = parseCurrency(lastMatch[1]);
-        if (amount > 100000 && amount < 100000000) { // Reasonable invoice amount range
-          detectedTotals.finalAmount = amount;
-          detectedTotals.finalAmountLine = line;
-        }
-      }
-      
-      // Look for subtotal patterns
-      const subTotalMatches = Array.from(line.matchAll(patterns.subTotal));
-      if (subTotalMatches.length > 0) {
-        const lastMatch = subTotalMatches[subTotalMatches.length - 1];
-        detectedTotals.subTotal = parseCurrency(lastMatch[2]);
-      }
-      
-      // Look for tax patterns
-      const taxMatches = Array.from(line.matchAll(patterns.tax));
-      if (taxMatches.length > 0) {
-        const lastMatch = taxMatches[taxMatches.length - 1];
-        detectedTotals.tax = parseCurrency(lastMatch[2]); // Fixed: use group 2 (amount) not group 1 (label)
       }
     }
     
-    // Prioritize final amount over grand total
-    if (detectedTotals.finalAmount && detectedTotals.finalAmount > (detectedTotals.grandTotal || 0)) {
-      detectedTotals.grandTotal = detectedTotals.finalAmount;
-      detectedTotals.grandTotalLine = detectedTotals.finalAmountLine;
-    }
-    
-    // Fallback: If no total detected yet, scan lines for "Total" rows with amounts
-    if (!detectedTotals.grandTotal || detectedTotals.grandTotal < 100) {
-      for (const line of lines) {
-        // Look for lines that start with "Total" or contain "Total" as a standalone word
-        if (/^total[\s\t]/i.test(line) || /\btotal\b/i.test(line)) {
-          // Extract all numbers from this line
-          const numberPattern = /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/g;
-          const numberMatches = Array.from(line.matchAll(numberPattern));
-          if (numberMatches.length > 0) {
-            // Take the largest number from this "Total" line
-            const amounts = numberMatches.map(m => parseCurrency(m[1]));
-            const maxAmount = Math.max(...amounts.filter(a => a > 100)); // Ignore small numbers
-            if (maxAmount > 100 && (!detectedTotals.grandTotal || maxAmount > detectedTotals.grandTotal)) {
-              detectedTotals.grandTotal = maxAmount;
-              detectedTotals.grandTotalLine = line;
-              console.log(`PDF Total Detection: Found total in "Total" row: ${maxAmount} from line: ${line.substring(0, 100)}`);
-            }
-          }
-        }
-      }
+    // Take the biggest number as the grand total
+    if (allNumbers.length > 0) {
+      detectedTotals.grandTotal = Math.max(...allNumbers);
+      console.log(`PDF Total Detection: Scanned ${allNumbers.length} numbers, biggest value is ${detectedTotals.grandTotal}`);
     }
     
     // Optional: Log total detection for troubleshooting (can be removed in production)
