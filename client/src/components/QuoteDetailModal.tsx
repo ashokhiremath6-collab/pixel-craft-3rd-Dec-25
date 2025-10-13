@@ -78,37 +78,15 @@ export default function QuoteDetailModal({
 
 
   const getTotalAmount = () => {
-    // First check for explicit quote total value (package quote)
+    // Use explicit quote total value from file
     if (quoteDetails?.quote.quotationValue) {
-      const explicitTotal = parseLocalizedNumber(quoteDetails.quote.quotationValue);
-      if (explicitTotal > 0) {
-        return explicitTotal;
-      }
+      return parseLocalizedNumber(quoteDetails.quote.quotationValue);
     }
-    
-    // If no explicit total, calculate from BOQ items (unit rate quote)
-    if (quoteDetails?.boqItems && quoteDetails.boqItems.length > 0) {
-      const calculatedTotal = quoteDetails.boqItems.reduce((sum, item) => {
-        const itemTotal = parseLocalizedNumber(item.totalAmount || 0);
-        return sum + itemTotal;
-      }, 0);
-      if (calculatedTotal > 0) {
-        return calculatedTotal;
-      }
-    }
-    
-    return null; // No total if not explicitly provided and no BOQ items
+    return null;
   };
 
   const hasExplicitTotal = () => {
     return quoteDetails?.quote.quotationValue && parseLocalizedNumber(quoteDetails.quote.quotationValue) > 0;
-  };
-  
-  const isCalculatedTotal = () => {
-    // Check if we're using calculated total from BOQ items
-    const hasExplicit = quoteDetails?.quote.quotationValue && parseLocalizedNumber(quoteDetails.quote.quotationValue) > 0;
-    const hasBoqItems = quoteDetails?.boqItems && quoteDetails.boqItems.length > 0;
-    return !hasExplicit && hasBoqItems;
   };
 
   const getStatusColor = (status: string) => {
@@ -248,29 +226,20 @@ export default function QuoteDetailModal({
                   <Separator className="my-3" />
 
                   {/* Total Summary */}
-                  {getTotalAmount() !== null && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-lg font-medium">
-                          {isCalculatedTotal() ? 'Calculated Total (from BOQ):' : 'Total Quote Value:'}
+                  {hasExplicitTotal() && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-medium">Total Quote Value:</span>
+                      <div className="flex items-center gap-2">
+                        <IndianRupee className="h-5 w-5 text-green-600" />
+                        <span className="text-2xl font-bold text-green-600" data-testid="text-total-value">
+                          {formatCurrency(getTotalAmount()!)}
                         </span>
-                        <div className="flex items-center gap-2">
-                          <IndianRupee className="h-5 w-5 text-green-600" />
-                          <span className="text-2xl font-bold text-green-600" data-testid="text-total-value">
-                            {formatCurrency(getTotalAmount()!)}
-                          </span>
-                        </div>
                       </div>
-                      {isCalculatedTotal() && (
-                        <p className="text-sm text-muted-foreground text-right">
-                          Sum of all unit rate items below
-                        </p>
-                      )}
                     </div>
                   )}
-                  {getTotalAmount() === null && (
+                  {!hasExplicitTotal() && (
                     <div className="text-center py-2 text-muted-foreground">
-                      <span className="text-sm">No pricing information available</span>
+                      <span className="text-sm">No total found in uploaded file</span>
                     </div>
                   )}
                 </CardContent>

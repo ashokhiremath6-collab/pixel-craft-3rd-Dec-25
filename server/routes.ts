@@ -1029,8 +1029,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Transform project vendors into quotation format grouped by project
       const quotationsByProject: Record<string, any[]> = {};
       
-      // Calculate totals from BOQ items for quotes without explicit totals
-      for (const pv of projectVendors) {
+      projectVendors.forEach(pv => {
         const project = projectMap.get(pv.projectId);
         const vendor = vendorMap.get(pv.vendorId);
         const category = vendor ? categoryMap.get(vendor.categoryId) : null;
@@ -1041,33 +1040,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             quotationsByProject[pv.projectId] = [];
           }
           
-          let quotationValue = pv.quotationValue;
-          
-          // If no explicit quotation value or it's zero/null, calculate from BOQ items
-          if (!quotationValue || parseFloat(quotationValue) === 0) {
-            try {
-              const boqItems = await storage.getBOQByProjectVendor(pv.id);
-              if (boqItems && boqItems.length > 0) {
-                const calculatedTotal = boqItems.reduce((sum, item) => {
-                  const itemTotal = parseFloat(item.totalAmount || '0');
-                  return sum + itemTotal;
-                }, 0);
-                if (calculatedTotal > 0) {
-                  quotationValue = calculatedTotal.toString();
-                }
-              }
-            } catch (error) {
-              console.error(`Error calculating BOQ total for quote ${pv.id}:`, error);
-            }
-          }
-          
           quotationsByProject[pv.projectId].push({
             id: pv.id,
             vendorName: vendor.name,
             category: category.name,
             quotationName: pv.quotationName,
             quotationType: pv.quotationType,
-            quotationValue: quotationValue,
+            quotationValue: pv.quotationValue,
             dateOfQuotation: pv.dateOfQuotation,
             status: pv.status,
             quotationFile: pv.quotationFile,
@@ -1076,7 +1055,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             projectName: project.projectName
           });
         }
-      }
+      });
       
       res.json({
         projects: projects,
@@ -1472,7 +1451,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           skipEmptyLines: true,
           transformHeader: (header) => header.trim().toLowerCase()
         });
-        return parsed.data;
+        
+        // Look for Total or Grand Total rows in CSV
+        const items = [];
+        let grandTotal = 0;
+        const headers = parsed.meta.fields || [];
+        
+        for (const row of parsed.data as any[]) {
+          // Check if this is a Total or Grand Total row
+          const firstColumnValue = String(row[headers[0]] || '').toLowerCase().trim();
+          const isTotalRow = firstColumnValue.includes('total') || firstColumnValue.includes('grand total');
+          
+          if (isTotalRow) {
+            // Look for the total amount in any column
+            for (const key of Object.keys(row)) {
+              const value = row[key];
+              if (typeof value === 'number' && value > grandTotal) {
+                grandTotal = value;
+              } else if (typeof value === 'string') {
+                const numValue = parseFloat(value.toString().replace(/[,₹\$\s]/g, ''));
+                if (!isNaN(numValue) && numValue > grandTotal) {
+                  grandTotal = numValue;
+                }
+              }
+            }
+          } else if (Object.values(row).some(val => val !== '')) {
+            // Only add non-empty, non-total rows
+            items.push(row);
+          }
+        }
+        
+        return {
+          items,
+          totals: { grandTotal: grandTotal > 0 ? grandTotal : undefined },
+          originalFormat: 'csv'
+        };
       } else if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) {
         // Parse Excel file from buffer
         const workbook = XLSX.read(fileBuffer);
@@ -1483,19 +1496,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
           defval: ''
         });
         
-        if (data.length === 0) return [];
+        if (data.length === 0) return { items: [], totals: {}, originalFormat: 'excel' };
         
         // Convert to objects using first row as headers
         const headers = (data[0] as string[]).map(h => String(h).trim().toLowerCase());
         const rows = data.slice(1) as any[][];
         
-        return rows.map(row => {
+        const items = [];
+        let grandTotal = 0;
+        
+        for (const row of rows) {
           const obj: any = {};
           headers.forEach((header, index) => {
             obj[header] = row[index] || '';
           });
-          return obj;
-        }).filter(row => Object.values(row).some(val => val !== ''));
+          
+          // Check if this is a Total or Grand Total row
+          const firstCell = String(obj[headers[0]] || '').toLowerCase().trim();
+          const isTotalRow = firstCell.includes('total') || firstCell.includes('grand total');
+          
+          if (isTotalRow) {
+            // Look for the total amount in any numeric column
+            for (let i = 0; i < headers.length; i++) {
+              const value = row[i];
+              if (typeof value === 'number' && value > grandTotal) {
+                grandTotal = value;
+              } else if (typeof value === 'string') {
+                const numValue = parseFloat(value.toString().replace(/[,₹\$\s]/g, ''));
+                if (!isNaN(numValue) && numValue > grandTotal) {
+                  grandTotal = numValue;
+                }
+              }
+            }
+          } else if (Object.values(obj).some(val => val !== '')) {
+            // Only add non-empty, non-total rows
+            items.push(obj);
+          }
+        }
+        
+        return {
+          items,
+          totals: { grandTotal: grandTotal > 0 ? grandTotal : undefined },
+          originalFormat: 'excel'
+        };
       } else if (mimeType.includes('pdf') || (fileName && fileName.toLowerCase().endsWith('.pdf'))) {
         // Parse PDF file from buffer
         const pdfData = await pdfParse(fileBuffer);
