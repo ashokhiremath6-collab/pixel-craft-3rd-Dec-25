@@ -126,8 +126,11 @@ export async function setupAuth(app: Express) {
     }
   };
 
-  for (const domain of process.env
-    .REPLIT_DOMAINS!.split(",")) {
+  // Get the primary Replit domain (first one in the list)
+  const domains = process.env.REPLIT_DOMAINS!.split(",");
+  const primaryDomain = domains[0];
+
+  for (const domain of domains) {
     const strategy = new Strategy(
       {
         name: `replitauth:${domain}`,
@@ -145,7 +148,11 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/login", (req, res, next) => {
     console.log('[AUTH] Login endpoint hit, hostname:', req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    // Use primary domain for authentication instead of req.hostname
+    // This fixes the issue when accessed via localhost or other domains
+    const strategyName = `replitauth:${primaryDomain}`;
+    console.log('[AUTH] Using strategy:', strategyName);
+    passport.authenticate(strategyName, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
@@ -153,7 +160,10 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/callback", (req, res, next) => {
     console.log('[AUTH] Callback endpoint hit, query:', req.query);
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    // Use primary domain for authentication instead of req.hostname
+    const strategyName = `replitauth:${primaryDomain}`;
+    console.log('[AUTH] Using strategy:', strategyName);
+    passport.authenticate(strategyName, {
       successReturnToOrRedirect: "/",
       failureRedirect: "/api/login",
     })(req, res, next);
