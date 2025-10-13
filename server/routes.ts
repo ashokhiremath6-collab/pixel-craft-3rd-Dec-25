@@ -1044,7 +1044,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let quotationValue = pv.quotationValue;
           
           // If no explicit quotation value or it's zero/null, calculate from BOQ items
-          if (!quotationValue || parseFloat(quotationValue) === 0) {
+          const numericValue = quotationValue ? parseFloat(quotationValue) : 0;
+          if (!quotationValue || numericValue === 0 || isNaN(numericValue)) {
             try {
               const boqItems = await storage.getBOQByProjectVendor(pv.id);
               if (boqItems && boqItems.length > 0) {
@@ -1054,7 +1055,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }, 0);
                 if (calculatedTotal > 0) {
                   quotationValue = calculatedTotal.toString();
+                  console.log(`Calculated total for quote ${pv.quotationName}: ₹${calculatedTotal}`);
                 }
+              } else {
+                console.log(`No BOQ items found for quote ${pv.quotationName} (${pv.id})`);
               }
             } catch (error) {
               console.error(`Error calculating BOQ total for quote ${pv.id}:`, error);
