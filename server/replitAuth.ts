@@ -57,30 +57,47 @@ function updateUserSession(
 async function upsertUser(
   claims: any,
 ) {
-  const user = await storage.upsertUser({
-    id: claims["sub"],
-    email: claims["email"],
-    firstName: claims["first_name"],
-    lastName: claims["last_name"],
-    profileImageUrl: claims["profile_image_url"],
-  });
+  try {
+    console.log('[AUTH] Upserting user with claims:', {
+      id: claims["sub"],
+      email: claims["email"],
+      firstName: claims["first_name"],
+      lastName: claims["last_name"],
+    });
 
-  // Check if user should have designer role based on email allowlist
-  if (claims["email"]) {
-    const isDesigner = await storage.isDesignerEmail(claims["email"]);
-    
-    // Check if user already has a role
-    const existingRole = await storage.getUserRole(user.id);
-    
-    if (!existingRole && isDesigner) {
-      // Assign designer role to new users who are on the allowlist
-      await storage.createUserRole({
-        userId: user.id,
-        role: 'designer',
-        isActive: true,
-        assignedBy: user.id, // self-assigned during signup
-      });
+    const user = await storage.upsertUser({
+      id: claims["sub"],
+      email: claims["email"],
+      firstName: claims["first_name"],
+      lastName: claims["last_name"],
+      profileImageUrl: claims["profile_image_url"],
+    });
+
+    console.log('[AUTH] User upserted successfully:', user.id, user.email);
+
+    // Check if user should have designer role based on email allowlist
+    if (claims["email"]) {
+      const isDesigner = await storage.isDesignerEmail(claims["email"]);
+      console.log('[AUTH] Is designer email?', claims["email"], isDesigner);
+      
+      // Check if user already has a role
+      const existingRole = await storage.getUserRole(user.id);
+      console.log('[AUTH] Existing role:', existingRole);
+      
+      if (!existingRole && isDesigner) {
+        // Assign designer role to new users who are on the allowlist
+        await storage.createUserRole({
+          userId: user.id,
+          role: 'designer',
+          isActive: true,
+          assignedBy: user.id, // self-assigned during signup
+        });
+        console.log('[AUTH] Designer role assigned to:', user.email);
+      }
     }
+  } catch (error) {
+    console.error('[AUTH] Error in upsertUser:', error);
+    throw error;
   }
 }
 
@@ -96,10 +113,17 @@ export async function setupAuth(app: Express) {
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
     verified: passport.AuthenticateCallback
   ) => {
-    const user = {};
-    updateUserSession(user, tokens);
-    await upsertUser(tokens.claims());
-    verified(null, user);
+    try {
+      console.log('[AUTH] Verifying user with claims:', tokens.claims());
+      const user = {};
+      updateUserSession(user, tokens);
+      await upsertUser(tokens.claims());
+      console.log('[AUTH] Verification successful, session created');
+      verified(null, user);
+    } catch (error) {
+      console.error('[AUTH] Verification failed:', error);
+      verified(error as Error);
+    }
   };
 
   for (const domain of process.env
