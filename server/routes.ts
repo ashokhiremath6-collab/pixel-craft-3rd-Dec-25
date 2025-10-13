@@ -1528,9 +1528,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Fallback logic: if no explicit total found, use last number or largest number
         if (grandTotal === 0) {
           // Prefer last number at the bottom (likely grand total with taxes)
-          if (lastNumber > 10000) { // Reasonable invoice amount threshold
+          // Use minimum threshold of 100 to avoid line numbers/quantities
+          if (lastNumber > 100) {
             grandTotal = lastNumber;
-          } else if (largestNumber > 10000) {
+          } else if (largestNumber > 100) {
             grandTotal = largestNumber;
           }
         }
@@ -1614,9 +1615,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Fallback logic: if no explicit total found, use last number or largest number
         if (grandTotal === 0) {
           // Prefer last number at the bottom (likely grand total with taxes)
-          if (lastNumber > 10000) { // Reasonable invoice amount threshold
+          // Use minimum threshold of 100 to avoid line numbers/quantities
+          if (lastNumber > 100) {
             grandTotal = lastNumber;
-          } else if (largestNumber > 10000) {
+          } else if (largestNumber > 100) {
             grandTotal = largestNumber;
           }
         }
