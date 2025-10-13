@@ -1455,12 +1455,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Look for Total or Grand Total rows in CSV
         const items = [];
         let grandTotal = 0;
+        let largestNumber = 0;
+        let lastNumber = 0;
         const headers = parsed.meta.fields || [];
         
         for (const row of parsed.data as any[]) {
-          // Check if this is a Total or Grand Total row
+          // Check if this is a Total, Grand Total, or Final Amount row
           const firstColumnValue = String(row[headers[0]] || '').toLowerCase().trim();
-          const isTotalRow = firstColumnValue.includes('total') || firstColumnValue.includes('grand total');
+          const isTotalRow = firstColumnValue.includes('total') || 
+                            firstColumnValue.includes('grand total') ||
+                            firstColumnValue.includes('final amount') ||
+                            firstColumnValue.includes('final total');
           
           if (isTotalRow) {
             // Look for the total amount in any column
@@ -1478,6 +1483,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else if (Object.values(row).some(val => val !== '')) {
             // Only add non-empty, non-total rows
             items.push(row);
+            
+            // Track largest number and last number as fallback
+            for (const key of Object.keys(row)) {
+              const value = row[key];
+              let numValue = 0;
+              if (typeof value === 'number') {
+                numValue = value;
+              } else if (typeof value === 'string') {
+                numValue = parseFloat(value.toString().replace(/[,₹\$\s]/g, ''));
+              }
+              
+              if (!isNaN(numValue) && numValue > 0) {
+                lastNumber = numValue; // Keep updating to get the last number
+                if (numValue > largestNumber) {
+                  largestNumber = numValue;
+                }
+              }
+            }
+          }
+        }
+        
+        // Fallback logic: if no explicit total found, use last number or largest number
+        if (grandTotal === 0) {
+          // Prefer last number at the bottom (likely grand total with taxes)
+          if (lastNumber > 10000) { // Reasonable invoice amount threshold
+            grandTotal = lastNumber;
+          } else if (largestNumber > 10000) {
+            grandTotal = largestNumber;
           }
         }
         
@@ -1504,6 +1537,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const items = [];
         let grandTotal = 0;
+        let largestNumber = 0;
+        let lastNumber = 0;
         
         for (const row of rows) {
           const obj: any = {};
@@ -1511,9 +1546,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             obj[header] = row[index] || '';
           });
           
-          // Check if this is a Total or Grand Total row
+          // Check if this is a Total, Grand Total, or Final Amount row
           const firstCell = String(obj[headers[0]] || '').toLowerCase().trim();
-          const isTotalRow = firstCell.includes('total') || firstCell.includes('grand total');
+          const isTotalRow = firstCell.includes('total') || 
+                            firstCell.includes('grand total') ||
+                            firstCell.includes('final amount') ||
+                            firstCell.includes('final total');
           
           if (isTotalRow) {
             // Look for the total amount in any numeric column
@@ -1531,6 +1569,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else if (Object.values(obj).some(val => val !== '')) {
             // Only add non-empty, non-total rows
             items.push(obj);
+            
+            // Track largest number and last number as fallback
+            for (let i = 0; i < headers.length; i++) {
+              const value = row[i];
+              let numValue = 0;
+              if (typeof value === 'number') {
+                numValue = value;
+              } else if (typeof value === 'string') {
+                numValue = parseFloat(value.toString().replace(/[,₹\$\s]/g, ''));
+              }
+              
+              if (!isNaN(numValue) && numValue > 0) {
+                lastNumber = numValue; // Keep updating to get the last number
+                if (numValue > largestNumber) {
+                  largestNumber = numValue;
+                }
+              }
+            }
+          }
+        }
+        
+        // Fallback logic: if no explicit total found, use last number or largest number
+        if (grandTotal === 0) {
+          // Prefer last number at the bottom (likely grand total with taxes)
+          if (lastNumber > 10000) { // Reasonable invoice amount threshold
+            grandTotal = lastNumber;
+          } else if (largestNumber > 10000) {
+            grandTotal = largestNumber;
           }
         }
         
