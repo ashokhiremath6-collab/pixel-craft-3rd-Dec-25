@@ -106,6 +106,12 @@ export async function canAccessObject({
     return false;
   }
 
+  // Allow ALL authenticated users to READ any object
+  if (requestedPermission === ObjectPermission.READ) {
+    return true;
+  }
+
+  // For WRITE permission, check ownership and ACL rules
   if (aclPolicy.owner === userId) {
     return true;
   }
