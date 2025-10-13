@@ -57,6 +57,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingQuote, setEditingQuote] = useState<QuotationData | null>(null);
   const [editFormData, setEditFormData] = useState({
+    quotationName: "",
     quotationValue: "",
     dateOfQuotation: "",
     notes: ""
@@ -91,6 +92,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const handleEditQuote = (quotation: QuotationData) => {
     setEditingQuote(quotation);
     setEditFormData({
+      quotationName: quotation.quotationName || "Main Quote",
       quotationValue: quotation.quotationValue || "",
       dateOfQuotation: quotation.dateOfQuotation || "",
       notes: quotation.notes || ""
@@ -101,7 +103,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const handleCloseEditModal = () => {
     setIsEditModalOpen(false);
     setEditingQuote(null);
-    setEditFormData({ quotationValue: "", dateOfQuotation: "", notes: "" });
+    setEditFormData({ quotationName: "", quotationValue: "", dateOfQuotation: "", notes: "" });
   };
 
   // Update quote mutation
@@ -136,6 +138,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     updateQuoteMutation.mutate({
       quoteId: editingQuote.id,
       updates: {
+        quotationName: editFormData.quotationName || "Main Quote",
         quotationValue: editFormData.quotationValue || null,
         dateOfQuotation: editFormData.dateOfQuotation || null,
         notes: editFormData.notes || null
@@ -871,6 +874,17 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
             <DialogTitle>Edit Quote</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div>
+              <Label htmlFor="quotationName">Quote Title</Label>
+              <Input
+                id="quotationName"
+                type="text"
+                placeholder="e.g., Main Quote, Option A, Kitchen Cabinets"
+                value={editFormData.quotationName}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, quotationName: e.target.value }))}
+                data-testid="input-edit-quotation-name"
+              />
+            </div>
             <div>
               <Label htmlFor="quotationValue">Quotation Value</Label>
               <Input
