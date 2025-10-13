@@ -797,6 +797,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/vendors/:id", requireAdmin, async (req, res) => {
+    try {
+      const parsed = insertVendorSchema.partial().parse(req.body);
+      const vendor = await storage.updateVendor(req.params.id, parsed);
+      if (!vendor) {
+        return res.status(404).json({ error: "Vendor not found" });
+      }
+      res.json(vendor);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid vendor data" });
+    }
+  });
+
   app.delete("/api/vendors/:id", requireAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteVendor(req.params.id);

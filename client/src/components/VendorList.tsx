@@ -42,15 +42,18 @@ interface VendorListProps {
   categories: VendorCategory[];
   onAddVendor?: () => void;
   onEditVendor?: (vendor: Vendor) => void;
+  onUpdateVendor?: (vendorId: string, data: Partial<Vendor>) => void;
   onDeleteVendor?: (vendorId: string) => void;
 }
 
-export default function VendorList({ vendors, categories, onAddVendor, onEditVendor, onDeleteVendor }: VendorListProps) {
+export default function VendorList({ vendors, categories, onAddVendor, onEditVendor, onUpdateVendor, onDeleteVendor }: VendorListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedProject, setSelectedProject] = useState<string>("all");
   const [isSubcategoryDialogOpen, setIsSubcategoryDialogOpen] = useState(false);
   const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -79,6 +82,23 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       email: "",
       notes: "",
       projectId: "",
+    },
+  });
+
+  // Edit vendor form with simplified schema (no projectId required for editing)
+  const editVendorFormSchema = insertVendorSchema.extend({
+    categoryId: z.string().min(1, "Category is required"),
+  });
+  
+  const editVendorForm = useForm<z.infer<typeof editVendorFormSchema>>({
+    resolver: zodResolver(editVendorFormSchema),
+    defaultValues: {
+      name: "",
+      categoryId: "",
+      contactPerson: "",
+      phone: "",
+      email: "",
+      notes: "",
     },
   });
 
@@ -189,6 +209,29 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
 
   const handleCreateVendor = (data: VendorFormData) => {
     createVendorMutation.mutate(data);
+  };
+
+  const handleEditClick = (vendor: Vendor) => {
+    setEditingVendor(vendor);
+    editVendorForm.reset({
+      name: vendor.name,
+      categoryId: vendor.categoryId,
+      contactPerson: vendor.contactPerson,
+      phone: vendor.phone,
+      email: vendor.email,
+      notes: vendor.notes || "",
+    });
+    setIsEditDialogOpen(true);
+    onEditVendor?.(vendor);
+  };
+
+  const handleUpdateVendor = (data: z.infer<typeof editVendorFormSchema>) => {
+    if (!editingVendor) return;
+    
+    onUpdateVendor?.(editingVendor.id, data);
+    setIsEditDialogOpen(false);
+    setEditingVendor(null);
+    editVendorForm.reset();
   };
 
   // Helper function to build category tree structure
@@ -587,6 +630,153 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
               </Form>
             </DialogContent>
           </Dialog>
+
+          {/* Edit Vendor Dialog */}
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Edit Vendor</DialogTitle>
+              </DialogHeader>
+              <Form {...editVendorForm}>
+                <form onSubmit={editVendorForm.handleSubmit(handleUpdateVendor)} className="space-y-4">
+                  <FormField
+                    control={editVendorForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Vendor Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., ABC Construction Ltd"
+                            data-testid="input-edit-vendor-name"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editVendorForm.control}
+                    name="categoryId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Category</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-edit-category">
+                              <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {flatCategories.map(category => (
+                              <SelectItem key={category.id} value={category.id}>
+                                <div className="flex items-center">
+                                  {category.level > 0 && (
+                                    <span style={{ marginLeft: `${category.level * 8}px` }} className="text-muted-foreground">
+                                      <ChevronRight className="h-3 w-3 inline mr-1" />
+                                    </span>
+                                  )}
+                                  {category.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editVendorForm.control}
+                    name="contactPerson"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contact Person</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., John Doe"
+                            data-testid="input-edit-contact-person"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editVendorForm.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., +91 98765 43210"
+                            data-testid="input-edit-phone"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editVendorForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="e.g., contact@abcconstruction.com"
+                            data-testid="input-edit-email"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editVendorForm.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Notes (Optional)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Additional notes about the vendor"
+                            data-testid="textarea-edit-notes"
+                            {...field}
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsEditDialogOpen(false)}
+                      data-testid="button-cancel-edit"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      data-testid="button-submit-edit"
+                    >
+                      Update Vendor
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -770,7 +960,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                           <Button 
                             size="icon" 
                             variant="ghost" 
-                            onClick={() => onEditVendor?.(vendor)}
+                            onClick={() => handleEditClick(vendor)}
                             data-testid="button-edit-vendor"
                           >
                             <Edit className="h-4 w-4" />

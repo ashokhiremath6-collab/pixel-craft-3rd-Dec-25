@@ -18,6 +18,29 @@ export default function VendorsPage() {
     queryKey: ['/api/vendors-with-projects'],
   });
 
+  // Update vendor mutation
+  const updateVendorMutation = useMutation({
+    mutationFn: async ({ vendorId, data }: { vendorId: string; data: Partial<Vendor> }) => {
+      return apiRequest('PATCH', `/api/vendors/${vendorId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors-with-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
+      toast({
+        title: "Success",
+        description: "Vendor updated successfully",
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to update vendor:', error);
+      toast({
+        title: "Error", 
+        description: "Failed to update vendor. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Delete vendor mutation
   const deleteVendorMutation = useMutation({
     mutationFn: async (vendorId: string) => {
@@ -47,12 +70,12 @@ export default function VendorsPage() {
   };
 
   const handleEditVendor = (vendor: Vendor) => {
-    // TODO: Implement edit functionality with a dialog/modal
+    // Editing is now handled by the VendorList component's edit dialog
     console.log('Edit vendor:', vendor.name);
-    toast({
-      title: "Edit Feature",
-      description: "Edit functionality will be implemented next",
-    });
+  };
+
+  const handleUpdateVendor = (vendorId: string, data: Partial<Vendor>) => {
+    updateVendorMutation.mutate({ vendorId, data });
   };
 
   const handleDeleteVendor = (vendorId: string) => {
@@ -75,6 +98,7 @@ export default function VendorsPage() {
       categories={categories}
       onAddVendor={handleAddVendor}
       onEditVendor={handleEditVendor}
+      onUpdateVendor={handleUpdateVendor}
       onDeleteVendor={handleDeleteVendor}
     />
   );
