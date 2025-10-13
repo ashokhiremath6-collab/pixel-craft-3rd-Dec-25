@@ -1029,7 +1029,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Transform project vendors into quotation format grouped by project
       const quotationsByProject: Record<string, any[]> = {};
       
-      projectVendors.forEach(pv => {
+      // Calculate totals from BOQ items for quotes without explicit totals
+      for (const pv of projectVendors) {
         const project = projectMap.get(pv.projectId);
         const vendor = vendorMap.get(pv.vendorId);
         const category = vendor ? categoryMap.get(vendor.categoryId) : null;
@@ -1040,13 +1041,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
             quotationsByProject[pv.projectId] = [];
           }
           
+          let quotationValue = pv.quotationValue;
+          
+          // If no explicit quotation value or it's zero/null, calculate from BOQ items
+          if (!quotationValue || parseFloat(quotationValue) === 0) {
+            try {
+              const boqItems = await storage.getBOQByProjectVendor(pv.id);
+              if (boqItems && boqItems.length > 0) {
+                const calculatedTotal = boqItems.reduce((sum, item) => {
+                  const itemTotal = parseFloat(item.totalAmount || '0');
+                  return sum + itemTotal;
+                }, 0);
+                if (calculatedTotal > 0) {
+                  quotationValue = calculatedTotal.toString();
+                }
+              }
+            } catch (error) {
+              console.error(`Error calculating BOQ total for quote ${pv.id}:`, error);
+            }
+          }
+          
           quotationsByProject[pv.projectId].push({
             id: pv.id,
             vendorName: vendor.name,
             category: category.name,
             quotationName: pv.quotationName,
             quotationType: pv.quotationType,
-            quotationValue: pv.quotationValue,
+            quotationValue: quotationValue,
             dateOfQuotation: pv.dateOfQuotation,
             status: pv.status,
             quotationFile: pv.quotationFile,
@@ -1055,7 +1076,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             projectName: project.projectName
           });
         }
-      });
+      }
       
       res.json({
         projects: projects,
