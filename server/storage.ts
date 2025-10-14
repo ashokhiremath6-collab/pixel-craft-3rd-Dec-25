@@ -1244,12 +1244,12 @@ export class DBStorage implements IStorage {
     const user = await this.getUser(userId);
     if (!user?.email) return [];
     
-    // Get projects where user's email matches clientEmail
-    const userProjects = await db.select({ id: projects.id })
-      .from(projects)
-      .where(eq(projects.clientEmail, user.email));
+    // Get projects where user's email is in the project_clients table
+    const userProjects = await db.select({ projectId: projectClients.projectId })
+      .from(projectClients)
+      .where(eq(projectClients.clientEmail, user.email));
     
-    return userProjects.map(p => p.id);
+    return userProjects.map(p => p.projectId);
   }
 
   async getProjectsForUser(userId: string, role: string): Promise<Project[]> {
