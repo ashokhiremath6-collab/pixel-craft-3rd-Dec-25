@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, decimal, date, boolean, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, decimal, date, boolean, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -44,7 +44,7 @@ export const projectClients = pgTable("project_clients", {
   addedAt: timestamp("added_at").notNull().default(sql`now()`),
 }, (table) => ({
   // Composite unique constraint to prevent duplicate emails per project
-  uniqueProjectClient: index("unique_project_client").on(table.projectId, table.clientEmail),
+  uniqueProjectClient: uniqueIndex("unique_project_client").on(table.projectId, table.clientEmail),
 }));
 
 // Quote Templates table
