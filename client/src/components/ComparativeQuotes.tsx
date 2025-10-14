@@ -380,10 +380,10 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
 
   const getLowestQuote = (categoryQuotations: typeof filteredQuotations) => {
     if (categoryQuotations.length === 0) return 0;
-    // Exclude unit rates quotes (-1) from lowest quote calculation
+    // Exclude unit rates quotes (-1) and zero/null values from lowest quote calculation
     const validQuotes = categoryQuotations.filter(q => {
       const value = q.quotationValue ? parseFloat(q.quotationValue) : 0;
-      return value >= 0; // Exclude -1 (unit rates) and invalid values
+      return value > 0; // Exclude -1 (unit rates), 0, and invalid values
     });
     if (validQuotes.length === 0) return 0;
     const lowestValue = Math.min(...validQuotes.map(q => {
