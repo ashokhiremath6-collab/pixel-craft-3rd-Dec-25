@@ -755,26 +755,48 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                             >
                               <Edit2 className="h-3 w-3" />
                             </Button>
-                            {quotation.status !== "Selected" && (
+                            {quotation.status === "Quoted" && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  className="h-6 text-xs px-2"
+                                  variant="outline"
+                                  onClick={() => onStatusChange?.(quotation.id, "Selected")}
+                                  data-testid="button-select-vendor"
+                                >
+                                  Select
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="h-6 text-xs px-2"
+                                  variant="outline"
+                                  onClick={() => onStatusChange?.(quotation.id, "Rejected")}
+                                  data-testid="button-reject-vendor"
+                                >
+                                  Reject
+                                </Button>
+                              </>
+                            )}
+                            {quotation.status === "Selected" && (
                               <Button
                                 size="sm"
                                 className="h-6 text-xs px-2"
                                 variant="outline"
-                                onClick={() => onStatusChange?.(quotation.id, "Selected")}
-                                data-testid="button-select-vendor"
+                                onClick={() => onStatusChange?.(quotation.id, "Quoted")}
+                                data-testid="button-unselect-vendor"
                               >
-                                Select
+                                Unselect
                               </Button>
                             )}
-                            {quotation.status === "Quoted" && (
+                            {quotation.status === "Rejected" && (
                               <Button
                                 size="sm"
                                 className="h-6 text-xs px-2"
                                 variant="outline"
-                                onClick={() => onStatusChange?.(quotation.id, "Rejected")}
-                                data-testid="button-reject-vendor"
+                                onClick={() => onStatusChange?.(quotation.id, "Quoted")}
+                                data-testid="button-unreject-vendor"
                               >
-                                Reject
+                                Unreject
                               </Button>
                             )}
                             <AlertDialog>
