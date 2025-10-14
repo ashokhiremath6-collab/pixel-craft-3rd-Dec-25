@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
-import { Mail, User, Building } from "lucide-react";
+import { Mail, User, Building, Trash2, UserPlus } from "lucide-react";
 
 const clientAccessSchema = z.object({
   projectId: z.string().min(1, "Please select a project"),
@@ -22,13 +22,20 @@ type ClientAccessData = z.infer<typeof clientAccessSchema>;
 
 export default function ClientAccessPage() {
   const { toast } = useToast();
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 
   // Fetch projects
   const { data: projects = [], isLoading: projectsLoading } = useQuery({
     queryKey: ['/api/projects'],
   });
 
-  // Form for assigning client access
+  // Fetch clients for selected project
+  const { data: projectClients = [], isLoading: clientsLoading } = useQuery({
+    queryKey: ['/api/projects', selectedProjectId, 'clients'],
+    enabled: !!selectedProjectId,
+  });
+
+  // Form for adding client access
   const form = useForm<ClientAccessData>({
     resolver: zodResolver(clientAccessSchema),
     defaultValues: {
@@ -37,38 +44,70 @@ export default function ClientAccessPage() {
     },
   });
 
-  // Mutation for updating project client email
-  const updateProjectMutation = useMutation({
+  // Mutation for adding a client to a project
+  const addClientMutation = useMutation({
     mutationFn: async (data: ClientAccessData) => {
-      const response = await apiRequest('PUT', `/api/projects/${data.projectId}`, {
+      const response = await apiRequest('POST', `/api/projects/${data.projectId}/clients`, {
         clientEmail: data.clientEmail
       });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast({
-        title: "Client access updated",
-        description: "Client email has been assigned to the project successfully.",
+        title: "Client access added",
+        description: "Client has been granted access to the project.",
       });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'clients'] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
-      form.reset();
+      form.setValue("clientEmail", "");
     },
     onError: (error: any) => {
       toast({
-        title: "Failed to update client access",
-        description: error.message || "An error occurred while updating client access.",
+        title: "Failed to add client access",
+        description: error.message || "An error occurred while adding client access.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation for removing a client from a project
+  const removeClientMutation = useMutation({
+    mutationFn: async (clientId: string) => {
+      await apiRequest('DELETE', `/api/project-clients/${clientId}`, {});
+    },
+    onSuccess: () => {
+      toast({
+        title: "Client access removed",
+        description: "Client access has been revoked successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', selectedProjectId, 'clients'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to remove client access",
+        description: error.message || "An error occurred while removing client access.",
         variant: "destructive",
       });
     },
   });
 
   const onSubmit = (data: ClientAccessData) => {
-    updateProjectMutation.mutate(data);
+    addClientMutation.mutate(data);
+  };
+
+  const handleRemoveClient = (clientId: string) => {
+    if (confirm("Are you sure you want to remove this client's access?")) {
+      removeClientMutation.mutate(clientId);
+    }
   };
 
   if (projectsLoading) {
     return <div className="p-6">Loading projects...</div>;
   }
+
+  // Get selected project details
+  const selectedProject = projects.find((p: any) => p.id === selectedProjectId);
 
   return (
     <div className="p-6 space-y-6">
@@ -77,20 +116,20 @@ export default function ClientAccessPage() {
           Client Access Management
         </h1>
         <p className="text-muted-foreground">
-          Assign client email addresses to projects to control access. Clients can only view projects assigned to their email.
+          Manage multiple client email addresses per project. Family members, architects, and other stakeholders can all have access.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Assignment Form */}
+        {/* Project Selection & Add Client Form */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Assign Client Access
+              <UserPlus className="h-5 w-5" />
+              Add Client Access
             </CardTitle>
             <CardDescription>
-              Select a project and enter the client's email address to grant access.
+              Select a project and add client email addresses to grant access.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -99,7 +138,10 @@ export default function ClientAccessPage() {
                 <Label htmlFor="projectId">Project</Label>
                 <Select 
                   value={form.watch("projectId")} 
-                  onValueChange={(value) => form.setValue("projectId", value)}
+                  onValueChange={(value) => {
+                    form.setValue("projectId", value);
+                    setSelectedProjectId(value);
+                  }}
                 >
                   <SelectTrigger data-testid="select-project">
                     <SelectValue placeholder="Select a project" />
@@ -137,24 +179,71 @@ export default function ClientAccessPage() {
 
               <Button 
                 type="submit" 
-                disabled={updateProjectMutation.isPending}
-                data-testid="button-assign-access"
+                disabled={addClientMutation.isPending || !selectedProjectId}
+                data-testid="button-add-client"
               >
-                {updateProjectMutation.isPending ? "Assigning..." : "Assign Access"}
+                {addClientMutation.isPending ? "Adding..." : "Add Client"}
               </Button>
             </form>
+
+            {/* Show clients for selected project */}
+            {selectedProjectId && (
+              <div className="mt-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">
+                    Current Clients ({projectClients.length})
+                  </Label>
+                  {selectedProject && (
+                    <p className="text-xs text-muted-foreground">
+                      {selectedProject.projectName}
+                    </p>
+                  )}
+                </div>
+                {clientsLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading clients...</p>
+                ) : projectClients.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No clients assigned to this project.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {projectClients.map((client: any) => (
+                      <div 
+                        key={client.id} 
+                        className="flex items-center justify-between p-3 border rounded-lg"
+                        data-testid={`client-item-${client.id}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm" data-testid={`text-client-email-${client.id}`}>
+                            {client.clientEmail}
+                          </span>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleRemoveClient(client.id)}
+                          disabled={removeClientMutation.isPending}
+                          data-testid={`button-remove-client-${client.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Current Assignments */}
+        {/* All Projects Overview */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building className="h-5 w-5" />
-              Current Client Assignments
+              All Projects
             </CardTitle>
             <CardDescription>
-              View all projects and their assigned client email addresses.
+              Overview of all projects and their client count.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -163,7 +252,15 @@ export default function ClientAccessPage() {
                 <p className="text-muted-foreground text-sm">No projects found.</p>
               ) : (
                 projects.map((project: any) => (
-                  <div key={project.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div 
+                    key={project.id} 
+                    className="flex items-center justify-between p-3 border rounded-lg hover-elevate cursor-pointer"
+                    onClick={() => {
+                      form.setValue("projectId", project.id);
+                      setSelectedProjectId(project.id);
+                    }}
+                    data-testid={`project-item-${project.id}`}
+                  >
                     <div className="space-y-1">
                       <p className="font-medium" data-testid={`text-project-name-${project.id}`}>
                         {project.projectName}
@@ -173,18 +270,14 @@ export default function ClientAccessPage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      {project.clientEmail ? (
-                        <Badge variant="secondary" className="flex items-center gap-1">
-                          <Mail className="h-3 w-3" />
-                          <span data-testid={`text-client-email-${project.id}`}>
-                            {project.clientEmail}
-                          </span>
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" data-testid={`text-no-client-${project.id}`}>
-                          No client assigned
-                        </Badge>
-                      )}
+                      <Badge 
+                        variant={selectedProjectId === project.id ? "default" : "secondary"}
+                        data-testid={`badge-client-count-${project.id}`}
+                      >
+                        <User className="h-3 w-3 mr-1" />
+                        {/* We'll need to fetch client counts separately or include in project response */}
+                        Clients
+                      </Badge>
                     </div>
                   </div>
                 ))
@@ -197,7 +290,7 @@ export default function ClientAccessPage() {
       {/* Instructions */}
       <Card>
         <CardHeader>
-          <CardTitle>How Client Access Works</CardTitle>
+          <CardTitle>How Multi-Client Access Works</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-start gap-3">
@@ -205,9 +298,9 @@ export default function ClientAccessPage() {
               1
             </div>
             <div>
-              <p className="font-medium">Designer Access</p>
+              <p className="font-medium">Multiple Clients Per Project</p>
               <p className="text-sm text-muted-foreground">
-                Users with "designer" role can view and manage all projects regardless of client assignments.
+                Add unlimited client emails to each project. Perfect for family members, architects, contractors, and other stakeholders.
               </p>
             </div>
           </div>
@@ -216,9 +309,9 @@ export default function ClientAccessPage() {
               2
             </div>
             <div>
-              <p className="font-medium">Client Access</p>
+              <p className="font-medium">Designer Access</p>
               <p className="text-sm text-muted-foreground">
-                Users with "client" role can only view projects where their email matches the assigned client email.
+                Users with "designer" or "admin" role can view and manage all projects regardless of client assignments.
               </p>
             </div>
           </div>
@@ -227,9 +320,20 @@ export default function ClientAccessPage() {
               3
             </div>
             <div>
-              <p className="font-medium">Email Assignment</p>
+              <p className="font-medium">Client Access</p>
               <p className="text-sm text-muted-foreground">
-                Assign client email addresses to projects using the form above. Clients can register using their assigned email.
+                Users with "client" role can view projects where their email is in the project's client list.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-xs font-semibold text-blue-600 dark:text-blue-400">
+              4
+            </div>
+            <div>
+              <p className="font-medium">Easy Management</p>
+              <p className="text-sm text-muted-foreground">
+                Add or remove clients anytime. Clients can register using any of the assigned emails.
               </p>
             </div>
           </div>
