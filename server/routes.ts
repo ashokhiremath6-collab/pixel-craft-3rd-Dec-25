@@ -1337,17 +1337,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const MAX_REASONABLE_QUOTE = 20000000; // 2 crore max (reasonable upper limit)
       
       // Strategy 1: Look for explicit total patterns (highest priority)
+      let checkedLines = 0;
       for (const line of lines) {
+        checkedLines++;
+        
         // Check for "Amount Chargeable in Words" (if present, most reliable)
         if (line.toLowerCase().includes('amount') && line.toLowerCase().includes('chargeable')) {
+          console.log(`PDF Total Detection: Found "Amount Chargeable" line: "${line.substring(0, 100)}..."`);
           const textAfter = line.substring(line.toLowerCase().indexOf('chargeable'));
           const numMatches = textAfter.match(/([0-9,]+(?:\.[0-9]{2})?)/g);
           if (numMatches && numMatches.length > 0) {
             const lastNum = parseCurrency(numMatches[numMatches.length - 1]);
+            console.log(`PDF Total Detection: Extracted number ${lastNum} from Amount Chargeable line`);
             if (lastNum > 100 && lastNum <= MAX_REASONABLE_QUOTE) {
               totalCandidates.push(lastNum);
-              console.log(`PDF Total Detection: Found total from "Amount Chargeable": ${lastNum} in line: "${line}"`);
-              // Don't break - continue checking other patterns
+              console.log(`PDF Total Detection: ✓ Accepted total from "Amount Chargeable": ${lastNum}`);
             }
           }
         }
@@ -1358,27 +1362,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const num = parseCurrency(totalMatch[2]);
           if (num > 100 && num <= MAX_REASONABLE_QUOTE) {
             totalCandidates.push(num);
-            console.log(`PDF Total Detection: Found labeled total: ${num} in line: "${line}"`);
+            console.log(`PDF Total Detection: ✓ Found labeled total: ${num} in line: "${line.substring(0, 100)}..."`);
           }
         }
         
         // Check for "Lakhs/Lacs" format totals (common in Indian invoices)
-        const lakhsMatch = line.match(/(total|amount|value)[\s:]*([0-9,]+(?:\.[0-9]{2})?)\s*(lakhs?|lacs?)/gi);
-        if (lakhsMatch) {
-          const numStr = line.match(/([0-9,]+(?:\.[0-9]{2})?)\s*(lakhs?|lacs?)/i);
-          if (numStr && numStr[1]) {
-            const num = parseCurrency(numStr[1]) * 100000; // Convert lakhs to actual number
-            if (num > 100 && num <= MAX_REASONABLE_QUOTE) {
-              totalCandidates.push(num);
-              console.log(`PDF Total Detection: Found lakhs total: ${num} (${numStr[1]} lakhs) in line: "${line}"`);
+        if (line.toLowerCase().match(/(lakhs?|lacs?)/)) {
+          console.log(`PDF Total Detection: Found "lakhs/lacs" in line: "${line.substring(0, 100)}..."`);
+          const lakhsMatch = line.match(/(total|amount|value)[\s:]*([0-9,]+(?:\.[0-9]{2})?)\s*(lakhs?|lacs?)/gi);
+          if (lakhsMatch) {
+            const numStr = line.match(/([0-9,]+(?:\.[0-9]{2})?)\s*(lakhs?|lacs?)/i);
+            if (numStr && numStr[1]) {
+              const num = parseCurrency(numStr[1]) * 100000; // Convert lakhs to actual number
+              console.log(`PDF Total Detection: Extracted ${numStr[1]} lakhs = ${num}`);
+              if (num > 100 && num <= MAX_REASONABLE_QUOTE) {
+                totalCandidates.push(num);
+                console.log(`PDF Total Detection: ✓ Accepted lakhs total: ${num}`);
+              }
             }
           }
         }
       }
       
+      console.log(`PDF Total Detection: Strategy 1 checked ${checkedLines} lines, found ${totalCandidates.length} labeled totals`);
+      
       // If we found labeled totals, use the highest one
       if (totalCandidates.length > 0) {
-        console.log(`PDF Total Detection: Found ${totalCandidates.length} labeled totals, using highest: ${Math.max(...totalCandidates)}`);
+        console.log(`PDF Total Detection: Using highest labeled total: ${Math.max(...totalCandidates)}`);
       }
       
       // Strategy 2: If no labeled totals found, scan for reasonable numbers
