@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import StatusBadge from "./StatusBadge";
 import QuoteDetailModal from "./QuoteDetailModal";
 import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2 } from "lucide-react";
@@ -33,6 +34,7 @@ interface QuotationData {
   quotationFile?: string;
   notes?: string;
   isAboveAverage?: boolean;
+  isNegotiated?: boolean; // Mark as final negotiated quote
 }
 
 interface CategoryWithChildren extends VendorCategory {
@@ -61,7 +63,8 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     quotationName: "",
     quotationValue: "",
     dateOfQuotation: "",
-    notes: ""
+    notes: "",
+    isNegotiated: false
   });
   const { toast } = useToast();
 
@@ -96,7 +99,8 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
       quotationName: quotation.quotationName || "Main Quote",
       quotationValue: quotation.quotationValue || "",
       dateOfQuotation: quotation.dateOfQuotation || "",
-      notes: quotation.notes || ""
+      notes: quotation.notes || "",
+      isNegotiated: quotation.isNegotiated || false
     });
     setIsEditModalOpen(true);
   };
@@ -104,7 +108,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const handleCloseEditModal = () => {
     setIsEditModalOpen(false);
     setEditingQuote(null);
-    setEditFormData({ quotationName: "", quotationValue: "", dateOfQuotation: "", notes: "" });
+    setEditFormData({ quotationName: "", quotationValue: "", dateOfQuotation: "", notes: "", isNegotiated: false });
   };
 
   // Update quote mutation
@@ -142,7 +146,8 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
         quotationName: editFormData.quotationName || "Main Quote",
         quotationValue: editFormData.quotationValue || null,
         dateOfQuotation: editFormData.dateOfQuotation || null,
-        notes: editFormData.notes || null
+        notes: editFormData.notes || null,
+        isNegotiated: editFormData.isNegotiated
       }
     });
   };
@@ -373,26 +378,27 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     return formatCurrencyCompact(value);
   };
 
-  const getAverageQuote = (categoryQuotations: typeof filteredQuotations) => {
+  const getLowestQuote = (categoryQuotations: typeof filteredQuotations) => {
     if (categoryQuotations.length === 0) return 0;
-    // Exclude unit rates quotes (-1) from average calculation
+    // Exclude unit rates quotes (-1) from lowest quote calculation
     const validQuotes = categoryQuotations.filter(q => {
       const value = q.quotationValue ? parseFloat(q.quotationValue) : 0;
       return value >= 0; // Exclude -1 (unit rates) and invalid values
     });
     if (validQuotes.length === 0) return 0;
-    const sum = validQuotes.reduce((acc, q) => {
+    const lowestValue = Math.min(...validQuotes.map(q => {
       const value = q.quotationValue ? parseFloat(q.quotationValue) : 0;
-      return acc + value;
-    }, 0);
-    return sum / validQuotes.length;
+      return value;
+    }));
+    return lowestValue;
   };
 
-  const getQuoteVariance = (value: string | null | undefined, average: number) => {
-    if (!value || average === 0) return 0;
+  const getQuoteVariance = (value: string | null | undefined, lowestQuote: number) => {
+    if (!value || lowestQuote === 0) return 0;
     const quotationValue = parseFloat(value);
     if (isNaN(quotationValue) || quotationValue < 0) return 0; // Skip unit rates (-1)
-    return ((quotationValue - average) / average) * 100;
+    // Calculate variance relative to lowest quote (lowest will be 0%, others positive)
+    return ((quotationValue - lowestQuote) / lowestQuote) * 100;
   };
 
   // Export functions
@@ -432,7 +438,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
           projectName: group.projectName,
           projectId: group.projectId,
           quotations: group.quotations,
-          average: getAverageQuote(group.quotations)
+          lowestQuote: getLowestQuote(group.quotations)
         }))
       };
 
@@ -603,7 +609,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
 
       {/* Comparison Groups */}
       {Object.entries(groupedData).map(([key, group]) => {
-        const average = getAverageQuote(group.quotations);
+        const lowestQuote = getLowestQuote(group.quotations);
         const sortedQuotations = [...group.quotations].sort((a, b) => 
           {
             const aValue = a.quotationValue ? parseFloat(a.quotationValue) : 0;
@@ -659,7 +665,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
 
                       return sortedVendorQuotations.map((quotation, quotationIndex) => {
                         const globalIndex = sortedQuotations.findIndex(q => q.id === quotation.id);
-                        const variance = getQuoteVariance(quotation.quotationValue, average);
+                        const variance = getQuoteVariance(quotation.quotationValue, lowestQuote);
                         const isLowest = globalIndex === 0;
                         const isFirstQuoteForVendor = quotationIndex === 0;
                         
@@ -704,6 +710,11 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                     Lowest
                                   </Badge>
                                 )}
+                                {quotation.isNegotiated && (
+                                  <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 px-1">
+                                    Negotiated
+                                  </Badge>
+                                )}
                                 {quotation.isAboveAverage && (
                                   <AlertTriangle className="h-3 w-3 text-orange-500" />
                                 )}
@@ -712,14 +723,18 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                             
                             <TableCell className="py-2" data-testid="text-variance">
                               <div className="flex items-center gap-1">
-                                {variance > 0 ? (
-                                  <TrendingUp className="h-3 w-3 text-red-500" />
+                                {variance === 0 ? (
+                                  <>
+                                    <span className="text-xs text-green-600 font-medium">0.0%</span>
+                                  </>
                                 ) : (
-                                  <TrendingDown className="h-3 w-3 text-green-500" />
+                                  <>
+                                    <TrendingUp className="h-3 w-3 text-red-500" />
+                                    <span className="text-xs text-red-600">
+                                      +{variance.toFixed(1)}%
+                                    </span>
+                                  </>
                                 )}
-                                <span className={`text-xs ${variance > 0 ? "text-red-600" : "text-green-600"}`}>
-                                  {variance > 0 ? '+' : ''}{variance.toFixed(1)}%
-                                </span>
                               </div>
                             </TableCell>
                           </>
@@ -957,6 +972,17 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                 onChange={(e) => setEditFormData(prev => ({ ...prev, notes: e.target.value }))}
                 data-testid="textarea-edit-notes"
               />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isNegotiated"
+                checked={editFormData.isNegotiated}
+                onCheckedChange={(checked) => setEditFormData(prev => ({ ...prev, isNegotiated: checked as boolean }))}
+                data-testid="checkbox-is-negotiated"
+              />
+              <Label htmlFor="isNegotiated" className="text-sm font-normal cursor-pointer">
+                Mark as final negotiated quote
+              </Label>
             </div>
           </div>
           <DialogFooter className="gap-2">
