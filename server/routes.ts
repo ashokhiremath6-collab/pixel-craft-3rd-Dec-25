@@ -1352,7 +1352,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (totalCandidates.length === 0) {
         const allNumbers: number[] = [];
         
+        // Keywords to ignore - these indicate the number is NOT a quote total
+        const ignoreKeywords = [
+          'a/c', 'account', 'bank', 'ifsc', 'branch', 'swift', 'micr',
+          'gstin', 'gst no', 'pan', 'tan', 'cin', 'registration',
+          'phone', 'mobile', 'contact', 'tel', 'fax',
+          'pincode', 'zip', 'postal code',
+          'invoice no', 'bill no', 'quotation no', 'order no',
+          'date', 'validity', 'reference'
+        ];
+        
         for (const line of lines) {
+          // Skip lines containing keywords that indicate bank/company details
+          const lowerLine = line.toLowerCase();
+          if (ignoreKeywords.some(keyword => lowerLine.includes(keyword))) {
+            console.log(`PDF Total Detection: Skipping line with keyword: "${line}"`);
+            continue;
+          }
+          
           const numberPattern = /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/g;
           const numberMatches = Array.from(line.matchAll(numberPattern));
           
