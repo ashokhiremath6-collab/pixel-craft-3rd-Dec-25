@@ -1338,23 +1338,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Strategy 1: Look for explicit total patterns (highest priority)
       for (const line of lines) {
-        // HIGHEST PRIORITY: Look for "Amount Chargeable in Words" or similar text representations
-        // This is the most reliable indicator of the actual total in Indian invoices
+        // Check for "Amount Chargeable in Words" (if present, most reliable)
         if (line.toLowerCase().includes('amount') && line.toLowerCase().includes('chargeable')) {
-          // Extract all numbers from the line after "Amount Chargeable"
           const textAfter = line.substring(line.toLowerCase().indexOf('chargeable'));
           const numMatches = textAfter.match(/([0-9,]+(?:\.[0-9]{2})?)/g);
           if (numMatches && numMatches.length > 0) {
-            // The last number on this line is usually the total
             const lastNum = parseCurrency(numMatches[numMatches.length - 1]);
             if (lastNum > 100 && lastNum <= MAX_REASONABLE_QUOTE) {
               totalCandidates.push(lastNum);
               console.log(`PDF Total Detection: Found total from "Amount Chargeable": ${lastNum} in line: "${line}"`);
-              break; // This is the most reliable, stop searching
+              // Don't break - continue checking other patterns
             }
           }
         }
         
+        // Check for standard total patterns (Grand Total, Net Total, etc.)
         const totalMatch = line.match(patterns.grandTotal);
         if (totalMatch && totalMatch[2]) {
           const num = parseCurrency(totalMatch[2]);
@@ -1364,7 +1362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        // Also check for "Lakhs/Lacs" format totals (common in Indian invoices)
+        // Check for "Lakhs/Lacs" format totals (common in Indian invoices)
         const lakhsMatch = line.match(/(total|amount|value)[\s:]*([0-9,]+(?:\.[0-9]{2})?)\s*(lakhs?|lacs?)/gi);
         if (lakhsMatch) {
           const numStr = line.match(/([0-9,]+(?:\.[0-9]{2})?)\s*(lakhs?|lacs?)/i);
@@ -1376,6 +1374,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
         }
+      }
+      
+      // If we found labeled totals, use the highest one
+      if (totalCandidates.length > 0) {
+        console.log(`PDF Total Detection: Found ${totalCandidates.length} labeled totals, using highest: ${Math.max(...totalCandidates)}`);
       }
       
       // Strategy 2: If no labeled totals found, scan for reasonable numbers
