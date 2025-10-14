@@ -11,6 +11,8 @@ import {
   type InsertVendor,
   type Project,
   type InsertProject,
+  type ProjectClient,
+  type InsertProjectClient,
   type ProjectVendor,
   type InsertProjectVendor,
   type QuoteTemplate,
@@ -39,6 +41,7 @@ import {
   vendorCategories,
   vendors,
   projects,
+  projectClients,
   projectVendors,
   quoteTemplates,
   boq,
@@ -111,6 +114,12 @@ export interface IStorage {
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: string, project: Partial<InsertProject>): Promise<Project | undefined>;
   deleteProject(id: string): Promise<boolean>;
+  
+  // Project Clients
+  getProjectClients(projectId: string): Promise<ProjectClient[]>;
+  addProjectClient(client: InsertProjectClient): Promise<ProjectClient>;
+  removeProjectClient(id: string): Promise<boolean>;
+  getProjectsByClientEmail(clientEmail: string): Promise<Project[]>;
   
   // Project Vendors
   getAllProjectVendors(): Promise<ProjectVendor[]>;
@@ -542,6 +551,25 @@ export class MemStorage implements IStorage {
 
   async deleteProject(id: string): Promise<boolean> {
     return this.projects.delete(id);
+  }
+
+  // Project Clients
+  async getProjectClients(projectId: string): Promise<ProjectClient[]> {
+    return []; // Not implemented in MemStorage - using DBStorage
+  }
+
+  async addProjectClient(client: InsertProjectClient): Promise<ProjectClient> {
+    throw new Error("Not implemented in MemStorage - using DBStorage");
+  }
+
+  async removeProjectClient(id: string): Promise<boolean> {
+    return false; // Not implemented in MemStorage - using DBStorage
+  }
+
+  async getProjectsByClientEmail(clientEmail: string): Promise<Project[]> {
+    // Not fully implemented in MemStorage - using DBStorage
+    // Fallback to old method for compatibility
+    return Array.from(this.projects.values()).filter(p => p.clientEmail === clientEmail);
   }
 
   // Project Vendors
@@ -1179,6 +1207,35 @@ export class DBStorage implements IStorage {
   async deleteProject(id: string): Promise<boolean> {
     const result = await db.delete(projects).where(eq(projects.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Project Clients
+  async getProjectClients(projectId: string): Promise<ProjectClient[]> {
+    return await db.select().from(projectClients).where(eq(projectClients.projectId, projectId));
+  }
+
+  async addProjectClient(client: InsertProjectClient): Promise<ProjectClient> {
+    const result = await db.insert(projectClients).values(client).returning();
+    return result[0];
+  }
+
+  async removeProjectClient(id: string): Promise<boolean> {
+    const result = await db.delete(projectClients).where(eq(projectClients.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async getProjectsByClientEmail(clientEmail: string): Promise<Project[]> {
+    // Get all project IDs that this client has access to
+    const clientProjects = await db.select({ projectId: projectClients.projectId })
+      .from(projectClients)
+      .where(eq(projectClients.clientEmail, clientEmail));
+    
+    if (clientProjects.length === 0) {
+      return [];
+    }
+    
+    const projectIds = clientProjects.map(p => p.projectId);
+    return await db.select().from(projects).where(inArray(projects.id, projectIds));
   }
 
   // Role-based access helper methods

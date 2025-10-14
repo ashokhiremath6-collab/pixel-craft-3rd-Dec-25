@@ -904,6 +904,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Project Clients Routes (Admin/Designer only)
+  app.get("/api/projects/:projectId/clients", requireAdmin, async (req, res) => {
+    try {
+      const clients = await storage.getProjectClients(req.params.projectId);
+      res.json(clients);
+    } catch (error) {
+      console.error('Get project clients error:', error);
+      res.status(500).json({ error: "Failed to fetch project clients" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/clients", requireAdmin, async (req, res) => {
+    try {
+      const { insertProjectClientSchema } = await import("@shared/schema");
+      const parsed = insertProjectClientSchema.parse({
+        ...req.body,
+        projectId: req.params.projectId
+      });
+      const client = await storage.addProjectClient(parsed);
+      res.status(201).json(client);
+    } catch (error: any) {
+      console.error('Add project client error:', error);
+      res.status(400).json({ error: error.message || "Invalid client data" });
+    }
+  });
+
+  app.delete("/api/project-clients/:id", requireAdmin, async (req, res) => {
+    try {
+      const deleted = await storage.removeProjectClient(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Project client not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to remove project client" });
+    }
+  });
+
   // Project Vendors Routes
   app.get("/api/project-vendors", requireAuth, async (req, res) => {
     try {
