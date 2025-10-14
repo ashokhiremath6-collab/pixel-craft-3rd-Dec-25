@@ -28,11 +28,24 @@ export const projects = pgTable("projects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectName: text("project_name").notNull(),
   clientName: text("client_name").notNull(),
-  clientEmail: text("client_email").notNull(), // Email for client access control
+  clientEmail: text("client_email").notNull(), // Email for client access control (deprecated - use projectClients)
   startDate: date("start_date").notNull(),
   endDate: date("end_date"),
   canvaLink: text("canva_link"), // Canva design link for the project
 });
+
+// Project Clients table - supports multiple clients per project
+export const projectClients = pgTable("project_clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  clientEmail: text("client_email").notNull(),
+  clientName: text("client_name"), // Optional name for the client (e.g., "John Doe", "Architect")
+  role: text("role"), // Optional role (e.g., "Family Member", "Architect", "Contractor")
+  addedAt: timestamp("added_at").notNull().default(sql`now()`),
+}, (table) => ({
+  // Composite unique constraint to prevent duplicate emails per project
+  uniqueProjectClient: index("unique_project_client").on(table.projectId, table.clientEmail),
+}));
 
 // Quote Templates table
 export const quoteTemplates = pgTable("quote_templates", {
@@ -210,6 +223,13 @@ export const insertProjectSchema = createInsertSchema(projects).omit({
   clientEmail: z.string().email("Please enter a valid email address"),
 });
 
+export const insertProjectClientSchema = createInsertSchema(projectClients).omit({
+  id: true,
+  addedAt: true,
+}).extend({
+  clientEmail: z.string().email("Please enter a valid email address"),
+});
+
 export const insertQuoteTemplateSchema = createInsertSchema(quoteTemplates).omit({
   id: true,
   createdAt: true,
@@ -288,6 +308,9 @@ export type Vendor = typeof vendors.$inferSelect;
 
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type Project = typeof projects.$inferSelect;
+
+export type InsertProjectClient = z.infer<typeof insertProjectClientSchema>;
+export type ProjectClient = typeof projectClients.$inferSelect;
 
 export type InsertQuoteTemplate = z.infer<typeof insertQuoteTemplateSchema>;
 export type QuoteTemplate = typeof quoteTemplates.$inferSelect;
