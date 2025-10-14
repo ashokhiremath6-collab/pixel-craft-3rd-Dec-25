@@ -666,7 +666,9 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                       return sortedVendorQuotations.map((quotation, quotationIndex) => {
                         const globalIndex = sortedQuotations.findIndex(q => q.id === quotation.id);
                         const variance = getQuoteVariance(quotation.quotationValue, lowestQuote);
-                        const isLowest = globalIndex === 0;
+                        // Only mark as lowest if it has a valid value and equals the lowest quote
+                        const quotationValue = quotation.quotationValue ? parseFloat(quotation.quotationValue) : 0;
+                        const isLowest = quotationValue > 0 && quotationValue === lowestQuote;
                         const isFirstQuoteForVendor = quotationIndex === 0;
                         
                         return (
