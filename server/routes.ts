@@ -1375,6 +1375,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           for (const match of numberMatches) {
             const num = parseCurrency(match[1]);
+            const originalStr = match[1].replace(/,/g, ''); // Remove commas but keep original
+            
+            // Skip bank account numbers (12-18 digits, no decimal points)
+            if (originalStr.length >= 12 && !originalStr.includes('.')) {
+              console.log(`PDF Total Detection: Skipping bank account-like number: ${originalStr}`);
+              continue;
+            }
+            
             // Filter: must be > 100 AND <= MAX_REASONABLE_QUOTE
             if (num > 100 && num <= MAX_REASONABLE_QUOTE) {
               allNumbers.push(num);
