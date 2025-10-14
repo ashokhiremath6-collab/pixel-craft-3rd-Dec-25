@@ -72,7 +72,7 @@ export const projectVendors = pgTable("project_vendors", {
   parentQuotationId: varchar("parent_quotation_id"), // Self-reference for grouping options - added later
   itemCategory: text("item_category"), // For folder organization
   quotationFile: text("quotation_file"), // file path/url
-  quotationValue: decimal("quotation_value", { precision: 10, scale: 2 }),
+  quotationValue: decimal("quotation_value", { precision: 15, scale: 2 }),
   dateOfQuotation: date("date_of_quotation"),
   status: text("status").notNull().default("Quoted"), // Quoted, Selected, Rejected
   isNegotiated: boolean("is_negotiated").notNull().default(false), // Mark final negotiated quotes
@@ -86,10 +86,10 @@ export const boq = pgTable("boq", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectVendorId: varchar("project_vendor_id").notNull().references(() => projectVendors.id),
   itemDescription: text("item_description").notNull(),
-  quantity: decimal("quantity", { precision: 10, scale: 2 }).notNull(),
+  quantity: decimal("quantity", { precision: 15, scale: 2 }).notNull(),
   unit: text("unit").notNull(), // m², kg, pieces, etc.
-  unitRate: decimal("unit_rate", { precision: 10, scale: 2 }).notNull(),
-  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  unitRate: decimal("unit_rate", { precision: 15, scale: 2 }).notNull(),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
   category: text("category"), // labor, material, equipment, etc.
   itemCode: text("item_code"),
   specifications: text("specifications"),
