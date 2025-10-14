@@ -80,13 +80,27 @@ export default function QuotesPage() {
 
   // Use real data or fallback to empty arrays
   const projects = quotationsData?.projects || [];
-  const quotations = quotationsData?.quotations || {};
+  const allQuotations = quotationsData?.quotations || {};
+  
+  // Filter out unit rate quotes (quotationValue === -1) from comparative quotes
+  const filteredQuotations: Record<string, any[]> = {};
+  Object.keys(allQuotations).forEach((projectId) => {
+    const regularQuotes = allQuotations[projectId].filter(
+      (quote: any) => {
+        const value = parseFloat(quote.quotationValue);
+        return value !== -1; // Exclude unit rate quotes
+      }
+    );
+    if (regularQuotes.length > 0) {
+      filteredQuotations[projectId] = regularQuotes;
+    }
+  });
 
   return (
     <ComparativeQuotes 
       projects={projects}
       categories={categories as VendorCategory[]}
-      quotations={quotations}
+      quotations={filteredQuotations}
       onStatusChange={handleStatusChange}
     />
   );
