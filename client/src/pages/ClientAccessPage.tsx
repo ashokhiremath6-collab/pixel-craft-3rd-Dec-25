@@ -11,14 +11,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
-import { Mail, User, Building, Trash2, UserPlus } from "lucide-react";
+import { Mail, User, Building, Trash2, UserPlus, Briefcase } from "lucide-react";
 
 const clientAccessSchema = z.object({
   projectId: z.string().min(1, "Please select a project"),
   clientEmail: z.string().email("Please enter a valid email address"),
+  clientName: z.string().optional(),
+  role: z.string().min(1, "Please select a role"),
 });
 
 type ClientAccessData = z.infer<typeof clientAccessSchema>;
+
+const CLIENT_ROLES = [
+  { value: "client", label: "Client" },
+  { value: "architect", label: "Architect" },
+  { value: "manager", label: "Project Manager" },
+  { value: "contractor", label: "Contractor" },
+  { value: "family", label: "Family Member" },
+  { value: "consultant", label: "Consultant" },
+  { value: "other", label: "Other" },
+];
 
 export default function ClientAccessPage() {
   const { toast } = useToast();
@@ -41,6 +53,8 @@ export default function ClientAccessPage() {
     defaultValues: {
       projectId: "",
       clientEmail: "",
+      clientName: "",
+      role: "",
     },
   });
 
@@ -48,7 +62,9 @@ export default function ClientAccessPage() {
   const addClientMutation = useMutation({
     mutationFn: async (data: ClientAccessData) => {
       const response = await apiRequest('POST', `/api/projects/${data.projectId}/clients`, {
-        clientEmail: data.clientEmail
+        clientEmail: data.clientEmail,
+        clientName: data.clientName || null,
+        role: data.role,
       });
       return response.json();
     },
@@ -60,6 +76,8 @@ export default function ClientAccessPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'clients'] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       form.setValue("clientEmail", "");
+      form.setValue("clientName", "");
+      form.setValue("role", "");
     },
     onError: (error: any) => {
       toast({
@@ -129,7 +147,7 @@ export default function ClientAccessPage() {
               Add Client Access
             </CardTitle>
             <CardDescription>
-              Select a project and add client email addresses to grant access.
+              Select a project and add client details to grant access.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -162,7 +180,7 @@ export default function ClientAccessPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="clientEmail">Client Email</Label>
+                <Label htmlFor="clientEmail">Client Email *</Label>
                 <Input
                   id="clientEmail"
                   type="email"
@@ -173,6 +191,41 @@ export default function ClientAccessPage() {
                 {form.formState.errors.clientEmail && (
                   <p className="text-sm text-destructive">
                     {form.formState.errors.clientEmail.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="clientName">Client Name (Optional)</Label>
+                <Input
+                  id="clientName"
+                  type="text"
+                  placeholder="John Doe"
+                  {...form.register("clientName")}
+                  data-testid="input-client-name"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role">Role *</Label>
+                <Select 
+                  value={form.watch("role")} 
+                  onValueChange={(value) => form.setValue("role", value)}
+                >
+                  <SelectTrigger data-testid="select-role">
+                    <SelectValue placeholder="Select client role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CLIENT_ROLES.map((role) => (
+                      <SelectItem key={role.value} value={role.value}>
+                        {role.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.role && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.role.message}
                   </p>
                 )}
               </div>
@@ -211,11 +264,31 @@ export default function ClientAccessPage() {
                         className="flex items-center justify-between p-3 border rounded-lg"
                         data-testid={`client-item-${client.id}`}
                       >
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm" data-testid={`text-client-email-${client.id}`}>
-                            {client.clientEmail}
-                          </span>
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium" data-testid={`text-client-email-${client.id}`}>
+                              {client.clientEmail}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 ml-6">
+                            {client.clientName && (
+                              <>
+                                <User className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">
+                                  {client.clientName}
+                                </span>
+                              </>
+                            )}
+                            {client.role && (
+                              <>
+                                <Briefcase className="h-3 w-3 text-muted-foreground ml-2" />
+                                <Badge variant="secondary" className="text-xs">
+                                  {CLIENT_ROLES.find(r => r.value === client.role)?.label || client.role}
+                                </Badge>
+                              </>
+                            )}
+                          </div>
                         </div>
                         <Button
                           size="icon"
@@ -275,8 +348,7 @@ export default function ClientAccessPage() {
                         data-testid={`badge-client-count-${project.id}`}
                       >
                         <User className="h-3 w-3 mr-1" />
-                        {/* We'll need to fetch client counts separately or include in project response */}
-                        Clients
+                        Click to view
                       </Badge>
                     </div>
                   </div>
@@ -300,7 +372,7 @@ export default function ClientAccessPage() {
             <div>
               <p className="font-medium">Multiple Clients Per Project</p>
               <p className="text-sm text-muted-foreground">
-                Add unlimited client emails to each project. Perfect for family members, architects, contractors, and other stakeholders.
+                Add unlimited client emails to each project. Specify their role (Client, Architect, Manager, etc.) and optionally their name.
               </p>
             </div>
           </div>
@@ -331,9 +403,9 @@ export default function ClientAccessPage() {
               4
             </div>
             <div>
-              <p className="font-medium">Easy Management</p>
+              <p className="font-medium">Role-Based Organization</p>
               <p className="text-sm text-muted-foreground">
-                Add or remove clients anytime. Clients can register using any of the assigned emails.
+                Track who's who on your project - easily identify architects, family members, contractors, and other stakeholders at a glance.
               </p>
             </div>
           </div>
