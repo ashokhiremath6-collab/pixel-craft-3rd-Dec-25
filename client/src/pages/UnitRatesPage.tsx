@@ -87,7 +87,10 @@ export default function UnitRatesPage() {
   const filteredQuotations: Record<string, any[]> = {};
   Object.keys(allQuotations).forEach((projectId) => {
     const unitRateQuotes = allQuotations[projectId].filter(
-      (quote: any) => quote.quotationValue === -1
+      (quote: any) => {
+        const value = parseFloat(quote.quotationValue);
+        return value === -1;
+      }
     );
     if (unitRateQuotes.length > 0) {
       filteredQuotations[projectId] = unitRateQuotes;
