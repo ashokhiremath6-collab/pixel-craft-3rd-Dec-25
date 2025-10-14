@@ -11,16 +11,16 @@ export function formatCurrencyCompact(value: string | number): string {
   
   if (isNaN(numValue) || numValue === 0) return '₹0';
 
-  // For values >= 1 lakh (100,000), show in lakhs
+  // For values >= 1 lakh (100,000), show in lakhs with 2 decimals
   if (numValue >= 100000) {
-    const lakhs = Math.round(numValue / 100000);
-    return `₹${lakhs} L`;
+    const lakhs = numValue / 100000;
+    return `${lakhs.toFixed(2)} lacs`;
   }
   
-  // For values >= 1 thousand, show in thousands
+  // For values >= 1 thousand, show in thousands with 2 decimals
   if (numValue >= 1000) {
-    const thousands = Math.round(numValue / 1000);
-    return `₹${thousands} K`;
+    const thousands = numValue / 1000;
+    return `${thousands.toFixed(2)} K`;
   }
   
   // For smaller values, show normally
