@@ -1346,6 +1346,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`PDF Total Detection: Found labeled total: ${num} in line: "${line}"`);
           }
         }
+        
+        // Also check for "Lakhs/Lacs" format totals (common in Indian invoices)
+        const lakhsMatch = line.match(/(total|amount|value)[\s:]*([0-9,]+(?:\.[0-9]{2})?)\s*(lakhs?|lacs?)/gi);
+        if (lakhsMatch) {
+          const numStr = line.match(/([0-9,]+(?:\.[0-9]{2})?)\s*(lakhs?|lacs?)/i);
+          if (numStr && numStr[1]) {
+            const num = parseCurrency(numStr[1]) * 100000; // Convert lakhs to actual number
+            if (num > 100 && num <= MAX_REASONABLE_QUOTE) {
+              totalCandidates.push(num);
+              console.log(`PDF Total Detection: Found lakhs total: ${num} (${numStr[1]} lakhs) in line: "${line}"`);
+            }
+          }
+        }
       }
       
       // Strategy 2: If no labeled totals found, scan for reasonable numbers
