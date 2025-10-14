@@ -1114,6 +1114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: pv.status,
             quotationFile: pv.quotationFile,
             notes: pv.notes,
+            isNegotiated: pv.isNegotiated,
             projectId: pv.projectId,
             projectName: project.projectName
           });
