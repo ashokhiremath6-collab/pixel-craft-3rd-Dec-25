@@ -1334,7 +1334,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } else {
       // Smart total detection with multiple strategies
       const totalCandidates: number[] = [];
-      const MAX_REASONABLE_QUOTE = 100000000; // 10 crore max (reasonable upper limit)
+      const MAX_REASONABLE_QUOTE = 20000000; // 2 crore max (reasonable upper limit)
       
       // Strategy 1: Look for explicit total patterns (highest priority)
       for (const line of lines) {
