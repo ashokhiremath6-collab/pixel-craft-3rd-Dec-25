@@ -1332,26 +1332,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       detectedTotals.isUnitRates = true;
       detectedTotals.grandTotal = -1; // Special marker for unit rates
     } else {
-      // Simplified approach: Scan ALL numbers in the PDF and take the biggest value
-      const allNumbers: number[] = [];
+      // Smart total detection with multiple strategies
+      const totalCandidates: number[] = [];
+      const MAX_REASONABLE_QUOTE = 100000000; // 10 crore max (reasonable upper limit)
       
+      // Strategy 1: Look for explicit total patterns (highest priority)
       for (const line of lines) {
-        // Extract all numbers from each line
-        const numberPattern = /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/g;
-        const numberMatches = Array.from(line.matchAll(numberPattern));
-        
-        for (const match of numberMatches) {
-          const num = parseCurrency(match[1]);
-          if (num > 100) { // Filter out small numbers (line numbers, quantities, etc.)
-            allNumbers.push(num);
+        const totalMatch = line.match(patterns.grandTotal);
+        if (totalMatch && totalMatch[2]) {
+          const num = parseCurrency(totalMatch[2]);
+          if (num > 100 && num <= MAX_REASONABLE_QUOTE) {
+            totalCandidates.push(num);
+            console.log(`PDF Total Detection: Found labeled total: ${num} in line: "${line}"`);
           }
         }
       }
       
-      // Take the biggest number as the grand total
-      if (allNumbers.length > 0) {
-        detectedTotals.grandTotal = Math.max(...allNumbers);
-        console.log(`PDF Total Detection: Scanned ${allNumbers.length} numbers, biggest value is ${detectedTotals.grandTotal}`);
+      // Strategy 2: If no labeled totals found, scan for reasonable numbers
+      if (totalCandidates.length === 0) {
+        const allNumbers: number[] = [];
+        
+        for (const line of lines) {
+          const numberPattern = /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/g;
+          const numberMatches = Array.from(line.matchAll(numberPattern));
+          
+          for (const match of numberMatches) {
+            const num = parseCurrency(match[1]);
+            // Filter: must be > 100 AND <= MAX_REASONABLE_QUOTE
+            if (num > 100 && num <= MAX_REASONABLE_QUOTE) {
+              allNumbers.push(num);
+            }
+          }
+        }
+        
+        // Take the biggest reasonable number
+        if (allNumbers.length > 0) {
+          totalCandidates.push(Math.max(...allNumbers));
+          console.log(`PDF Total Detection: Scanned ${allNumbers.length} numbers, biggest reasonable value is ${Math.max(...allNumbers)}`);
+        }
+      }
+      
+      // Set the detected total
+      if (totalCandidates.length > 0) {
+        detectedTotals.grandTotal = Math.max(...totalCandidates);
       }
     }
     
