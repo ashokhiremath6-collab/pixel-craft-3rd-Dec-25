@@ -1284,26 +1284,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return parseFloat(amountStr.replace(/[₹,\$Rs\s]/g, '')) || 0;
     };
     
-    // Simplified approach: Scan ALL numbers in the PDF and take the biggest value
-    const allNumbers: number[] = [];
+    // First check if this is a unit rates / price list document (no total)
+    const fullText = pdfText.toLowerCase();
+    const isUnitRates = /\b(unit\s*rate|rate\s*card|price\s*list|rate\s*sheet|unit\s*price|item\s*rate)\b/i.test(fullText);
     
-    for (const line of lines) {
-      // Extract all numbers from each line
-      const numberPattern = /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/g;
-      const numberMatches = Array.from(line.matchAll(numberPattern));
+    if (isUnitRates) {
+      console.log('PDF Detection: Unit rates document detected - no total will be extracted');
+      detectedTotals.isUnitRates = true;
+      detectedTotals.grandTotal = -1; // Special marker for unit rates
+    } else {
+      // Simplified approach: Scan ALL numbers in the PDF and take the biggest value
+      const allNumbers: number[] = [];
       
-      for (const match of numberMatches) {
-        const num = parseCurrency(match[1]);
-        if (num > 100) { // Filter out small numbers (line numbers, quantities, etc.)
-          allNumbers.push(num);
+      for (const line of lines) {
+        // Extract all numbers from each line
+        const numberPattern = /(?:₹|Rs\.?|\$|USD|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/g;
+        const numberMatches = Array.from(line.matchAll(numberPattern));
+        
+        for (const match of numberMatches) {
+          const num = parseCurrency(match[1]);
+          if (num > 100) { // Filter out small numbers (line numbers, quantities, etc.)
+            allNumbers.push(num);
+          }
         }
       }
-    }
-    
-    // Take the biggest number as the grand total
-    if (allNumbers.length > 0) {
-      detectedTotals.grandTotal = Math.max(...allNumbers);
-      console.log(`PDF Total Detection: Scanned ${allNumbers.length} numbers, biggest value is ${detectedTotals.grandTotal}`);
+      
+      // Take the biggest number as the grand total
+      if (allNumbers.length > 0) {
+        detectedTotals.grandTotal = Math.max(...allNumbers);
+        console.log(`PDF Total Detection: Scanned ${allNumbers.length} numbers, biggest value is ${detectedTotals.grandTotal}`);
+      }
     }
     
     // Optional: Log total detection for troubleshooting (can be removed in production)
@@ -1586,8 +1596,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let useDetectedTotal = false;
       const boqItems = [];
 
+      // Check if this is a unit rates document (marked with -1)
+      if (totals.grandTotal === -1) {
+        totalValue = -1; // Keep the special marker
+        useDetectedTotal = true;
+        console.log(`Unit rates document detected - no total value`);
+      }
       // Use detected grand total from PDF if available
-      if (totals.grandTotal && totals.grandTotal > 0) {
+      else if (totals.grandTotal && totals.grandTotal > 0) {
         totalValue = totals.grandTotal;
         useDetectedTotal = true;
         console.log(`Using detected grand total from PDF: ${totalValue}`);

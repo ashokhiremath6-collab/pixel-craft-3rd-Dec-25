@@ -365,22 +365,32 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   }>);
 
   const formatCurrency = (value: string) => {
+    // Check if this is a unit rates quote (marked with -1)
+    if (value === '-1' || value === '-1.00') {
+      return <span className="text-muted-foreground italic">unit rates</span>;
+    }
     return formatCurrencyCompact(value);
   };
 
   const getAverageQuote = (categoryQuotations: typeof filteredQuotations) => {
     if (categoryQuotations.length === 0) return 0;
-    const sum = categoryQuotations.reduce((acc, q) => {
+    // Exclude unit rates quotes (-1) from average calculation
+    const validQuotes = categoryQuotations.filter(q => {
+      const value = q.quotationValue ? parseFloat(q.quotationValue) : 0;
+      return value >= 0; // Exclude -1 (unit rates) and invalid values
+    });
+    if (validQuotes.length === 0) return 0;
+    const sum = validQuotes.reduce((acc, q) => {
       const value = q.quotationValue ? parseFloat(q.quotationValue) : 0;
       return acc + value;
     }, 0);
-    return sum / categoryQuotations.length;
+    return sum / validQuotes.length;
   };
 
   const getQuoteVariance = (value: string | null | undefined, average: number) => {
     if (!value || average === 0) return 0;
     const quotationValue = parseFloat(value);
-    if (isNaN(quotationValue)) return 0;
+    if (isNaN(quotationValue) || quotationValue < 0) return 0; // Skip unit rates (-1)
     return ((quotationValue - average) / average) * 100;
   };
 
