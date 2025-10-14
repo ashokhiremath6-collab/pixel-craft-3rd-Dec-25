@@ -49,6 +49,7 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [selectedVendor, setSelectedVendor] = useState<string>("");
+  const [quoteType, setQuoteType] = useState<string>("regular");
   const [dragActive, setDragActive] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [conflictData, setConflictData] = useState<ConflictData | null>(null);
@@ -103,6 +104,7 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
         setSelectedFile(null);
         setSelectedProject("");
         setSelectedVendor("");
+        setQuoteType("regular");
         onImportComplete?.(result);
         queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
         queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
@@ -154,6 +156,7 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
       setSelectedFile(null);
       setSelectedProject("");
       setSelectedVendor("");
+      setQuoteType("regular");
       onImportComplete?.(result);
       queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
@@ -244,6 +247,7 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
     formData.append('quoteFile', selectedFile);
     formData.append('projectId', selectedProject);
     formData.append('vendorId', selectedVendor);
+    formData.append('quoteType', quoteType);
 
     importMutation.mutate(formData);
   };
@@ -439,6 +443,33 @@ export default function QuoteImport({ onImportComplete }: QuoteImportProps) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Quote Type Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Quote Type
+            </label>
+            <Select
+              value={quoteType}
+              onValueChange={setQuoteType}
+              data-testid="select-quote-type"
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Choose quote type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="regular" data-testid="option-regular-quote">
+                  Regular Quote (with total value)
+                </SelectItem>
+                <SelectItem value="unitrate" data-testid="option-unitrate-quote">
+                  Unit Rate Quote (price list only)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Select "Unit Rate Quote" for price lists or rate cards without total values
+            </p>
           </div>
 
           {/* Import Progress */}

@@ -1442,7 +1442,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Helper function to parse Excel/CSV/PDF files from buffer
-  const parseQuoteFile = async (fileBuffer: Buffer, mimeType: string, fileName?: string) => {
+  const parseQuoteFile = async (fileBuffer: Buffer, mimeType: string, fileName?: string, isUnitRate: boolean = false) => {
     try {
       if (mimeType.includes('csv')) {
         // Parse CSV file from buffer
@@ -1553,6 +1553,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Parse PDF file from buffer
         const pdfData = await pdfParse(fileBuffer);
         const text = pdfData.text;
+        
+        // If this is a unit rate quote, skip value extraction
+        if (isUnitRate) {
+          console.log('Unit rate quote detected via dropdown - skipping value extraction');
+          return {
+            items: [],
+            totals: { grandTotal: -1 }, // -1 marker for unit rates
+            originalFormat: 'pdf'
+          };
+        }
         
         // Extract quote information using pattern matching
         const result = extractQuoteDataFromPDF(text);
@@ -1728,7 +1738,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { projectId, vendorId } = req.body;
+      const { projectId, vendorId, quoteType } = req.body;
       
       if (!projectId || !vendorId) {
         return res.status(400).json({ error: "Project ID and Vendor ID are required" });
@@ -1747,7 +1757,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Parse the uploaded file from buffer
-      const data = await parseQuoteFile(req.file.buffer, req.file.mimetype, req.file.originalname);
+      const data = await parseQuoteFile(req.file.buffer, req.file.mimetype, req.file.originalname, quoteType === 'unitrate');
       
       if (!data || data.length === 0) {
         return res.status(400).json({ error: "No valid data found in file" });

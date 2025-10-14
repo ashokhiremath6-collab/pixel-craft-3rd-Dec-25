@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -64,6 +64,11 @@ const mainItems: NavigationItem[] = [
     title: "Comparative Quotes",
     url: "/quotes",
     icon: BarChart3,
+  },
+  {
+    title: "Unit Rate Quotes",
+    url: "/unit-rates",
+    icon: DollarSign,
   },
   {
     title: "Import Quotes",
