@@ -103,6 +103,7 @@ export default function UnitRatesPage() {
       categories={categories as VendorCategory[]}
       quotations={filteredQuotations}
       onStatusChange={handleStatusChange}
+      hideValueColumns={true}
     />
   );
 }

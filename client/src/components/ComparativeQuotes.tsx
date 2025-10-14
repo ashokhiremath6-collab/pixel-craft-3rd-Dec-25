@@ -45,9 +45,10 @@ interface ComparativeQuotesProps {
   categories: VendorCategory[];
   quotations: Record<string, QuotationData[]>; // projectId -> quotations
   onStatusChange?: (quotationId: string, status: "Quoted" | "Selected" | "Rejected") => void;
+  hideValueColumns?: boolean; // Hide quote value and variance columns
 }
 
-export default function ComparativeQuotes({ projects, categories, quotations, onStatusChange }: ComparativeQuotesProps) {
+export default function ComparativeQuotes({ projects, categories, quotations, onStatusChange, hideValueColumns = false }: ComparativeQuotesProps) {
   const [selectedProject, setSelectedProject] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isExporting, setIsExporting] = useState(false);
@@ -623,8 +624,12 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                 <TableHeader>
                   <TableRow className="h-8">
                     <TableHead className="text-xs font-medium">Vendor</TableHead>
-                    <TableHead className="text-xs font-medium">Quote Value</TableHead>
-                    <TableHead className="text-xs font-medium">Variance</TableHead>
+                    {!hideValueColumns && (
+                      <>
+                        <TableHead className="text-xs font-medium">Quote Value</TableHead>
+                        <TableHead className="text-xs font-medium">Variance</TableHead>
+                      </>
+                    )}
                     <TableHead className="text-xs font-medium">Date</TableHead>
                     <TableHead className="text-xs font-medium">Status</TableHead>
                     <TableHead className="text-xs font-medium">Actions</TableHead>
@@ -683,38 +688,42 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                               </div>
                             </TableCell>
                         
-                        <TableCell className="py-2" data-testid="text-quotation-value">
-                          <div className="flex items-center gap-1">
-                            <span className="font-mono font-semibold text-sm">
-                              {(() => {
-                                const quotationValue = quotation.quotationValue || '';
-                                const numericValue = parseFloat(quotationValue);
-                                return !isNaN(numericValue) && numericValue > 0 ? formatCurrency(quotationValue) : <span className="text-muted-foreground">No total</span>;
-                              })()}
-                            </span>
-                            {isLowest && (
-                              <Badge variant="outline" className="text-xs text-green-600 border-green-200 px-1">
-                                Lowest
-                              </Badge>
-                            )}
-                            {quotation.isAboveAverage && (
-                              <AlertTriangle className="h-3 w-3 text-orange-500" />
-                            )}
-                          </div>
-                        </TableCell>
-                        
-                        <TableCell className="py-2" data-testid="text-variance">
-                          <div className="flex items-center gap-1">
-                            {variance > 0 ? (
-                              <TrendingUp className="h-3 w-3 text-red-500" />
-                            ) : (
-                              <TrendingDown className="h-3 w-3 text-green-500" />
-                            )}
-                            <span className={`text-xs ${variance > 0 ? "text-red-600" : "text-green-600"}`}>
-                              {variance > 0 ? '+' : ''}{variance.toFixed(1)}%
-                            </span>
-                          </div>
-                        </TableCell>
+                        {!hideValueColumns && (
+                          <>
+                            <TableCell className="py-2" data-testid="text-quotation-value">
+                              <div className="flex items-center gap-1">
+                                <span className="font-mono font-semibold text-sm">
+                                  {(() => {
+                                    const quotationValue = quotation.quotationValue || '';
+                                    const numericValue = parseFloat(quotationValue);
+                                    return !isNaN(numericValue) && numericValue > 0 ? formatCurrency(quotationValue) : <span className="text-muted-foreground">No total</span>;
+                                  })()}
+                                </span>
+                                {isLowest && (
+                                  <Badge variant="outline" className="text-xs text-green-600 border-green-200 px-1">
+                                    Lowest
+                                  </Badge>
+                                )}
+                                {quotation.isAboveAverage && (
+                                  <AlertTriangle className="h-3 w-3 text-orange-500" />
+                                )}
+                              </div>
+                            </TableCell>
+                            
+                            <TableCell className="py-2" data-testid="text-variance">
+                              <div className="flex items-center gap-1">
+                                {variance > 0 ? (
+                                  <TrendingUp className="h-3 w-3 text-red-500" />
+                                ) : (
+                                  <TrendingDown className="h-3 w-3 text-green-500" />
+                                )}
+                                <span className={`text-xs ${variance > 0 ? "text-red-600" : "text-green-600"}`}>
+                                  {variance > 0 ? '+' : ''}{variance.toFixed(1)}%
+                                </span>
+                              </div>
+                            </TableCell>
+                          </>
+                        )}
                         
                         <TableCell className="py-2 text-xs" data-testid="text-quotation-date">
                           {quotation.dateOfQuotation ? new Date(quotation.dateOfQuotation).toLocaleDateString() : <span className="text-muted-foreground">No date</span>}
