@@ -196,7 +196,7 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
                         </span>
                       )}
                       {quotation.uploaderName && (
-                        <span className="text-sm text-muted-foreground ml-2" data-testid={`uploader-${quotation.id}`}>
+                        <span className="text-sm text-red-600 dark:text-red-400 ml-2" data-testid={`uploader-${quotation.id}`}>
                           new - {quotation.uploaderName}
                         </span>
                       )}
