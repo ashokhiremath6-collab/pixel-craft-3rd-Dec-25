@@ -373,7 +373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Designer or admin can access all files
           } else if (role === 'client') {
             // Check if client has access to this project
-            const accessibleProjects = await storage.getProjectsForUser(userId, userRole.role);
+            const accessibleProjects = await storage.getProjectsForUser(userId, role);
             const hasAccess = accessibleProjects.some(project => project.id === associatedFloorPlan.projectId);
             
             if (!hasAccess) {
@@ -709,7 +709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const role = userRole?.role || 'client';
       
       // Use role-based helper method for consistent access control
-      const vendors = await storage.getVendorsForUser(userId, userRole.role);
+      const vendors = await storage.getVendorsForUser(userId, role);
       res.json(vendors);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch vendors" });
@@ -725,8 +725,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const role = userRole?.role || 'client';
       
       // Use role-based helper method to get filtered vendors
-      const vendors = await storage.getVendorsForUser(userId, userRole.role);
-      const projectVendors = await storage.getProjectVendorsForUser(userId, userRole.role);
+      const vendors = await storage.getVendorsForUser(userId, role);
+      const projectVendors = await storage.getProjectVendorsForUser(userId, role);
       
       // Map vendors with their associated projects
       const vendorsWithProjects = vendors.map(vendor => ({
@@ -946,7 +946,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const role = userRole?.role || 'client';
       
       // Use role-based helper method for consistent access control
-      const projectVendors = await storage.getProjectVendorsForUser(userId, userRole.role);
+      const projectVendors = await storage.getProjectVendorsForUser(userId, role);
       res.json(projectVendors);
     } catch (error) {
       console.error('Get project vendors error:', error);
@@ -960,12 +960,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRole = await storage.getUserRole(userId);
       const projectId = req.params.projectId;
       
-      if (!userRole) {
-        return res.status(403).json({ error: "User role not found" });
-      }
+      // If no role found, treat as 'client' (users without designer/admin role)
+      const role = userRole?.role || 'client';
       
       // Use role-based helper method with project ID filter
-      const projectVendors = await storage.getProjectVendorsForUser(userId, userRole.role, projectId);
+      const projectVendors = await storage.getProjectVendorsForUser(userId, role, projectId);
       res.json(projectVendors);
     } catch (error) {
       console.error('Get project vendors by project error:', error);
@@ -2292,12 +2291,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRole = await storage.getUserRole(userId);
       const projectVendorId = req.params.id;
       
-      if (!userRole) {
-        return res.status(403).json({ error: "User role not found" });
-      }
+      // If no role found, treat as 'client' (users without designer/admin role)
+      const role = userRole?.role || 'client';
       
       // Use role-based helper method for consistent access control
-      const boqItems = await storage.getBOQForUser(userId, userRole.role, projectVendorId);
+      const boqItems = await storage.getBOQForUser(userId, role, projectVendorId);
       res.json(boqItems);
     } catch (error) {
       console.error('Get BOQ error:', error);
@@ -2312,12 +2310,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRole = await storage.getUserRole(userId);
       const projectVendorId = req.params.id;
       
-      if (!userRole) {
-        return res.status(403).json({ error: "User role not found" });
-      }
+      // If no role found, treat as 'client' (users without designer/admin role)
+      const role = userRole?.role || 'client';
       
       // Use role-based helper method for consistent access control
-      const files = await storage.getQuoteFilesForUser(userId, userRole.role, projectVendorId);
+      const files = await storage.getQuoteFilesForUser(userId, role, projectVendorId);
       res.json(files);
     } catch (error) {
       console.error('Get quote files error:', error);
@@ -2907,7 +2904,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const role = userRole?.role || 'client';
       
       // Use role-based helper method for consistent access control
-      const floorPlans = await storage.getFloorPlansForUser(userId, userRole.role);
+      const floorPlans = await storage.getFloorPlansForUser(userId, role);
       res.json(floorPlans);
     } catch (error) {
       console.error('Error fetching floor plans:', error);
@@ -2921,12 +2918,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRole = await storage.getUserRole(userId);
       const { projectId } = req.params;
       
-      if (!userRole) {
-        return res.status(403).json({ error: "User role not found" });
-      }
+      // If no role found, treat as 'client' (users without designer/admin role)
+      const role = userRole?.role || 'client';
       
       // Use role-based helper method with project ID filter
-      const floorPlans = await storage.getFloorPlansForUser(userId, userRole.role, projectId);
+      const floorPlans = await storage.getFloorPlansForUser(userId, role, projectId);
       res.json(floorPlans);
     } catch (error) {
       console.error('Error fetching floor plans for project:', error);
@@ -2940,12 +2936,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRole = await storage.getUserRole(userId);
       const { id } = req.params;
       
-      if (!userRole) {
-        return res.status(403).json({ error: "User role not found" });
-      }
+      // If no role found, treat as 'client' (users without designer/admin role)
+      const role = userRole?.role || 'client';
       
       // Get user's accessible floor plans and check if this one is included
-      const userFloorPlans = await storage.getFloorPlansForUser(userId, userRole.role);
+      const userFloorPlans = await storage.getFloorPlansForUser(userId, role);
       const floorPlan = userFloorPlans.find(fp => fp.id === id);
       
       if (!floorPlan) {
@@ -3104,12 +3099,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validAssetType = typeof assetType === 'string' ? assetType : undefined;
       const validProjectId = typeof projectId === 'string' ? projectId : undefined;
       
-      if (!userRole) {
-        return res.status(403).json({ error: "User role not found" });
-      }
+      // If no role found, treat as 'client' (users without designer/admin role)
+      const role = userRole?.role || 'client';
       
       // Use role-based helper method for consistent access control
-      const moodboards = await storage.getMoodboardsForUser(userId, userRole.role, validProjectId, validAssetType);
+      const moodboards = await storage.getMoodboardsForUser(userId, role, validProjectId, validAssetType);
       res.json(moodboards);
     } catch (error) {
       console.error('Error fetching moodboards:', error);
