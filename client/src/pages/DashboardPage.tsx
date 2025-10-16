@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import Dashboard from '@/components/Dashboard';
-import type { Vendor, Project, VendorCategory } from "@shared/schema";
+import type { Vendor, Project, VendorCategory, ActivityLog } from "@shared/schema";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
-import { X } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { X, FileUp, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatDistanceToNow } from "date-fns";
 
 interface VendorWithCategory extends Omit<Vendor, 'categoryName'> {
   category: string;
@@ -54,11 +55,23 @@ export default function DashboardPage() {
     queryKey: ['/api/quotations'],
   });
 
+  const { data: activitiesData, isLoading: activitiesLoading } = useQuery<ActivityLog[]>({
+    queryKey: selectedProjectId ? ['/api/activities', selectedProjectId] : ['/api/activities'],
+    queryFn: async () => {
+      const url = selectedProjectId 
+        ? `/api/activities?projectId=${selectedProjectId}` 
+        : '/api/activities';
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch activities');
+      return response.json();
+    }
+  });
+
   const handleNavigate = (path: string) => {
     window.location.href = path;
   };
 
-  const isLoading = vendorsLoading || quotationsLoading || categoriesLoading;
+  const isLoading = vendorsLoading || quotationsLoading || categoriesLoading || activitiesLoading;
 
   if (isLoading) {
     return (
@@ -129,6 +142,19 @@ export default function DashboardPage() {
       })
     : vendorsWithCategory;
 
+  // Helper function to get activity type label
+  const getActivityTypeLabel = (activityType: string) => {
+    const labels: Record<string, string> = {
+      'floor_plan_upload': 'Floor Plan',
+      'moodboard_upload': 'Moodboard',
+      'render_upload': 'Render',
+      'working_drawing_upload': 'Working Drawing',
+      'quote_upload': 'Quotation',
+      'schedule_upload': 'Project Schedule'
+    };
+    return labels[activityType] || activityType;
+  };
+
   return (
     <div className="space-y-4">
       {/* Project Filter */}
@@ -169,6 +195,65 @@ export default function DashboardPage() {
               </Button>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Uploads */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+          <CardTitle className="text-lg font-medium">Recent Uploads</CardTitle>
+          <FileUp className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          {!activitiesData || activitiesData.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground" data-testid="text-no-activities">
+              No recent uploads
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {activitiesData.slice(0, 10).map((activity) => {
+                const project = quotationsData?.projects.find(p => p.id === activity.projectId);
+                const timeAgo = formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true });
+                
+                return (
+                  <div 
+                    key={activity.id} 
+                    className="flex items-start gap-3 p-3 rounded-md hover-elevate"
+                    data-testid={`activity-${activity.id}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm" data-testid={`text-user-${activity.id}`}>
+                          {activity.userName}
+                        </span>
+                        <span className="text-sm text-muted-foreground">uploaded</span>
+                        <span className="text-sm font-medium text-primary" data-testid={`text-type-${activity.id}`}>
+                          {getActivityTypeLabel(activity.activityType)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="text-sm text-muted-foreground truncate" data-testid={`text-filename-${activity.id}`}>
+                          {activity.fileName}
+                        </span>
+                        {project && (
+                          <>
+                            <span className="text-sm text-muted-foreground">•</span>
+                            <span className="text-sm text-muted-foreground" data-testid={`text-project-${activity.id}`}>
+                              {project.projectName}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        <span data-testid={`text-time-${activity.id}`}>{timeAgo}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
