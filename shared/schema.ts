@@ -32,6 +32,7 @@ export const projects = pgTable("projects", {
   startDate: date("start_date").notNull(),
   endDate: date("end_date"),
   canvaLink: text("canva_link"), // Canva design link for the project
+  ganttChartLink: text("gantt_chart_link"), // External Gantt chart link (e.g., Google Sheets, MS Project Online)
 });
 
 // Project Clients table - supports multiple clients per project
