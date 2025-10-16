@@ -209,6 +209,20 @@ export const approvals = pgTable("approvals", {
   resolvedAt: timestamp("resolved_at"),
 });
 
+// Activity Log table for tracking file uploads and user actions
+export const activityLog = pgTable("activity_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  userName: text("user_name").notNull(), // Denormalized for display
+  userEmail: text("user_email").notNull(), // Denormalized for display
+  projectId: varchar("project_id").references(() => projects.id), // Optional, for project-specific activities
+  activityType: text("activity_type").notNull(), // floor_plan, moodboard, quote_file, boq_file, schedule, working_drawing, render
+  fileName: text("file_name").notNull(),
+  filePath: text("file_path"), // Optional file path
+  description: text("description").notNull(), // "uploaded Floor Plan", "uploaded Moodboard", etc.
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 // Insert schemas
 export const insertVendorCategorySchema = createInsertSchema(vendorCategories).omit({
   id: true,
@@ -300,6 +314,13 @@ export const insertApprovalSchema = createInsertSchema(approvals).omit({
   status: z.enum(["pending", "approved", "rejected"]).default("pending"),
 });
 
+export const insertActivityLogSchema = createInsertSchema(activityLog).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  activityType: z.enum(["floor_plan", "moodboard", "quote_file", "boq_file", "schedule", "working_drawing", "render"]),
+});
+
 // Types
 export type InsertVendorCategory = z.infer<typeof insertVendorCategorySchema>;
 export type VendorCategory = typeof vendorCategories.$inferSelect;
@@ -345,6 +366,9 @@ export type TaskAlert = typeof taskAlerts.$inferSelect;
 
 export type InsertApproval = z.infer<typeof insertApprovalSchema>;
 export type Approval = typeof approvals.$inferSelect;
+
+export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
+export type ActivityLog = typeof activityLog.$inferSelect;
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(
