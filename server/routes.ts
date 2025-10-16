@@ -1027,11 +1027,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as any).claims.sub;
       const userRoleData = await storage.getUserRole(userId);
       
-      if (!userRoleData) {
-        return res.status(403).json({ error: "User role not found" });
-      }
-      
-      const userRole = userRoleData.role;
+      // If no role found, treat as 'client' (users without designer/admin role)
+      const userRole = userRoleData?.role || 'client';
       
       // Get all project vendors
       const projectVendors = await storage.getAllProjectVendors();
@@ -1048,7 +1045,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!user) {
           return res.status(401).json({ error: "User not found" });
         }
-        projects = allProjects.filter(project => project.clientEmail === user.email);
+        // Get projects from both old clientEmail field and new projectClients table
+        const clientEmailProjects = allProjects.filter(project => project.clientEmail === user.email);
+        const projectClientProjects = await storage.getProjectsByClientEmail(user.email);
+        
+        // Combine and deduplicate
+        const projectIds = new Set([
+          ...clientEmailProjects.map(p => p.id),
+          ...projectClientProjects.map(p => p.id)
+        ]);
+        projects = allProjects.filter(p => projectIds.has(p.id));
       }
       
       // Create lookup maps for performance
