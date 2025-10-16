@@ -4227,6 +4227,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Activity Log - Get recent activities
+  app.get("/api/activities", requireAuth, async (req, res) => {
+    try {
+      const { limit = '20', projectId } = req.query;
+      const limitNum = parseInt(limit as string, 10);
+      
+      const activities = await storage.getRecentActivities(
+        limitNum, 
+        projectId as string | undefined
+      );
+      
+      res.json(activities);
+    } catch (error) {
+      console.error('Error fetching activities:', error);
+      res.status(500).json({ error: "Failed to fetch activities" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
