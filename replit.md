@@ -30,7 +30,13 @@ Preferred communication style: Simple, everyday language.
 - **Primary Database**: PostgreSQL via Neon serverless
 - **ORM**: Drizzle ORM with schema-first approach
 - **Connection Pooling**: Neon serverless connection pooling
-- **Migrations**: Drizzle Kit for database schema management
+- **Migrations**: Automatic migration system for production deployments
+  - Development: `npm run db:push` for direct schema sync
+  - Production: Migrations auto-applied on server startup via `server/migrate.ts`
+  - Graceful handling when DATABASE_URL not set (dev environments)
+  - Full support for Drizzle Kit's timestamped migration directories
+  - Non-blocking migration runner prevents server crashes
+  - See MIGRATIONS.md for complete workflow documentation
 - **File Storage**: Replit Object Storage (Google Cloud Storage) for permanent file persistence
   - All uploaded files (floor plans, moodboards, renders, quotations, BOQ files) stored in object storage
   - Files persist across deployments and workflow restarts
