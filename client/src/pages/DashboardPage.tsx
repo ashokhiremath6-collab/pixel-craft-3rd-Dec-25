@@ -147,13 +147,23 @@ export default function DashboardPage() {
   const getActivityTypeLabel = (activityType: string) => {
     const labels: Record<string, string> = {
       'floor_plan_upload': 'Floor Plan',
+      'floor_plan_delete': 'Floor Plan',
       'moodboard_upload': 'Moodboard',
+      'moodboard_delete': 'Moodboard',
       'render_upload': 'Render',
+      'render_delete': 'Render',
       'working_drawing_upload': 'Working Drawing',
+      'working_drawing_delete': 'Working Drawing',
       'quote_upload': 'Quotation',
+      'quote_file_delete': 'Quotation',
       'schedule_upload': 'Project Schedule'
     };
     return labels[activityType] || activityType;
+  };
+
+  // Helper function to get activity action (uploaded or deleted)
+  const getActivityAction = (activityType: string) => {
+    return activityType.endsWith('_delete') ? 'deleted' : 'uploaded';
   };
 
   return (
@@ -199,16 +209,16 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Recent Uploads */}
+      {/* Recent Activity */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
-          <CardTitle className="text-lg font-medium">Recent Uploads</CardTitle>
+          <CardTitle className="text-lg font-medium">Recent Activity</CardTitle>
           <FileUp className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           {!activitiesData || activitiesData.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground" data-testid="text-no-activities">
-              No recent uploads
+              No recent activity
             </div>
           ) : (
             <div className="space-y-3">
@@ -227,7 +237,7 @@ export default function DashboardPage() {
                         <span className="font-medium text-sm" data-testid={`text-user-${activity.id}`}>
                           {activity.userName}
                         </span>
-                        <span className="text-sm text-muted-foreground">uploaded</span>
+                        <span className="text-sm text-muted-foreground">{getActivityAction(activity.activityType)}</span>
                         <span className="text-sm font-medium text-primary" data-testid={`text-type-${activity.id}`}>
                           {getActivityTypeLabel(activity.activityType)}
                         </span>

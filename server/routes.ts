@@ -1048,8 +1048,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete a project vendor
   app.delete("/api/project-vendors/:id", requireAuth, async (req, res) => {
     try {
-      const success = await storage.deleteProjectVendor(req.params.id);
+      const userId = (req.user as any).claims.sub;
+      const { id } = req.params;
+      
+      // Get the project vendor before deletion for logging
+      const projectVendor = await storage.getProjectVendor(id);
+      if (!projectVendor) {
+        return res.status(404).json({ error: "Project vendor not found" });
+      }
+      
+      const success = await storage.deleteProjectVendor(id);
       if (success) {
+        // Log deletion activity
+        const user = await storage.getUser(userId);
+        if (user) {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            projectId: projectVendor.projectId,
+            activityType: 'quote_file_delete' as any,
+            fileName: projectVendor.quotationName || 'Quote',
+            description: `deleted quotation "${projectVendor.quotationName}"`,
+            timestamp: new Date(),
+            metadata: {
+              projectVendorId: id,
+              vendorId: projectVendor.vendorId,
+            },
+          });
+        }
         res.json({ message: "Project vendor deleted successfully" });
       } else {
         res.status(404).json({ error: "Project vendor not found" });
@@ -3149,10 +3179,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log activity
       const user = await storage.getUser(userId);
       if (user) {
+        const userName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.email || 'Unknown';
         await storage.createActivity({
           userId: user.id,
-          userName: user.name,
-          activityType: 'floor_plan_upload',
+          userName: userName,
+          activityType: 'floor_plan_upload' as any,
           fileName: req.file.originalname,
           projectId: projectId,
           metadata: { floorPlanId: floorPlan.id, version: floorPlan.version }
@@ -3194,6 +3227,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/floor-plans/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      const userId = (req.user as any).claims.sub;
       
       // Get the floor plan first to delete the file
       const floorPlan = await storage.getFloorPlan(id);
@@ -3214,6 +3248,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (fileError) {
         console.warn('Warning: Could not delete physical file:', fileError);
         // Don't fail the request if file deletion fails
+      }
+      
+      // Log deletion activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        const userName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.email || 'Unknown';
+        await storage.createActivity({
+          userId: user.id,
+          userName: userName,
+          userEmail: user.email || '',
+          projectId: floorPlan.projectId,
+          activityType: 'floor_plan_delete' as any,
+          fileName: floorPlan.fileName,
+          filePath: floorPlan.filePath,
+          description: `deleted Floor Plan "${floorPlan.name}"`,
+          timestamp: new Date(),
+        });
       }
       
       res.json({ message: "Floor plan deleted successfully" });
@@ -3346,10 +3399,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userId = (req.user as any).claims.sub;
         const user = await storage.getUser(userId);
         if (user) {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
           await storage.createActivity({
             userId: user.id,
-            userName: user.name,
-            activityType: assetType === 'render' ? 'render_upload' : assetType === 'working_drawing' ? 'working_drawing_upload' : 'moodboard_upload',
+            userName: userName,
+            activityType: (assetType === 'render' ? 'render_upload' : assetType === 'working_drawing' ? 'working_drawing_upload' : 'moodboard_upload') as any,
             fileName: req.file.originalname,
             projectId: validatedProjectId,
             metadata: { moodboardId: moodboard.id, assetType: moodboard.assetType }
@@ -3405,6 +3461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/moodboards/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
+      const userId = (req.user as any).claims.sub;
       
       // Get the moodboard first to delete the file
       const moodboard = await storage.getMoodboard(id);
@@ -3419,12 +3476,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Delete the physical file
       try {
-        if (fs.existsSync(moodboard.filePath)) {
+        if (moodboard.filePath && fs.existsSync(moodboard.filePath)) {
           fs.unlinkSync(moodboard.filePath);
         }
       } catch (fileError) {
         console.warn('Warning: Could not delete physical file:', fileError);
         // Don't fail the request if file deletion fails
+      }
+      
+      // Log deletion activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        const userName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.email || 'Unknown';
+        const assetTypeLabel = moodboard.assetType === 'render' ? 'Render' : 
+                               moodboard.assetType === 'working_drawing' ? 'Working Drawing' : 'Moodboard';
+        await storage.createActivity({
+          userId: user.id,
+          userName: userName,
+          userEmail: user.email || '',
+          projectId: moodboard.projectId || undefined,
+          activityType: `${moodboard.assetType}_delete` as any,
+          fileName: moodboard.fileName || moodboard.name,
+          filePath: moodboard.filePath || undefined,
+          description: `deleted ${assetTypeLabel} "${moodboard.name}"`,
+          timestamp: new Date(),
+        });
       }
       
       res.json({ message: "Moodboard deleted successfully" });
@@ -3925,10 +4003,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log activity
       const user = await storage.getUser(userId);
       if (user) {
+        const userName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.email || 'Unknown';
         await storage.createActivity({
           userId: user.id,
-          userName: user.name,
-          activityType: 'schedule_upload',
+          userName: userName,
+          activityType: 'schedule_upload' as any,
           fileName: req.file.originalname,
           projectId: projectId,
           metadata: { scheduleId: schedule.id, version: schedule.version }
