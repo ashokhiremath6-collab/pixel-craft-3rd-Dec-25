@@ -1107,7 +1107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Get uploader info from activity log (using pre-fetched activities)
           let uploaderName = null;
           const uploadActivity = allActivities.find(
-            a => a.activityType === 'quote_upload' && 
+            a => a.activityType === 'quote_file' && 
             a.metadata && 
             typeof a.metadata === 'object' && 
             'projectVendorId' in a.metadata && 
@@ -1982,11 +1982,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       if (user) {
         try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
           await storage.createActivity({
             userId: user.id,
-            userName: user.name,
-            userEmail: user.email,
-            activityType: 'quote_upload',
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'quote_file',
             fileName: req.file.originalname,
             filePath: objectPath,
             description: `uploaded quotation for ${vendor.name} - ${project.projectName}`,
@@ -2126,13 +2129,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       if (user) {
         try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
           const vendor = await storage.getVendor(vendorId);
           const project = await storage.getProject(projectId);
           await storage.createActivity({
             userId: user.id,
-            userName: user.name,
-            userEmail: user.email,
-            activityType: 'quote_upload',
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'quote_file',
             fileName: tempData.originalname,
             filePath: objectPath,
             description: `uploaded quotation for ${vendor?.name || 'vendor'} - ${project?.projectName || 'project'}`,

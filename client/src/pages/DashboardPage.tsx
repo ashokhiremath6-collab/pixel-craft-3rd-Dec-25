@@ -101,7 +101,8 @@ export default function DashboardPage() {
       return projectQuotations.map(q => ({
         ...q,
         projectName: project?.projectName || 'Unknown Project',
-        category: q.category // Include category from API response
+        category: q.category, // Include category from API response
+        uploaderName: q.uploaderName || null // Include uploader name from API response
       }));
     });
 
