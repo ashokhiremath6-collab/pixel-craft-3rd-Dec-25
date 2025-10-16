@@ -25,6 +25,7 @@ interface DashboardProps {
     category?: string;
     quotationName?: string;
     quotationType?: string;
+    uploaderName?: string | null;
   }>;
   allQuotations?: Array<{
     id: string;
@@ -36,6 +37,7 @@ interface DashboardProps {
     category?: string;
     quotationName?: string;
     quotationType?: string;
+    uploaderName?: string | null;
   }>;
   onNavigate?: (path: string) => void;
 }
@@ -191,6 +193,11 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
                       {quotation.quotationType === "option" && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 ml-2">
                           Option
+                        </span>
+                      )}
+                      {quotation.uploaderName && (
+                        <span className="text-sm text-muted-foreground ml-2" data-testid={`uploader-${quotation.id}`}>
+                          new - {quotation.uploaderName}
                         </span>
                       )}
                     </div>

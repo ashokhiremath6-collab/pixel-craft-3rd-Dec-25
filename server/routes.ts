@@ -1101,6 +1101,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
+          // Get uploader info from activity log
+          let uploaderName = null;
+          try {
+            const activities = await storage.getRecentActivities(100); // Get recent activities
+            const uploadActivity = activities.find(
+              a => a.activityType === 'quote_upload' && 
+              a.metadata && 
+              typeof a.metadata === 'object' && 
+              'projectVendorId' in a.metadata && 
+              a.metadata.projectVendorId === pv.id
+            );
+            if (uploadActivity) {
+              uploaderName = uploadActivity.userName;
+            }
+          } catch (error) {
+            console.error('Error fetching uploader info:', error);
+          }
+
           quotationsByProject[pv.projectId].push({
             id: pv.id,
             vendorName: vendor.name,
@@ -1114,7 +1132,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             notes: pv.notes,
             isNegotiated: pv.isNegotiated,
             projectId: pv.projectId,
-            projectName: project.projectName
+            projectName: project.projectName,
+            uploaderName: uploaderName
           });
         }
       }
