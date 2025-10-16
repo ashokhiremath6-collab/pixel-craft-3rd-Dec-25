@@ -35,6 +35,8 @@ import {
   type InsertTaskAlert,
   type Approval,
   type InsertApproval,
+  type ActivityLog,
+  type InsertActivityLog,
   users,
   userRoles,
   designerAllowlist,
@@ -53,10 +55,11 @@ import {
   taskDependencies,
   taskAlerts,
   approvals,
+  activityLog,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, inArray, isNull, and } from "drizzle-orm";
+import { eq, inArray, isNull, and, desc } from "drizzle-orm";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -202,6 +205,10 @@ export interface IStorage {
   getApprovalsByTask(taskId: string): Promise<Approval[]>;
   createApproval(approval: InsertApproval): Promise<Approval>;
   resolveApproval(id: string, status: string, comments?: string): Promise<Approval | undefined>;
+  
+  // Activity Log
+  getRecentActivities(limit?: number, projectId?: string): Promise<ActivityLog[]>;
+  createActivity(activity: InsertActivityLog): Promise<ActivityLog>;
   
   // Vendors (with role-based filtering)
   getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
@@ -950,6 +957,15 @@ export class MemStorage implements IStorage {
 
   async resolveApproval(id: string, status: string, comments?: string): Promise<Approval | undefined> {
     return undefined;
+  }
+
+  // Activity Log (MemStorage stubs)
+  async getRecentActivities(limit?: number, projectId?: string): Promise<ActivityLog[]> {
+    return [];
+  }
+
+  async createActivity(activity: InsertActivityLog): Promise<ActivityLog> {
+    throw new Error("MemStorage not supported for activity log");
   }
 
   async getVendorsForUser(userId: string, role: string): Promise<Vendor[]> {
@@ -1749,6 +1765,26 @@ export class DBStorage implements IStorage {
     const updates: any = { status, resolvedAt: new Date() };
     if (comments) updates.comments = comments;
     const result = await db.update(approvals).set(updates).where(eq(approvals.id, id)).returning();
+    return result[0];
+  }
+
+  // Activity Log
+  async getRecentActivities(limit: number = 20, projectId?: string): Promise<ActivityLog[]> {
+    if (projectId) {
+      return await db.select()
+        .from(activityLog)
+        .where(eq(activityLog.projectId, projectId))
+        .orderBy(desc(activityLog.createdAt))
+        .limit(limit);
+    }
+    return await db.select()
+      .from(activityLog)
+      .orderBy(desc(activityLog.createdAt))
+      .limit(limit);
+  }
+
+  async createActivity(activity: InsertActivityLog): Promise<ActivityLog> {
+    const result = await db.insert(activityLog).values(activity).returning();
     return result[0];
   }
 }
