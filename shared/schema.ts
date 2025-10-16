@@ -220,6 +220,7 @@ export const activityLog = pgTable("activity_log", {
   fileName: text("file_name").notNull(),
   filePath: text("file_path"), // Optional file path
   description: text("description").notNull(), // "uploaded Floor Plan", "uploaded Moodboard", etc.
+  metadata: jsonb("metadata"), // Additional data like projectVendorId, vendorId, etc.
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 

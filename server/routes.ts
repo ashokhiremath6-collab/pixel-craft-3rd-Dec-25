@@ -1038,6 +1038,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const vendors = await storage.getAllVendors();
       const categories = await storage.getAllVendorCategories();
       
+      // Get all activities for uploader information (optimization: fetch once for all quotes)
+      const allActivities = await storage.getRecentActivities(500);
+      
       // Filter projects based on user role and access
       let projects = allProjects;
       if (userRole === 'client') {
@@ -1101,22 +1104,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
-          // Get uploader info from activity log
+          // Get uploader info from activity log (using pre-fetched activities)
           let uploaderName = null;
-          try {
-            const activities = await storage.getRecentActivities(100); // Get recent activities
-            const uploadActivity = activities.find(
-              a => a.activityType === 'quote_upload' && 
-              a.metadata && 
-              typeof a.metadata === 'object' && 
-              'projectVendorId' in a.metadata && 
-              a.metadata.projectVendorId === pv.id
-            );
-            if (uploadActivity) {
-              uploaderName = uploadActivity.userName;
-            }
-          } catch (error) {
-            console.error('Error fetching uploader info:', error);
+          const uploadActivity = allActivities.find(
+            a => a.activityType === 'quote_upload' && 
+            a.metadata && 
+            typeof a.metadata === 'object' && 
+            'projectVendorId' in a.metadata && 
+            a.metadata.projectVendorId === pv.id
+          );
+          if (uploadActivity) {
+            uploaderName = uploadActivity.userName;
           }
 
           quotationsByProject[pv.projectId].push({
@@ -1983,18 +1981,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log activity
       const user = await storage.getUser(userId);
       if (user) {
-        await storage.createActivity({
-          userId: user.id,
-          userName: user.name,
-          activityType: 'quote_upload',
-          fileName: req.file.originalname,
-          projectId: projectId,
-          metadata: { 
-            projectVendorId: results.projectVendor.id, 
-            vendorId: vendorId,
-            quotationValue: results.projectVendor.quotationValue 
-          }
-        });
+        try {
+          await storage.createActivity({
+            userId: user.id,
+            userName: user.name,
+            userEmail: user.email,
+            activityType: 'quote_upload',
+            fileName: req.file.originalname,
+            filePath: objectPath,
+            description: `uploaded quotation for ${vendor.name} - ${project.projectName}`,
+            projectId: projectId,
+            metadata: {
+              projectVendorId: results.projectVendor.id,
+              vendorId: vendorId,
+              quotationValue: results.projectVendor.quotationValue
+            }
+          });
+          console.log(`Activity logged for quote upload: ${req.file.originalname}`);
+        } catch (activityError) {
+          console.error('Error logging activity:', activityError);
+        }
       }
 
       res.status(201).json({
@@ -2119,19 +2125,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log activity
       const user = await storage.getUser(userId);
       if (user) {
-        await storage.createActivity({
-          userId: user.id,
-          userName: user.name,
-          activityType: 'quote_upload',
-          fileName: tempData.originalname,
-          projectId: projectId,
-          metadata: { 
-            projectVendorId: results.projectVendor.id, 
-            vendorId: vendorId,
-            quotationValue: results.projectVendor.quotationValue,
-            quotationType: resolutionType 
-          }
-        });
+        try {
+          const vendor = await storage.getVendor(vendorId);
+          const project = await storage.getProject(projectId);
+          await storage.createActivity({
+            userId: user.id,
+            userName: user.name,
+            userEmail: user.email,
+            activityType: 'quote_upload',
+            fileName: tempData.originalname,
+            filePath: objectPath,
+            description: `uploaded quotation for ${vendor?.name || 'vendor'} - ${project?.projectName || 'project'}`,
+            projectId: projectId,
+            metadata: {
+              projectVendorId: results.projectVendor.id,
+              vendorId: vendorId,
+              quotationValue: results.projectVendor.quotationValue,
+              quotationType: resolutionType
+            }
+          });
+          console.log(`Activity logged for quote upload: ${tempData.originalname}`);
+        } catch (activityError) {
+          console.error('Error logging activity:', activityError);
+        }
       }
       
       // Clean up temporary storage
