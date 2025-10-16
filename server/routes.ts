@@ -1961,6 +1961,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`Stored quote file at object storage: ${objectPath}`);
 
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        await storage.createActivity({
+          userId: user.id,
+          userName: user.name,
+          activityType: 'quote_upload',
+          fileName: req.file.originalname,
+          projectId: projectId,
+          metadata: { 
+            projectVendorId: results.projectVendor.id, 
+            vendorId: vendorId,
+            quotationValue: results.projectVendor.quotationValue 
+          }
+        });
+      }
+
       res.status(201).json({
         message: "Quote imported successfully",
         projectVendor: results.projectVendor,
@@ -2079,6 +2096,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateProjectVendor(results.projectVendor.id, {
         quotationFile: objectPath
       });
+      
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        await storage.createActivity({
+          userId: user.id,
+          userName: user.name,
+          activityType: 'quote_upload',
+          fileName: tempData.originalname,
+          projectId: projectId,
+          metadata: { 
+            projectVendorId: results.projectVendor.id, 
+            vendorId: vendorId,
+            quotationValue: results.projectVendor.quotationValue,
+            quotationType: resolutionType 
+          }
+        });
+      }
       
       // Clean up temporary storage
       tempQuoteStorage.delete(tempFileId);
@@ -3030,6 +3065,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertFloorPlanSchema.parse(floorPlanData);
       
       const floorPlan = await storage.createFloorPlan(validatedData);
+      
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        await storage.createActivity({
+          userId: user.id,
+          userName: user.name,
+          activityType: 'floor_plan_upload',
+          fileName: req.file.originalname,
+          projectId: projectId,
+          metadata: { floorPlanId: floorPlan.id, version: floorPlan.version }
+        });
+      }
+      
       res.status(201).json(floorPlan);
     } catch (error) {
       console.error('Error creating floor plan:', error);
@@ -3211,6 +3260,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertMoodboardSchema.parse(moodboardData);
       
       const moodboard = await storage.createMoodboard(validatedData);
+      
+      // Log activity (only for file uploads, not link-only)
+      if (!isLinkOnly && req.file) {
+        const userId = (req.user as any).claims.sub;
+        const user = await storage.getUser(userId);
+        if (user) {
+          await storage.createActivity({
+            userId: user.id,
+            userName: user.name,
+            activityType: assetType === 'render' ? 'render_upload' : assetType === 'working_drawing' ? 'working_drawing_upload' : 'moodboard_upload',
+            fileName: req.file.originalname,
+            projectId: validatedProjectId,
+            metadata: { moodboardId: moodboard.id, assetType: moodboard.assetType }
+          });
+        }
+      }
+      
       res.status(201).json(moodboard);
     } catch (error) {
       console.error('Error creating moodboard:', error);
@@ -3775,6 +3841,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileSize: String(req.file.size),
         status: 'active',
       });
+
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        await storage.createActivity({
+          userId: user.id,
+          userName: user.name,
+          activityType: 'schedule_upload',
+          fileName: req.file.originalname,
+          projectId: projectId,
+          metadata: { scheduleId: schedule.id, version: schedule.version }
+        });
+      }
 
       // Parse the file and import tasks
       let taskData: any[] = [];
