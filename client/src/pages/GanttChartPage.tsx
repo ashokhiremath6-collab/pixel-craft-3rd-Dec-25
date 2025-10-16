@@ -56,6 +56,7 @@ export default function GanttChartPage() {
   const [expandedCriticalPath, setExpandedCriticalPath] = useState<Set<string>>(new Set());
   const [isGanttLinkOpen, setIsGanttLinkOpen] = useState(false);
   const [ganttLinkInput, setGanttLinkInput] = useState<string>("");
+  const [isEditingGanttLink, setIsEditingGanttLink] = useState(false);
 
   const { data: quotationsData, isLoading: isLoadingProjects } = useQuery<QuotationsResponse>({
     queryKey: ['/api/quotations'],
@@ -566,6 +567,7 @@ export default function GanttChartPage() {
                   setIsGanttLinkOpen(open);
                   if (open && selectedProject) {
                     setGanttLinkInput(selectedProject.ganttChartLink || "");
+                    setIsEditingGanttLink(false);
                   }
                 }}>
                   <DialogTrigger asChild>
@@ -575,52 +577,79 @@ export default function GanttChartPage() {
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Gantt Chart Link</DialogTitle>
-                      <DialogDescription>
-                        Add or update an external Gantt chart link (e.g., Google Sheets, MS Project Online, etc.)
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">Gantt Chart URL</label>
-                        <Input
-                          value={ganttLinkInput}
-                          onChange={(e) => setGanttLinkInput(e.target.value)}
-                          placeholder="https://docs.google.com/spreadsheets/..."
-                          data-testid="input-gantt-link"
-                        />
-                      </div>
-                      {selectedProject?.ganttChartLink && (
-                        <div className="flex items-center gap-2 p-3 bg-muted rounded-md">
-                          <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    {selectedProject?.ganttChartLink && !isEditingGanttLink ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3 p-4 hover-elevate rounded-md">
+                          <ExternalLink className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                           <a 
                             href={selectedProject.ganttChartLink} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-sm text-primary hover:underline truncate"
+                            className="text-base text-primary hover:underline break-all"
                             data-testid="link-current-gantt"
                           >
                             {selectedProject.ganttChartLink}
                           </a>
                         </div>
-                      )}
-                      <Button
-                        onClick={() => {
-                          if (selectedProjectId) {
-                            updateGanttLinkMutation.mutate({ 
-                              id: selectedProjectId, 
-                              ganttChartLink: ganttLinkInput.trim() 
-                            });
-                          }
-                        }}
-                        disabled={!ganttLinkInput.trim() || updateGanttLinkMutation.isPending}
-                        className="w-full"
-                        data-testid="button-save-gantt-link"
-                      >
-                        {updateGanttLinkMutation.isPending ? "Saving..." : "Save Link"}
-                      </Button>
-                    </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setGanttLinkInput(selectedProject.ganttChartLink || "");
+                            setIsEditingGanttLink(true);
+                          }}
+                          className="w-full"
+                          data-testid="button-edit-gantt-link"
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit Link
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle>Gantt Chart Link</DialogTitle>
+                          <DialogDescription>
+                            {selectedProject?.ganttChartLink ? "Update the external Gantt chart link" : "Add an external Gantt chart link"}
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <Input
+                            value={ganttLinkInput}
+                            onChange={(e) => setGanttLinkInput(e.target.value)}
+                            placeholder="https://docs.google.com/spreadsheets/..."
+                            data-testid="input-gantt-link"
+                          />
+                          <div className="flex gap-2">
+                            {selectedProject?.ganttChartLink && (
+                              <Button
+                                variant="outline"
+                                onClick={() => setIsEditingGanttLink(false)}
+                                data-testid="button-cancel-edit"
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                            <Button
+                              onClick={() => {
+                                if (selectedProjectId) {
+                                  updateGanttLinkMutation.mutate({ 
+                                    id: selectedProjectId, 
+                                    ganttChartLink: ganttLinkInput.trim() 
+                                  });
+                                  setIsEditingGanttLink(false);
+                                }
+                              }}
+                              disabled={!ganttLinkInput.trim() || updateGanttLinkMutation.isPending}
+                              className="flex-1"
+                              data-testid="button-save-gantt-link"
+                            >
+                              {updateGanttLinkMutation.isPending ? "Saving..." : "Save Link"}
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </DialogContent>
                 </Dialog>
                 <Dialog open={isAddTaskOpen} onOpenChange={handleAddTaskOpen}>
