@@ -54,6 +54,8 @@ export default function GanttChartPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [expandedCriticalPath, setExpandedCriticalPath] = useState<Set<string>>(new Set());
+  const [isGanttLinkOpen, setIsGanttLinkOpen] = useState(false);
+  const [ganttLinkInput, setGanttLinkInput] = useState<string>("");
 
   const { data: quotationsData, isLoading: isLoadingProjects } = useQuery<QuotationsResponse>({
     queryKey: ['/api/quotations'],
@@ -175,6 +177,25 @@ export default function GanttChartPage() {
     onError: (error: any) => {
       toast({ title: "Delete Failed", description: error.message || "Could not delete schedule", variant: "destructive" });
     }
+  });
+
+  const updateGanttLinkMutation = useMutation({
+    mutationFn: async (data: { id: string; ganttChartLink: string }) => {
+      return apiRequest('PUT', `/api/projects/${data.id}`, { ganttChartLink: data.ganttChartLink });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
+      toast({ title: "Success", description: "Gantt chart link updated successfully" });
+      setIsGanttLinkOpen(false);
+      setGanttLinkInput("");
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to update Gantt chart link",
+        variant: "destructive" 
+      });
+    },
   });
 
   const projects = quotationsData?.projects || [];
@@ -541,6 +562,67 @@ export default function GanttChartPage() {
             </div>
             {selectedProjectId && (
               <div className="flex items-center gap-2">
+                <Dialog open={isGanttLinkOpen} onOpenChange={(open) => {
+                  setIsGanttLinkOpen(open);
+                  if (open && selectedProject) {
+                    setGanttLinkInput(selectedProject.ganttChartLink || "");
+                  }
+                }}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" data-testid="button-gantt-link">
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      {selectedProject?.ganttChartLink ? "View Link" : "Add Link"}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Gantt Chart Link</DialogTitle>
+                      <DialogDescription>
+                        Add or update an external Gantt chart link (e.g., Google Sheets, MS Project Online, etc.)
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Gantt Chart URL</label>
+                        <Input
+                          value={ganttLinkInput}
+                          onChange={(e) => setGanttLinkInput(e.target.value)}
+                          placeholder="https://docs.google.com/spreadsheets/..."
+                          data-testid="input-gantt-link"
+                        />
+                      </div>
+                      {selectedProject?.ganttChartLink && (
+                        <div className="flex items-center gap-2 p-3 bg-muted rounded-md">
+                          <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                          <a 
+                            href={selectedProject.ganttChartLink} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-sm text-primary hover:underline truncate"
+                            data-testid="link-current-gantt"
+                          >
+                            {selectedProject.ganttChartLink}
+                          </a>
+                        </div>
+                      )}
+                      <Button
+                        onClick={() => {
+                          if (selectedProjectId) {
+                            updateGanttLinkMutation.mutate({ 
+                              id: selectedProjectId, 
+                              ganttChartLink: ganttLinkInput.trim() 
+                            });
+                          }
+                        }}
+                        disabled={!ganttLinkInput.trim() || updateGanttLinkMutation.isPending}
+                        className="w-full"
+                        data-testid="button-save-gantt-link"
+                      >
+                        {updateGanttLinkMutation.isPending ? "Saving..." : "Save Link"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                 <Dialog open={isAddTaskOpen} onOpenChange={handleAddTaskOpen}>
                   <DialogTrigger asChild>
                     <Button size="sm" data-testid="button-add-task">
