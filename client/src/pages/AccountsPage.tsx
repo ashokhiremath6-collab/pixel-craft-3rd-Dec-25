@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, DollarSign, TrendingUp, Download, AlertCircle } from "lucide-react";
+import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -238,7 +238,7 @@ export default function AccountsPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Payments</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <IndianRupee className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold" data-testid="text-total-payments">
@@ -398,7 +398,7 @@ export default function AccountsPage() {
             <Dialog open={addPaymentDialogOpen} onOpenChange={setAddPaymentDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" data-testid="button-record-payment">
-                  <DollarSign className="h-4 w-4 mr-2" />
+                  <Banknote className="h-4 w-4 mr-2" />
                   Record Payment
                 </Button>
               </DialogTrigger>
