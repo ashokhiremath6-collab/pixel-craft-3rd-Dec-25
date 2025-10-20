@@ -1948,7 +1948,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }>();
 
   // Quote Import Routes
-  app.post("/api/quotes/import", requireAuth, upload.single('quoteFile'), async (req, res) => {
+  app.post("/api/quotes/import", requireAdmin, upload.single('quoteFile'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -2097,7 +2097,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Resolve import conflict - when user decides if it's option or new item
-  app.post("/api/quotes/import/resolve", requireAuth, async (req, res) => {
+  app.post("/api/quotes/import/resolve", requireAdmin, async (req, res) => {
     try {
       const { 
         tempFileId, 
@@ -3317,7 +3317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload new moodboard
-  app.post("/api/moodboards", requireAuth, uploadMoodboard.single('moodboard'), async (req, res) => {
+  app.post("/api/moodboards", requireAdmin, uploadMoodboard.single('moodboard'), async (req, res) => {
     try {
       const { description, tags, projectId, canvaLink, linkOnly, assetType } = req.body;
       
@@ -3596,7 +3596,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Import tasks from CSV
-  app.post("/api/tasks/import/csv", requireAuth, multer().single('file'), async (req, res) => {
+  app.post("/api/tasks/import/csv", requireAdmin, multer().single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -3971,7 +3971,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Import schedule (CSV/XLSX) with file storage and dependency parsing
-  app.post("/api/schedules/import", requireAuth, multer().single('file'), async (req, res) => {
+  app.post("/api/schedules/import", requireAdmin, multer().single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });

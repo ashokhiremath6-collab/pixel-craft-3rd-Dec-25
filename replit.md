@@ -25,6 +25,13 @@ Preferred communication style: Simple, everyday language.
 - **Schema Management**: Drizzle Kit for migrations and schema evolution
 - **Session Management**: Express sessions with PostgreSQL store
 - **API Design**: RESTful endpoints following conventional HTTP methods
+- **Role-Based Access Control (RBAC)**: Three-tier permission system
+  - **Admin**: Full system access including user management and role assignment
+  - **Designer**: Can upload and manage all project documents and data
+  - **Client**: Read-only access to assigned projects; cannot upload documents
+  - Upload permissions: Only admins and designers can upload files (quotes, floor plans, moodboards, renders, working drawings, schedules)
+  - Read permissions: All authenticated users have read access to files for projects they're assigned to
+  - Activity logging: All file uploads and deletions are tracked with user attribution
 
 ### Data Storage Solutions
 - **Primary Database**: PostgreSQL via Neon serverless
