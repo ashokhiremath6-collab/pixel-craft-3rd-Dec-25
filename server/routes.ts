@@ -1701,9 +1701,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
+        // Override total for unit rate quotes
+        const finalGrandTotal = isUnitRate ? -1 : (grandTotal > 0 ? grandTotal : undefined);
+        
         return {
           items,
-          totals: { grandTotal: grandTotal > 0 ? grandTotal : undefined },
+          totals: { grandTotal: finalGrandTotal },
           originalFormat: 'csv'
         };
       } else if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) {
@@ -1758,9 +1761,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
+        // Override total for unit rate quotes
+        const finalGrandTotal = isUnitRate ? -1 : (grandTotal > 0 ? grandTotal : undefined);
+        
         return {
           items,
-          totals: { grandTotal: grandTotal > 0 ? grandTotal : undefined },
+          totals: { grandTotal: finalGrandTotal },
           originalFormat: 'excel'
         };
       } else if (mimeType.includes('pdf') || (fileName && fileName.toLowerCase().endsWith('.pdf'))) {
@@ -1768,18 +1774,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const pdfData = await pdfParse(fileBuffer);
         const text = pdfData.text;
         
-        // If this is a unit rate quote, skip value extraction
-        if (isUnitRate) {
-          console.log('Unit rate quote detected via dropdown - skipping value extraction');
-          return {
-            items: [],
-            totals: { grandTotal: -1 }, // -1 marker for unit rates
-            originalFormat: 'pdf'
-          };
-        }
-        
         // Extract quote information using pattern matching
         const result = extractQuoteDataFromPDF(text);
+        
+        // If this is a unit rate quote, override the total value
+        if (isUnitRate) {
+          console.log('Unit rate quote detected via dropdown - setting total to -1');
+          result.totals.grandTotal = -1; // -1 marker for unit rates
+        }
         
         // Return both items and totals for PDF processing
         return {
