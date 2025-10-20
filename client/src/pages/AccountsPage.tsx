@@ -20,6 +20,7 @@ import type { Vendor, VendorInvoice, VendorPayment, Project } from "@shared/sche
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import * as XLSX from "xlsx";
 
 type InvoiceFormData = z.infer<typeof insertVendorInvoiceSchema>;
 type PaymentFormData = z.infer<typeof insertVendorPaymentSchema>;
@@ -184,6 +185,95 @@ export default function AccountsPage() {
   const outstandingBalance = totalInvoices - totalPayments;
 
   const selectedVendor = vendors.find((v) => v.id === selectedVendorId);
+
+  // Export ledger to Excel
+  const handleExportLedger = () => {
+    if (!selectedVendor || ledgerEntries.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Cannot export",
+        description: "No transactions to export",
+      });
+      return;
+    }
+
+    // Prepare data for Excel
+    const exportData = ledgerEntries.map((entry) => ({
+      Date: format(entry.date, 'dd-MMM-yyyy'),
+      Type: entry.type === 'invoice' ? 'Invoice' : 'Payment',
+      Reference: entry.reference,
+      Description: entry.description,
+      'Debit (₹)': entry.debit > 0 ? entry.debit.toFixed(2) : '',
+      'Credit (₹)': entry.credit > 0 ? entry.credit.toFixed(2) : '',
+      'Balance (₹)': entry.balance.toFixed(2),
+    }));
+
+    // Add summary rows
+    exportData.push({
+      Date: '',
+      Type: '',
+      Reference: '',
+      Description: '',
+      'Debit (₹)': '',
+      'Credit (₹)': '',
+      'Balance (₹)': '',
+    });
+    exportData.push({
+      Date: '',
+      Type: '',
+      Reference: '',
+      Description: 'Total Invoices',
+      'Debit (₹)': totalInvoices.toFixed(2),
+      'Credit (₹)': '',
+      'Balance (₹)': '',
+    });
+    exportData.push({
+      Date: '',
+      Type: '',
+      Reference: '',
+      Description: 'Total Payments',
+      'Debit (₹)': '',
+      'Credit (₹)': totalPayments.toFixed(2),
+      'Balance (₹)': '',
+    });
+    exportData.push({
+      Date: '',
+      Type: '',
+      Reference: '',
+      Description: 'Outstanding Balance',
+      'Debit (₹)': '',
+      'Credit (₹)': '',
+      'Balance (₹)': outstandingBalance.toFixed(2),
+    });
+
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(exportData);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 12 }, // Date
+      { wch: 10 }, // Type
+      { wch: 15 }, // Reference
+      { wch: 30 }, // Description
+      { wch: 12 }, // Debit
+      { wch: 12 }, // Credit
+      { wch: 12 }, // Balance
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Ledger');
+
+    // Generate filename with vendor name and date
+    const filename = `${selectedVendor.name.replace(/[^a-z0-9]/gi, '_')}_Ledger_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    
+    // Download file
+    XLSX.writeFile(wb, filename);
+
+    toast({
+      title: "Ledger exported",
+      description: `Downloaded as ${filename}`,
+    });
+  };
 
   return (
     <div className="space-y-6 p-6">
@@ -510,7 +600,12 @@ export default function AccountsPage() {
               </DialogContent>
             </Dialog>
 
-                <Button variant="outline" data-testid="button-export-ledger">
+                <Button 
+                  variant="outline" 
+                  onClick={handleExportLedger}
+                  disabled={!selectedVendorId || ledgerEntries.length === 0}
+                  data-testid="button-export-ledger"
+                >
                   <Download className="h-4 w-4 mr-2" />
                   Export Ledger
                 </Button>
