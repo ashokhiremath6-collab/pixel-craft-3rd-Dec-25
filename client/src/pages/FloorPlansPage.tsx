@@ -82,6 +82,7 @@ export default function FloorPlansPage() {
       const response = await fetch('/api/floor-plans', {
         method: 'POST',
         body: formData,
+        credentials: 'include',
       });
       
       if (!response.ok) {
@@ -117,6 +118,7 @@ export default function FloorPlansPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       });
       
       if (!response.ok) {
@@ -150,6 +152,7 @@ export default function FloorPlansPage() {
     mutationFn: async (id: string) => {
       const response = await fetch(`/api/floor-plans/${id}`, {
         method: 'DELETE',
+        credentials: 'include',
       });
       
       if (!response.ok) {
