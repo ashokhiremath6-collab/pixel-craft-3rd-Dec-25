@@ -62,9 +62,7 @@ export default function TemplatesPage() {
   // Delete template mutation
   const deleteTemplateMutation = useMutation({
     mutationFn: async (templateId: string) => {
-      return await apiRequest(`/api/quote-templates/${templateId}`, {
-        method: 'DELETE',
-      });
+      return await apiRequest('DELETE', `/api/quote-templates/${templateId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/quote-templates'] });
