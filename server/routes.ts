@@ -1307,7 +1307,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/quote-templates/:id", async (req, res) => {
+  app.put("/api/quote-templates/:id", requireAdmin, async (req, res) => {
     try {
       const parsed = insertQuoteTemplateSchema.partial().parse(req.body);
       const template = await storage.updateQuoteTemplate(req.params.id, parsed);
@@ -1317,6 +1317,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(template);
     } catch (error) {
       res.status(400).json({ error: "Invalid template data" });
+    }
+  });
+
+  app.delete("/api/quote-templates/:id", requireAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteQuoteTemplate(req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      res.json({ message: "Template deleted successfully" });
+    } catch (error) {
+      console.error('Delete template error:', error);
+      res.status(500).json({ error: "Failed to delete template" });
     }
   });
 

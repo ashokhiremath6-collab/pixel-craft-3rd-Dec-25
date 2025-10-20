@@ -6,13 +6,24 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Plus, FileText, Edit, Trash2, ChevronRight, ChevronDown, Upload, PlusCircle, Eye } from "lucide-react";
 import type { VendorCategory, QuoteTemplate } from "@shared/schema";
 import { AddTemplateDialog } from "@/components/AddTemplateDialog";
 import TemplateImport from "@/components/TemplateImport";
 import { Link } from "wouter";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface CategoryWithChildren extends VendorCategory {
   children: CategoryWithChildren[];
@@ -25,6 +36,7 @@ export default function TemplatesPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<QuoteTemplate | null>(null);
+  const [deletingTemplate, setDeletingTemplate] = useState<QuoteTemplate | null>(null);
   const { toast } = useToast();
 
   // Fetch vendor categories for hierarchical filtering
@@ -45,6 +57,31 @@ export default function TemplatesPage() {
     refetch: refetchTemplates 
   } = useQuery<QuoteTemplate[]>({
     queryKey: ['/api/quote-templates'],
+  });
+
+  // Delete template mutation
+  const deleteTemplateMutation = useMutation({
+    mutationFn: async (templateId: string) => {
+      return await apiRequest(`/api/quote-templates/${templateId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/quote-templates'] });
+      toast({
+        title: "Template deleted",
+        description: "Quote template has been deleted successfully.",
+      });
+      setDeletingTemplate(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete template",
+        variant: "destructive",
+      });
+      setDeletingTemplate(null);
+    },
   });
 
   // Helper function to flatten hierarchical category data if needed
@@ -355,6 +392,7 @@ export default function TemplatesPage() {
                         <Button 
                           size="sm" 
                           variant="outline"
+                          onClick={() => setDeletingTemplate(template)}
                           data-testid={`button-delete-${template.id}`}
                           aria-label={`Delete ${template.name} template`}
                         >
@@ -391,6 +429,25 @@ export default function TemplatesPage() {
         template={editingTemplate || undefined}
       />
 
+      <AlertDialog open={!!deletingTemplate} onOpenChange={(open) => !open && setDeletingTemplate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Template</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deletingTemplate?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingTemplate && deleteTemplateMutation.mutate(deletingTemplate.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {importDialogOpen && (
         <div 
