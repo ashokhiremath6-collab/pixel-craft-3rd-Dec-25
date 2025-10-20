@@ -329,14 +329,13 @@ export default function AccountsPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Project (Optional)</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value || ''}>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
                             <FormControl>
                               <SelectTrigger data-testid="select-invoice-project">
-                                <SelectValue placeholder="Select project (optional)" />
+                                <SelectValue placeholder="None (not linked to project)" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="">None</SelectItem>
                               {projects.map((project) => (
                                 <SelectItem key={project.id} value={project.id}>
                                   {project.projectName}
