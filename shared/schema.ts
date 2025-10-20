@@ -225,6 +225,33 @@ export const activityLog = pgTable("activity_log", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+// Vendor Invoices table for tracking invoices raised to vendors
+export const vendorInvoices = pgTable("vendor_invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  vendorId: varchar("vendor_id").notNull().references(() => vendors.id),
+  projectId: varchar("project_id").references(() => projects.id), // Optional - can be null for general invoices
+  invoiceNumber: text("invoice_number").notNull(),
+  invoiceDate: date("invoice_date").notNull(),
+  description: text("description").notNull(),
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  attachmentPath: text("attachment_path"), // Optional PDF attachment in object storage
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+// Vendor Payments table for recording payments made to vendors
+export const vendorPayments = pgTable("vendor_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  vendorId: varchar("vendor_id").notNull().references(() => vendors.id),
+  paymentDate: date("payment_date").notNull(),
+  paymentReference: text("payment_reference").notNull(), // Payment reference number
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  paymentMethod: text("payment_method").notNull(), // cash, cheque, upi, bank_transfer
+  notes: text("notes"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 // Insert schemas
 export const insertVendorCategorySchema = createInsertSchema(vendorCategories).omit({
   id: true,
@@ -323,6 +350,18 @@ export const insertActivityLogSchema = createInsertSchema(activityLog).omit({
   activityType: z.enum(["floor_plan", "moodboard", "quote_file", "boq_file", "schedule", "working_drawing", "render"]),
 });
 
+export const insertVendorInvoiceSchema = createInsertSchema(vendorInvoices).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertVendorPaymentSchema = createInsertSchema(vendorPayments).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  paymentMethod: z.enum(["cash", "cheque", "upi", "bank_transfer"]),
+});
+
 // Types
 export type InsertVendorCategory = z.infer<typeof insertVendorCategorySchema>;
 export type VendorCategory = typeof vendorCategories.$inferSelect;
@@ -371,6 +410,12 @@ export type Approval = typeof approvals.$inferSelect;
 
 export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
 export type ActivityLog = typeof activityLog.$inferSelect;
+
+export type InsertVendorInvoice = z.infer<typeof insertVendorInvoiceSchema>;
+export type VendorInvoice = typeof vendorInvoices.$inferSelect;
+
+export type InsertVendorPayment = z.infer<typeof insertVendorPaymentSchema>;
+export type VendorPayment = typeof vendorPayments.$inferSelect;
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(

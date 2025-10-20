@@ -29,7 +29,9 @@ import {
   insertTaskSchema,
   insertTaskDependencySchema,
   insertTaskAlertSchema,
-  insertApprovalSchema
+  insertApprovalSchema,
+  insertVendorInvoiceSchema,
+  insertVendorPaymentSchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -4418,6 +4420,142 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching activities:', error);
       res.status(500).json({ error: "Failed to fetch activities" });
+    }
+  });
+
+  // Vendor Invoices Routes
+  app.get("/api/vendors/:vendorId/invoices", requireAuth, async (req, res) => {
+    try {
+      const { vendorId } = req.params;
+      const invoices = await storage.getVendorInvoices(vendorId);
+      res.json(invoices);
+    } catch (error) {
+      console.error('Error fetching vendor invoices:', error);
+      res.status(500).json({ error: "Failed to fetch invoices" });
+    }
+  });
+
+  app.post("/api/vendors/:vendorId/invoices", requireAdmin, async (req, res) => {
+    try {
+      const { vendorId } = req.params;
+      const userId = (req.user as any).claims.sub;
+      
+      const invoiceData = insertVendorInvoiceSchema.parse({
+        ...req.body,
+        vendorId,
+        createdBy: userId,
+      });
+      
+      const invoice = await storage.createVendorInvoice(invoiceData);
+      res.status(201).json(invoice);
+    } catch (error) {
+      console.error('Error creating vendor invoice:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid invoice data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create invoice" });
+    }
+  });
+
+  app.put("/api/invoices/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      // Omit createdBy and vendorId from updates to prevent tampering
+      const updates = insertVendorInvoiceSchema.omit({ createdBy: true, vendorId: true }).partial().parse(req.body);
+      
+      const invoice = await storage.updateVendorInvoice(id, updates);
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      res.json(invoice);
+    } catch (error) {
+      console.error('Error updating vendor invoice:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid invoice data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update invoice" });
+    }
+  });
+
+  app.delete("/api/invoices/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteVendorInvoice(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting vendor invoice:', error);
+      res.status(500).json({ error: "Failed to delete invoice" });
+    }
+  });
+
+  // Vendor Payments Routes
+  app.get("/api/vendors/:vendorId/payments", requireAuth, async (req, res) => {
+    try {
+      const { vendorId } = req.params;
+      const payments = await storage.getVendorPayments(vendorId);
+      res.json(payments);
+    } catch (error) {
+      console.error('Error fetching vendor payments:', error);
+      res.status(500).json({ error: "Failed to fetch payments" });
+    }
+  });
+
+  app.post("/api/vendors/:vendorId/payments", requireAdmin, async (req, res) => {
+    try {
+      const { vendorId } = req.params;
+      const userId = (req.user as any).claims.sub;
+      
+      const paymentData = insertVendorPaymentSchema.parse({
+        ...req.body,
+        vendorId,
+        createdBy: userId,
+      });
+      
+      const payment = await storage.createVendorPayment(paymentData);
+      res.status(201).json(payment);
+    } catch (error) {
+      console.error('Error creating vendor payment:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid payment data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create payment" });
+    }
+  });
+
+  app.put("/api/payments/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      // Omit createdBy and vendorId from updates to prevent tampering
+      const updates = insertVendorPaymentSchema.omit({ createdBy: true, vendorId: true }).partial().parse(req.body);
+      
+      const payment = await storage.updateVendorPayment(id, updates);
+      if (!payment) {
+        return res.status(404).json({ error: "Payment not found" });
+      }
+      res.json(payment);
+    } catch (error) {
+      console.error('Error updating vendor payment:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid payment data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update payment" });
+    }
+  });
+
+  app.delete("/api/payments/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteVendorPayment(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Payment not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting vendor payment:', error);
+      res.status(500).json({ error: "Failed to delete payment" });
     }
   });
 

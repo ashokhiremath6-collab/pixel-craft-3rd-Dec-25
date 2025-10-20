@@ -37,6 +37,10 @@ import {
   type InsertApproval,
   type ActivityLog,
   type InsertActivityLog,
+  type VendorInvoice,
+  type InsertVendorInvoice,
+  type VendorPayment,
+  type InsertVendorPayment,
   users,
   userRoles,
   designerAllowlist,
@@ -56,6 +60,8 @@ import {
   taskAlerts,
   approvals,
   activityLog,
+  vendorInvoices,
+  vendorPayments,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -209,6 +215,20 @@ export interface IStorage {
   // Activity Log
   getRecentActivities(limit?: number, projectId?: string): Promise<ActivityLog[]>;
   createActivity(activity: InsertActivityLog): Promise<ActivityLog>;
+  
+  // Vendor Invoices
+  getVendorInvoices(vendorId: string): Promise<VendorInvoice[]>;
+  getVendorInvoice(id: string): Promise<VendorInvoice | undefined>;
+  createVendorInvoice(invoice: InsertVendorInvoice): Promise<VendorInvoice>;
+  updateVendorInvoice(id: string, invoice: Partial<InsertVendorInvoice>): Promise<VendorInvoice | undefined>;
+  deleteVendorInvoice(id: string): Promise<boolean>;
+  
+  // Vendor Payments
+  getVendorPayments(vendorId: string): Promise<VendorPayment[]>;
+  getVendorPayment(id: string): Promise<VendorPayment | undefined>;
+  createVendorPayment(payment: InsertVendorPayment): Promise<VendorPayment>;
+  updateVendorPayment(id: string, payment: Partial<InsertVendorPayment>): Promise<VendorPayment | undefined>;
+  deleteVendorPayment(id: string): Promise<boolean>;
   
   // Vendors (with role-based filtering)
   getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
@@ -966,6 +986,48 @@ export class MemStorage implements IStorage {
 
   async createActivity(activity: InsertActivityLog): Promise<ActivityLog> {
     throw new Error("MemStorage not supported for activity log");
+  }
+
+  // Vendor Invoices (stub for MemStorage)
+  async getVendorInvoices(vendorId: string): Promise<VendorInvoice[]> {
+    return [];
+  }
+
+  async getVendorInvoice(id: string): Promise<VendorInvoice | undefined> {
+    return undefined;
+  }
+
+  async createVendorInvoice(invoice: InsertVendorInvoice): Promise<VendorInvoice> {
+    throw new Error("MemStorage not supported for vendor invoices");
+  }
+
+  async updateVendorInvoice(id: string, invoice: Partial<InsertVendorInvoice>): Promise<VendorInvoice | undefined> {
+    return undefined;
+  }
+
+  async deleteVendorInvoice(id: string): Promise<boolean> {
+    return false;
+  }
+
+  // Vendor Payments (stub for MemStorage)
+  async getVendorPayments(vendorId: string): Promise<VendorPayment[]> {
+    return [];
+  }
+
+  async getVendorPayment(id: string): Promise<VendorPayment | undefined> {
+    return undefined;
+  }
+
+  async createVendorPayment(payment: InsertVendorPayment): Promise<VendorPayment> {
+    throw new Error("MemStorage not supported for vendor payments");
+  }
+
+  async updateVendorPayment(id: string, payment: Partial<InsertVendorPayment>): Promise<VendorPayment | undefined> {
+    return undefined;
+  }
+
+  async deleteVendorPayment(id: string): Promise<boolean> {
+    return false;
   }
 
   async getVendorsForUser(userId: string, role: string): Promise<Vendor[]> {
@@ -1786,6 +1848,62 @@ export class DBStorage implements IStorage {
   async createActivity(activity: InsertActivityLog): Promise<ActivityLog> {
     const result = await db.insert(activityLog).values(activity).returning();
     return result[0];
+  }
+
+  // Vendor Invoices
+  async getVendorInvoices(vendorId: string): Promise<VendorInvoice[]> {
+    return await db.select()
+      .from(vendorInvoices)
+      .where(eq(vendorInvoices.vendorId, vendorId))
+      .orderBy(desc(vendorInvoices.invoiceDate));
+  }
+
+  async getVendorInvoice(id: string): Promise<VendorInvoice | undefined> {
+    const result = await db.select().from(vendorInvoices).where(eq(vendorInvoices.id, id));
+    return result[0];
+  }
+
+  async createVendorInvoice(invoice: InsertVendorInvoice): Promise<VendorInvoice> {
+    const result = await db.insert(vendorInvoices).values(invoice).returning();
+    return result[0];
+  }
+
+  async updateVendorInvoice(id: string, invoice: Partial<InsertVendorInvoice>): Promise<VendorInvoice | undefined> {
+    const result = await db.update(vendorInvoices).set(invoice).where(eq(vendorInvoices.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteVendorInvoice(id: string): Promise<boolean> {
+    const result = await db.delete(vendorInvoices).where(eq(vendorInvoices.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Vendor Payments
+  async getVendorPayments(vendorId: string): Promise<VendorPayment[]> {
+    return await db.select()
+      .from(vendorPayments)
+      .where(eq(vendorPayments.vendorId, vendorId))
+      .orderBy(desc(vendorPayments.paymentDate));
+  }
+
+  async getVendorPayment(id: string): Promise<VendorPayment | undefined> {
+    const result = await db.select().from(vendorPayments).where(eq(vendorPayments.id, id));
+    return result[0];
+  }
+
+  async createVendorPayment(payment: InsertVendorPayment): Promise<VendorPayment> {
+    const result = await db.insert(vendorPayments).values(payment).returning();
+    return result[0];
+  }
+
+  async updateVendorPayment(id: string, payment: Partial<InsertVendorPayment>): Promise<VendorPayment | undefined> {
+    const result = await db.update(vendorPayments).set(payment).where(eq(vendorPayments.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteVendorPayment(id: string): Promise<boolean> {
+    const result = await db.delete(vendorPayments).where(eq(vendorPayments.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 }
 
