@@ -220,17 +220,18 @@ export default function FloorPlansPage() {
       'image/tiff',
       'application/dwg',
       'application/dxf',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     ];
     
-    const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.dwg', '.dxf', '.xlsx'];
+    const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.dwg', '.dxf', '.xlsx', '.docx'];
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
     
     if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
       toast({
         variant: "destructive",
         title: "Invalid file type",
-        description: "Only image files, CAD files (DWG, DXF), PDF, and Excel files are allowed.",
+        description: "Only image files, CAD files (DWG, DXF), PDF, Word, and Excel files are allowed.",
       });
       return false;
     }
@@ -455,7 +456,7 @@ export default function FloorPlansPage() {
                       type="file"
                       className="hidden"
                       onChange={handleFileSelect}
-                      accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.dwg,.dxf,.xlsx"
+                      accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.dwg,.dxf,.xlsx,.docx"
                     />
                   </div>
                 </div>
