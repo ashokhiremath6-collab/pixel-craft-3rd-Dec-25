@@ -136,7 +136,7 @@ export default function CataloguePage() {
       form.reset();
       toast({
         title: "Success",
-        description: editingItem ? "Catalogue item updated successfully" : "Catalogue item created successfully",
+        description: editingItem ? "Catalogue item updated successfully" : "Catalogue item uploaded successfully",
       });
     },
     onError: () => {
@@ -481,7 +481,7 @@ export default function CataloguePage() {
                     disabled={saveMutation.isPending}
                     data-testid="button-save"
                   >
-                    {saveMutation.isPending ? "Saving..." : editingItem ? "Update" : "Create"}
+                    {saveMutation.isPending ? "Uploading..." : editingItem ? "Update" : "Upload"}
                   </Button>
                 </DialogFooter>
               </form>
