@@ -438,6 +438,41 @@ export default function CataloguePage() {
                 />
                 <FormField
                   control={form.control}
+                  name="vendorBrand"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Vendor / Brand (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g., IKEA, Herman Miller, Godrej"
+                          {...field}
+                          data-testid="input-vendor-brand"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description (Optional)</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="e.g., Modern 3-seater sectional sofa with velvet upholstery"
+                          rows={2}
+                          {...field}
+                          data-testid="input-description"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
                   name="attributes"
                   render={({ field }) => (
                     <FormItem>
