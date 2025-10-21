@@ -60,7 +60,7 @@ export default function CataloguePage() {
   });
 
   // Fetch catalogue items
-  const { data: items = [], isLoading } = useQuery<CatalogueItem[]>({
+  const { data: items = [], isLoading, error: itemsError } = useQuery<CatalogueItem[]>({
     queryKey: ["/api/catalogue", mainCategory, subcategory],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -80,7 +80,7 @@ export default function CataloguePage() {
   });
 
   // Fetch main categories
-  const { data: mainCategories = [] } = useQuery<string[]>({
+  const { data: mainCategories = [], isLoading: categoriesLoading, error: categoriesError } = useQuery<string[]>({
     queryKey: ["/api/catalogue/categories"],
   });
 
@@ -307,10 +307,14 @@ export default function CataloguePage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading...</div>
+              <div className="text-center py-8 text-muted-foreground">Loading catalogue items...</div>
+            ) : itemsError ? (
+              <div className="text-center py-8 text-destructive">
+                Error loading items. Please refresh the page.
+              </div>
             ) : filteredItems.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No catalogue items found
+                No catalogue items found. {items.length > 0 && "Try changing your filter selection."}
               </div>
             ) : (
               <div className="overflow-x-auto">
