@@ -258,6 +258,8 @@ export const catalogueItems = pgTable("catalogue_items", {
   mainCategory: text("main_category").notNull(), // Furniture, Lighting, Kitchens, etc.
   subcategory: text("subcategory").notNull(), // Sofas & Sectionals, Ceiling Lights, etc.
   attributes: text("attributes").notNull(), // Comma-separated attributes (e.g., "Style, seats, fabric/leather")
+  fileName: text("file_name"), // Original name of uploaded catalogue file
+  filePath: text("file_path"), // Object storage path to the catalogue file
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => ({
   // Index for faster filtering by main category
