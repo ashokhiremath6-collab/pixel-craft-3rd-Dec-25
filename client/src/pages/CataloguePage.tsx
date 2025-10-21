@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Plus, MoreVertical, Pencil, Trash2, FileText, Download } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +46,7 @@ export default function CataloguePage() {
   const [subcategory, setSubcategory] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<CatalogueItem | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const form = useForm<InsertCatalogueItem>({
     resolver: zodResolver(insertCatalogueItemSchema),
@@ -102,25 +103,36 @@ export default function CataloguePage() {
   // Create/Update mutation
   const saveMutation = useMutation({
     mutationFn: async (data: InsertCatalogueItem) => {
-      if (editingItem) {
-        return apiRequest(`/api/catalogue/${editingItem.id}`, {
-          method: "PUT",
-          body: JSON.stringify(data),
-          headers: { "Content-Type": "application/json" },
-        });
-      } else {
-        return apiRequest("/api/catalogue", {
-          method: "POST",
-          body: JSON.stringify(data),
-          headers: { "Content-Type": "application/json" },
-        });
+      const formData = new FormData();
+      formData.append("mainCategory", data.mainCategory);
+      formData.append("subcategory", data.subcategory);
+      formData.append("attributes", data.attributes);
+      
+      if (selectedFile) {
+        formData.append("file", selectedFile);
       }
+
+      const url = editingItem ? `/api/catalogue/${editingItem.id}` : "/api/catalogue";
+      const method = editingItem ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method,
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save catalogue item");
+      }
+
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/catalogue"] });
       queryClient.invalidateQueries({ queryKey: ["/api/catalogue/categories"] });
       setDialogOpen(false);
       setEditingItem(null);
+      setSelectedFile(null);
       form.reset();
       toast({
         title: "Success",
@@ -167,6 +179,7 @@ export default function CataloguePage() {
   };
 
   const handleOpenDialog = (item?: CatalogueItem) => {
+    setSelectedFile(null); // Always clear selected file when opening dialog
     if (item) {
       setEditingItem(item);
       form.reset({
@@ -188,6 +201,7 @@ export default function CataloguePage() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingItem(null);
+    setSelectedFile(null);
     form.reset();
   };
 
@@ -299,6 +313,7 @@ export default function CataloguePage() {
                       <th className="text-left py-3 px-4 font-semibold text-sm">Main Category</th>
                       <th className="text-left py-3 px-4 font-semibold text-sm">Subcategory</th>
                       <th className="text-left py-3 px-4 font-semibold text-sm">Attributes</th>
+                      <th className="text-left py-3 px-4 font-semibold text-sm">File</th>
                       <th className="w-12"></th>
                     </tr>
                   </thead>
@@ -313,6 +328,22 @@ export default function CataloguePage() {
                         <td className="py-3 px-4 text-sm">{item.subcategory}</td>
                         <td className="py-3 px-4 text-sm text-muted-foreground">
                           {item.attributes}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {item.fileName && item.filePath ? (
+                            <a
+                              href={item.filePath}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-primary hover:underline"
+                              data-testid={`link-file-${item.id}`}
+                            >
+                              <FileText className="h-4 w-4" />
+                              {item.fileName}
+                            </a>
+                          ) : (
+                            <span className="text-muted-foreground">No file</span>
+                          )}
                         </td>
                         <td className="py-3 px-4">
                           <DropdownMenu>
@@ -414,6 +445,28 @@ export default function CataloguePage() {
                     </FormItem>
                   )}
                 />
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Catalogue File (Optional)</label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.xlsx,.docx"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                    data-testid="input-file"
+                  />
+                  {selectedFile && (
+                    <p className="text-sm text-muted-foreground">
+                      Selected: {selectedFile.name}
+                    </p>
+                  )}
+                  {editingItem?.fileName && !selectedFile && (
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      Current file: {editingItem.fileName}
+                    </p>
+                  )}
+                </div>
+                
                 <DialogFooter>
                   <Button
                     type="button"
