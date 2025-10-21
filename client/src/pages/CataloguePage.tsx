@@ -155,9 +155,7 @@ export default function CataloguePage() {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiRequest(`/api/catalogue/${id}`, {
-        method: "DELETE",
-      });
+      await apiRequest("DELETE", `/api/catalogue/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/catalogue"] });
@@ -321,6 +319,8 @@ export default function CataloguePage() {
                     <tr className="border-b">
                       <th className="text-left py-3 px-4 font-semibold text-sm">Main Category</th>
                       <th className="text-left py-3 px-4 font-semibold text-sm">Subcategory</th>
+                      <th className="text-left py-3 px-4 font-semibold text-sm">Vendor / Brand</th>
+                      <th className="text-left py-3 px-4 font-semibold text-sm">Description</th>
                       <th className="text-left py-3 px-4 font-semibold text-sm">Attributes</th>
                       <th className="text-left py-3 px-4 font-semibold text-sm">File</th>
                       <th className="w-12"></th>
@@ -335,6 +335,12 @@ export default function CataloguePage() {
                       >
                         <td className="py-3 px-4 text-sm">{item.mainCategory}</td>
                         <td className="py-3 px-4 text-sm">{item.subcategory}</td>
+                        <td className="py-3 px-4 text-sm">
+                          {item.vendorBrand || <span className="text-muted-foreground">-</span>}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {item.description || <span className="text-muted-foreground">-</span>}
+                        </td>
                         <td className="py-3 px-4 text-sm text-muted-foreground">
                           {item.attributes}
                         </td>
@@ -446,6 +452,7 @@ export default function CataloguePage() {
                         <Input
                           placeholder="e.g., IKEA, Herman Miller, Godrej"
                           {...field}
+                          value={field.value || ""}
                           data-testid="input-vendor-brand"
                         />
                       </FormControl>
@@ -464,6 +471,7 @@ export default function CataloguePage() {
                           placeholder="e.g., Modern 3-seater sectional sofa with velvet upholstery"
                           rows={2}
                           {...field}
+                          value={field.value || ""}
                           data-testid="input-description"
                         />
                       </FormControl>
