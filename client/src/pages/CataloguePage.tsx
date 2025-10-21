@@ -53,6 +53,8 @@ export default function CataloguePage() {
     defaultValues: {
       mainCategory: "",
       subcategory: "",
+      vendorBrand: "",
+      description: "",
       attributes: "",
     },
   });
@@ -106,6 +108,8 @@ export default function CataloguePage() {
       const formData = new FormData();
       formData.append("mainCategory", data.mainCategory);
       formData.append("subcategory", data.subcategory);
+      if (data.vendorBrand) formData.append("vendorBrand", data.vendorBrand);
+      if (data.description) formData.append("description", data.description);
       formData.append("attributes", data.attributes);
       
       if (selectedFile) {
@@ -185,13 +189,18 @@ export default function CataloguePage() {
       form.reset({
         mainCategory: item.mainCategory,
         subcategory: item.subcategory,
+        vendorBrand: item.vendorBrand || "",
+        description: item.description || "",
         attributes: item.attributes,
       });
     } else {
       setEditingItem(null);
+      // Auto-fill category and subcategory from current filter selection
       form.reset({
-        mainCategory: "",
-        subcategory: "",
+        mainCategory: mainCategory !== "all" ? mainCategory : "",
+        subcategory: subcategory !== "all" ? subcategory : "",
+        vendorBrand: "",
+        description: "",
         attributes: "",
       });
     }
