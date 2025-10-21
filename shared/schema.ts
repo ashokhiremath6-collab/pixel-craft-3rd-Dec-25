@@ -257,6 +257,8 @@ export const catalogueItems = pgTable("catalogue_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   mainCategory: text("main_category").notNull(), // Furniture, Lighting, Kitchens, etc.
   subcategory: text("subcategory").notNull(), // Sofas & Sectionals, Ceiling Lights, etc.
+  vendorBrand: text("vendor_brand"), // Vendor or brand name
+  description: text("description"), // Description of the item
   attributes: text("attributes").notNull(), // Comma-separated attributes (e.g., "Style, seats, fabric/leather")
   fileName: text("file_name"), // Original name of uploaded catalogue file
   filePath: text("file_path"), // Object storage path to the catalogue file
