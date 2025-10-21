@@ -60,6 +60,7 @@ Preferred communication style: Simple, everyday language.
 - **Project Schedules**: Gantt chart schedules with 250-task capacity
 - **Tasks**: Individual project tasks with dependencies, dates, and progress tracking
 - **Task Dependencies**: Support for all 4 dependency types (FS, SS, FF, SF) with lag
+- **Catalogue Items**: Interior design product taxonomy with fields for main category, subcategory, vendor/brand, description, attributes, and file attachments
 
 ### Design System
 - **Component Library**: Custom components built on Radix UI primitives
@@ -76,6 +77,11 @@ Preferred communication style: Simple, everyday language.
 - **Project Scheduling**: Advanced Gantt chart with Critical Path Method (CPM) analysis
 - **Comparative Quotes**: Cross-project quotation analysis and comparison
 - **Templates**: Quote template management for different categories
+- **Catalogue System**: Interior design product taxonomy with vendor/brand tracking
+  - Auto-fill category/subcategory from filter selection when adding new items
+  - Vendor/brand field for tracking product suppliers
+  - Description field for detailed item information
+  - File upload support for supplier catalogues (PDF, images, Excel, Word)
 
 ### Advanced Project Scheduling
 - **Gantt Chart Template**: 250-row Excel template with Instructions sheet
