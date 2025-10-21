@@ -31,7 +31,8 @@ import {
   insertTaskAlertSchema,
   insertApprovalSchema,
   insertVendorInvoiceSchema,
-  insertVendorPaymentSchema
+  insertVendorPaymentSchema,
+  insertCatalogueItemSchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -4556,6 +4557,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting vendor payment:', error);
       res.status(500).json({ error: "Failed to delete payment" });
+    }
+  });
+
+  // Catalogue Routes - Admin/Designer only
+  app.get("/api/catalogue", requireAdmin, async (req, res) => {
+    try {
+      const { mainCategory, subcategory } = req.query;
+      const items = await storage.getCatalogueItemsByCategory(
+        mainCategory as string | undefined,
+        subcategory as string | undefined
+      );
+      res.json(items);
+    } catch (error) {
+      console.error('Error fetching catalogue items:', error);
+      res.status(500).json({ error: "Failed to fetch catalogue items" });
+    }
+  });
+
+  app.get("/api/catalogue/categories", requireAdmin, async (req, res) => {
+    try {
+      const categories = await storage.getMainCategories();
+      res.json(categories);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      res.status(500).json({ error: "Failed to fetch categories" });
+    }
+  });
+
+  app.post("/api/catalogue", requireAdmin, async (req, res) => {
+    try {
+      const itemData = insertCatalogueItemSchema.parse(req.body);
+      const item = await storage.createCatalogueItem(itemData);
+      res.status(201).json(item);
+    } catch (error) {
+      console.error('Error creating catalogue item:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid catalogue item data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create catalogue item" });
+    }
+  });
+
+  app.put("/api/catalogue/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = insertCatalogueItemSchema.partial().parse(req.body);
+      const item = await storage.updateCatalogueItem(id, updates);
+      if (!item) {
+        return res.status(404).json({ error: "Catalogue item not found" });
+      }
+      res.json(item);
+    } catch (error) {
+      console.error('Error updating catalogue item:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid catalogue item data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update catalogue item" });
+    }
+  });
+
+  app.delete("/api/catalogue/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteCatalogueItem(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Catalogue item not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting catalogue item:', error);
+      res.status(500).json({ error: "Failed to delete catalogue item" });
     }
   });
 

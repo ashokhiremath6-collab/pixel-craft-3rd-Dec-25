@@ -41,6 +41,8 @@ import {
   type InsertVendorInvoice,
   type VendorPayment,
   type InsertVendorPayment,
+  type CatalogueItem,
+  type InsertCatalogueItem,
   users,
   userRoles,
   designerAllowlist,
@@ -62,6 +64,7 @@ import {
   activityLog,
   vendorInvoices,
   vendorPayments,
+  catalogueItems,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -229,6 +232,15 @@ export interface IStorage {
   createVendorPayment(payment: InsertVendorPayment): Promise<VendorPayment>;
   updateVendorPayment(id: string, payment: Partial<InsertVendorPayment>): Promise<VendorPayment | undefined>;
   deleteVendorPayment(id: string): Promise<boolean>;
+  
+  // Catalogue Items
+  getAllCatalogueItems(): Promise<CatalogueItem[]>;
+  getCatalogueItem(id: string): Promise<CatalogueItem | undefined>;
+  getMainCategories(): Promise<string[]>;
+  getCatalogueItemsByCategory(mainCategory?: string, subcategory?: string): Promise<CatalogueItem[]>;
+  createCatalogueItem(item: InsertCatalogueItem): Promise<CatalogueItem>;
+  updateCatalogueItem(id: string, item: Partial<InsertCatalogueItem>): Promise<CatalogueItem | undefined>;
+  deleteCatalogueItem(id: string): Promise<boolean>;
   
   // Vendors (with role-based filtering)
   getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
@@ -1903,6 +1915,53 @@ export class DBStorage implements IStorage {
 
   async deleteVendorPayment(id: string): Promise<boolean> {
     const result = await db.delete(vendorPayments).where(eq(vendorPayments.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Catalogue Items
+  async getAllCatalogueItems(): Promise<CatalogueItem[]> {
+    return await db.select().from(catalogueItems).orderBy(catalogueItems.mainCategory, catalogueItems.subcategory);
+  }
+
+  async getCatalogueItem(id: string): Promise<CatalogueItem | undefined> {
+    const result = await db.select().from(catalogueItems).where(eq(catalogueItems.id, id));
+    return result[0];
+  }
+
+  async getMainCategories(): Promise<string[]> {
+    const result = await db.selectDistinct({ mainCategory: catalogueItems.mainCategory })
+      .from(catalogueItems)
+      .orderBy(catalogueItems.mainCategory);
+    return result.map(r => r.mainCategory);
+  }
+
+  async getCatalogueItemsByCategory(mainCategory?: string, subcategory?: string): Promise<CatalogueItem[]> {
+    if (!mainCategory && !subcategory) {
+      return this.getAllCatalogueItems();
+    }
+    
+    const conditions: any[] = [];
+    if (mainCategory) conditions.push(eq(catalogueItems.mainCategory, mainCategory));
+    if (subcategory) conditions.push(eq(catalogueItems.subcategory, subcategory));
+    
+    return await db.select()
+      .from(catalogueItems)
+      .where(and(...conditions))
+      .orderBy(catalogueItems.subcategory);
+  }
+
+  async createCatalogueItem(item: InsertCatalogueItem): Promise<CatalogueItem> {
+    const result = await db.insert(catalogueItems).values(item).returning();
+    return result[0];
+  }
+
+  async updateCatalogueItem(id: string, item: Partial<InsertCatalogueItem>): Promise<CatalogueItem | undefined> {
+    const result = await db.update(catalogueItems).set(item).where(eq(catalogueItems.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteCatalogueItem(id: string): Promise<boolean> {
+    const result = await db.delete(catalogueItems).where(eq(catalogueItems.id, id));
     return result.rowCount !== null && result.rowCount > 0;
   }
 }

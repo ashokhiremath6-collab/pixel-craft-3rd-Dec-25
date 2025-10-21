@@ -252,6 +252,18 @@ export const vendorPayments = pgTable("vendor_payments", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+// Catalogue Items table for interior design product taxonomy
+export const catalogueItems = pgTable("catalogue_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  mainCategory: text("main_category").notNull(), // Furniture, Lighting, Kitchens, etc.
+  subcategory: text("subcategory").notNull(), // Sofas & Sectionals, Ceiling Lights, etc.
+  attributes: text("attributes").notNull(), // Comma-separated attributes (e.g., "Style, seats, fabric/leather")
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => ({
+  // Index for faster filtering by main category
+  mainCategoryIdx: index("catalogue_main_category_idx").on(table.mainCategory),
+}));
+
 // Insert schemas
 export const insertVendorCategorySchema = createInsertSchema(vendorCategories).omit({
   id: true,
@@ -362,6 +374,11 @@ export const insertVendorPaymentSchema = createInsertSchema(vendorPayments).omit
   paymentMethod: z.enum(["cash", "cheque", "upi", "bank_transfer"]),
 });
 
+export const insertCatalogueItemSchema = createInsertSchema(catalogueItems).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type InsertVendorCategory = z.infer<typeof insertVendorCategorySchema>;
 export type VendorCategory = typeof vendorCategories.$inferSelect;
@@ -416,6 +433,9 @@ export type VendorInvoice = typeof vendorInvoices.$inferSelect;
 
 export type InsertVendorPayment = z.infer<typeof insertVendorPaymentSchema>;
 export type VendorPayment = typeof vendorPayments.$inferSelect;
+
+export type InsertCatalogueItem = z.infer<typeof insertCatalogueItemSchema>;
+export type CatalogueItem = typeof catalogueItems.$inferSelect;
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(

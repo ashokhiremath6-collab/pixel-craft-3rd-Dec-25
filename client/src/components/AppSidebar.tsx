@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -97,6 +97,11 @@ const settingsItems: NavigationItem[] = [
 
 const designerOnlyItems: NavigationItem[] = [
   {
+    title: "Catalogues",
+    url: "/catalogues",
+    icon: BookOpen,
+  },
+  {
     title: "Client Access",
     url: "/client-access",
     icon: UserCheck,
@@ -113,7 +118,7 @@ export function AppSidebar() {
     retry: false,
   });
   
-  const isDesigner = (user as any)?.role === 'designer';
+  const canManageCatalogues = ['admin', 'designer'].includes((user as any)?.role);
 
   // Close mobile sidebar when a link is clicked
   const handleLinkClick = () => {
@@ -147,7 +152,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {isDesigner && (
+        {canManageCatalogues && (
           <SidebarGroup>
             <SidebarGroupLabel>Administration</SidebarGroupLabel>
             <SidebarGroupContent>
