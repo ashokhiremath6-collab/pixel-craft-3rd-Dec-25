@@ -4616,6 +4616,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin endpoint to populate catalogue with initial data
+  app.post("/api/catalogue/populate", requireAdmin, async (req, res) => {
+    try {
+      const currentCount = await storage.getCatalogueItemsCount();
+      if (currentCount > 0) {
+        return res.status(400).json({ 
+          error: "Catalogue already has data", 
+          currentCount 
+        });
+      }
+
+      // All 99 catalogue items seed data
+      const seedData = [
+        ["77336b8a-8132-4d37-8afd-065b6ed1bf4a", "Acoustics", "Panels & Baffles", null, null, "NRC, material, mounting"],
+        ["2b56184b-12db-43b9-9e35-c4fc8beb96ee", "Acoustics", "Underlays & Doors", null, null, "Rw/STC ratings, thickness"],
+        ["e6c82a02-aa15-44c1-83af-83e907a7890a", "Appliances", "Cooking (Ovens/Hobs/Hoods)", null, null, "Fuel/electric, zones/burners, width, extraction"],
+        ["bfa397a5-8475-4745-b3e9-4a6e93eaa623", "Appliances", "Dishwashers", null, null, "Place settings, noise, panel-ready"],
+        ["a3265f1a-e992-43d2-bc29-16e9c7e11beb", "Appliances", "Laundry (Washer/Dryer)", null, null, "Capacity, heat-pump, stackable"],
+        ["7bcf1fb6-a07d-40cc-bee7-adb86223fac5", "Appliances", "Microwaves & Steam Ovens", null, null, "Built-in/freestanding, capacity, features"],
+        ["3fa35d62-c8b2-4991-ac66-1b9a36b43df1", "Appliances", "Refrigeration", null, null, "Type, capacity, finish, energy rating"],
+        ["d241ddc7-378d-49d0-a1b3-9e72a9ec6578", "Appliances", "Small Appliances (Kitchen)", null, null, "Toaster, mixer, coffee, blender"],
+        ["57c5bb5b-8893-4a4b-901d-04e85a8a9ed7", "Art", "Artist", null, null, "Style, medium, size, framing, subject matter"],
+        ["b45d6994-912c-40a9-b135-7a1ef29baa64", "Bathroom Fittings", "Accessories", null, null, "Towel rails, holders, shelves, mirrors"],
+        ["afe66b35-5fff-438e-84be-385020302634", "Bathroom Fittings", "Bathtubs & Spas", null, null, "Freestanding, inset, size, material"],
+        ["31e67303-5f13-47e7-997b-c02e70ca8727", "Bathroom Fittings", "Faucets & Mixers", null, null, "Basin, bath, shower mixers; finish; flow"],
+        ["e22a6997-588e-4fe9-8ff6-3ae80c30a997", "Bathroom Fittings", "Sanitaryware", null, null, "WCs (wall/floor), basins, bidets"],
+        ["b99509e0-edd6-4349-95e2-789ad7c62139", "Bathroom Fittings", "Shower Enclosures", null, null, "Framed/semi/frameless, glass thickness, finish"],
+        ["331a9c39-2694-403c-a88d-c6c4341dff93", "Bathroom Fittings", "Showers & Systems", null, null, "Handshower, rain, thermostatic, body jets"],
+        ["61a82b80-279d-4984-a622-cfa824a1769a", "Bathroom Fittings", "Vanities & Storage", null, null, "Widths, tops, basins, soft-close"],
+        ["d3bfaf59-b3c4-49b9-8177-d5d6b5fcfdbc", "Bathroom Fittings", "Water Heaters", null, null, "Instant/storage, capacity, energy rating"],
+        ["fda59e02-4523-4242-8d43-757be9c6b3c3", "Doors & Windows", "External Doors", null, null, "Weather rating, security hardware"],
+        ["3926225e-5a5e-4d76-835d-d9cbcafb2498", "Doors & Windows", "Hardware", null, null, "Hinges, locks, handles, closers"],
+        ["af0d74ea-6439-4401-b640-544603a83ee4", "Doors & Windows", "Internal Doors", null, null, "Solid/engineered, fire rating, finish"],
+        ["ccd50133-786c-47f3-a467-25601a7fa276", "Doors & Windows", "Skylights & Roof Windows", null, null, "Fixed/vented, flashing kits"],
+        ["e724a68f-c19b-4fce-a2fd-7181cf1defea", "Doors & Windows", "Windows & Glazing", null, null, "uPVC/aluminium, glazing type, U-value"],
+        ["d243d07a-d4ab-4129-8f93-e312f8a9f023", "Décor", "Artwork & Prints", null, null, "Framing, size, mounting"],
+        ["1312f2b2-b98d-4af6-8309-70bdc4865f94", "Décor", "Mirrors", null, null, "Framed/frameless, bevel, LED"],
+        ["8b4e95ce-bec9-4f28-bdc7-75150691c673", "Décor", "Vases & Accessories", null, null, "Material, size, finish"],
+        ["031499d8-20ec-4dd7-979e-71a63ca98ddb", "Electricals", "Audio/Video & Networking", null, null, "In-wall speakers, racks, Wi‑Fi, cabling"],
+        ["d06f92ee-9178-4632-be38-ad7a31816c2f", "Electricals", "Distribution Boards & MCBs", null, null, "Load, poles, brands"],
+        ["eebecc82-f215-4e3d-9aef-0e61f571929d", "Electricals", "Home Automation", null, null, "Hubs, sensors, relays, scenes"],
+        ["311bb5f5-0011-4a78-860b-7915b6f078e3", "Electricals", "Smart Shades/Blinds", null, null, "Motor type, control, fabric"],
+        ["7104e94c-fa74-468b-9352-a665e9cd6a8e", "Electricals", "Switches & Sockets", null, null, "Modular systems, finishes, smart options"],
+        ["e110a636-da82-4a58-a00c-2892efac3fcf", "Electricals", "Wiring Devices & Conduit", null, null, "Ratings, colors, accessories"],
+        ["01134602-5b4d-4706-808f-e6a8056db025", "Furniture", "Armchairs & Accent Chairs", null, null, "Style, upholstery, swivel/recliner, legs material"],
+        ["bffdf429-0970-45c1-9859-43005560277a", "Furniture", "Beds", null, null, "Size, headboard type, storage, frame material"],
+        ["a9c2fed1-e7b8-431d-8cc6-f380c5e0d5d0", "Furniture", "Bookshelves & Cabinets", null, null, "Open/closed, glass doors, modular"],
+        ["7586e747-6e36-4a93-9812-7dded98d946a", "Furniture", "Dining Chairs & Benches", null, null, "Upholstered, stackable, arm/no-arm, outdoor-rated"],
+        ["a89021e7-97a0-4def-b5fc-8c583c643f76", "Furniture", "Dining Tables", null, null, "Shape, seats, top material, base, extendable"],
+        ["b73657bf-89ea-4a30-8507-1fd5e744c9ef", "Furniture", "Dressers & Consoles", null, null, "Drawers, handles, finish, legs"],
+        ["09626ee0-867d-4550-9fab-e27d3a68a670", "Furniture", "Kids Furniture", null, null, "Safety edges, storage, adjustable sizes"],
+        ["65381744-d66e-40b9-93fa-6cb72cc5dfcc", "Furniture", "Mattresses", null, null, "Size, type (foam/spring/latex), firmness"],
+        ["36d66d0e-b4e2-4b6f-9676-fc478f8f0296", "Furniture", "Outdoor Furniture", null, null, "Weather rating, frames, cushions, stackable"],
+        ["3c1bc334-53e3-47a6-a1fb-4820a40d53d2", "Furniture", "Side/Center Tables", null, null, "Shape, top material, nesting, storage"],
+        ["c541db1a-b429-4704-8970-443785f9fe02", "Furniture", "Sofas & Sectionals", null, null, "Style, seats, fabric/leather, modular, recliner, dimensions"],
+        ["f752a5bf-2583-4459-a259-d7440256e7dd", "Furniture", "TV Units & Media Consoles", null, null, "Width, cable mgmt, wall/floor mounted"],
+        ["55159ede-c78b-4d24-a9a7-5cdfa2ad2868", "Furniture", "Wardrobes & Closets", null, null, "Hinged/slider, carcass material, finishes, internals"],
+        ["e656d5d6-31ad-4f58-9d2b-30c1de8d2df6", "HVAC", "AC Units", null, null, "Split/cassette/ducted, capacity, efficiency, noise"],
+        ["6236287e-4664-49d1-93bc-244d0b54aa22", "HVAC", "Thermostats & Controls", null, null, "Programmable, smart, protocols"],
+        ["590d4cdd-aed8-4748-acc7-17c7c7a665f1", "HVAC", "Ventilation & Exhaust", null, null, "CFM, duct sizes, silencers"],
+        ["5808525e-7974-4e24-b371-fdc1b4239dc2", "Joinery", "Adhesives & Sealants", null, null, "PU, PVA, epoxy, silicone"],
+        ["d8037a6d-cdcc-4541-b97a-48f09a81b331", "Joinery", "Boards & Panels", null, null, "Plywood grades, MDF/HDHMR, compact laminate"],
+        ["3acc2410-a2a9-4425-a5f4-94f25f73694e", "Joinery", "Edgebanding & Profiles", null, null, "Material, thickness, colors"],
+        ["acc5e071-a9af-4486-87c9-3f12830f6684", "Joinery", "Fasteners & Fittings", null, null, "Screws, inserts, brackets"],
+        ["2f10269e-1452-4ae5-998b-2b9344de92fb", "Joinery", "Veneers & Laminates", null, null, "Species, thickness, finish"],
+        ["b911a655-79a5-4166-97f9-5cf3410b8389", "Kitchens", "Backsplash & Wall Panels", null, null, "Tile, glass, quartz, compact laminate"],
+        ["0dc5d844-7fa8-4bf8-803a-5e25539257c0", "Kitchens", "Cabinet Hardware", null, null, "Hinges, drawer systems, lifters, soft-close"],
+        ["a0015009-eb91-4b97-8714-0dc3a7ec76d0", "Kitchens", "Countertops", null, null, "Quartz/granite/solid-surface, thickness, edge"],
+        ["832ed086-3d4b-43ee-b529-9003c0fa8c02", "Kitchens", "Faucets (Kitchen)", null, null, "Pull-out, filtration, finish, flow rate"],
+        ["1b4a4a43-66d2-454f-9c4a-f58890d17ef1", "Kitchens", "Modular Kitchen Systems", null, null, "Layout, modules, carcass, shutter finish"],
+        ["a3cdd742-1a41-4cf9-a3d6-d6a5ae2965ad", "Kitchens", "Sinks", null, null, "Bowl config, mount type, material, drainers"],
+        ["bbb896ff-d0ba-4187-b342-779c9e195be0", "Kitchens", "Storage Accessories", null, null, "Corner units, pull-outs, spice racks, bins"],
+        ["6e967bd3-fbd7-42c8-bea2-b27ab4759fb7", "Lighting", "Ceiling Lights", null, null, "Flush/semi-flush, lumen, CCT, dimmable"],
+        ["f344cb79-0364-4ab4-b57e-8eb5afcde3d1", "Lighting", "Downlights", null, null, "Cutout, beam angle, CRI, CCT, trim color"],
+        ["c0601f52-121b-4705-a4cb-1d2de4b78bab", "Lighting", "Exterior Lighting", null, null, "IP, IK, bollards, facade washers"],
+        ["6206644d-9477-47c1-af62-6276aa792738", "Lighting", "Floor & Table Lamps", null, null, "Switch type, shade, dimmer, smart"],
+        ["636dc77b-f283-4578-a84c-ab0faff6a6a2", "Lighting", "Pendants & Chandeliers", null, null, "Height adjustable, diameter, sockets"],
+        ["a78406ec-dd75-49cc-b3a2-0564b8eae746", "Lighting", "Smart Lighting Controls", null, null, "DALI, 0-10V, Casambi, Zigbee"],
+        ["c6aade37-2010-4935-9fd0-e00a284ca759", "Lighting", "Track & Linear Systems", null, null, "Track type, heads, drivers, controls"],
+        ["9ea8fa11-d677-49d8-820a-13f4a26f47c1", "Lighting", "Wall Lights", null, null, "IP rating, up/down, reading/ambient"],
+        ["586a32b4-be0e-4aa5-b4a6-0b2dd868452d", "Outdoor", "Decking & Pavers", null, null, "Material, slip rating, thickness"],
+        ["4cbc45dd-91f0-4a9a-bd39-5a68930fda32", "Outdoor", "Fencing & Screens", null, null, "Material, height, privacy"],
+        ["a70f49f8-fb6d-4b1d-bb26-9ada9ecb9e31", "Outdoor", "Green Walls & Planters", null, null, "Irrigation, substrate, sizes"],
+        ["6b499c52-adff-484f-b63b-4b98640542e0", "Outdoor", "Outdoor Kitchens & BBQ", null, null, "Modules, fuel, countertops"],
+        ["421fbb37-fc3a-4f6b-9de4-63433fbec246", "Outdoor", "Pergolas & Gazebos", null, null, "Material, span, roofing"],
+        ["a6d80728-f549-4f26-b00d-722dc0e6b786", "Outdoor", "Pools & Spas (Residential)", null, null, "Shell type, finish, equipment"],
+        ["e08e405b-4e09-4dcc-ae05-5a6a9e8d52aa", "Plumbing", "Pipes & Fittings", null, null, "CPVC/PPR/PEX, diameters, SDR"],
+        ["807f2f6a-1f61-4069-bf56-1c9579d3bee9", "Plumbing", "Valves & Traps", null, null, "Type, size, material, ratings"],
+        ["6a429186-cd88-4599-90a6-2452c19780d4", "Plumbing", "Water Treatment", null, null, "RO, softeners, UV, filters"],
+        ["47746614-91d7-4800-9fa4-41ba8ad7ed6c", "Security & Safety", "Detectors & Extinguishers", null, null, "Type, standards, mounting"],
+        ["2cb10009-aca9-4262-8244-219e29c73eec", "Security & Safety", "Video Door Phones & Locks", null, null, "Connectivity, power, certifications"],
+        ["da2279dd-1dab-4605-b22f-5dbdc133126a", "Signage & Wayfinding", "Numbers & Plaques", null, null, "Material, size, mounting"],
+        ["607ff829-6c77-4c72-b850-a80ff4e51095", "Soft Furnishings", "Bedding & Linen", null, null, "Thread count, material, sizes"],
+        ["be1f1045-4577-466a-b069-cd94c6871710", "Soft Furnishings", "Blinds & Shades", null, null, "Roller/roman/venetian, blackout, motorized"],
+        ["a70dec28-f8e1-4c1f-9cea-5fa965f6e4cb", "Soft Furnishings", "Curtains & Drapes", null, null, "Header style, fabric, lining, track"],
+        ["2353780c-6171-43d8-8d1f-92850be33b5b", "Soft Furnishings", "Cushions & Throws", null, null, "Fill, size, fabric"],
+        ["6b3b02be-1434-4340-9fd1-0c8171b97ab4", "Storage", "Garage/Utility Storage", null, null, "Shelving, cabinets, racks"],
+        ["0dd035e2-103e-4547-aba2-eff143ea14e3", "Storage", "Kitchen Internals", null, null, "Cutlery trays, bottle pull-outs, bins"],
+        ["3a06cdf7-534b-47de-92f7-b9f03541d4ac", "Storage", "Wardrobe Internals", null, null, "Rails, drawers, pull-outs, lighting"],
+        ["90b4e979-2fb5-42bd-be2d-2d9329bf06d9", "Surfaces", "Carpets & Rugs", null, null, "Pile type, fiber, backing"],
+        ["3b6315be-94f1-4d3e-a62c-d34495a49323", "Surfaces", "Countertops (Bath/Vanity)", null, null, "Material, thickness, edge"],
+        ["7d6d1120-010f-4056-b2f0-7bdd36612e9c", "Surfaces", "Flooring (Tiles/Stone/Wood)", null, null, "Material, size, finish, slip rating"],
+        ["f997931f-93a4-474b-a66f-33adee0bd592", "Surfaces", "Vinyl/LVT/Laminate", null, null, "Wear layer, click/glue, waterproof"],
+        ["c6510151-482d-49b9-ac98-84ba3685a066", "Surfaces", "Wall Tiles & Cladding", null, null, "Material, size, texture, grout"],
+        ["39e9a364-64fe-4eaf-b422-9555d120ec48", "Surfaces", "Wood & Engineered Floors", null, null, "Species, plank size, finish, installation"],
+        ["5408a528-70de-4301-bab1-0225fc56ceb0", "Walls & Ceilings", "Cornices & Mouldings", null, null, "Profiles, materials, lengths"],
+        ["8297224c-e1c7-4748-9a35-c0b766f6acbb", "Walls & Ceilings", "False Ceilings", null, null, "Gypsum/metal/wood, access panels"],
+        ["3cf124a7-0ab3-4147-9568-293f51a19389", "Walls & Ceilings", "Paints & Primers", null, null, "Finish, VOC, washability, shade codes"],
+        ["0c28516b-8b8c-4ac8-b975-ffe9964d65f0", "Walls & Ceilings", "Wall Panels", null, null, "MDF/PU/laminate, slatted, acoustic"],
+        ["44abc48d-a3d4-428c-9304-550bacc993bd", "Walls & Ceilings", "Wallpapers", null, null, "Type, repeat, backing, washability"],
+        ["b56e3cd2-074e-409f-92b2-32bf47b6d9e3", "Workspaces", "Ergonomics", null, null, "Monitor arms, mats, cable mgmt"],
+        ["b7ba1872-edac-47b0-b473-fd28739cd40f", "Workspaces", "Office Furniture", null, null, "Desks, task chairs, storage"]
+      ];
+
+      let inserted = 0;
+      for (const [id, mainCategory, subcategory, vendorBrand, description, attributes] of seedData) {
+        await storage.createCatalogueItemWithId({
+          id: id as string,
+          mainCategory: mainCategory as string,
+          subcategory: subcategory as string,
+          vendorBrand: vendorBrand as string | undefined,
+          description: description as string | undefined,
+          attributes: attributes as string
+        });
+        inserted++;
+      }
+
+      const finalCount = await storage.getCatalogueItemsCount();
+      res.json({ 
+        message: "Catalogue populated successfully", 
+        inserted,
+        totalItems: finalCount 
+      });
+    } catch (error) {
+      console.error('Error populating catalogue:', error);
+      res.status(500).json({ error: "Failed to populate catalogue" });
+    }
+  });
+
   app.post("/api/catalogue", requireAdmin, catalogueUpload.single('file'), async (req, res) => {
     try {
       // Parse the item data from the form data

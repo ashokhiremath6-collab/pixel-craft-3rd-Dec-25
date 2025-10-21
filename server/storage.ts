@@ -238,7 +238,9 @@ export interface IStorage {
   getCatalogueItem(id: string): Promise<CatalogueItem | undefined>;
   getMainCategories(): Promise<string[]>;
   getCatalogueItemsByCategory(mainCategory?: string, subcategory?: string): Promise<CatalogueItem[]>;
+  getCatalogueItemsCount(): Promise<number>;
   createCatalogueItem(item: InsertCatalogueItem): Promise<CatalogueItem>;
+  createCatalogueItemWithId(item: InsertCatalogueItem & { id: string }): Promise<CatalogueItem>;
   updateCatalogueItem(id: string, item: Partial<InsertCatalogueItem>): Promise<CatalogueItem | undefined>;
   deleteCatalogueItem(id: string): Promise<boolean>;
   
@@ -1950,7 +1952,17 @@ export class DBStorage implements IStorage {
       .orderBy(catalogueItems.subcategory);
   }
 
+  async getCatalogueItemsCount(): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` }).from(catalogueItems);
+    return result[0]?.count || 0;
+  }
+
   async createCatalogueItem(item: InsertCatalogueItem): Promise<CatalogueItem> {
+    const result = await db.insert(catalogueItems).values(item).returning();
+    return result[0];
+  }
+
+  async createCatalogueItemWithId(item: InsertCatalogueItem & { id: string }): Promise<CatalogueItem> {
     const result = await db.insert(catalogueItems).values(item).returning();
     return result[0];
   }
