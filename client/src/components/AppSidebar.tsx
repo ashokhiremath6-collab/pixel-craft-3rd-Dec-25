@@ -98,7 +98,7 @@ const settingsItems: NavigationItem[] = [
 const designerOnlyItems: NavigationItem[] = [
   {
     title: "Catalogues",
-    url: "/catalogues",
+    url: "/catalogue",
     icon: BookOpen,
   },
   {

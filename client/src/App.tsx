@@ -42,7 +42,7 @@ function Router() {
       <Route path="/templates/:id" component={TemplateViewPage} />
       <Route path="/import" component={ImportPage} />
       <Route path="/accounts" component={AccountsPage} />
-      <Route path="/catalogues" component={CataloguePage} />
+      <Route path="/catalogue" component={CataloguePage} />
       <Route path="/moodboards" component={MoodboardsPage} />
       <Route path="/working-drawings" component={MoodboardsPage} />
       <Route path="/renders" component={MoodboardsPage} />
