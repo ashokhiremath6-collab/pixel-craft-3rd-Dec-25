@@ -4560,6 +4560,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Configure multer for catalogue file uploads (using memoryStorage for object storage)
+  const catalogueUpload = multer({
+    storage: multer.memoryStorage(), // Store in memory, then upload to object storage
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB limit for catalogue files
+      files: 1, // Only allow single file upload
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = [
+        'application/pdf', // .pdf
+        'image/png', // .png
+        'image/jpeg', // .jpg, .jpeg
+        'image/gif', // .gif
+        'image/bmp', // .bmp
+        'image/tiff', // .tiff
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+      ];
+      
+      // Also check file extension as MIME types can be unreliable
+      const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.xlsx', '.docx'];
+      const fileExtension = path.extname(file.originalname).toLowerCase();
+      
+      if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only PDF, images (PNG, JPG, GIF, BMP, TIFF), Excel, and Word files are allowed.'));
+      }
+    }
+  });
+
   // Catalogue Routes - Admin/Designer only
   app.get("/api/catalogue", requireAdmin, async (req, res) => {
     try {
@@ -4585,10 +4616,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/catalogue", requireAdmin, async (req, res) => {
+  app.post("/api/catalogue", requireAdmin, catalogueUpload.single('file'), async (req, res) => {
     try {
-      const itemData = insertCatalogueItemSchema.parse(req.body);
-      const item = await storage.createCatalogueItem(itemData);
+      // Parse the item data from the form data
+      const { mainCategory, subcategory, attributes } = req.body;
+      
+      if (!mainCategory || !subcategory || !attributes) {
+        return res.status(400).json({ error: "Main category, subcategory, and attributes are required" });
+      }
+
+      const itemData: any = {
+        mainCategory,
+        subcategory,
+        attributes
+      };
+
+      // If a file was uploaded, save it to object storage
+      if (req.file) {
+        const userId = (req.user as any).claims.sub;
+        const objectPath = await uploadToObjectStorage(
+          req.file.buffer,
+          req.file.originalname,
+          userId,
+          req.file.mimetype
+        );
+        
+        itemData.fileName = req.file.originalname;
+        itemData.filePath = objectPath;
+      }
+
+      const validatedData = insertCatalogueItemSchema.parse(itemData);
+      const item = await storage.createCatalogueItem(validatedData);
       res.status(201).json(item);
     } catch (error) {
       console.error('Error creating catalogue item:', error);
@@ -4599,11 +4657,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/catalogue/:id", requireAdmin, async (req, res) => {
+  app.put("/api/catalogue/:id", requireAdmin, catalogueUpload.single('file'), async (req, res) => {
     try {
       const { id } = req.params;
-      const updates = insertCatalogueItemSchema.partial().parse(req.body);
-      const item = await storage.updateCatalogueItem(id, updates);
+      const updates: any = {};
+      
+      // Parse text fields
+      if (req.body.mainCategory) updates.mainCategory = req.body.mainCategory;
+      if (req.body.subcategory) updates.subcategory = req.body.subcategory;
+      if (req.body.attributes) updates.attributes = req.body.attributes;
+      
+      // If a file was uploaded, save it to object storage
+      if (req.file) {
+        const userId = (req.user as any).claims.sub;
+        const objectPath = await uploadToObjectStorage(
+          req.file.buffer,
+          req.file.originalname,
+          userId,
+          req.file.mimetype
+        );
+        
+        updates.fileName = req.file.originalname;
+        updates.filePath = objectPath;
+      }
+      
+      const validatedUpdates = insertCatalogueItemSchema.partial().parse(updates);
+      const item = await storage.updateCatalogueItem(id, validatedUpdates);
       if (!item) {
         return res.status(404).json({ error: "Catalogue item not found" });
       }
