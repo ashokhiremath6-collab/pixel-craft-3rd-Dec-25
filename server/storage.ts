@@ -228,6 +228,7 @@ export interface IStorage {
   
   // Vendor Payments
   getVendorPayments(vendorId: string): Promise<VendorPayment[]>;
+  getAllPaymentsWithVendors(): Promise<Array<VendorPayment & { vendorName: string }>>;
   getVendorPayment(id: string): Promise<VendorPayment | undefined>;
   createVendorPayment(payment: InsertVendorPayment): Promise<VendorPayment>;
   updateVendorPayment(id: string, payment: Partial<InsertVendorPayment>): Promise<VendorPayment | undefined>;
@@ -1025,6 +1026,10 @@ export class MemStorage implements IStorage {
 
   // Vendor Payments (stub for MemStorage)
   async getVendorPayments(vendorId: string): Promise<VendorPayment[]> {
+    return [];
+  }
+
+  async getAllPaymentsWithVendors(): Promise<Array<VendorPayment & { vendorName: string }>> {
     return [];
   }
 
@@ -1904,6 +1909,26 @@ export class DBStorage implements IStorage {
       .from(vendorPayments)
       .where(eq(vendorPayments.vendorId, vendorId))
       .orderBy(desc(vendorPayments.paymentDate));
+  }
+
+  async getAllPaymentsWithVendors(): Promise<Array<VendorPayment & { vendorName: string }>> {
+    const results = await db.select({
+      id: vendorPayments.id,
+      vendorId: vendorPayments.vendorId,
+      paymentDate: vendorPayments.paymentDate,
+      paymentReference: vendorPayments.paymentReference,
+      amount: vendorPayments.amount,
+      paymentMethod: vendorPayments.paymentMethod,
+      notes: vendorPayments.notes,
+      createdBy: vendorPayments.createdBy,
+      createdAt: vendorPayments.createdAt,
+      vendorName: vendors.name,
+    })
+    .from(vendorPayments)
+    .innerJoin(vendors, eq(vendorPayments.vendorId, vendors.id))
+    .orderBy(desc(vendorPayments.paymentDate));
+    
+    return results;
   }
 
   async getVendorPayment(id: string): Promise<VendorPayment | undefined> {

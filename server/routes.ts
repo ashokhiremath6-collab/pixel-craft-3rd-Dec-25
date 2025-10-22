@@ -4508,6 +4508,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/payments/all", requireAuth, async (req, res) => {
+    try {
+      const payments = await storage.getAllPaymentsWithVendors();
+      res.json(payments);
+    } catch (error) {
+      console.error('Error fetching all payments:', error);
+      res.status(500).json({ error: "Failed to fetch all payments" });
+    }
+  });
+
   app.post("/api/vendors/:vendorId/payments", requireAdmin, async (req, res) => {
     try {
       const { vendorId } = req.params;
