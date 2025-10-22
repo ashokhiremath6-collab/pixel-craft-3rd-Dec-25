@@ -90,7 +90,7 @@ export default function CataloguePage() {
   });
 
   // Fetch ALL catalogue items for library view (no filters)
-  const { data: allItems = [], isLoading: allItemsLoading } = useQuery<CatalogueItem[]>({
+  const { data: allItems = [], isLoading: allItemsLoading, error: allItemsError } = useQuery<CatalogueItem[]>({
     queryKey: ["/api/catalogue", "all"],
     queryFn: async () => {
       const response = await fetch("/api/catalogue", { credentials: "include" });
@@ -521,6 +521,10 @@ export default function CataloguePage() {
               <CardContent>
                 {allItemsLoading ? (
                   <div className="text-center py-8 text-muted-foreground">Loading library...</div>
+                ) : allItemsError ? (
+                  <div className="text-center py-8 text-destructive">
+                    Error loading catalogue library. Please refresh the page.
+                  </div>
                 ) : groupedItems.size === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <FileText className="h-12 w-12 mx-auto mb-3 opacity-20" />
