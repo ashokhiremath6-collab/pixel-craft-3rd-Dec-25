@@ -1313,53 +1313,40 @@ function PaymentsSummary() {
 
   return (
     <div className="space-y-4">
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Payments</CardTitle>
-            <IndianRupee className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-summary-total-payments">
-              ₹{totalPayments.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <p className="text-xs text-muted-foreground">{totalTransactions} transaction(s)</p>
-          </CardContent>
-        </Card>
+      {/* Summary Cards and Export */}
+      <div className="flex items-end justify-between gap-4">
+        <div className="grid gap-4 md:grid-cols-2 flex-1">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Payments</CardTitle>
+              <IndianRupee className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" data-testid="text-summary-total-payments">
+                ₹{totalPayments.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <p className="text-xs text-muted-foreground">{totalTransactions} transaction(s)</p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Vendors</CardTitle>
-            <Banknote className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-summary-vendor-count">
-              {totalVendors}
-            </div>
-            <p className="text-xs text-muted-foreground">Vendors with payments</p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Vendors</CardTitle>
+              <Banknote className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" data-testid="text-summary-vendor-count">
+                {totalVendors}
+              </div>
+              <p className="text-xs text-muted-foreground">Vendors with payments</p>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Payment</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-summary-avg-payment">
-              ₹{totalTransactions > 0 ? (totalPayments / totalTransactions).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
-            </div>
-            <p className="text-xs text-muted-foreground">Per transaction</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Export Button */}
-      <div className="flex justify-end">
+        {/* Export Button */}
         <Button onClick={handleExportAll} variant="outline" data-testid="button-export-all-payments">
           <Download className="h-4 w-4 mr-2" />
-          Export All to Excel
+          Export to Excel
         </Button>
       </div>
 
