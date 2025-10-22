@@ -4757,6 +4757,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/catalogue", requireAdmin, catalogueUpload.single('file'), async (req, res) => {
     try {
+      // Debug: Log what we received
+      console.log('Received catalogue POST:', {
+        body: req.body,
+        file: req.file ? { name: req.file.originalname, size: req.file.size } : null
+      });
+      
       // Parse the item data from the form data
       const { mainCategory, subcategory, vendorBrand, description, attributes } = req.body;
       
