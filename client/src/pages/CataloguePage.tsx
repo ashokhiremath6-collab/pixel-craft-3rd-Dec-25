@@ -110,6 +110,7 @@ export default function CataloguePage() {
       formData.append("subcategory", data.subcategory);
       if (data.vendorBrand) formData.append("vendorBrand", data.vendorBrand);
       if (data.description) formData.append("description", data.description);
+      if (data.catalogueUrl) formData.append("catalogueUrl", data.catalogueUrl);
       formData.append("attributes", data.attributes);
       
       if (selectedFile) {
@@ -477,6 +478,25 @@ export default function CataloguePage() {
                           {...field}
                           value={field.value || ""}
                           data-testid="input-description"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="catalogueUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Catalogue URL (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="url"
+                          placeholder="e.g., https://sleepwell.com/mattresses/catalogue"
+                          {...field}
+                          value={field.value || ""}
+                          data-testid="input-catalogue-url"
                         />
                       </FormControl>
                       <FormMessage />

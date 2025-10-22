@@ -260,6 +260,7 @@ export const catalogueItems = pgTable("catalogue_items", {
   vendorBrand: text("vendor_brand"), // Vendor or brand name
   description: text("description"), // Description of the item
   attributes: text("attributes").notNull(), // Comma-separated attributes (e.g., "Style, seats, fabric/leather")
+  catalogueUrl: text("catalogue_url"), // Optional URL link to online catalogue
   fileName: text("file_name"), // Original name of uploaded catalogue file
   filePath: text("file_path"), // Object storage path to the catalogue file
   createdAt: timestamp("created_at").notNull().default(sql`now()`),

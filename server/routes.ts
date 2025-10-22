@@ -4772,7 +4772,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Parse the item data from the form data
-      const { mainCategory, subcategory, vendorBrand, description, attributes } = req.body;
+      const { mainCategory, subcategory, vendorBrand, description, attributes, catalogueUrl } = req.body;
       
       if (!mainCategory || !subcategory) {
         console.error('Missing required fields:', { mainCategory, subcategory });
@@ -4787,6 +4787,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (vendorBrand) itemData.vendorBrand = vendorBrand;
       if (description) itemData.description = description;
+      if (catalogueUrl) itemData.catalogueUrl = catalogueUrl;
 
       // If a file was uploaded, save it to object storage
       if (req.file) {
@@ -4824,6 +4825,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.body.subcategory) updates.subcategory = req.body.subcategory;
       if (req.body.vendorBrand !== undefined) updates.vendorBrand = req.body.vendorBrand;
       if (req.body.description !== undefined) updates.description = req.body.description;
+      if (req.body.catalogueUrl !== undefined) updates.catalogueUrl = req.body.catalogueUrl;
       if (req.body.attributes) updates.attributes = req.body.attributes;
       
       // If a file was uploaded, save it to object storage
