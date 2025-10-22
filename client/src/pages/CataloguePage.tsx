@@ -47,6 +47,7 @@ export default function CataloguePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<CatalogueItem | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadType, setUploadType] = useState<"file" | "url">("file");
 
   const form = useForm<InsertCatalogueItem>({
     resolver: zodResolver(insertCatalogueItemSchema),
@@ -186,6 +187,14 @@ export default function CataloguePage() {
     setSelectedFile(null); // Always clear selected file when opening dialog
     if (item) {
       setEditingItem(item);
+      // Set upload type based on existing data
+      if (item.catalogueUrl) {
+        setUploadType("url");
+      } else if (item.fileName) {
+        setUploadType("file");
+      } else {
+        setUploadType("file"); // default
+      }
       form.reset({
         mainCategory: item.mainCategory,
         subcategory: item.subcategory,
@@ -196,6 +205,7 @@ export default function CataloguePage() {
       });
     } else {
       setEditingItem(null);
+      setUploadType("file"); // default to file upload for new items
       // Auto-fill category and subcategory from current filter selection
       form.reset({
         mainCategory: mainCategory !== "all" ? mainCategory : "",
@@ -213,6 +223,7 @@ export default function CataloguePage() {
     setDialogOpen(false);
     setEditingItem(null);
     setSelectedFile(null);
+    setUploadType("file");
     form.reset();
   };
 
@@ -489,25 +500,6 @@ export default function CataloguePage() {
                 />
                 <FormField
                   control={form.control}
-                  name="catalogueUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Catalogue URL (Optional)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="url"
-                          placeholder="e.g., https://sleepwell.com/mattresses/catalogue"
-                          {...field}
-                          value={field.value || ""}
-                          data-testid="input-catalogue-url"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
                   name="attributes"
                   render={({ field }) => (
                     <FormItem>
@@ -526,25 +518,80 @@ export default function CataloguePage() {
                 />
                 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Catalogue File (Optional)</label>
-                  <Input
-                    type="file"
-                    accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.xlsx,.docx"
-                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                    data-testid="input-file"
-                  />
-                  {selectedFile && (
-                    <p className="text-sm text-muted-foreground">
-                      Selected: {selectedFile.name}
-                    </p>
-                  )}
-                  {editingItem?.fileName && !selectedFile && (
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      <FileText className="h-3 w-3" />
-                      Current file: {editingItem.fileName}
-                    </p>
-                  )}
+                  <label className="text-sm font-medium">Catalogue Reference (Optional)</label>
+                  <Select
+                    value={uploadType}
+                    onValueChange={(value: "file" | "url") => {
+                      setUploadType(value);
+                      // Clear the other option when switching
+                      if (value === "file") {
+                        form.setValue("catalogueUrl", "");
+                      } else {
+                        setSelectedFile(null);
+                      }
+                    }}
+                    data-testid="select-upload-type"
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="file">Upload File</SelectItem>
+                      <SelectItem value="url">Paste URL</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                {uploadType === "file" && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Upload Catalogue File</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.xlsx,.docx"
+                      onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                      data-testid="input-file"
+                    />
+                    {selectedFile && (
+                      <p className="text-sm text-muted-foreground">
+                        Selected: {selectedFile.name}
+                      </p>
+                    )}
+                    {editingItem?.fileName && !selectedFile && (
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        <FileText className="h-3 w-3" />
+                        Current file: {editingItem.fileName}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Accepted: PDF, Word (.docx), Excel (.xlsx), Images (PNG, JPG, GIF, BMP, TIFF)
+                    </p>
+                  </div>
+                )}
+
+                {uploadType === "url" && (
+                  <FormField
+                    control={form.control}
+                    name="catalogueUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Catalogue URL</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="url"
+                            placeholder="e.g., https://sleepwell.com/mattresses/catalogue"
+                            {...field}
+                            value={field.value || ""}
+                            data-testid="input-catalogue-url"
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Paste the link to the online product catalogue
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                 
                 <DialogFooter>
                   <Button
