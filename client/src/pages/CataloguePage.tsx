@@ -341,7 +341,7 @@ export default function CataloguePage() {
                       <th className="text-left py-3 px-4 font-semibold text-sm">Vendor / Brand</th>
                       <th className="text-left py-3 px-4 font-semibold text-sm">Description</th>
                       <th className="text-left py-3 px-4 font-semibold text-sm">Attributes</th>
-                      <th className="text-left py-3 px-4 font-semibold text-sm">File</th>
+                      <th className="text-left py-3 px-4 font-semibold text-sm">Reference</th>
                       <th className="w-12"></th>
                     </tr>
                   </thead>
@@ -375,8 +375,19 @@ export default function CataloguePage() {
                               <FileText className="h-4 w-4" />
                               {item.fileName}
                             </a>
+                          ) : item.catalogueUrl ? (
+                            <a
+                              href={item.catalogueUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-primary hover:underline"
+                              data-testid={`link-url-${item.id}`}
+                            >
+                              <Download className="h-4 w-4" />
+                              View Catalogue
+                            </a>
                           ) : (
-                            <span className="text-muted-foreground">No file</span>
+                            <span className="text-muted-foreground">-</span>
                           )}
                         </td>
                         <td className="py-3 px-4">
