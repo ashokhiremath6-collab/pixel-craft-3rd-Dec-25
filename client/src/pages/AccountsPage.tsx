@@ -151,9 +151,7 @@ export default function AccountsPage() {
         title: "Invoice updated",
         description: "The invoice has been successfully updated.",
       });
-      setEditInvoiceDialogOpen(false);
-      setEditingInvoice(null);
-      invoiceForm.reset();
+      handleCloseEditInvoice();
       queryClient.invalidateQueries({ queryKey: ['/api/vendors', selectedVendorId, 'invoices'] });
     },
     onError: (error) => {
@@ -176,9 +174,7 @@ export default function AccountsPage() {
         title: "Payment updated",
         description: "The payment has been successfully updated.",
       });
-      setEditPaymentDialogOpen(false);
-      setEditingPayment(null);
-      paymentForm.reset();
+      handleCloseEditPayment();
       queryClient.invalidateQueries({ queryKey: ['/api/vendors', selectedVendorId, 'payments'] });
     },
     onError: (error) => {
@@ -249,6 +245,24 @@ export default function AccountsPage() {
   const handleDeleteEntry = (entry: LedgerEntry) => {
     setDeletingEntry({ id: entry.id, type: entry.type });
     setDeleteDialogOpen(true);
+  };
+
+  // Handle closing edit dialogs with cleanup
+  const handleCloseEditInvoice = () => {
+    setEditInvoiceDialogOpen(false);
+    setEditingInvoice(null);
+    invoiceForm.reset({
+      invoiceDate: format(new Date(), 'yyyy-MM-dd'),
+    });
+  };
+
+  const handleCloseEditPayment = () => {
+    setEditPaymentDialogOpen(false);
+    setEditingPayment(null);
+    paymentForm.reset({
+      paymentDate: format(new Date(), 'yyyy-MM-dd'),
+      paymentMethod: 'bank_transfer',
+    });
   };
 
   // Calculate ledger entries with running balance
@@ -720,7 +734,7 @@ export default function AccountsPage() {
             </Dialog>
 
             {/* Edit Invoice Dialog */}
-            <Dialog open={editInvoiceDialogOpen} onOpenChange={setEditInvoiceDialogOpen}>
+            <Dialog open={editInvoiceDialogOpen} onOpenChange={(open) => !open && handleCloseEditInvoice()}>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Edit Invoice</DialogTitle>
@@ -787,7 +801,7 @@ export default function AccountsPage() {
                     />
 
                     <DialogFooter>
-                      <Button type="button" variant="outline" onClick={() => setEditInvoiceDialogOpen(false)}>
+                      <Button type="button" variant="outline" onClick={handleCloseEditInvoice}>
                         Cancel
                       </Button>
                       <Button type="submit" disabled={editInvoiceMutation.isPending} data-testid="button-submit-edit-invoice">
@@ -800,7 +814,7 @@ export default function AccountsPage() {
             </Dialog>
 
             {/* Edit Payment Dialog */}
-            <Dialog open={editPaymentDialogOpen} onOpenChange={setEditPaymentDialogOpen}>
+            <Dialog open={editPaymentDialogOpen} onOpenChange={(open) => !open && handleCloseEditPayment()}>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Edit Payment</DialogTitle>
@@ -889,7 +903,7 @@ export default function AccountsPage() {
                     />
 
                     <DialogFooter>
-                      <Button type="button" variant="outline" onClick={() => setEditPaymentDialogOpen(false)}>
+                      <Button type="button" variant="outline" onClick={handleCloseEditPayment}>
                         Cancel
                       </Button>
                       <Button type="submit" disabled={editPaymentMutation.isPending} data-testid="button-submit-edit-payment">
