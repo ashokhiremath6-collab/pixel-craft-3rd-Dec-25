@@ -55,6 +55,7 @@ export default function CataloguePage() {
       subcategory: "",
       vendorBrand: "",
       description: "",
+      catalogueUrl: "",
       attributes: "",
     },
   });
@@ -190,6 +191,7 @@ export default function CataloguePage() {
         subcategory: item.subcategory,
         vendorBrand: item.vendorBrand || "",
         description: item.description || "",
+        catalogueUrl: item.catalogueUrl || "",
         attributes: item.attributes,
       });
     } else {
@@ -200,6 +202,7 @@ export default function CataloguePage() {
         subcategory: subcategory !== "all" ? subcategory : "",
         vendorBrand: "",
         description: "",
+        catalogueUrl: "",
         attributes: "",
       });
     }
