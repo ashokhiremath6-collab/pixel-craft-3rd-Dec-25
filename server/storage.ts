@@ -1255,6 +1255,12 @@ export class DBStorage implements IStorage {
   }
 
   async createVendor(vendor: InsertVendor): Promise<Vendor> {
+    // Check if vendor with this name already exists
+    const existing = await db.select().from(vendors).where(eq(vendors.name, vendor.name));
+    if (existing.length > 0) {
+      throw new Error(`Vendor "${vendor.name}" already exists`);
+    }
+    
     const result = await db.insert(vendors).values(vendor).returning();
     return result[0];
   }

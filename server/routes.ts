@@ -779,6 +779,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const vendor = await storage.createVendor(parsed);
       res.status(201).json(vendor);
     } catch (error) {
+      console.error("Error creating vendor:", error);
+      if (error instanceof Error && error.message.includes("already exists")) {
+        return res.status(400).json({ error: error.message });
+      }
       res.status(400).json({ error: "Invalid vendor data" });
     }
   });
