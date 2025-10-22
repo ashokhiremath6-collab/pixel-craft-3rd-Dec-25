@@ -7,8 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee, Edit, Trash2, MoreVertical } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -40,6 +42,12 @@ export default function AccountsPage() {
   const [selectedVendorId, setSelectedVendorId] = useState<string>("");
   const [addInvoiceDialogOpen, setAddInvoiceDialogOpen] = useState(false);
   const [addPaymentDialogOpen, setAddPaymentDialogOpen] = useState(false);
+  const [editInvoiceDialogOpen, setEditInvoiceDialogOpen] = useState(false);
+  const [editPaymentDialogOpen, setEditPaymentDialogOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<VendorInvoice | null>(null);
+  const [editingPayment, setEditingPayment] = useState<VendorPayment | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingEntry, setDeletingEntry] = useState<{ id: string; type: 'invoice' | 'payment' } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -131,6 +139,117 @@ export default function AccountsPage() {
       });
     },
   });
+
+  // Edit invoice mutation
+  const editInvoiceMutation = useMutation({
+    mutationFn: async (data: InvoiceFormData) => {
+      if (!editingInvoice) throw new Error("No invoice selected");
+      return await apiRequest('PUT', `/api/invoices/${editingInvoice.id}`, data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Invoice updated",
+        description: "The invoice has been successfully updated.",
+      });
+      setEditInvoiceDialogOpen(false);
+      setEditingInvoice(null);
+      invoiceForm.reset();
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors', selectedVendorId, 'invoices'] });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Failed to update invoice",
+        description: error.message,
+      });
+    },
+  });
+
+  // Edit payment mutation
+  const editPaymentMutation = useMutation({
+    mutationFn: async (data: PaymentFormData) => {
+      if (!editingPayment) throw new Error("No payment selected");
+      return await apiRequest('PUT', `/api/payments/${editingPayment.id}`, data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Payment updated",
+        description: "The payment has been successfully updated.",
+      });
+      setEditPaymentDialogOpen(false);
+      setEditingPayment(null);
+      paymentForm.reset();
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors', selectedVendorId, 'payments'] });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Failed to update payment",
+        description: error.message,
+      });
+    },
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async ({ id, type }: { id: string; type: 'invoice' | 'payment' }) => {
+      const endpoint = type === 'invoice' ? `/api/invoices/${id}` : `/api/payments/${id}`;
+      return await apiRequest('DELETE', endpoint);
+    },
+    onSuccess: (_, variables) => {
+      toast({
+        title: `${variables.type === 'invoice' ? 'Invoice' : 'Payment'} deleted`,
+        description: "The entry has been successfully deleted.",
+      });
+      setDeleteDialogOpen(false);
+      setDeletingEntry(null);
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors', selectedVendorId, 'invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors', selectedVendorId, 'payments'] });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Failed to delete",
+        description: error.message,
+      });
+    },
+  });
+
+  // Handle edit actions
+  const handleEditInvoice = (entry: LedgerEntry) => {
+    const invoice = invoices.find(inv => inv.id === entry.id);
+    if (invoice) {
+      setEditingInvoice(invoice);
+      invoiceForm.reset({
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceDate: invoice.invoiceDate,
+        description: invoice.description,
+        amount: invoice.amount,
+        projectId: invoice.projectId || undefined,
+      });
+      setEditInvoiceDialogOpen(true);
+    }
+  };
+
+  const handleEditPayment = (entry: LedgerEntry) => {
+    const payment = payments.find(pay => pay.id === entry.id);
+    if (payment) {
+      setEditingPayment(payment);
+      paymentForm.reset({
+        paymentDate: payment.paymentDate,
+        paymentReference: payment.paymentReference,
+        amount: payment.amount,
+        paymentMethod: payment.paymentMethod,
+        notes: payment.notes || undefined,
+      });
+      setEditPaymentDialogOpen(true);
+    }
+  };
+
+  const handleDeleteEntry = (entry: LedgerEntry) => {
+    setDeletingEntry({ id: entry.id, type: entry.type });
+    setDeleteDialogOpen(true);
+  };
 
   // Calculate ledger entries with running balance
   const ledgerEntries: LedgerEntry[] = (() => {
@@ -600,6 +719,211 @@ export default function AccountsPage() {
               </DialogContent>
             </Dialog>
 
+            {/* Edit Invoice Dialog */}
+            <Dialog open={editInvoiceDialogOpen} onOpenChange={setEditInvoiceDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit Invoice</DialogTitle>
+                  <DialogDescription>
+                    Update invoice details for {selectedVendor?.name}
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...invoiceForm}>
+                  <form onSubmit={invoiceForm.handleSubmit((data) => editInvoiceMutation.mutate(data))} className="space-y-4">
+                    <FormField
+                      control={invoiceForm.control}
+                      name="invoiceNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Invoice Number</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="INV-001" data-testid="input-edit-invoice-number" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={invoiceForm.control}
+                      name="invoiceDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Invoice Date</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="date" data-testid="input-edit-invoice-date" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={invoiceForm.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Description</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} placeholder="Invoice description" data-testid="input-edit-invoice-description" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={invoiceForm.control}
+                      name="amount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Amount (₹)</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="number" step="0.01" placeholder="0.00" data-testid="input-edit-invoice-amount" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setEditInvoiceDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={editInvoiceMutation.isPending} data-testid="button-submit-edit-invoice">
+                        {editInvoiceMutation.isPending ? "Updating..." : "Update Invoice"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+
+            {/* Edit Payment Dialog */}
+            <Dialog open={editPaymentDialogOpen} onOpenChange={setEditPaymentDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit Payment</DialogTitle>
+                  <DialogDescription>
+                    Update payment details for {selectedVendor?.name}
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...paymentForm}>
+                  <form onSubmit={paymentForm.handleSubmit((data) => editPaymentMutation.mutate(data))} className="space-y-4">
+                    <FormField
+                      control={paymentForm.control}
+                      name="paymentDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Payment Date</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="date" data-testid="input-edit-payment-date" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={paymentForm.control}
+                      name="paymentReference"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Payment Reference</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="PMT-001" data-testid="input-edit-payment-reference" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={paymentForm.control}
+                      name="amount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Amount (₹)</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="number" step="0.01" placeholder="0.00" data-testid="input-edit-payment-amount" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={paymentForm.control}
+                      name="paymentMethod"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Payment Method</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value} data-testid="select-edit-payment-method">
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select method" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="cash">Cash</SelectItem>
+                              <SelectItem value="cheque">Cheque</SelectItem>
+                              <SelectItem value="upi">UPI</SelectItem>
+                              <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={paymentForm.control}
+                      name="notes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Notes (Optional)</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} placeholder="Additional notes" data-testid="input-edit-payment-notes" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setEditPaymentDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={editPaymentMutation.isPending} data-testid="button-submit-edit-payment">
+                        {editPaymentMutation.isPending ? "Updating..." : "Update Payment"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete this {deletingEntry?.type === 'invoice' ? 'invoice' : 'payment'}. 
+                    This action cannot be undone and will affect the vendor's balance.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deletingEntry && deleteMutation.mutate(deletingEntry)}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    data-testid="button-confirm-delete"
+                  >
+                    {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
                 <Button 
                   variant="outline" 
                   onClick={handleExportLedger}
@@ -635,6 +959,7 @@ export default function AccountsPage() {
                       <TableHead className="text-right">Debit (₹)</TableHead>
                       <TableHead className="text-right">Credit (₹)</TableHead>
                       <TableHead className="text-right">Balance (₹)</TableHead>
+                      {canManageAccounts && <TableHead className="w-12"></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -657,6 +982,34 @@ export default function AccountsPage() {
                         <TableCell className={`text-right font-semibold ${entry.balance > 0 ? 'text-destructive' : entry.balance < 0 ? 'text-green-600' : ''}`}>
                           {entry.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </TableCell>
+                        {canManageAccounts && (
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" data-testid={`button-actions-${entry.id}`}>
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => entry.type === 'invoice' ? handleEditInvoice(entry) : handleEditPayment(entry)}
+                                  data-testid={`button-edit-${entry.id}`}
+                                >
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => handleDeleteEntry(entry)}
+                                  data-testid={`button-delete-${entry.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
