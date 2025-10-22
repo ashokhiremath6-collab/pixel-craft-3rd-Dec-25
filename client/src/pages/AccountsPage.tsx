@@ -161,6 +161,7 @@ export default function AccountsPage() {
       setAddPaymentDialogOpen(false);
       paymentForm.reset();
       queryClient.invalidateQueries({ queryKey: ['/api/vendors', selectedVendorId, 'payments'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/payments/all'] });
     },
     onError: (error) => {
       toast({
@@ -234,6 +235,7 @@ export default function AccountsPage() {
       });
       handleCloseEditPayment();
       queryClient.invalidateQueries({ queryKey: ['/api/vendors', selectedVendorId, 'payments'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/payments/all'] });
     },
     onError: (error) => {
       toast({
@@ -259,6 +261,9 @@ export default function AccountsPage() {
       setDeletingEntry(null);
       queryClient.invalidateQueries({ queryKey: ['/api/vendors', selectedVendorId, 'invoices'] });
       queryClient.invalidateQueries({ queryKey: ['/api/vendors', selectedVendorId, 'payments'] });
+      if (variables.type === 'payment') {
+        queryClient.invalidateQueries({ queryKey: ['/api/payments/all'] });
+      }
     },
     onError: (error) => {
       toast({
