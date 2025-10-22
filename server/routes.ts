@@ -4574,6 +4574,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Configure multer for invoice PDF uploads (using memoryStorage for object storage)
+  const invoiceUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 20 * 1024 * 1024, // 20MB limit for invoice PDFs
+      files: 1,
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = ['application/pdf'];
+      const fileExtension = path.extname(file.originalname).toLowerCase();
+      
+      if (allowedTypes.includes(file.mimetype) || fileExtension === '.pdf') {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only PDF files are allowed for invoice attachments.'));
+      }
+    }
+  });
+
+  // Generic file upload endpoint for invoice PDFs
+  app.post("/api/upload", requireAdmin, invoiceUpload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const userId = (req.user as any).claims.sub;
+      
+      // Upload file to object storage
+      const objectPath = await uploadToObjectStorage(
+        req.file.buffer,
+        req.file.originalname,
+        userId,
+        req.file.mimetype
+      );
+
+      res.json({ path: objectPath });
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      res.status(500).json({ error: "Failed to upload file" });
+    }
+  });
+
   // Configure multer for catalogue file uploads (using memoryStorage for object storage)
   const catalogueUpload = multer({
     storage: multer.memoryStorage(), // Store in memory, then upload to object storage
