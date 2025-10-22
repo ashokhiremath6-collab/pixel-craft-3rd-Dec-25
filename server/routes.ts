@@ -4758,7 +4758,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/catalogue", requireAdmin, catalogueUpload.single('file'), async (req, res) => {
     try {
       // Parse the item data from the form data
-      const { mainCategory, subcategory, attributes } = req.body;
+      const { mainCategory, subcategory, vendorBrand, description, attributes } = req.body;
       
       if (!mainCategory || !subcategory || !attributes) {
         return res.status(400).json({ error: "Main category, subcategory, and attributes are required" });
@@ -4769,6 +4769,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         subcategory,
         attributes
       };
+
+      if (vendorBrand) itemData.vendorBrand = vendorBrand;
+      if (description) itemData.description = description;
 
       // If a file was uploaded, save it to object storage
       if (req.file) {
@@ -4804,6 +4807,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Parse text fields
       if (req.body.mainCategory) updates.mainCategory = req.body.mainCategory;
       if (req.body.subcategory) updates.subcategory = req.body.subcategory;
+      if (req.body.vendorBrand !== undefined) updates.vendorBrand = req.body.vendorBrand;
+      if (req.body.description !== undefined) updates.description = req.body.description;
       if (req.body.attributes) updates.attributes = req.body.attributes;
       
       // If a file was uploaded, save it to object storage
