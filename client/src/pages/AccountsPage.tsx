@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee, Edit, Trash2, MoreVertical } from "lucide-react";
+import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee, Edit, Trash2, MoreVertical, Upload, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -48,6 +48,8 @@ export default function AccountsPage() {
   const [editingPayment, setEditingPayment] = useState<VendorPayment | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingEntry, setDeletingEntry] = useState<{ id: string; type: 'invoice' | 'payment' } | null>(null);
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -97,7 +99,32 @@ export default function AccountsPage() {
   // Add invoice mutation
   const addInvoiceMutation = useMutation({
     mutationFn: async (data: InvoiceFormData) => {
-      return await apiRequest('POST', `/api/vendors/${selectedVendorId}/invoices`, data);
+      let attachmentPath = null;
+      
+      // Upload file if provided
+      if (invoiceFile) {
+        setIsUploadingInvoice(true);
+        const formData = new FormData();
+        formData.append('file', invoiceFile);
+        
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload invoice file');
+        }
+        
+        const uploadData = await uploadResponse.json();
+        attachmentPath = uploadData.path;
+        setIsUploadingInvoice(false);
+      }
+      
+      return await apiRequest('POST', `/api/vendors/${selectedVendorId}/invoices`, {
+        ...data,
+        attachmentPath,
+      });
     },
     onSuccess: () => {
       toast({
@@ -105,10 +132,12 @@ export default function AccountsPage() {
         description: "The invoice has been successfully recorded.",
       });
       setAddInvoiceDialogOpen(false);
+      setInvoiceFile(null);
       invoiceForm.reset();
       queryClient.invalidateQueries({ queryKey: ['/api/vendors', selectedVendorId, 'invoices'] });
     },
     onError: (error) => {
+      setIsUploadingInvoice(false);
       toast({
         variant: "destructive",
         title: "Failed to add invoice",
@@ -144,7 +173,33 @@ export default function AccountsPage() {
   const editInvoiceMutation = useMutation({
     mutationFn: async (data: InvoiceFormData) => {
       if (!editingInvoice) throw new Error("No invoice selected");
-      return await apiRequest('PUT', `/api/invoices/${editingInvoice.id}`, data);
+      
+      let attachmentPath = editingInvoice.attachmentPath;
+      
+      // Upload new file if provided
+      if (invoiceFile) {
+        setIsUploadingInvoice(true);
+        const formData = new FormData();
+        formData.append('file', invoiceFile);
+        
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload invoice file');
+        }
+        
+        const uploadData = await uploadResponse.json();
+        attachmentPath = uploadData.path;
+        setIsUploadingInvoice(false);
+      }
+      
+      return await apiRequest('PUT', `/api/invoices/${editingInvoice.id}`, {
+        ...data,
+        attachmentPath,
+      });
     },
     onSuccess: () => {
       toast({
@@ -155,6 +210,7 @@ export default function AccountsPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/vendors', selectedVendorId, 'invoices'] });
     },
     onError: (error) => {
+      setIsUploadingInvoice(false);
       toast({
         variant: "destructive",
         title: "Failed to update invoice",
@@ -251,6 +307,7 @@ export default function AccountsPage() {
   const handleCloseEditInvoice = () => {
     setEditInvoiceDialogOpen(false);
     setEditingInvoice(null);
+    setInvoiceFile(null);
     invoiceForm.reset({
       invoiceDate: format(new Date(), 'yyyy-MM-dd'),
     });
@@ -605,12 +662,29 @@ export default function AccountsPage() {
                       )}
                     />
 
+                    <div className="space-y-2">
+                      <Label>Invoice Attachment (Optional)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="file"
+                          accept=".pdf"
+                          onChange={(e) => setInvoiceFile(e.target.files?.[0] || null)}
+                          data-testid="input-invoice-file"
+                        />
+                      </div>
+                      {invoiceFile && (
+                        <p className="text-sm text-muted-foreground">
+                          Selected: {invoiceFile.name}
+                        </p>
+                      )}
+                    </div>
+
                     <div className="flex justify-end gap-2">
                       <Button type="button" variant="outline" onClick={() => setAddInvoiceDialogOpen(false)}>
                         Cancel
                       </Button>
-                      <Button type="submit" disabled={addInvoiceMutation.isPending} data-testid="button-submit-invoice">
-                        {addInvoiceMutation.isPending ? "Adding..." : "Add Invoice"}
+                      <Button type="submit" disabled={addInvoiceMutation.isPending || isUploadingInvoice} data-testid="button-submit-invoice">
+                        {isUploadingInvoice ? "Uploading..." : addInvoiceMutation.isPending ? "Adding..." : "Add Invoice"}
                       </Button>
                     </div>
                   </form>
@@ -800,12 +874,44 @@ export default function AccountsPage() {
                       )}
                     />
 
+                    <div className="space-y-2">
+                      <Label>Invoice Attachment</Label>
+                      {editingInvoice?.attachmentPath && !invoiceFile && (
+                        <div className="flex items-center gap-2 p-2 border rounded">
+                          <FileText className="h-4 w-4" />
+                          <span className="text-sm flex-1">Current attachment</span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(editingInvoice.attachmentPath!, '_blank')}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="file"
+                          accept=".pdf"
+                          onChange={(e) => setInvoiceFile(e.target.files?.[0] || null)}
+                          data-testid="input-edit-invoice-file"
+                        />
+                      </div>
+                      {invoiceFile && (
+                        <p className="text-sm text-muted-foreground">
+                          New file: {invoiceFile.name}
+                        </p>
+                      )}
+                    </div>
+
                     <DialogFooter>
                       <Button type="button" variant="outline" onClick={handleCloseEditInvoice}>
                         Cancel
                       </Button>
-                      <Button type="submit" disabled={editInvoiceMutation.isPending} data-testid="button-submit-edit-invoice">
-                        {editInvoiceMutation.isPending ? "Updating..." : "Update Invoice"}
+                      <Button type="submit" disabled={editInvoiceMutation.isPending || isUploadingInvoice} data-testid="button-submit-edit-invoice">
+                        {isUploadingInvoice ? "Uploading..." : editInvoiceMutation.isPending ? "Updating..." : "Update Invoice"}
                       </Button>
                     </DialogFooter>
                   </form>
@@ -985,7 +1091,26 @@ export default function AccountsPage() {
                             {entry.type === 'invoice' ? 'Invoice' : 'Payment'}
                           </span>
                         </TableCell>
-                        <TableCell>{entry.reference}</TableCell>
+                        <TableCell>
+                          {entry.reference}
+                          {entry.type === 'invoice' && invoices.find(inv => inv.id === entry.id)?.attachmentPath && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="ml-2 h-6 px-2"
+                              onClick={() => {
+                                const invoice = invoices.find(inv => inv.id === entry.id);
+                                if (invoice?.attachmentPath) {
+                                  window.open(invoice.attachmentPath, '_blank');
+                                }
+                              }}
+                              data-testid={`button-view-invoice-${entry.id}`}
+                            >
+                              <FileText className="h-3 w-3 mr-1" />
+                              View PDF
+                            </Button>
+                          )}
+                        </TableCell>
                         <TableCell>{entry.description}</TableCell>
                         <TableCell className="text-right">
                           {entry.debit > 0 ? entry.debit.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '-'}
