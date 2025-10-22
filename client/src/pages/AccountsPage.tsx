@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee, Edit, Trash2, MoreVertical, Upload, Eye } from "lucide-react";
+import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee, Edit, Trash2, MoreVertical, Upload, Eye, ChevronDown, ChevronRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -476,8 +478,15 @@ export default function AccountsPage() {
         </div>
       </div>
 
-      {/* Vendor Selection */}
-      <Card>
+      <Tabs defaultValue="ledger" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="ledger" data-testid="tab-vendor-ledger">Vendor Ledger</TabsTrigger>
+          <TabsTrigger value="summary" data-testid="tab-payments-summary">Payments Summary</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="ledger" className="space-y-4">
+          {/* Vendor Selection */}
+          <Card>
         <CardHeader>
           <CardTitle>Select Vendor</CardTitle>
           <CardDescription>Choose a vendor to view their ledger</CardDescription>
@@ -1173,6 +1182,260 @@ export default function AccountsPage() {
             </CardContent>
           </Card>
         </>
+      )}
+        </TabsContent>
+
+        <TabsContent value="summary" className="space-y-4">
+          <PaymentsSummary />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function PaymentsSummary() {
+  const { toast } = useToast();
+  const [openVendors, setOpenVendors] = useState<Set<string>>(new Set());
+
+  // Fetch all payments with vendor information
+  const { data: allPayments = [], isLoading } = useQuery<Array<VendorPayment & { vendorName: string }>>({
+    queryKey: ['/api/payments/all'],
+  });
+
+  // Group payments by vendor
+  const vendorPayments = allPayments.reduce((acc, payment) => {
+    if (!acc[payment.vendorId]) {
+      acc[payment.vendorId] = {
+        vendorName: payment.vendorName,
+        payments: [],
+        total: 0,
+      };
+    }
+    acc[payment.vendorId].payments.push(payment);
+    acc[payment.vendorId].total += Number(payment.amount);
+    return acc;
+  }, {} as Record<string, { vendorName: string; payments: Array<VendorPayment & { vendorName: string }>; total: number }>);
+
+  // Convert to array and sort by total amount (descending)
+  const sortedVendors = Object.entries(vendorPayments).sort((a, b) => b[1].total - a[1].total);
+
+  // Calculate totals
+  const totalPayments = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalVendors = sortedVendors.length;
+  const totalTransactions = allPayments.length;
+
+  const toggleVendor = (vendorId: string) => {
+    setOpenVendors(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(vendorId)) {
+        newSet.delete(vendorId);
+      } else {
+        newSet.add(vendorId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleExportAll = () => {
+    if (allPayments.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Cannot export",
+        description: "No payment data to export",
+      });
+      return;
+    }
+
+    // Prepare data for Excel
+    const exportData = allPayments.map((payment) => ({
+      Vendor: payment.vendorName,
+      Date: format(new Date(payment.paymentDate), 'dd-MMM-yyyy'),
+      Reference: payment.paymentReference,
+      'Amount (₹)': Number(payment.amount).toFixed(2),
+      Method: payment.paymentMethod,
+      Notes: payment.notes || '',
+    }));
+
+    // Add summary row
+    exportData.push({
+      Vendor: '',
+      Date: '',
+      Reference: '',
+      'Amount (₹)': '',
+      Method: '',
+      Notes: '',
+    });
+    exportData.push({
+      Vendor: 'Total Payments',
+      Date: '',
+      Reference: '',
+      'Amount (₹)': totalPayments.toFixed(2),
+      Method: '',
+      Notes: '',
+    });
+
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(exportData);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 25 }, // Vendor
+      { wch: 12 }, // Date
+      { wch: 15 }, // Reference
+      { wch: 12 }, // Amount
+      { wch: 15 }, // Method
+      { wch: 30 }, // Notes
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'All Payments');
+
+    // Generate filename
+    const filename = `All_Payments_Summary_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    
+    // Download file
+    XLSX.writeFile(wb, filename);
+
+    toast({
+      title: "Payments exported",
+      description: `Downloaded as ${filename}`,
+    });
+  };
+
+  if (isLoading) {
+    return <div className="text-center py-8">Loading payment data...</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Summary Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Payments</CardTitle>
+            <IndianRupee className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" data-testid="text-summary-total-payments">
+              ₹{totalPayments.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <p className="text-xs text-muted-foreground">{totalTransactions} transaction(s)</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Vendors</CardTitle>
+            <Banknote className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" data-testid="text-summary-vendor-count">
+              {totalVendors}
+            </div>
+            <p className="text-xs text-muted-foreground">Vendors with payments</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Average Payment</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" data-testid="text-summary-avg-payment">
+              ₹{totalTransactions > 0 ? (totalPayments / totalTransactions).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+            </div>
+            <p className="text-xs text-muted-foreground">Per transaction</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Export Button */}
+      <div className="flex justify-end">
+        <Button onClick={handleExportAll} variant="outline" data-testid="button-export-all-payments">
+          <Download className="h-4 w-4 mr-2" />
+          Export All to Excel
+        </Button>
+      </div>
+
+      {/* Vendor Sections */}
+      {sortedVendors.length === 0 ? (
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center text-muted-foreground">
+              <Banknote className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>No payment records found</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {sortedVendors.map(([vendorId, { vendorName, payments, total }]) => {
+            const isOpen = openVendors.has(vendorId);
+            
+            return (
+              <Card key={vendorId}>
+                <Collapsible open={isOpen} onOpenChange={() => toggleVendor(vendorId)}>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer hover-elevate">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {isOpen ? (
+                            <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                          )}
+                          <div>
+                            <CardTitle className="text-lg" data-testid={`text-vendor-${vendorId}`}>
+                              {vendorName}
+                            </CardTitle>
+                            <CardDescription>
+                              {payments.length} payment(s)
+                            </CardDescription>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xl font-bold" data-testid={`text-vendor-total-${vendorId}`}>
+                            ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Total paid</p>
+                        </div>
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Reference</TableHead>
+                            <TableHead>Method</TableHead>
+                            <TableHead>Notes</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {payments.map((payment) => (
+                            <TableRow key={payment.id} data-testid={`row-payment-${payment.id}`}>
+                              <TableCell>{format(new Date(payment.paymentDate), 'dd-MMM-yyyy')}</TableCell>
+                              <TableCell>{payment.paymentReference}</TableCell>
+                              <TableCell className="capitalize">{payment.paymentMethod.replace('_', ' ')}</TableCell>
+                              <TableCell className="text-muted-foreground">{payment.notes || '-'}</TableCell>
+                              <TableCell className="text-right font-semibold">
+                                ₹{Number(payment.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Collapsible>
+              </Card>
+            );
+          })}
+        </div>
       )}
     </div>
   );
