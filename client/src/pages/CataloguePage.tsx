@@ -31,13 +31,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, MoreVertical, Pencil, Trash2, FileText, Download } from "lucide-react";
+import { Plus, MoreVertical, Pencil, Trash2, FileText, Download, ExternalLink, ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
 export default function CataloguePage() {
@@ -84,6 +87,18 @@ export default function CataloguePage() {
   // Fetch main categories
   const { data: mainCategories = [], isLoading: categoriesLoading, error: categoriesError } = useQuery<string[]>({
     queryKey: ["/api/catalogue/categories"],
+  });
+
+  // Fetch ALL catalogue items for library view (no filters)
+  const { data: allItems = [], isLoading: allItemsLoading } = useQuery<CatalogueItem[]>({
+    queryKey: ["/api/catalogue", "all"],
+    queryFn: async () => {
+      const response = await fetch("/api/catalogue", { credentials: "include" });
+      if (!response.ok) {
+        throw new Error("Failed to fetch catalogue items");
+      }
+      return response.json();
+    },
   });
 
   // Get unique subcategories for the selected main category
@@ -243,6 +258,60 @@ export default function CataloguePage() {
     return result;
   }, [items, mainCategory, subcategory]);
 
+  // Group all items by category for library view (only items with files or URLs)
+  const groupedItems = useMemo(() => {
+    const catalogueItems = allItems.filter(
+      (item) => (item.fileName && item.filePath) || item.catalogueUrl
+    );
+
+    const groups = new Map<string, Map<string, CatalogueItem[]>>();
+
+    catalogueItems.forEach((item) => {
+      if (!groups.has(item.mainCategory)) {
+        groups.set(item.mainCategory, new Map());
+      }
+      const subgroups = groups.get(item.mainCategory)!;
+      if (!subgroups.has(item.subcategory)) {
+        subgroups.set(item.subcategory, []);
+      }
+      subgroups.get(item.subcategory)!.push(item);
+    });
+
+    // Sort categories and subcategories alphabetically
+    const sortedGroups = new Map(
+      Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b))
+    );
+
+    sortedGroups.forEach((subgroups) => {
+      const sortedSubgroups = new Map(
+        Array.from(subgroups.entries()).sort(([a], [b]) => a.localeCompare(b))
+      );
+      subgroups.clear();
+      sortedSubgroups.forEach((items, key) => {
+        subgroups.set(key, items);
+      });
+    });
+
+    return sortedGroups;
+  }, [allItems]);
+
+  // Helper to get file type from filename
+  const getFileType = (fileName: string): string => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'pdf': return 'PDF';
+      case 'docx': return 'Word';
+      case 'xlsx': return 'Excel';
+      case 'png':
+      case 'jpg':
+      case 'jpeg': return 'Image';
+      case 'gif':
+      case 'bmp':
+      case 'tiff': return 'Image';
+      default: return 'File';
+    }
+  };
+
   return (
     <div className="h-full overflow-auto">
       <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -259,7 +328,14 @@ export default function CataloguePage() {
           </Button>
         </div>
 
-        <Card>
+        <Tabs defaultValue="grid" className="space-y-6">
+          <TabsList data-testid="tabs-catalogue-view">
+            <TabsTrigger value="grid" data-testid="tab-grid">Grid View</TabsTrigger>
+            <TabsTrigger value="library" data-testid="tab-library">Library</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="grid" className="space-y-6">
+            <Card>
           <CardHeader>
             <CardTitle>Filter Products</CardTitle>
           </CardHeader>
@@ -428,6 +504,140 @@ export default function CataloguePage() {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="library" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  Catalogue Library
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    ({Array.from(groupedItems.values()).reduce((sum, subgroups) => 
+                      sum + Array.from(subgroups.values()).reduce((subSum, items) => subSum + items.length, 0), 0
+                    )} catalogues)
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {allItemsLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">Loading library...</div>
+                ) : groupedItems.size === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FileText className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                    <p>No catalogues uploaded yet</p>
+                    <p className="text-sm mt-1">Upload files or add URL links to see them here</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {Array.from(groupedItems.entries()).map(([mainCat, subgroups]) => (
+                      <Collapsible key={mainCat} defaultOpen>
+                        <div className="border rounded-md">
+                          <CollapsibleTrigger className="flex items-center justify-between w-full p-4 hover-elevate active-elevate-2" data-testid={`category-${mainCat}`}>
+                            <div className="flex items-center gap-2">
+                              <ChevronDown className="h-4 w-4 transition-transform duration-200" />
+                              <h3 className="font-semibold">{mainCat}</h3>
+                              <Badge variant="secondary" className="ml-2">
+                                {Array.from(subgroups.values()).reduce((sum, items) => sum + items.length, 0)}
+                              </Badge>
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="border-t">
+                              {Array.from(subgroups.entries()).map(([subcat, items]) => (
+                                <div key={subcat} className="border-b last:border-b-0">
+                                  <div className="bg-muted/50 px-4 py-2">
+                                    <h4 className="font-medium text-sm">{subcat}</h4>
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                      <thead>
+                                        <tr className="border-b bg-muted/30">
+                                          <th className="text-left py-2 px-4 text-xs font-semibold">Vendor/Brand</th>
+                                          <th className="text-left py-2 px-4 text-xs font-semibold">Description</th>
+                                          <th className="text-left py-2 px-4 text-xs font-semibold">File/Link</th>
+                                          <th className="text-left py-2 px-4 text-xs font-semibold">Type</th>
+                                          <th className="text-left py-2 px-4 text-xs font-semibold">Actions</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {items.map((item) => (
+                                          <tr key={item.id} className="border-b last:border-b-0 hover-elevate" data-testid={`library-item-${item.id}`}>
+                                            <td className="py-2 px-4 text-sm">
+                                              {item.vendorBrand || <span className="text-muted-foreground">-</span>}
+                                            </td>
+                                            <td className="py-2 px-4 text-sm max-w-md">
+                                              <div className="line-clamp-2">
+                                                {item.description || <span className="text-muted-foreground">-</span>}
+                                              </div>
+                                            </td>
+                                            <td className="py-2 px-4 text-sm">
+                                              {item.fileName || 'URL Link'}
+                                            </td>
+                                            <td className="py-2 px-4 text-sm">
+                                              {item.fileName ? (
+                                                <Badge variant="outline" className="text-xs">
+                                                  {getFileType(item.fileName)}
+                                                </Badge>
+                                              ) : (
+                                                <Badge variant="outline" className="text-xs">
+                                                  <ExternalLink className="h-3 w-3 mr-1" />
+                                                  URL
+                                                </Badge>
+                                              )}
+                                            </td>
+                                            <td className="py-2 px-4 text-sm">
+                                              {item.filePath ? (
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  asChild
+                                                  data-testid={`button-view-${item.id}`}
+                                                >
+                                                  <a
+                                                    href={item.filePath}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                  >
+                                                    <Download className="h-4 w-4 mr-1" />
+                                                    View
+                                                  </a>
+                                                </Button>
+                                              ) : item.catalogueUrl ? (
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  asChild
+                                                  data-testid={`button-open-${item.id}`}
+                                                >
+                                                  <a
+                                                    href={item.catalogueUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                  >
+                                                    <ExternalLink className="h-4 w-4 mr-1" />
+                                                    Open
+                                                  </a>
+                                                </Button>
+                                              ) : null}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CollapsibleContent>
+                        </div>
+                      </Collapsible>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         <Dialog open={dialogOpen} onOpenChange={handleCloseDialog}>
           <DialogContent>
