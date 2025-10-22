@@ -4755,7 +4755,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/catalogue", requireAdmin, catalogueUpload.single('file'), async (req, res) => {
+  app.post("/api/catalogue", requireAdmin, (req, res, next) => {
+    catalogueUpload.single('file')(req, res, (err) => {
+      if (err) {
+        console.error('Multer error:', err);
+        return res.status(400).json({ error: err.message });
+      }
+      next();
+    });
+  }, async (req, res) => {
     try {
       // Debug: Log what we received
       console.log('Received catalogue POST:', {
@@ -4767,6 +4775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { mainCategory, subcategory, vendorBrand, description, attributes } = req.body;
       
       if (!mainCategory || !subcategory || !attributes) {
+        console.error('Missing required fields:', { mainCategory, subcategory, attributes });
         return res.status(400).json({ error: "Main category, subcategory, and attributes are required" });
       }
 
