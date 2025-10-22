@@ -291,8 +291,8 @@ export default function AccountsPage() {
         paymentDate: payment.paymentDate,
         paymentReference: payment.paymentReference,
         amount: payment.amount,
-        paymentMethod: payment.paymentMethod,
-        notes: payment.notes || undefined,
+        paymentMethod: payment.paymentMethod as "cash" | "cheque" | "upi" | "bank_transfer",
+        notes: payment.notes ?? undefined,
       });
       setEditPaymentDialogOpen(true);
     }
@@ -559,7 +559,15 @@ export default function AccountsPage() {
           <div className="flex gap-2">
             {canManageAccounts && (
               <>
-                <Dialog open={addInvoiceDialogOpen} onOpenChange={setAddInvoiceDialogOpen}>
+                <Dialog open={addInvoiceDialogOpen} onOpenChange={(open) => {
+              if (!open) {
+                setInvoiceFile(null);
+                invoiceForm.reset({
+                  invoiceDate: format(new Date(), 'yyyy-MM-dd'),
+                });
+              }
+              setAddInvoiceDialogOpen(open);
+            }}>
                   <DialogTrigger asChild>
                     <Button data-testid="button-add-invoice">
                       <Plus className="h-4 w-4 mr-2" />
@@ -680,7 +688,13 @@ export default function AccountsPage() {
                     </div>
 
                     <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" onClick={() => setAddInvoiceDialogOpen(false)}>
+                      <Button type="button" variant="outline" onClick={() => {
+                        setInvoiceFile(null);
+                        invoiceForm.reset({
+                          invoiceDate: format(new Date(), 'yyyy-MM-dd'),
+                        });
+                        setAddInvoiceDialogOpen(false);
+                      }}>
                         Cancel
                       </Button>
                       <Button type="submit" disabled={addInvoiceMutation.isPending || isUploadingInvoice} data-testid="button-submit-invoice">
@@ -787,7 +801,7 @@ export default function AccountsPage() {
                         <FormItem>
                           <FormLabel>Notes (Optional)</FormLabel>
                           <FormControl>
-                            <Textarea {...field} placeholder="Additional notes" data-testid="input-payment-notes" />
+                            <Textarea {...field} value={field.value ?? ''} placeholder="Additional notes" data-testid="input-payment-notes" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1001,7 +1015,7 @@ export default function AccountsPage() {
                         <FormItem>
                           <FormLabel>Notes (Optional)</FormLabel>
                           <FormControl>
-                            <Textarea {...field} placeholder="Additional notes" data-testid="input-edit-payment-notes" />
+                            <Textarea {...field} value={field.value ?? ''} placeholder="Additional notes" data-testid="input-edit-payment-notes" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
