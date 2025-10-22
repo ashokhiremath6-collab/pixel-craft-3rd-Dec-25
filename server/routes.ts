@@ -4774,15 +4774,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Parse the item data from the form data
       const { mainCategory, subcategory, vendorBrand, description, attributes } = req.body;
       
-      if (!mainCategory || !subcategory || !attributes) {
-        console.error('Missing required fields:', { mainCategory, subcategory, attributes });
-        return res.status(400).json({ error: "Main category, subcategory, and attributes are required" });
+      if (!mainCategory || !subcategory) {
+        console.error('Missing required fields:', { mainCategory, subcategory });
+        return res.status(400).json({ error: "Main category and subcategory are required" });
       }
 
       const itemData: any = {
         mainCategory,
         subcategory,
-        attributes
+        attributes: attributes || '' // Allow empty attributes
       };
 
       if (vendorBrand) itemData.vendorBrand = vendorBrand;
