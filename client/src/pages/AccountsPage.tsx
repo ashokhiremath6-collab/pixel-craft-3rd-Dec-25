@@ -1089,6 +1089,7 @@ export default function AccountsPage() {
                       <TableHead>Date</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Reference</TableHead>
+                      <TableHead className="w-24">Attachment</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead className="text-right">Debit (₹)</TableHead>
                       <TableHead className="text-right">Credit (₹)</TableHead>
@@ -1105,13 +1106,12 @@ export default function AccountsPage() {
                             {entry.type === 'invoice' ? 'Invoice' : 'Payment'}
                           </span>
                         </TableCell>
+                        <TableCell>{entry.reference}</TableCell>
                         <TableCell>
-                          {entry.reference}
-                          {entry.type === 'invoice' && invoices.find(inv => inv.id === entry.id)?.attachmentPath && (
+                          {entry.type === 'invoice' && invoices.find(inv => inv.id === entry.id)?.attachmentPath ? (
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
-                              className="ml-2 h-6 px-2"
                               onClick={() => {
                                 const invoice = invoices.find(inv => inv.id === entry.id);
                                 if (invoice?.attachmentPath) {
@@ -1120,9 +1120,11 @@ export default function AccountsPage() {
                               }}
                               data-testid={`button-view-invoice-${entry.id}`}
                             >
-                              <FileText className="h-3 w-3 mr-1" />
+                              <FileText className="h-4 w-4 mr-2" />
                               View PDF
                             </Button>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
                           )}
                         </TableCell>
                         <TableCell>{entry.description}</TableCell>
