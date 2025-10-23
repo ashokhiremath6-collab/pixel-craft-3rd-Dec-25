@@ -57,6 +57,8 @@ export default function GanttChartPage() {
   const [isGanttLinkOpen, setIsGanttLinkOpen] = useState(false);
   const [ganttLinkInput, setGanttLinkInput] = useState<string>("");
   const [isEditingGanttLink, setIsEditingGanttLink] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [editingLinkProjectId, setEditingLinkProjectId] = useState<string | null>(null);
 
   const { data: quotationsData, isLoading: isLoadingProjects } = useQuery<QuotationsResponse>({
     queryKey: ['/api/quotations'],
@@ -426,117 +428,6 @@ export default function GanttChartPage() {
           </p>
         </div>
       </div>
-
-      {/* Template Downloads */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Download Templates</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-4 flex-wrap">
-            <Button 
-              variant="outline" 
-              onClick={() => handleDownloadTemplate('gantt')}
-              data-testid="button-download-gantt-template"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Gantt Template (250 tasks)
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => handleDownloadTemplate('dependencies')}
-              data-testid="button-download-dependencies-template"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Dependencies Template
-            </Button>
-            <Button 
-              variant="default" 
-              onClick={async () => {
-                try {
-                  const response = await fetch(`/api/templates/test-sample?v=${Date.now()}`);
-                  if (!response.ok) throw new Error('Download failed');
-                  const blob = await response.blob();
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = 'Sample_New_5_Tasks.xlsx';
-                  document.body.appendChild(a);
-                  a.click();
-                  window.URL.revokeObjectURL(url);
-                  document.body.removeChild(a);
-                  toast({ title: "Test File Downloaded", description: "Sample file with 5 tasks ready to import!" });
-                } catch (error) {
-                  toast({ title: "Download Failed", description: "Could not download test file", variant: "destructive" });
-                }
-              }}
-              data-testid="button-download-test-sample"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Test Sample (5 Tasks)
-            </Button>
-            <Button
-              variant="default"
-              onClick={handleExportSchedule}
-              disabled={!selectedProjectId || tasks.length === 0}
-              data-testid="button-export-schedule"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export Current Schedule
-            </Button>
-            <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-              <DialogTrigger asChild>
-                <Button variant="default" data-testid="button-import-schedule">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import Completed Schedule
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Import Project Schedule</DialogTitle>
-                  <DialogDescription>
-                    Upload a filled Gantt chart (XLSX or CSV) with tasks and dependencies
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Select Project</label>
-                    <Select value={importProjectId} onValueChange={setImportProjectId}>
-                      <SelectTrigger data-testid="select-import-project">
-                        <SelectValue placeholder="Choose project" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {projects.map((project) => (
-                          <SelectItem key={project.id} value={project.id}>
-                            {project.projectName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Upload File</label>
-                    <Input
-                      type="file"
-                      accept=".xlsx,.xls,.csv"
-                      onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                      data-testid="input-import-file"
-                    />
-                  </div>
-                  <Button
-                    onClick={handleImport}
-                    disabled={!selectedFile || !importProjectId || importScheduleMutation.isPending}
-                    className="w-full"
-                    data-testid="button-confirm-import"
-                  >
-                    {importScheduleMutation.isPending ? "Importing..." : "Import Schedule"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Project Selector and Actions */}
       <Card>
@@ -1285,6 +1176,272 @@ function CriticalPathDisplay({ scheduleId }: { scheduleId: string }) {
           </CardContent>
         </Card>
       )}
+
+      {/* Gantt Chart Links - All Projects */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ExternalLink className="h-5 w-5" />
+            Gantt Chart Links
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {projects.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No projects found. Create a project first.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {projects.map((project) => (
+                <div
+                  key={project.id}
+                  className="flex items-center justify-between gap-4 p-3 rounded-md border hover-elevate"
+                  data-testid={`project-link-${project.id}`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate" data-testid={`text-project-${project.id}`}>
+                      {project.projectName}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {project.ganttChartLink ? (
+                      <>
+                        <a
+                          href={project.ganttChartLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-primary hover:underline flex items-center gap-1"
+                          data-testid={`link-view-${project.id}`}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          View Chart
+                        </a>
+                        {editingLinkProjectId === project.id ? (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={ganttLinkInput}
+                              onChange={(e) => setGanttLinkInput(e.target.value)}
+                              placeholder="https://..."
+                              className="w-64"
+                              data-testid={`input-link-${project.id}`}
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                updateGanttLinkMutation.mutate({ 
+                                  id: project.id, 
+                                  ganttChartLink: ganttLinkInput.trim() 
+                                });
+                                setEditingLinkProjectId(null);
+                              }}
+                              disabled={!ganttLinkInput.trim() || updateGanttLinkMutation.isPending}
+                              data-testid={`button-save-link-${project.id}`}
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditingLinkProjectId(null)}
+                              data-testid={`button-cancel-link-${project.id}`}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setGanttLinkInput(project.ganttChartLink || "");
+                              setEditingLinkProjectId(project.id);
+                            }}
+                            data-testid={`button-edit-link-${project.id}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {editingLinkProjectId === project.id ? (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={ganttLinkInput}
+                              onChange={(e) => setGanttLinkInput(e.target.value)}
+                              placeholder="https://..."
+                              className="w-64"
+                              data-testid={`input-link-${project.id}`}
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                updateGanttLinkMutation.mutate({ 
+                                  id: project.id, 
+                                  ganttChartLink: ganttLinkInput.trim() 
+                                });
+                                setEditingLinkProjectId(null);
+                              }}
+                              disabled={!ganttLinkInput.trim() || updateGanttLinkMutation.isPending}
+                              data-testid={`button-save-link-${project.id}`}
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditingLinkProjectId(null)}
+                              data-testid={`button-cancel-link-${project.id}`}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setGanttLinkInput("");
+                              setEditingLinkProjectId(project.id);
+                            }}
+                            data-testid={`button-add-link-${project.id}`}
+                          >
+                            Add Link
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Template Downloads - Collapsible */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Download Templates</CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowTemplates(!showTemplates)}
+              data-testid="button-toggle-templates"
+            >
+              {showTemplates ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              {showTemplates ? "Hide" : "Show"}
+            </Button>
+          </div>
+        </CardHeader>
+        {showTemplates && (
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-4 flex-wrap">
+            <Button 
+              variant="outline" 
+              onClick={() => handleDownloadTemplate('gantt')}
+              data-testid="button-download-gantt-template"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Gantt Template (250 tasks)
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => handleDownloadTemplate('dependencies')}
+              data-testid="button-download-dependencies-template"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Dependencies Template
+            </Button>
+            <Button 
+              variant="default" 
+              onClick={async () => {
+                try {
+                  const response = await fetch(`/api/templates/test-sample?v=${Date.now()}`);
+                  if (!response.ok) throw new Error('Download failed');
+                  const blob = await response.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'Sample_New_5_Tasks.xlsx';
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+                  toast({ title: "Test File Downloaded", description: "Sample file with 5 tasks ready to import!" });
+                } catch (error) {
+                  toast({ title: "Download Failed", description: "Could not download test file", variant: "destructive" });
+                }
+              }}
+              data-testid="button-download-test-sample"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Test Sample (5 Tasks)
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleExportSchedule}
+              disabled={!selectedProjectId || tasks.length === 0}
+              data-testid="button-export-schedule"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export Current Schedule
+            </Button>
+            <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+              <DialogTrigger asChild>
+                <Button variant="default" data-testid="button-import-schedule">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import Completed Schedule
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Import Project Schedule</DialogTitle>
+                  <DialogDescription>
+                    Upload a filled Gantt chart (XLSX or CSV) with tasks and dependencies
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Select Project</label>
+                    <Select value={importProjectId} onValueChange={setImportProjectId}>
+                      <SelectTrigger data-testid="select-import-project">
+                        <SelectValue placeholder="Choose project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projects.map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.projectName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Upload File</label>
+                    <Input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                      data-testid="input-import-file"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleImport}
+                    disabled={!selectedFile || !importProjectId || importScheduleMutation.isPending}
+                    className="w-full"
+                    data-testid="button-confirm-import"
+                  >
+                    {importScheduleMutation.isPending ? "Importing..." : "Import Schedule"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardContent>
+        )}
+      </Card>
     </div>
   );
 }
