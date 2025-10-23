@@ -75,24 +75,26 @@ async function upsertUser(
 
     console.log('[AUTH] User upserted successfully:', user.id, user.email);
 
-    // Check if user should have designer role based on email allowlist
+    // Auto-assign roles to new users
     if (claims["email"]) {
-      const isDesigner = await storage.isDesignerEmail(claims["email"]);
-      console.log('[AUTH] Is designer email?', claims["email"], isDesigner);
-      
       // Check if user already has a role
       const existingRole = await storage.getUserRole(user.id);
       console.log('[AUTH] Existing role:', existingRole);
       
-      if (!existingRole && isDesigner) {
-        // Assign designer role to new users who are on the allowlist
+      if (!existingRole) {
+        // Check if user should have designer role based on email allowlist
+        const isDesigner = await storage.isDesignerEmail(claims["email"]);
+        console.log('[AUTH] Is designer email?', claims["email"], isDesigner);
+        
+        // Assign appropriate role: designer if allowlisted, otherwise client
+        const roleToAssign = isDesigner ? 'designer' : 'client';
         await storage.createUserRole({
           userId: user.id,
-          role: 'designer',
+          role: roleToAssign,
           isActive: true,
           assignedBy: user.id, // self-assigned during signup
         });
-        console.log('[AUTH] Designer role assigned to:', user.email);
+        console.log('[AUTH] Auto-assigned role:', roleToAssign, 'to:', user.email);
       }
     }
   } catch (error) {
