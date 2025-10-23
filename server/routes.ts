@@ -965,6 +965,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PATCH route for updating specific project fields (like ganttChartLink)
+  app.patch("/api/projects/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role || 'client';
+      
+      // Parse the update data
+      const parsed = insertProjectSchema.partial().parse(req.body);
+      
+      // Check if user is admin/designer
+      if (role === 'admin' || role === 'designer') {
+        // Admin/designer can update any field
+        const project = await storage.updateProject(req.params.id, parsed);
+        if (!project) {
+          return res.status(404).json({ error: "Project not found" });
+        }
+        return res.json(project);
+      }
+      
+      // For clients, verify they have access to the project
+      const userProjects = await storage.getProjectsForUser(userId, role);
+      const hasAccess = userProjects.some(p => p.id === req.params.id);
+      
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      // Clients can only update ganttChartLink
+      const allowedFields = ['ganttChartLink'];
+      const updateData: any = {};
+      
+      for (const key of Object.keys(parsed)) {
+        if (allowedFields.includes(key)) {
+          updateData[key] = parsed[key as keyof typeof parsed];
+        }
+      }
+      
+      if (Object.keys(updateData).length === 0) {
+        return res.status(403).json({ error: "Clients can only update Gantt chart link" });
+      }
+      
+      const project = await storage.updateProject(req.params.id, updateData);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      res.json(project);
+    } catch (error) {
+      console.error('Update project error:', error);
+      res.status(400).json({ error: "Invalid project data" });
+    }
+  });
+
   app.delete("/api/projects/:id", requireAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteProject(req.params.id);
