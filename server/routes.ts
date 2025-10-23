@@ -56,6 +56,7 @@ const requireAuth = (req: express.Request, res: express.Response, next: express.
   next();
 };
 
+// Middleware for designer or admin access (content management)
 const requireAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (!req.isAuthenticated() || !req.user) {
     return res.status(401).json({ error: "Authentication required" });
@@ -66,6 +67,25 @@ const requireAdmin = async (req: express.Request, res: express.Response, next: e
     const userRole = await storage.getUserRole(userId);
     if (!userRole || (userRole.role !== 'designer' && userRole.role !== 'admin')) {
       return res.status(403).json({ error: "Admin or designer access required" });
+    }
+    next();
+  } catch (error) {
+    console.error('Error checking user role:', error);
+    return res.status(500).json({ error: "Failed to check authorization" });
+  }
+};
+
+// Middleware for admin-only access (user management, security-critical operations)
+const requireAdminOnly = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  
+  try {
+    const userId = (req.user as any).claims.sub;
+    const userRole = await storage.getUserRole(userId);
+    if (!userRole || userRole.role !== 'admin') {
+      return res.status(403).json({ error: "Admin access required" });
     }
     next();
   } catch (error) {
@@ -541,7 +561,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Replit Auth handles logout automatically at /api/logout
 
   // Role management endpoint for admins
-  app.post("/api/auth/role", requireAdmin, async (req, res) => {
+  app.post("/api/auth/role", requireAdminOnly, async (req, res) => {
     try {
       const { userId, role } = req.body;
       
@@ -580,7 +600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // User management routes (admin only)
-  app.get("/api/users", requireAdmin, async (req, res) => {
+  app.get("/api/users", requireAdminOnly, async (req, res) => {
     try {
       const users = await storage.getAllUsers();
       
