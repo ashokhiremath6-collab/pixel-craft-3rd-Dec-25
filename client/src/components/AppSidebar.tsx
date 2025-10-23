@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Link2 } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -79,11 +79,6 @@ const mainItems: NavigationItem[] = [
     title: "Quote Templates",
     url: "/templates",
     icon: FileText,
-  },
-  {
-    title: "Chart Links",
-    url: "/gantt-links",
-    icon: Link2,
   },
   {
     title: "Accounts",

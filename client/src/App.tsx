@@ -22,7 +22,6 @@ import ClientAccessPage from "@/pages/ClientAccessPage";
 import MoodboardsPage from "@/pages/MoodboardsPage";
 import AccountsPage from "@/pages/AccountsPage";
 import CataloguePage from "@/pages/CataloguePage";
-import GanttLinksPage from "@/pages/GanttLinksPage";
 import LoginPage from "@/pages/LoginPage";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +41,6 @@ function Router() {
       <Route path="/templates" component={TemplatesPage} />
       <Route path="/templates/:id" component={TemplateViewPage} />
       <Route path="/import" component={ImportPage} />
-      <Route path="/gantt-links" component={GanttLinksPage} />
       <Route path="/accounts" component={AccountsPage} />
       <Route path="/catalogue" component={CataloguePage} />
       <Route path="/moodboards" component={MoodboardsPage} />
