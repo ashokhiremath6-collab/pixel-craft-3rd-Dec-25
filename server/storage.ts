@@ -193,6 +193,7 @@ export interface IStorage {
   deleteProjectSchedule(id: string): Promise<boolean>;
   
   // Task Management
+  getAllTasks(): Promise<Task[]>;
   getTasksByProject(projectId: string): Promise<Task[]>;
   getTasksBySchedule(scheduleId: string): Promise<Task[]>;
   getTask(id: string): Promise<Task | undefined>;
@@ -934,6 +935,10 @@ export class MemStorage implements IStorage {
   }
 
   // Task Management (stubs for MemStorage - not used in production)
+  async getAllTasks(): Promise<Task[]> {
+    return [];
+  }
+
   async getTasksByProject(projectId: string): Promise<Task[]> {
     return [];
   }
@@ -1780,6 +1785,10 @@ export class DBStorage implements IStorage {
   }
 
   // Task Management
+  async getAllTasks(): Promise<Task[]> {
+    return await db.select().from(tasks).orderBy(tasks.endDate);
+  }
+
   async getTasksByProject(projectId: string): Promise<Task[]> {
     return await db.select().from(tasks).where(eq(tasks.projectId, projectId)).orderBy(tasks.startDate);
   }

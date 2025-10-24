@@ -3622,6 +3622,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Task Management API Routes
 
+  // Get all tasks across all projects
+  app.get("/api/tasks", requireAuth, async (req, res) => {
+    try {
+      const tasks = await storage.getAllTasks();
+      res.json(tasks);
+    } catch (error) {
+      console.error('Error fetching all tasks:', error);
+      res.status(500).json({ error: "Failed to fetch tasks" });
+    }
+  });
+
   // Get all tasks for a project
   app.get("/api/tasks/project/:projectId", requireAuth, async (req, res) => {
     try {

@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import Dashboard from '@/components/Dashboard';
-import type { Vendor, Project, VendorCategory, ActivityLog } from "@shared/schema";
+import type { Vendor, Project, VendorCategory, ActivityLog, Task } from "@shared/schema";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { X, FileUp, Clock } from "lucide-react";
+import { X, FileUp, Clock, AlertCircle, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatDistanceToNow } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { formatDistanceToNow, differenceInDays, startOfDay } from "date-fns";
 
 interface VendorWithCategory extends Omit<Vendor, 'categoryName'> {
   category: string;
@@ -63,6 +64,16 @@ export default function DashboardPage() {
         : '/api/activities';
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch activities');
+      return response.json();
+    }
+  });
+
+  // Fetch all tasks across all projects for alerts
+  const { data: allTasksData } = useQuery<Task[]>({
+    queryKey: ['/api/tasks'],
+    queryFn: async () => {
+      const response = await fetch('/api/tasks', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch tasks');
       return response.json();
     }
   });
@@ -166,8 +177,126 @@ export default function DashboardPage() {
     return activityType.endsWith('_delete') ? 'deleted' : 'uploaded';
   };
 
+  // Calculate task alerts (due today or in 5 days)
+  const getTaskAlerts = () => {
+    if (!allTasksData || !quotationsData) return { dueToday: [], dueSoon: [] };
+    
+    const today = startOfDay(new Date());
+    const dueToday: Array<Task & { projectName: string }> = [];
+    const dueSoon: Array<Task & { projectName: string, daysUntilDue: number }> = [];
+    
+    allTasksData.forEach(task => {
+      if (!task.endDate) return;
+      
+      const endDate = startOfDay(new Date(task.endDate));
+      const daysUntil = differenceInDays(endDate, today);
+      
+      const project = quotationsData.projects.find(p => p.id === task.projectId);
+      const projectName = project?.projectName || 'Unknown Project';
+      
+      // Only show tasks that are not completed
+      if (task.status !== 'completed') {
+        if (daysUntil === 0) {
+          dueToday.push({ ...task, projectName });
+        } else if (daysUntil === 5) {
+          dueSoon.push({ ...task, projectName, daysUntilDue: daysUntil });
+        }
+      }
+    });
+    
+    return { dueToday, dueSoon };
+  };
+
+  const taskAlerts = getTaskAlerts();
+  const hasAlerts = taskAlerts.dueToday.length > 0 || taskAlerts.dueSoon.length > 0;
+
   return (
     <div className="space-y-4">
+      {/* Task Alerts */}
+      {hasAlerts && (
+        <Card className="border-orange-200 dark:border-orange-900">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-600" />
+              <CardTitle className="text-lg">Task Alerts</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Tasks Due Today */}
+            {taskAlerts.dueToday.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="destructive" className="font-semibold">
+                    Due Today
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {taskAlerts.dueToday.length} task{taskAlerts.dueToday.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {taskAlerts.dueToday.map(task => (
+                    <div
+                      key={task.id}
+                      className="flex items-center justify-between gap-3 p-3 rounded-md bg-destructive/10 border border-destructive/20"
+                      data-testid={`alert-today-${task.id}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate" data-testid={`text-task-name-${task.id}`}>
+                          {task.name}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          <span data-testid={`text-project-${task.id}`}>{task.projectName}</span>
+                        </div>
+                      </div>
+                      <Badge variant="destructive" className="flex-shrink-0">
+                        Today
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Tasks Due in 5 Days */}
+            {taskAlerts.dueSoon.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="bg-orange-100 dark:bg-orange-900/30 text-orange-900 dark:text-orange-100 font-semibold">
+                    Due in 5 Days
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {taskAlerts.dueSoon.length} task{taskAlerts.dueSoon.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {taskAlerts.dueSoon.map(task => (
+                    <div
+                      key={task.id}
+                      className="flex items-center justify-between gap-3 p-3 rounded-md bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-900/30"
+                      data-testid={`alert-soon-${task.id}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate" data-testid={`text-task-name-${task.id}`}>
+                          {task.name}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          <span data-testid={`text-project-${task.id}`}>{task.projectName}</span>
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="bg-orange-100 dark:bg-orange-900/30 text-orange-900 dark:text-orange-100 flex-shrink-0">
+                        5 days
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Project Filter */}
       <Card>
         <CardContent className="pt-6">
