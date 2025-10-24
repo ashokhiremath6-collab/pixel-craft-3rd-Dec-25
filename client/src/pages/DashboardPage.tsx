@@ -40,12 +40,12 @@ export default function DashboardPage() {
     retry: false,
   });
   
-  const isDesigner = user?.role === 'designer';
+  const isDesignerOrAdmin = user?.role === 'designer' || user?.role === 'admin';
   
   // Fetch all data needed for dashboard
   const { data: vendorsData, isLoading: vendorsLoading } = useQuery<Vendor[]>({
     queryKey: ['/api/vendors'],
-    enabled: isDesigner, // Only load vendors for designers
+    enabled: isDesignerOrAdmin, // Load vendors for designers and admins
   });
 
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery<VendorCategory[]>({
