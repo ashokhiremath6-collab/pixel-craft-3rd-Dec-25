@@ -464,7 +464,7 @@ export default function GanttChartPage() {
                   <DialogTrigger asChild>
                     <Button size="sm" variant="outline" data-testid="button-gantt-link">
                       <ExternalLink className="h-4 w-4 mr-2" />
-                      {selectedProject?.ganttChartLink ? "View Link" : "Add Link"}
+                      {selectedProject?.ganttChartLink ? "View Gantt Chart" : "Add Link"}
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
