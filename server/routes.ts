@@ -810,6 +810,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const parsed = insertVendorSchema.parse(req.body);
       const vendor = await storage.createVendor(parsed);
+      
+      // Log activity
+      const userId = (req.user as any).claims.sub;
+      const user = await storage.getUser(userId);
+      if (user) {
+        const userName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.email || 'Unknown';
+        await storage.createActivity({
+          userId: user.id,
+          userName: userName,
+          activityType: 'vendor_create' as any,
+          fileName: vendor.name,
+          description: `created vendor "${vendor.name}"`,
+          timestamp: new Date(),
+          metadata: { vendorId: vendor.id }
+        });
+      }
+      
       res.status(201).json(vendor);
     } catch (error) {
       console.error("Error creating vendor:", error);
@@ -827,6 +846,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!vendor) {
         return res.status(404).json({ error: "Vendor not found" });
       }
+      
+      // Log activity
+      const userId = (req.user as any).claims.sub;
+      const user = await storage.getUser(userId);
+      if (user) {
+        const userName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.email || 'Unknown';
+        await storage.createActivity({
+          userId: user.id,
+          userName: userName,
+          activityType: 'vendor_update' as any,
+          fileName: vendor.name,
+          description: `updated vendor "${vendor.name}"`,
+          timestamp: new Date(),
+          metadata: { vendorId: vendor.id }
+        });
+      }
+      
       res.json(vendor);
     } catch (error) {
       res.status(400).json({ error: "Invalid vendor data" });
@@ -848,10 +886,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/vendors/:id", requireAdmin, async (req, res) => {
     try {
+      // Get vendor details before deleting for activity log
+      const vendor = await storage.getVendor(req.params.id);
+      
       const deleted = await storage.deleteVendor(req.params.id);
       if (!deleted) {
         return res.status(404).json({ error: "Vendor not found" });
       }
+      
+      // Log activity
+      if (vendor) {
+        const userId = (req.user as any).claims.sub;
+        const user = await storage.getUser(userId);
+        if (user) {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            activityType: 'vendor_delete' as any,
+            fileName: vendor.name,
+            description: `deleted vendor "${vendor.name}"`,
+            timestamp: new Date(),
+            metadata: { vendorId: req.params.id }
+          });
+        }
+      }
+      
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting vendor:', error);
