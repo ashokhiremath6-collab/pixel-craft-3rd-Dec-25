@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { createInsertSchema } from "drizzle-zod";
 import { vendorCategories, insertVendorSchema } from "@shared/schema";
-import type { Vendor, VendorCategory, Project } from "@shared/schema";
+import type { Vendor, VendorCategory } from "@shared/schema";
 
 interface CategoryWithChildren extends VendorCategory {
   children: CategoryWithChildren[];
@@ -31,7 +31,6 @@ const subcategoryFormSchema = baseInsertSchema.extend({
 
 const vendorFormSchema = insertVendorSchema.extend({
   categoryId: z.string().min(1, "Category is required"),
-  projectId: z.string().min(1, "Project is required"),
 });
 
 type SubcategoryFormData = z.infer<typeof subcategoryFormSchema>;
@@ -49,7 +48,6 @@ interface VendorListProps {
 export default function VendorList({ vendors, categories, onAddVendor, onEditVendor, onUpdateVendor, onDeleteVendor }: VendorListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [selectedProject, setSelectedProject] = useState<string>("all");
   const [isSubcategoryDialogOpen, setIsSubcategoryDialogOpen] = useState(false);
   const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -57,11 +55,6 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  // Fetch projects for project selection
-  const { data: projects = [] } = useQuery<Project[]>({
-    queryKey: ['/api/projects'],
-  });
   
   const subcategoryForm = useForm<SubcategoryFormData>({
     resolver: zodResolver(subcategoryFormSchema),
@@ -81,7 +74,6 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       phone: "",
       email: "",
       notes: "",
-      projectId: "",
     },
   });
 
@@ -110,11 +102,6 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   const handleCategoryFilter = (categoryId: string) => {
     setSelectedCategory(categoryId);
     console.log('Filter by category:', categoryId);
-  };
-
-  const handleProjectFilter = (projectId: string) => {
-    setSelectedProject(projectId);
-    console.log('Filter by project:', projectId);
   };
 
   const handleAddVendor = () => {
@@ -158,7 +145,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   // Create vendor mutation
   const createVendorMutation = useMutation({
     mutationFn: async (data: VendorFormData) => {
-      // First create the vendor
+      // Create the vendor (no project association)
       const vendorResponse = await apiRequest('POST', '/api/vendors', {
         name: data.name,
         categoryId: data.categoryId,
@@ -168,16 +155,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
         notes: data.notes || null,
       });
       
-      const vendor = await vendorResponse.json();
-      
-      // Then create/update the project-vendor relationship using upsert
-      await apiRequest('POST', '/api/project-vendors/upsert', {
-        projectId: data.projectId,
-        vendorId: vendor.id,
-        status: 'Quoted',
-      });
-      
-      return vendor;
+      return await vendorResponse.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
@@ -190,11 +168,10 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
         phone: "",
         email: "",
         notes: "",
-        projectId: "",
       });
       toast({
         title: "Success",
-        description: "Vendor created successfully and linked to project",
+        description: "Vendor created successfully",
       });
     },
     onError: (error) => {
@@ -305,7 +282,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
     return result;
   };
 
-  // Filter vendors with hierarchical support and project filtering
+  // Filter vendors with hierarchical support
   const filteredVendors = vendors.filter(vendor => {
     const matchesSearch = vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          vendor.contactPerson.toLowerCase().includes(searchTerm.toLowerCase());
@@ -317,13 +294,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       matchesCategory = categoryIds.includes(vendor.categoryId);
     }
     
-    // Project filtering
-    let matchesProject = selectedProject === "all";
-    if (!matchesProject && selectedProject !== "all") {
-      matchesProject = vendor.projects?.some(project => project.projectId === selectedProject) || false;
-    }
-    
-    return matchesSearch && matchesCategory && matchesProject;
+    return matchesSearch && matchesCategory;
   });
 
   // Group vendors by category with hierarchical display
@@ -505,30 +476,6 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                                   )}
                                   {category.name}
                                 </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={vendorForm.control}
-                    name="projectId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Project</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-vendor-project">
-                              <SelectValue placeholder="Select project" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {projects.map(project => (
-                              <SelectItem key={project.id} value={project.id}>
-                                {project.projectName} - {project.clientName}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -822,19 +769,6 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                 ))}
               </SelectContent>
             </Select>
-            <Select value={selectedProject} onValueChange={handleProjectFilter}>
-              <SelectTrigger className="w-full sm:w-48" data-testid="select-project-filter">
-                <SelectValue placeholder="All Projects" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Projects</SelectItem>
-                {projects.map(project => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.projectName} - {project.clientName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </CardContent>
       </Card>
@@ -856,14 +790,6 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                 return parentCategory ? `${parentCategory.name} > ${category.name}` : category.name;
               }
               return category.name;
-            })()}
-          </Badge>
-        )}
-        {selectedProject !== "all" && (
-          <Badge variant="secondary" data-testid="badge-active-project-filter">
-            {(() => {
-              const project = projects.find(p => p.id === selectedProject);
-              return project ? `${project.projectName} - ${project.clientName}` : selectedProject;
             })()}
           </Badge>
         )}
