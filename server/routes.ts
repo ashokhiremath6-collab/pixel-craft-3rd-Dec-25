@@ -5163,6 +5163,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         const spec = await storage.createSpecification(specData);
+
+        // Log activity
+        const user = await storage.getUser(userId);
+        if (user) {
+          try {
+            await storage.createActivityLog({
+              userId: userId,
+              userName: user.firstName && user.lastName 
+                ? `${user.firstName} ${user.lastName}` 
+                : user.email || 'Unknown User',
+              userEmail: user.email || '',
+              activityType: 'specification',
+              fileName: req.file.originalname,
+              filePath: objectPath,
+              description: `Uploaded specification: ${req.body.title} (${req.body.category})`,
+              metadata: {
+                specificationId: spec.id,
+                category: req.body.category,
+                title: req.body.title,
+              },
+            });
+          } catch (activityError) {
+            console.error('Error logging specification activity:', activityError);
+          }
+        }
+
         res.status(201).json(spec);
       } catch (error) {
         console.error('Error creating specification:', error);
