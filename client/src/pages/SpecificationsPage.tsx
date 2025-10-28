@@ -286,29 +286,29 @@ export default function SpecificationsPage() {
                 No specifications found. {category !== "all" && "Try changing your filter selection."}
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {Array.from(groupedSpecs.entries()).map(([categoryName, categorySpecs]) => (
-                  <div key={categoryName} className="space-y-3">
-                    <h3 className="text-lg font-semibold">{categoryName}</h3>
-                    <div className="space-y-2">
+                  <div key={categoryName} className="space-y-2">
+                    <h3 className="text-base font-semibold">{categoryName}</h3>
+                    <div className="space-y-1.5">
                       {categorySpecs.map((spec) => (
                         <div
                           key={spec.id}
-                          className="flex items-center justify-between p-4 border rounded-lg hover-elevate"
+                          className="flex items-center justify-between p-2.5 border rounded-lg hover-elevate"
                           data-testid={`row-spec-${spec.id}`}
                         >
-                          <div className="flex-1 space-y-1">
-                            <div className="flex items-center gap-3">
-                              <FileText className="h-5 w-5 text-primary" />
-                              <div>
-                                <h4 className="font-medium">{spec.title}</h4>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-primary flex-shrink-0" />
+                              <div className="min-w-0">
+                                <h4 className="font-medium text-sm">{spec.title}</h4>
                                 {spec.description && (
-                                  <p className="text-sm text-muted-foreground">{spec.description}</p>
+                                  <p className="text-xs text-muted-foreground">{spec.description}</p>
                                 )}
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
                             {spec.filePath && (
                               <>
                                 <Button
@@ -316,18 +316,18 @@ export default function SpecificationsPage() {
                                   size="sm"
                                   onClick={() => window.open(spec.filePath, '_blank')}
                                   data-testid={`button-view-${spec.id}`}
-                                  className="text-primary"
+                                  className="text-primary h-7 px-2 text-xs"
                                 >
-                                  <Eye className="h-4 w-4 mr-1" />
+                                  <Eye className="h-3.5 w-3.5 mr-1" />
                                   View
                                 </Button>
                                 <a
                                   href={spec.filePath}
                                   download={spec.fileName}
-                                  className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1"
+                                  className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 px-2"
                                   data-testid={`link-download-${spec.id}`}
                                 >
-                                  <Download className="h-4 w-4" />
+                                  <Download className="h-3.5 w-3.5" />
                                   {spec.fileName && getFileType(spec.fileName)}
                                 </a>
                               </>
@@ -336,10 +336,11 @@ export default function SpecificationsPage() {
                               <DropdownMenuTrigger asChild>
                                 <Button
                                   variant="ghost"
-                                  size="icon"
+                                  size="sm"
                                   data-testid={`button-menu-${spec.id}`}
+                                  className="h-7 w-7 p-0"
                                 >
-                                  <MoreVertical className="h-4 w-4" />
+                                  <MoreVertical className="h-3.5 w-3.5" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
