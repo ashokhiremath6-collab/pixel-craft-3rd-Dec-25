@@ -113,7 +113,6 @@ export default function DashboardPage() {
         ...q,
         projectName: project?.projectName || 'Unknown Project',
         category: q.category, // Include category from API response
-        uploaderName: q.uploaderName || null // Include uploader name from API response
       }));
     });
 

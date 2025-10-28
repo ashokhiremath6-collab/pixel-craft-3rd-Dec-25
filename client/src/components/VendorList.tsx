@@ -815,7 +815,9 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       </div>
 
       {/* Vendors by Category */}
-      {Object.entries(vendorsByCategory).map(([category, categoryVendors]) => (
+      {Object.entries(vendorsByCategory)
+        .sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }))
+        .map(([category, categoryVendors]) => (
         <div key={category} className="space-y-4">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold" data-testid={`heading-category-${category}`}>
