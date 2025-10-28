@@ -608,7 +608,9 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
       </Card>
 
       {/* Comparison Groups */}
-      {Object.entries(groupedData).map(([key, group]) => {
+      {Object.entries(groupedData)
+        .sort((a, b) => a[1].category.localeCompare(b[1].category, undefined, { sensitivity: 'base' }))
+        .map(([key, group]) => {
         const lowestQuote = getLowestQuote(group.quotations);
         const sortedQuotations = [...group.quotations].sort((a, b) => 
           {
