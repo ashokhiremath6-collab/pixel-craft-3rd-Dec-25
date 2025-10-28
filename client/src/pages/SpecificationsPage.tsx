@@ -179,8 +179,9 @@ export default function SpecificationsPage() {
       });
     } else {
       setEditingSpec(null);
+      const defaultCategory = category !== "all" ? category : "";
       setFormData({
-        category: category !== "all" ? category : "",
+        category: defaultCategory,
         title: "",
         description: "",
       });

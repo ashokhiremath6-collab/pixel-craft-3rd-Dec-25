@@ -22,6 +22,7 @@ import ClientAccessPage from "@/pages/ClientAccessPage";
 import MoodboardsPage from "@/pages/MoodboardsPage";
 import AccountsPage from "@/pages/AccountsPage";
 import CataloguePage from "@/pages/CataloguePage";
+import SpecificationsPage from "@/pages/SpecificationsPage";
 import LoginPage from "@/pages/LoginPage";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/import" component={ImportPage} />
       <Route path="/accounts" component={AccountsPage} />
       <Route path="/catalogue" component={CataloguePage} />
+      <Route path="/specifications" component={SpecificationsPage} />
       <Route path="/moodboards" component={MoodboardsPage} />
       <Route path="/working-drawings" component={MoodboardsPage} />
       <Route path="/renders" component={MoodboardsPage} />

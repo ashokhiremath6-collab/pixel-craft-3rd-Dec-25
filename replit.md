@@ -45,7 +45,7 @@ Preferred communication style: Simple, everyday language.
   - Non-blocking migration runner prevents server crashes
   - See MIGRATIONS.md for complete workflow documentation
 - **File Storage**: Replit Object Storage (Google Cloud Storage) for permanent file persistence
-  - All uploaded files (floor plans, moodboards, renders, quotations, BOQ files) stored in object storage
+  - All uploaded files (floor plans, moodboards, renders, quotations, BOQ files, specifications) stored in object storage
   - Files persist across deployments and workflow restarts
   - ACL-based access control for file security
   - Paths stored in database as `/objects/uploads/<uuid>`
@@ -63,6 +63,7 @@ Preferred communication style: Simple, everyday language.
 - **Tasks**: Individual project tasks with dependencies, dates, and progress tracking
 - **Task Dependencies**: Support for all 4 dependency types (FS, SS, FF, SF) with lag
 - **Catalogue Items**: Interior design product taxonomy with fields for main category, subcategory, vendor/brand, description, attributes, and file attachments
+- **Specifications**: Category-wise specification documents with file upload support (category, title, description, file storage)
 - **Activity Log**: Tracks vendor operations (create, update, delete) and file uploads with user attribution
 
 ### Design System
@@ -85,6 +86,11 @@ Preferred communication style: Simple, everyday language.
   - Vendor/brand field for tracking product suppliers
   - Description field for detailed item information
   - File upload support for supplier catalogues (PDF, images, Excel, Word)
+- **Specifications System**: Category-wise specification document management
+  - Category-based organization (AC Specifications, Audio System Specs, etc.)
+  - File upload support for specification documents (PDF, Word, Excel)
+  - Auto-fill category from filter selection when adding new documents
+  - Admin/Designer only access for document management
 
 ### Advanced Project Scheduling
 - **Gantt Chart Template**: 250-row Excel template with Instructions sheet
