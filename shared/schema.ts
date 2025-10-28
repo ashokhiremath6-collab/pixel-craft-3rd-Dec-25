@@ -277,13 +277,17 @@ export const insertVendorCategorySchema = createInsertSchema(vendorCategories).o
 export const insertVendorSchema = createInsertSchema(vendors).omit({
   id: true,
 }).extend({
-  // Email is optional - converts empty string to null, validates if present
-  email: z.string()
-    .transform((val) => val === "" ? null : val)
-    .nullable()
-    .refine((val) => val === null || z.string().email().safeParse(val).success, {
-      message: "Please enter a valid email address"
-    }),
+  // Email is completely optional - empty values are converted to null
+  email: z.union([
+    z.string().email("Invalid email format. Either enter a valid email or leave it blank."),
+    z.literal(""),
+    z.null(),
+    z.undefined()
+  ]).transform((val) => {
+    // Convert empty string, undefined, or null to null
+    if (val === "" || val === undefined || val === null) return null;
+    return val;
+  }),
 });
 
 export const insertProjectSchema = createInsertSchema(projects).omit({
