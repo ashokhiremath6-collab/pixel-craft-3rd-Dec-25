@@ -5145,11 +5145,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Upload file to object storage
-        const fileName = `spec_${Date.now()}_${req.file.originalname}`;
-        const objectPath = await uploadFileToObjectStorage(
+        const userId = (req.user as any).claims.sub;
+        const objectPath = await uploadToObjectStorage(
           req.file.buffer,
-          fileName,
-          PRIVATE_OBJECT_DIR
+          req.file.originalname,
+          userId,
+          req.file.mimetype
         );
 
         const specData = {
@@ -5158,7 +5159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           description: req.body.description || null,
           fileName: req.file.originalname,
           filePath: objectPath,
-          uploadedBy: req.user!.id,
+          uploadedBy: userId,
         };
 
         const spec = await storage.createSpecification(specData);
@@ -5181,11 +5182,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Handle file upload if provided
       if (req.file) {
-        const fileName = `spec_${Date.now()}_${req.file.originalname}`;
-        const objectPath = await uploadFileToObjectStorage(
+        const userId = (req.user as any).claims.sub;
+        const objectPath = await uploadToObjectStorage(
           req.file.buffer,
-          fileName,
-          PRIVATE_OBJECT_DIR
+          req.file.originalname,
+          userId,
+          req.file.mimetype
         );
         updates.fileName = req.file.originalname;
         updates.filePath = objectPath;
