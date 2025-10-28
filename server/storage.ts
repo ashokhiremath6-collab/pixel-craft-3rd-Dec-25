@@ -65,6 +65,7 @@ import {
   vendorInvoices,
   vendorPayments,
   catalogueItems,
+  specifications,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -245,6 +246,15 @@ export interface IStorage {
   createCatalogueItemWithId(item: InsertCatalogueItem & { id: string }): Promise<CatalogueItem>;
   updateCatalogueItem(id: string, item: Partial<InsertCatalogueItem>): Promise<CatalogueItem | undefined>;
   deleteCatalogueItem(id: string): Promise<boolean>;
+  
+  // Specifications
+  getAllSpecifications(): Promise<Specification[]>;
+  getSpecification(id: string): Promise<Specification | undefined>;
+  getSpecificationsByCategory(category: string): Promise<Specification[]>;
+  getSpecificationCategories(): Promise<string[]>;
+  createSpecification(spec: InsertSpecification): Promise<Specification>;
+  updateSpecification(id: string, spec: Partial<InsertSpecification>): Promise<Specification | undefined>;
+  deleteSpecification(id: string): Promise<boolean>;
   
   // Vendors (with role-based filtering)
   getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
@@ -2014,6 +2024,45 @@ export class DBStorage implements IStorage {
 
   async deleteCatalogueItem(id: string): Promise<boolean> {
     const result = await db.delete(catalogueItems).where(eq(catalogueItems.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Specifications
+  async getAllSpecifications(): Promise<Specification[]> {
+    return await db.select().from(specifications).orderBy(specifications.category, specifications.title);
+  }
+
+  async getSpecification(id: string): Promise<Specification | undefined> {
+    const result = await db.select().from(specifications).where(eq(specifications.id, id));
+    return result[0];
+  }
+
+  async getSpecificationsByCategory(category: string): Promise<Specification[]> {
+    return await db.select()
+      .from(specifications)
+      .where(eq(specifications.category, category))
+      .orderBy(specifications.title);
+  }
+
+  async getSpecificationCategories(): Promise<string[]> {
+    const result = await db.selectDistinct({ category: specifications.category })
+      .from(specifications)
+      .orderBy(specifications.category);
+    return result.map(r => r.category);
+  }
+
+  async createSpecification(spec: InsertSpecification): Promise<Specification> {
+    const result = await db.insert(specifications).values(spec).returning();
+    return result[0];
+  }
+
+  async updateSpecification(id: string, spec: Partial<InsertSpecification>): Promise<Specification | undefined> {
+    const result = await db.update(specifications).set(spec).where(eq(specifications.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteSpecification(id: string): Promise<boolean> {
+    const result = await db.delete(specifications).where(eq(specifications.id, id));
     return result.rowCount !== null && result.rowCount > 0;
   }
 }
