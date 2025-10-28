@@ -277,11 +277,10 @@ export const insertVendorCategorySchema = createInsertSchema(vendorCategories).o
 export const insertVendorSchema = createInsertSchema(vendors).omit({
   id: true,
 }).extend({
-  email: z.union([
-    z.string().email(),
-    z.literal(""),
-    z.null(),
-  ]).transform(val => val === "" ? null : val),
+  email: z.preprocess(
+    (val) => (val === "" || val === undefined || val === null) ? null : val,
+    z.union([z.string().email(), z.null()])
+  ),
 });
 
 export const insertProjectSchema = createInsertSchema(projects).omit({

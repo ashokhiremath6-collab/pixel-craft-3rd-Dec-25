@@ -808,7 +808,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/vendors", requireAdmin, async (req, res) => {
     try {
+      console.log('📥 Received vendor data:', JSON.stringify(req.body, null, 2));
+      console.log('📧 Email field - type:', typeof req.body.email, 'value:', JSON.stringify(req.body.email));
+      
       const parsed = insertVendorSchema.parse(req.body);
+      console.log('✅ Validation passed. Email after validation:', parsed.email);
+      
       const vendor = await storage.createVendor(parsed);
       
       // Log activity
@@ -831,7 +836,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(vendor);
     } catch (error) {
-      console.error("Error creating vendor:", error);
+      console.error("❌ Error creating vendor:", error);
+      if (error instanceof z.ZodError) {
+        console.error("❌ Zod validation errors:", JSON.stringify(error.errors, null, 2));
+        return res.status(400).json({ error: "Invalid vendor data", details: error.errors });
+      }
       if (error instanceof Error && error.message.includes("already exists")) {
         return res.status(400).json({ error: error.message });
       }
