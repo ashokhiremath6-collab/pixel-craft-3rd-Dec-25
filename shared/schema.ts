@@ -275,9 +275,10 @@ export const insertVendorCategorySchema = createInsertSchema(vendorCategories).o
 });
 
 export const insertVendorSchema = createInsertSchema(vendors, {
-  email: z.string().refine((val) => !val || z.string().email().safeParse(val).success, {
-    message: "Invalid email format",
-  }).optional().transform(val => val || null),
+  email: z.preprocess(
+    (val) => (val === "" || val === undefined) ? null : val,
+    z.string().email().nullable()
+  ),
 }).omit({
   id: true,
 });
