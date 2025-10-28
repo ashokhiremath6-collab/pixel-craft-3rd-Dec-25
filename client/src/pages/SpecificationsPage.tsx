@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, MoreVertical, Pencil, Trash2, FileText, Download } from "lucide-react";
+import { Plus, MoreVertical, Pencil, Trash2, FileText, Download, Eye } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
-import type { Specification } from "@shared/schema";
+import type { Specification, VendorCategory } from "@shared/schema";
 
 export default function SpecificationsPage() {
   const { toast } = useToast();
@@ -59,10 +59,19 @@ export default function SpecificationsPage() {
     },
   });
 
-  // Fetch categories
-  const { data: categories = [] } = useQuery<string[]>({
-    queryKey: ["/api/specifications/categories"],
+  // Fetch vendor categories (same as vendors page)
+  const { data: vendorCategories = [] } = useQuery<VendorCategory[]>({
+    queryKey: ['/api/vendor-categories/tree'],
   });
+
+  // Extract flat list of category names for dropdown
+  const categoryNames = useMemo(() => {
+    const names: string[] = [];
+    vendorCategories.forEach((cat) => {
+      names.push(cat.name);
+    });
+    return names.sort();
+  }, [vendorCategories]);
 
   // Filter specs based on selection
   const filteredSpecs = useMemo(() => {
@@ -114,7 +123,6 @@ export default function SpecificationsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/specifications"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/specifications/categories"] });
       setDialogOpen(false);
       setEditingSpec(null);
       setSelectedFile(null);
@@ -147,7 +155,6 @@ export default function SpecificationsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/specifications"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/specifications/categories"] });
       toast({
         title: "Success",
         description: "Specification deleted successfully",
@@ -250,9 +257,9 @@ export default function SpecificationsPage() {
               <SelectTrigger className="w-full md:w-64">
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[300px]">
                 <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((cat) => (
+                {categoryNames.map((cat) => (
                   <SelectItem key={cat} value={cat}>
                     {cat}
                   </SelectItem>
@@ -303,16 +310,27 @@ export default function SpecificationsPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             {spec.filePath && (
-                              <a
-                                href={spec.filePath}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-primary hover:underline flex items-center gap-1"
-                                data-testid={`link-download-${spec.id}`}
-                              >
-                                <Download className="h-4 w-4" />
-                                {spec.fileName && getFileType(spec.fileName)}
-                              </a>
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => window.open(spec.filePath, '_blank')}
+                                  data-testid={`button-view-${spec.id}`}
+                                  className="text-primary"
+                                >
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  View
+                                </Button>
+                                <a
+                                  href={spec.filePath}
+                                  download={spec.fileName}
+                                  className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1"
+                                  data-testid={`link-download-${spec.id}`}
+                                >
+                                  <Download className="h-4 w-4" />
+                                  {spec.fileName && getFileType(spec.fileName)}
+                                </a>
+                              </>
                             )}
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
