@@ -185,6 +185,16 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   });
 
   const handleCreateVendor = (data: VendorFormData) => {
+    // Check if there are validation errors
+    const errors = vendorForm.formState.errors;
+    if (errors.email) {
+      toast({
+        title: "Error",
+        description: "You need to enter an email ID.",
+        variant: "destructive",
+      });
+      return;
+    }
     createVendorMutation.mutate(data);
   };
 
@@ -525,7 +535,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email (Optional)</FormLabel>
+                        <FormLabel>Email</FormLabel>
                         <FormControl>
                           <Input
                             type="email"
@@ -674,7 +684,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email (Optional)</FormLabel>
+                        <FormLabel>Email</FormLabel>
                         <FormControl>
                           <Input
                             type="email"

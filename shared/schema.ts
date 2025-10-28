@@ -277,17 +277,8 @@ export const insertVendorCategorySchema = createInsertSchema(vendorCategories).o
 export const insertVendorSchema = createInsertSchema(vendors).omit({
   id: true,
 }).extend({
-  // Email is completely optional - empty values are converted to null
-  email: z.union([
-    z.string().email("Invalid email format. Either enter a valid email or leave it blank."),
-    z.literal(""),
-    z.null(),
-    z.undefined()
-  ]).transform((val) => {
-    // Convert empty string, undefined, or null to null
-    if (val === "" || val === undefined || val === null) return null;
-    return val;
-  }),
+  // Email is required
+  email: z.string().min(1, "You need to enter an email ID.").email("You need to enter an email ID."),
 });
 
 export const insertProjectSchema = createInsertSchema(projects).omit({
