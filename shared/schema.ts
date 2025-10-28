@@ -269,6 +269,21 @@ export const catalogueItems = pgTable("catalogue_items", {
   mainCategoryIdx: index("catalogue_main_category_idx").on(table.mainCategory),
 }));
 
+// Specifications table for category-wise technical specifications
+export const specifications = pgTable("specifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  category: text("category").notNull(), // AC, Audio System, Lighting, etc.
+  title: text("title").notNull(), // Specification name/title
+  description: text("description"), // Optional description
+  fileName: text("file_name").notNull(), // Original file name
+  filePath: text("file_path").notNull(), // Object storage path
+  uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
+  uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+}, (table) => ({
+  // Index for faster filtering by category
+  categoryIdx: index("specifications_category_idx").on(table.category),
+}));
+
 // Insert schemas
 export const insertVendorCategorySchema = createInsertSchema(vendorCategories).omit({
   id: true,
@@ -387,6 +402,11 @@ export const insertCatalogueItemSchema = createInsertSchema(catalogueItems).omit
   createdAt: true,
 });
 
+export const insertSpecificationSchema = createInsertSchema(specifications).omit({
+  id: true,
+  uploadedAt: true,
+});
+
 // Types
 export type InsertVendorCategory = z.infer<typeof insertVendorCategorySchema>;
 export type VendorCategory = typeof vendorCategories.$inferSelect;
@@ -444,6 +464,9 @@ export type VendorPayment = typeof vendorPayments.$inferSelect;
 
 export type InsertCatalogueItem = z.infer<typeof insertCatalogueItemSchema>;
 export type CatalogueItem = typeof catalogueItems.$inferSelect;
+
+export type InsertSpecification = z.infer<typeof insertSpecificationSchema>;
+export type Specification = typeof specifications.$inferSelect;
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(
