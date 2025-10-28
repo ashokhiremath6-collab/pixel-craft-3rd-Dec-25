@@ -327,6 +327,13 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
     return acc;
   }, {} as Record<string, Vendor[]>);
 
+  // Sort vendors alphabetically within each category
+  Object.keys(vendorsByCategory).forEach(category => {
+    vendorsByCategory[category].sort((a, b) => 
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    );
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
