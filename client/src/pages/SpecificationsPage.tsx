@@ -381,14 +381,22 @@ export default function SpecificationsPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
-                <Input
-                  id="category"
-                  placeholder="e.g., AC Specifications, Audio System Specs"
+                <Select
                   value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  data-testid="input-category"
+                  onValueChange={(value) => setFormData({ ...formData, category: value })}
                   required
-                />
+                >
+                  <SelectTrigger id="category" data-testid="select-category-form">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {categoryNames.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
