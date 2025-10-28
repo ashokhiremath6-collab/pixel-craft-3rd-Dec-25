@@ -52,7 +52,9 @@ Preferred communication style: Simple, everyday language.
 
 ### Core Data Models
 - **Vendor Categories**: Hierarchical structure with parent-child relationships
-- **Vendors**: Linked to categories with contact information
+- **Vendors**: Global entities linked to categories with contact information (name, contact person, phone, optional email)
+  - Email field is optional - vendors can be created without email addresses
+  - Vendors are not tied to specific projects; project associations only track quotation history
 - **Projects**: Client projects with date ranges and vendor associations
 - **Project-Vendor Relations**: Junction table for many-to-many relationships with quotation data
 - **Quote Templates**: Reusable templates for different vendor categories
@@ -61,6 +63,7 @@ Preferred communication style: Simple, everyday language.
 - **Tasks**: Individual project tasks with dependencies, dates, and progress tracking
 - **Task Dependencies**: Support for all 4 dependency types (FS, SS, FF, SF) with lag
 - **Catalogue Items**: Interior design product taxonomy with fields for main category, subcategory, vendor/brand, description, attributes, and file attachments
+- **Activity Log**: Tracks vendor operations (create, update, delete) and file uploads with user attribution
 
 ### Design System
 - **Component Library**: Custom components built on Radix UI primitives

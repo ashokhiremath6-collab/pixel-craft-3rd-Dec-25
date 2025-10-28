@@ -19,7 +19,7 @@ export const vendors = pgTable("vendors", {
   categoryId: varchar("category_id").notNull().references(() => vendorCategories.id),
   contactPerson: text("contact_person").notNull(),
   phone: text("phone").notNull(),
-  email: text("email").notNull(),
+  email: text("email"), // Optional - some vendors may not have email
   notes: text("notes"),
 });
 

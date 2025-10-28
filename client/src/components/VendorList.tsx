@@ -31,6 +31,7 @@ const subcategoryFormSchema = baseInsertSchema.extend({
 
 const vendorFormSchema = insertVendorSchema.extend({
   categoryId: z.string().min(1, "Category is required"),
+  email: z.string().email("Invalid email format").optional().or(z.literal("")),
 });
 
 type SubcategoryFormData = z.infer<typeof subcategoryFormSchema>;
@@ -80,6 +81,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   // Edit vendor form with simplified schema (no projectId required for editing)
   const editVendorFormSchema = insertVendorSchema.extend({
     categoryId: z.string().min(1, "Category is required"),
+    email: z.string().email("Invalid email format").optional().or(z.literal("")),
   });
   
   const editVendorForm = useForm<z.infer<typeof editVendorFormSchema>>({
@@ -151,7 +153,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
         categoryId: data.categoryId,
         contactPerson: data.contactPerson,
         phone: data.phone,
-        email: data.email,
+        email: data.email || null,
         notes: data.notes || null,
       });
       
@@ -525,7 +527,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel>Email (Optional)</FormLabel>
                         <FormControl>
                           <Input
                             type="email"
@@ -673,7 +675,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel>Email (Optional)</FormLabel>
                         <FormControl>
                           <Input
                             type="email"
