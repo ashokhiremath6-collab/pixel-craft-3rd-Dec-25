@@ -821,10 +821,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.createActivity({
           userId: user.id,
           userName: userName,
-          activityType: 'vendor_create' as any,
+          userEmail: user.email,
+          activityType: 'vendor_create',
           fileName: vendor.name,
           description: `created vendor "${vendor.name}"`,
-          timestamp: new Date(),
           metadata: { vendorId: vendor.id }
         });
       }
@@ -857,10 +857,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.createActivity({
           userId: user.id,
           userName: userName,
-          activityType: 'vendor_update' as any,
+          userEmail: user.email,
+          activityType: 'vendor_update',
           fileName: vendor.name,
           description: `updated vendor "${vendor.name}"`,
-          timestamp: new Date(),
           metadata: { vendorId: vendor.id }
         });
       }
@@ -905,10 +905,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.createActivity({
             userId: user.id,
             userName: userName,
-            activityType: 'vendor_delete' as any,
+            userEmail: user.email,
+            activityType: 'vendor_delete',
             fileName: vendor.name,
             description: `deleted vendor "${vendor.name}"`,
-            timestamp: new Date(),
             metadata: { vendorId: req.params.id }
           });
         }
