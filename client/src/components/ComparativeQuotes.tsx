@@ -652,7 +652,12 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                       return acc;
                     }, {} as Record<string, typeof sortedQuotations>);
 
-                    return Object.entries(vendorGroups).flatMap(([vendorName, vendorQuotations], vendorIndex) => {
+                    // Sort vendors alphabetically
+                    const sortedVendorEntries = Object.entries(vendorGroups).sort((a, b) => 
+                      a[0].localeCompare(b[0], undefined, { sensitivity: 'base' })
+                    );
+
+                    return sortedVendorEntries.flatMap(([vendorName, vendorQuotations], vendorIndex) => {
                       // Sort vendor quotations: items first, then options
                       const sortedVendorQuotations = vendorQuotations.sort((a, b) => {
                         if (a.quotationType !== b.quotationType) {
