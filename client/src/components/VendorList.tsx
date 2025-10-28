@@ -31,7 +31,9 @@ const subcategoryFormSchema = baseInsertSchema.extend({
 
 const vendorFormSchema = insertVendorSchema.extend({
   categoryId: z.string().min(1, "Category is required"),
-  email: z.string().email("Invalid email format").optional().or(z.literal("")),
+  email: z.string().refine((val) => !val || z.string().email().safeParse(val).success, {
+    message: "Invalid email format",
+  }).optional(),
 });
 
 type SubcategoryFormData = z.infer<typeof subcategoryFormSchema>;
@@ -81,7 +83,9 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   // Edit vendor form with simplified schema (no projectId required for editing)
   const editVendorFormSchema = insertVendorSchema.extend({
     categoryId: z.string().min(1, "Category is required"),
-    email: z.string().email("Invalid email format").optional().or(z.literal("")),
+    email: z.string().refine((val) => !val || z.string().email().safeParse(val).success, {
+      message: "Invalid email format",
+    }).optional(),
   });
   
   const editVendorForm = useForm<z.infer<typeof editVendorFormSchema>>({
@@ -197,7 +201,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       categoryId: vendor.categoryId,
       contactPerson: vendor.contactPerson,
       phone: vendor.phone,
-      email: vendor.email,
+      email: vendor.email || "",
       notes: vendor.notes || "",
     });
     setIsEditDialogOpen(true);
