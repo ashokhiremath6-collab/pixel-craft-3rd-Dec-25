@@ -102,6 +102,11 @@ const designerOnlyItems: NavigationItem[] = [
     icon: BookOpen,
   },
   {
+    title: "Specifications",
+    url: "/specifications",
+    icon: FileText,
+  },
+  {
     title: "Client Access",
     url: "/client-access",
     icon: UserCheck,

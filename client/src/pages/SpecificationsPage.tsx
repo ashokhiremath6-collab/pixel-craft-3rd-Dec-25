@@ -408,7 +408,7 @@ export default function SpecificationsPage() {
                   data-testid="input-file"
                   required={!editingSpec}
                 />
-                {editingSpec && spec.fileName && !selectedFile && (
+                {editingSpec && editingSpec.fileName && !selectedFile && (
                   <p className="text-sm text-muted-foreground">
                     Current file: {editingSpec.fileName}
                   </p>
