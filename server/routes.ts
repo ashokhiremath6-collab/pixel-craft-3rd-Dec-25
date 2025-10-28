@@ -5096,6 +5096,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Configure multer for specifications file uploads
+  const specificationsUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB limit
+    },
+  });
+
+  // Specifications Routes - Admin/Designer only
+  app.get("/api/specifications", requireAdmin, async (req, res) => {
+    try {
+      const { category } = req.query;
+      const specs = category 
+        ? await storage.getSpecificationsByCategory(category as string)
+        : await storage.getAllSpecifications();
+      res.json(specs);
+    } catch (error) {
+      console.error('Error fetching specifications:', error);
+      res.status(500).json({ error: "Failed to fetch specifications" });
+    }
+  });
+
+  app.get("/api/specifications/categories", requireAdmin, async (req, res) => {
+    try {
+      const categories = await storage.getSpecificationCategories();
+      res.json(categories);
+    } catch (error) {
+      console.error('Error fetching specification categories:', error);
+      res.status(500).json({ error: "Failed to fetch categories" });
+    }
+  });
+
+  app.post("/api/specifications", requireAdmin, (req, res, next) => {
+    specificationsUpload.single('file')(req, res, async (err) => {
+      if (err) {
+        console.error('Multer error:', err);
+        return res.status(400).json({ error: err.message });
+      }
+
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: "File is required" });
+        }
+
+        if (!req.body.category || !req.body.title) {
+          return res.status(400).json({ error: "Category and title are required" });
+        }
+
+        // Upload file to object storage
+        const fileName = `spec_${Date.now()}_${req.file.originalname}`;
+        const objectPath = await uploadFileToObjectStorage(
+          req.file.buffer,
+          fileName,
+          PRIVATE_OBJECT_DIR
+        );
+
+        const specData = {
+          category: req.body.category,
+          title: req.body.title,
+          description: req.body.description || null,
+          fileName: req.file.originalname,
+          filePath: objectPath,
+          uploadedBy: req.user!.id,
+        };
+
+        const spec = await storage.createSpecification(specData);
+        res.status(201).json(spec);
+      } catch (error) {
+        console.error('Error creating specification:', error);
+        res.status(500).json({ error: "Failed to create specification" });
+      }
+    });
+  });
+
+  app.put("/api/specifications/:id", requireAdmin, specificationsUpload.single('file'), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates: any = {};
+
+      if (req.body.category) updates.category = req.body.category;
+      if (req.body.title) updates.title = req.body.title;
+      if (req.body.description !== undefined) updates.description = req.body.description || null;
+
+      // Handle file upload if provided
+      if (req.file) {
+        const fileName = `spec_${Date.now()}_${req.file.originalname}`;
+        const objectPath = await uploadFileToObjectStorage(
+          req.file.buffer,
+          fileName,
+          PRIVATE_OBJECT_DIR
+        );
+        updates.fileName = req.file.originalname;
+        updates.filePath = objectPath;
+      }
+
+      const spec = await storage.updateSpecification(id, updates);
+      if (!spec) {
+        return res.status(404).json({ error: "Specification not found" });
+      }
+      res.json(spec);
+    } catch (error) {
+      console.error('Error updating specification:', error);
+      res.status(500).json({ error: "Failed to update specification" });
+    }
+  });
+
+  app.delete("/api/specifications/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteSpecification(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Specification not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting specification:', error);
+      res.status(500).json({ error: "Failed to delete specification" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
