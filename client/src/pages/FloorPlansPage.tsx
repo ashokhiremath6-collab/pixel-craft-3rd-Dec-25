@@ -316,11 +316,11 @@ export default function FloorPlansPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 space-y-3">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold" data-testid="text-floor-plans-title">Floor Plans</h1>
-          <p className="text-muted-foreground">Manage architectural drawings and floor plans for your projects</p>
+          <h1 className="text-2xl font-bold" data-testid="text-floor-plans-title">Floor Plans</h1>
+          <p className="text-sm text-muted-foreground">Manage architectural drawings and floor plans for your projects</p>
         </div>
         
         <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
