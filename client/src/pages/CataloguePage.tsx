@@ -314,10 +314,10 @@ export default function CataloguePage() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="p-4 max-w-7xl mx-auto space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold" data-testid="text-page-title">Catalogues</h1>
+            <h1 className="text-2xl font-bold" data-testid="text-page-title">Catalogues</h1>
             <p className="text-muted-foreground mt-1">
               Interior design product taxonomy for presentations
             </p>
@@ -328,19 +328,19 @@ export default function CataloguePage() {
           </Button>
         </div>
 
-        <Tabs defaultValue="grid" className="space-y-6">
+        <Tabs defaultValue="grid" className="space-y-3">
           <TabsList data-testid="tabs-catalogue-view">
             <TabsTrigger value="grid" data-testid="tab-grid">Grid View</TabsTrigger>
             <TabsTrigger value="library" data-testid="tab-library">Library</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="grid" className="space-y-6">
+          <TabsContent value="grid" className="space-y-3">
             <Card>
-          <CardHeader>
-            <CardTitle>Filter Products</CardTitle>
+          <CardHeader className="p-4">
+            <CardTitle className="text-base">Filter Products</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <CardContent className="space-y-3 p-4 pt-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Main Category</label>
                 <Select
@@ -506,10 +506,10 @@ export default function CataloguePage() {
         </Card>
           </TabsContent>
 
-          <TabsContent value="library" className="space-y-6">
+          <TabsContent value="library" className="space-y-3">
             <Card>
-              <CardHeader>
-                <CardTitle>
+              <CardHeader className="p-4">
+                <CardTitle className="text-base">
                   Catalogue Library
                   <span className="text-sm font-normal text-muted-foreground ml-2">
                     ({Array.from(groupedItems.values()).reduce((sum, subgroups) => 
@@ -518,7 +518,7 @@ export default function CataloguePage() {
                   </span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 pt-0">
                 {allItemsLoading ? (
                   <div className="text-center py-8 text-muted-foreground">Loading library...</div>
                 ) : allItemsError ? (
@@ -532,14 +532,14 @@ export default function CataloguePage() {
                     <p className="text-sm mt-1">Upload files or add URL links to see them here</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-2">
                     {Array.from(groupedItems.entries()).map(([mainCat, subgroups]) => (
                       <Collapsible key={mainCat} defaultOpen>
                         <div className="border rounded-md">
-                          <CollapsibleTrigger className="flex items-center justify-between w-full p-4 hover-elevate active-elevate-2" data-testid={`category-${mainCat}`}>
+                          <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover-elevate active-elevate-2" data-testid={`category-${mainCat}`}>
                             <div className="flex items-center gap-2">
                               <ChevronDown className="h-4 w-4 transition-transform duration-200" />
-                              <h3 className="font-semibold">{mainCat}</h3>
+                              <h3 className="font-medium text-sm">{mainCat}</h3>
                               <Badge variant="secondary" className="ml-2">
                                 {Array.from(subgroups.values()).reduce((sum, items) => sum + items.length, 0)}
                               </Badge>

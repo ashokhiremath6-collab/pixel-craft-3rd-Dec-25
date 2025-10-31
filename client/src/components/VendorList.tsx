@@ -335,12 +335,12 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 p-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold" data-testid="heading-vendors">Vendors</h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Manage your vendor database by category
           </p>
         </div>

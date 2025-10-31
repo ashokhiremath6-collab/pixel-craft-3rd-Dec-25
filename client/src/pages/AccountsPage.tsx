@@ -473,30 +473,30 @@ export default function AccountsPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-3 p-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold" data-testid="text-page-title">Vendor Accounts</h1>
-          <p className="text-muted-foreground" data-testid="text-page-description">
+          <h1 className="text-2xl font-bold" data-testid="text-page-title">Vendor Accounts</h1>
+          <p className="text-sm text-muted-foreground" data-testid="text-page-description">
             Manage vendor invoices and payments
           </p>
         </div>
       </div>
 
-      <Tabs defaultValue="ledger" className="space-y-4">
+      <Tabs defaultValue="ledger" className="space-y-3">
         <TabsList>
           <TabsTrigger value="ledger" data-testid="tab-vendor-ledger">Vendor Ledger</TabsTrigger>
           <TabsTrigger value="summary" data-testid="tab-payments-summary">Payments Summary</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="ledger" className="space-y-4">
+        <TabsContent value="ledger" className="space-y-3">
           {/* Vendor Selection */}
           <Card>
-        <CardHeader>
-          <CardTitle>Select Vendor</CardTitle>
-          <CardDescription>Choose a vendor to view their ledger</CardDescription>
+        <CardHeader className="p-4">
+          <CardTitle className="text-base">Select Vendor</CardTitle>
+          <CardDescription className="text-sm">Choose a vendor to view their ledger</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 pt-0">
           <Select value={selectedVendorId} onValueChange={setSelectedVendorId}>
             <SelectTrigger data-testid="select-vendor">
               <SelectValue placeholder="Select a vendor..." />
@@ -518,14 +518,14 @@ export default function AccountsPage() {
       {selectedVendorId && (
         <>
           {/* Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-3">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+              <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 p-3 pb-1.5">
                 <CardTitle className="text-sm font-medium">Total Invoices</CardTitle>
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold" data-testid="text-total-invoices">
+              <CardContent className="p-3 pt-0">
+                <div className="text-xl font-bold" data-testid="text-total-invoices">
                   ₹{totalInvoices.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <p className="text-xs text-muted-foreground">{invoices.length} invoice(s)</p>
@@ -533,12 +533,12 @@ export default function AccountsPage() {
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+              <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 p-3 pb-1.5">
                 <CardTitle className="text-sm font-medium">Total Payments</CardTitle>
                 <IndianRupee className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold" data-testid="text-total-payments">
+              <CardContent className="p-3 pt-0">
+                <div className="text-xl font-bold" data-testid="text-total-payments">
                   ₹{totalPayments.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <p className="text-xs text-muted-foreground">{payments.length} payment(s)</p>
@@ -546,13 +546,13 @@ export default function AccountsPage() {
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+              <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 p-3 pb-1.5">
                 <CardTitle className="text-sm font-medium">Outstanding Balance</CardTitle>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 pt-0">
                 <div 
-                  className={`text-2xl font-bold ${outstandingBalance > 0 ? 'text-destructive' : 'text-green-600'}`}
+                  className={`text-xl font-bold ${outstandingBalance > 0 ? 'text-destructive' : 'text-green-600'}`}
                   data-testid="text-outstanding-balance"
                 >
                   ₹{Math.abs(outstandingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1193,7 +1193,7 @@ export default function AccountsPage() {
       )}
         </TabsContent>
 
-        <TabsContent value="summary" className="space-y-4">
+        <TabsContent value="summary" className="space-y-3">
           <PaymentsSummary />
         </TabsContent>
       </Tabs>
@@ -1315,17 +1315,17 @@ function PaymentsSummary() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Summary Cards and Export */}
-      <div className="flex items-end justify-between gap-4">
-        <div className="grid gap-4 md:grid-cols-2 flex-1">
+      <div className="flex items-end justify-between gap-3">
+        <div className="grid gap-3 md:grid-cols-2 flex-1">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 p-3 pb-1.5">
               <CardTitle className="text-sm font-medium">Total Payments</CardTitle>
               <IndianRupee className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-summary-total-payments">
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold" data-testid="text-summary-total-payments">
                 ₹{totalPayments.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
               <p className="text-xs text-muted-foreground">{totalTransactions} transaction(s)</p>
@@ -1333,12 +1333,12 @@ function PaymentsSummary() {
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 p-3 pb-1.5">
               <CardTitle className="text-sm font-medium">Active Vendors</CardTitle>
               <Banknote className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-summary-vendor-count">
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold" data-testid="text-summary-vendor-count">
                 {totalVendors}
               </div>
               <p className="text-xs text-muted-foreground">Vendors with payments</p>
@@ -1347,7 +1347,7 @@ function PaymentsSummary() {
         </div>
 
         {/* Export Button */}
-        <Button onClick={handleExportAll} variant="outline" data-testid="button-export-all-payments">
+        <Button onClick={handleExportAll} variant="outline" size="sm" data-testid="button-export-all-payments">
           <Download className="h-4 w-4 mr-2" />
           Export to Excel
         </Button>
@@ -1356,15 +1356,15 @@ function PaymentsSummary() {
       {/* Vendor Sections */}
       {sortedVendors.length === 0 ? (
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4">
             <div className="text-center text-muted-foreground">
-              <Banknote className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>No payment records found</p>
+              <Banknote className="h-10 w-10 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No payment records found</p>
             </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {sortedVendors.map(([vendorId, { vendorName, payments, total }]) => {
             const isOpen = openVendors.has(vendorId);
             
@@ -1372,25 +1372,25 @@ function PaymentsSummary() {
               <Card key={vendorId}>
                 <Collapsible open={isOpen} onOpenChange={() => toggleVendor(vendorId)}>
                   <CollapsibleTrigger asChild>
-                    <CardHeader className="cursor-pointer hover-elevate">
+                    <CardHeader className="cursor-pointer hover-elevate p-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           {isOpen ? (
-                            <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
                           ) : (
-                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
                           )}
                           <div>
-                            <CardTitle className="text-lg" data-testid={`text-vendor-${vendorId}`}>
+                            <CardTitle className="text-base" data-testid={`text-vendor-${vendorId}`}>
                               {vendorName}
                             </CardTitle>
-                            <CardDescription>
+                            <CardDescription className="text-sm">
                               {payments.length} payment(s)
                             </CardDescription>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-xl font-bold" data-testid={`text-vendor-total-${vendorId}`}>
+                          <div className="text-base font-bold" data-testid={`text-vendor-total-${vendorId}`}>
                             ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </div>
                           <p className="text-xs text-muted-foreground">Total paid</p>
@@ -1399,7 +1399,7 @@ function PaymentsSummary() {
                     </CardHeader>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <CardContent>
+                    <CardContent className="p-3 pt-0">
                       <Table>
                         <TableHeader>
                           <TableRow>

@@ -64,12 +64,12 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
   const selectedProjectQuotations = selectedProject ? quotations[selectedProject] || [] : [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 p-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold" data-testid="heading-projects">Projects</h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             View all vendors participating in each project
           </p>
         </div>
@@ -97,9 +97,9 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
         {/* Projects List */}
-        <div className="space-y-4 xl:col-span-2">
+        <div className="space-y-3 xl:col-span-2">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Building2 className="h-5 w-5" />
             Projects ({filteredProjects.length})
