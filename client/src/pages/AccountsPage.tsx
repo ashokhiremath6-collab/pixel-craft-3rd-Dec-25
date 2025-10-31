@@ -502,11 +502,14 @@ export default function AccountsPage() {
               <SelectValue placeholder="Select a vendor..." />
             </SelectTrigger>
             <SelectContent>
-              {vendors.map((vendor) => (
-                <SelectItem key={vendor.id} value={vendor.id} data-testid={`vendor-option-${vendor.id}`}>
-                  {vendor.name}
-                </SelectItem>
-              ))}
+              {vendors
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((vendor) => (
+                  <SelectItem key={vendor.id} value={vendor.id} data-testid={`vendor-option-${vendor.id}`}>
+                    {vendor.name}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </CardContent>
