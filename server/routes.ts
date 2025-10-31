@@ -4698,6 +4698,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const payment = await storage.createVendorPayment(paymentData);
+
+      // Log activity
+      const user = await storage.getUser(userId);
+      const vendor = await storage.getVendor(vendorId);
+      if (user && vendor) {
+        try {
+          await storage.createActivityLog({
+            userId: userId,
+            userName: user.firstName && user.lastName 
+              ? `${user.firstName} ${user.lastName}` 
+              : user.email || 'Unknown User',
+            userEmail: user.email || '',
+            projectId: paymentData.projectId || null,
+            activityType: 'vendor_payment',
+            fileName: `Payment to ${vendor.name}`,
+            description: `Payment of ₹${paymentData.amount} to ${vendor.name}`,
+            metadata: {
+              paymentId: payment.id,
+              vendorId: vendorId,
+              vendorName: vendor.name,
+              amount: paymentData.amount,
+              paymentMethod: paymentData.paymentMethod,
+              paymentDate: paymentData.paymentDate,
+            },
+          });
+        } catch (activityError) {
+          console.error('Error logging payment activity:', activityError);
+        }
+      }
+
       res.status(201).json(payment);
     } catch (error) {
       console.error('Error creating vendor payment:', error);

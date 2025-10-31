@@ -217,7 +217,7 @@ export const activityLog = pgTable("activity_log", {
   userName: text("user_name").notNull(), // Denormalized for display
   userEmail: text("user_email").notNull(), // Denormalized for display
   projectId: varchar("project_id").references(() => projects.id), // Optional, for project-specific activities
-  activityType: text("activity_type").notNull(), // floor_plan, moodboard, quote_file, boq_file, schedule, working_drawing, render, specification, vendor_create, vendor_update, vendor_delete
+  activityType: text("activity_type").notNull(), // floor_plan, moodboard, quote_file, boq_file, schedule, working_drawing, render, specification, vendor_payment, vendor_create, vendor_update, vendor_delete
   fileName: text("file_name").notNull(),
   filePath: text("file_path"), // Optional file path
   description: text("description").notNull(), // "uploaded Floor Plan", "uploaded Moodboard", etc.
@@ -382,7 +382,7 @@ export const insertActivityLogSchema = createInsertSchema(activityLog).omit({
   id: true,
   createdAt: true,
 }).extend({
-  activityType: z.enum(["floor_plan", "moodboard", "quote_file", "boq_file", "schedule", "working_drawing", "render", "specification", "vendor_create", "vendor_update", "vendor_delete"]),
+  activityType: z.enum(["floor_plan", "moodboard", "quote_file", "boq_file", "schedule", "working_drawing", "render", "specification", "vendor_payment", "vendor_create", "vendor_update", "vendor_delete"]),
 });
 
 export const insertVendorInvoiceSchema = createInsertSchema(vendorInvoices).omit({
