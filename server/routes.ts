@@ -14,7 +14,7 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { 
   insertVendorCategorySchema,
@@ -94,62 +94,6 @@ const requireAdminOnly = async (req: express.Request, res: express.Response, nex
     return res.status(500).json({ error: "Failed to check authorization" });
   }
 };
-
-// Helper function to parse object storage path
-function parseObjectPath(objectPath: string): { bucketName: string; objectName: string } {
-  if (!objectPath.startsWith("/")) {
-    objectPath = `/${objectPath}`;
-  }
-  const pathParts = objectPath.split("/");
-  if (pathParts.length < 3) {
-    throw new Error("Invalid path: must contain at least a bucket name");
-  }
-
-  const bucketName = pathParts[1];
-  const objectName = pathParts.slice(2).join("/");
-
-  return { bucketName, objectName };
-}
-
-// Helper function to sign object storage URL
-async function signObjectURL({
-  bucketName,
-  objectName,
-  method,
-  ttlSec,
-}: {
-  bucketName: string;
-  objectName: string;
-  method: "GET" | "PUT" | "DELETE" | "HEAD";
-  ttlSec: number;
-}): Promise<string> {
-  const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
-  const request = {
-    bucket_name: bucketName,
-    object_name: objectName,
-    method,
-    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-  };
-  const response = await fetch(
-    `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(request),
-    }
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Failed to sign object URL, errorcode: ${response.status}, ` +
-        `make sure you're running on Replit`
-    );
-  }
-
-  const { signed_url: signedURL } = await response.json();
-  return signedURL;
-}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup real Replit Auth (handles session configuration internally)
