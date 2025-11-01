@@ -114,24 +114,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Endpoint to serve private objects from object storage
   app.get("/objects/:objectPath(*)", requireAuth, async (req, res) => {
+    console.log("📥 OBJECT DOWNLOAD REQUEST:", req.path);
     const userId = (req.user as any).claims.sub;
+    console.log("👤 User ID:", userId);
     const objectStorageService = new ObjectStorageService();
     try {
+      console.log("🔍 Getting object entity file...");
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      console.log("✅ Object file retrieved:", objectFile);
+      
+      console.log("🔐 Checking access permissions...");
       const canAccess = await objectStorageService.canAccessObjectEntity({
         objectFile,
         userId: userId,
         requestedPermission: ObjectPermission.READ,
       });
+      console.log("🔑 Access check result:", canAccess);
+      
       if (!canAccess) {
+        console.log("❌ Access denied - returning 403");
         return res.sendStatus(403);
       }
+      
+      console.log("📤 Starting download...");
       objectStorageService.downloadObject(objectFile, res);
+      console.log("✅ Download initiated successfully");
     } catch (error) {
-      console.error("Error accessing object:", error);
+      console.error("❌ ERROR accessing object:", error);
+      console.error("Error details:", {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        type: error?.constructor?.name
+      });
       if (error instanceof ObjectNotFoundError) {
+        console.log("🔍 Error type: ObjectNotFoundError - returning 404");
         return res.sendStatus(404);
       }
+      console.log("💥 Unknown error type - returning 500");
       return res.sendStatus(500);
     }
   });
