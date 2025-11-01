@@ -3288,7 +3288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const floorPlanUpload = multer({
     storage: multer.memoryStorage(), // Store in memory, then upload to object storage
     limits: {
-      fileSize: 50 * 1024 * 1024, // 50MB limit for floor plan files
+      fileSize: 100 * 1024 * 1024, // 100MB limit for floor plan files
       files: 1, // Only allow single file upload
     },
     fileFilter: (req, file, cb) => {
@@ -4819,7 +4819,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const catalogueUpload = multer({
     storage: multer.memoryStorage(), // Store in memory, then upload to object storage
     limits: {
-      fileSize: 50 * 1024 * 1024, // 50MB limit for catalogue files
+      fileSize: 100 * 1024 * 1024, // 100MB limit for catalogue files
       files: 1, // Only allow single file upload
     },
     fileFilter: (req, file, cb) => {
@@ -5130,7 +5130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const specificationsUpload = multer({
     storage: multer.memoryStorage(),
     limits: {
-      fileSize: 50 * 1024 * 1024, // 50MB limit
+      fileSize: 100 * 1024 * 1024, // 100MB limit
     },
   });
 
