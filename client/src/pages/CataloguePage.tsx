@@ -142,7 +142,7 @@ export default function CataloguePage() {
           throw new Error("Failed to get upload URL");
         }
 
-        const { uploadUrl, objectPath: path, fileName: fname } = await uploadUrlResponse.json();
+        const { uploadUrl, objectPath: path, fileName: fname, userId } = await uploadUrlResponse.json();
         
         // Step 2: Upload file directly to object storage
         const uploadResponse = await fetch(uploadUrl, {
@@ -155,6 +155,21 @@ export default function CataloguePage() {
 
         if (!uploadResponse.ok) {
           throw new Error("Failed to upload file to storage");
+        }
+
+        // Step 3: Set ACL permissions on the uploaded file
+        const aclResponse = await fetch("/api/catalogue/set-acl", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ 
+            objectPath: path,
+            userId 
+          }),
+        });
+
+        if (!aclResponse.ok) {
+          console.error("Failed to set ACL permissions, but file was uploaded");
         }
 
         objectPath = path;

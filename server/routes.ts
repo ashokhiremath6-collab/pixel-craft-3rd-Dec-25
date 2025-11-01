@@ -4880,10 +4880,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         uploadUrl: signedUrl,
         objectPath: `/objects/uploads/${objectId}`,
         fileName,
+        userId, // Send userId back so client can set ACL
       });
     } catch (error) {
       console.error('Error generating upload URL:', error);
       res.status(500).json({ error: "Failed to generate upload URL" });
+    }
+  });
+
+  // Set ACL after direct upload
+  app.post("/api/catalogue/set-acl", requireAdmin, async (req, res) => {
+    try {
+      const { objectPath, userId } = req.body;
+      
+      if (!objectPath || !userId) {
+        return res.status(400).json({ error: "objectPath and userId are required" });
+      }
+
+      const objectStorageService = new ObjectStorageService();
+      
+      try {
+        const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+        await objectStorageService.trySetObjectEntityAclPolicy(
+          objectPath,
+          {
+            owner: userId,
+            visibility: "private",
+          }
+        );
+        res.json({ success: true });
+      } catch (error) {
+        console.error('Error setting ACL policy:', error);
+        res.status(500).json({ error: "Failed to set ACL policy" });
+      }
+    } catch (error) {
+      console.error('Error in set-acl endpoint:', error);
+      res.status(500).json({ error: "Failed to set ACL" });
     }
   });
 
