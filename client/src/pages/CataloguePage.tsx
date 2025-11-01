@@ -720,19 +720,53 @@ export default function CataloguePage() {
                 <FormField
                   control={form.control}
                   name="subcategory"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Subcategory</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="e.g., Sofas & Sectionals, Ceiling Lights"
-                          {...field}
-                          data-testid="input-subcategory"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    // Get subcategories for the selected main category
+                    const selectedMainCategory = form.watch("mainCategory");
+                    const availableSubcategories = selectedMainCategory
+                      ? Array.from(
+                          new Set(
+                            allItems
+                              .filter((item) => item.mainCategory === selectedMainCategory)
+                              .map((item) => item.subcategory)
+                          )
+                        ).sort()
+                      : [];
+
+                    return (
+                      <FormItem>
+                        <FormLabel>Subcategory</FormLabel>
+                        {availableSubcategories.length > 0 ? (
+                          <Select 
+                            onValueChange={field.onChange} 
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger data-testid="select-subcategory">
+                                <SelectValue placeholder="Select a subcategory" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {availableSubcategories.map((subcat) => (
+                                <SelectItem key={subcat} value={subcat}>
+                                  {subcat}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <FormControl>
+                            <Input
+                              placeholder="Enter subcategory (select main category first)"
+                              {...field}
+                              data-testid="input-subcategory"
+                            />
+                          </FormControl>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
                 <FormField
                   control={form.control}
