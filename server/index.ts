@@ -4,8 +4,8 @@ import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
 
 const app = express();
-app.use(express.json({ limit: '2mb' })); // Limit JSON payload to 2MB
-app.use(express.urlencoded({ extended: false, limit: '2mb' }));
+app.use(express.json({ limit: '100mb' })); // Increased to 100MB to support large file uploads
+app.use(express.urlencoded({ extended: false, limit: '100mb' }));
 
 app.use((req, res, next) => {
   const start = Date.now();
