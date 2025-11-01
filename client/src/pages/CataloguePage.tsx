@@ -736,7 +736,7 @@ export default function CataloguePage() {
                     return (
                       <FormItem>
                         <FormLabel>Subcategory</FormLabel>
-                        {availableSubcategories.length > 0 ? (
+                        {selectedMainCategory ? (
                           <Select 
                             onValueChange={field.onChange} 
                             value={field.value}
@@ -747,6 +747,7 @@ export default function CataloguePage() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
+                              <SelectItem value="All Subcategories">All Subcategories</SelectItem>
                               {availableSubcategories.map((subcat) => (
                                 <SelectItem key={subcat} value={subcat}>
                                   {subcat}
