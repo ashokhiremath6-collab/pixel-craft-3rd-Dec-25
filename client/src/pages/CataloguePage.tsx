@@ -810,7 +810,7 @@ export default function CataloguePage() {
                   name="attributes"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Attributes</FormLabel>
+                      <FormLabel>Attributes (Optional)</FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="e.g., Style, seats, fabric/leather, modular, recliner, dimensions"
