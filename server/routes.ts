@@ -11,6 +11,7 @@ import pdfParse from "pdf-parse";
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
+import { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -93,6 +94,62 @@ const requireAdminOnly = async (req: express.Request, res: express.Response, nex
     return res.status(500).json({ error: "Failed to check authorization" });
   }
 };
+
+// Helper function to parse object storage path
+function parseObjectPath(objectPath: string): { bucketName: string; objectName: string } {
+  if (!objectPath.startsWith("/")) {
+    objectPath = `/${objectPath}`;
+  }
+  const pathParts = objectPath.split("/");
+  if (pathParts.length < 3) {
+    throw new Error("Invalid path: must contain at least a bucket name");
+  }
+
+  const bucketName = pathParts[1];
+  const objectName = pathParts.slice(2).join("/");
+
+  return { bucketName, objectName };
+}
+
+// Helper function to sign object storage URL
+async function signObjectURL({
+  bucketName,
+  objectName,
+  method,
+  ttlSec,
+}: {
+  bucketName: string;
+  objectName: string;
+  method: "GET" | "PUT" | "DELETE" | "HEAD";
+  ttlSec: number;
+}): Promise<string> {
+  const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
+  const request = {
+    bucket_name: bucketName,
+    object_name: objectName,
+    method,
+    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
+  };
+  const response = await fetch(
+    `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Failed to sign object URL, errorcode: ${response.status}, ` +
+        `make sure you're running on Replit`
+    );
+  }
+
+  const { signed_url: signedURL } = await response.json();
+  return signedURL;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup real Replit Auth (handles session configuration internally)
@@ -4846,6 +4903,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate signed URL for direct catalogue file upload
+  app.post("/api/catalogue/upload-url", requireAdmin, async (req, res) => {
+    try {
+      const { fileName, fileType } = req.body;
+      
+      if (!fileName) {
+        return res.status(400).json({ error: "fileName is required" });
+      }
+
+      const userId = (req.user as any).claims.sub;
+      const objectId = randomUUID();
+      const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+      
+      if (!privateObjectDir) {
+        return res.status(500).json({ error: "Object storage not configured" });
+      }
+
+      // Create object path
+      const objectPath = `${privateObjectDir}/uploads/${objectId}`;
+      const { bucketName, objectName } = parseObjectPath(objectPath);
+
+      // Generate signed URL for upload
+      const signedUrl = await signObjectURL({
+        bucketName,
+        objectName,
+        method: 'PUT',
+        ttlSec: 900, // 15 minutes
+      });
+
+      res.json({
+        uploadUrl: signedUrl,
+        objectPath: `/objects/uploads/${objectId}`,
+        fileName,
+      });
+    } catch (error) {
+      console.error('Error generating upload URL:', error);
+      res.status(500).json({ error: "Failed to generate upload URL" });
+    }
+  });
+
   // Catalogue Routes - Admin/Designer only
   app.get("/api/catalogue", requireAdmin, async (req, res) => {
     try {
@@ -5010,52 +5107,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/catalogue", requireAdmin, (req, res, next) => {
-    catalogueUpload.single('file')(req, res, (err) => {
-      if (err) {
-        console.error('Multer error:', err);
-        return res.status(400).json({ error: err.message });
-      }
-      next();
-    });
-  }, async (req, res) => {
+  app.post("/api/catalogue", requireAdmin, async (req, res) => {
     try {
-      // Debug: Log what we received
-      console.log('Received catalogue POST:', {
-        body: req.body,
-        file: req.file ? { name: req.file.originalname, size: req.file.size } : null
-      });
-      
-      // Parse the item data from the form data
-      const { mainCategory, subcategory, vendorBrand, description, attributes, catalogueUrl } = req.body;
-      
-      if (!mainCategory || !subcategory) {
-        console.error('Missing required fields:', { mainCategory, subcategory });
+      const itemData: any = {
+        mainCategory: req.body.mainCategory,
+        subcategory: req.body.subcategory,
+        attributes: req.body.attributes || '' // Allow empty attributes
+      };
+
+      if (!itemData.mainCategory || !itemData.subcategory) {
         return res.status(400).json({ error: "Main category and subcategory are required" });
       }
 
-      const itemData: any = {
-        mainCategory,
-        subcategory,
-        attributes: attributes || '' // Allow empty attributes
-      };
-
-      if (vendorBrand) itemData.vendorBrand = vendorBrand;
-      if (description) itemData.description = description;
-      if (catalogueUrl) itemData.catalogueUrl = catalogueUrl;
-
-      // If a file was uploaded, save it to object storage
-      if (req.file) {
-        const userId = (req.user as any).claims.sub;
-        const objectPath = await uploadToObjectStorage(
-          req.file.buffer,
-          req.file.originalname,
-          userId,
-          req.file.mimetype
-        );
-        
-        itemData.fileName = req.file.originalname;
-        itemData.filePath = objectPath;
+      if (req.body.vendorBrand) itemData.vendorBrand = req.body.vendorBrand;
+      if (req.body.description) itemData.description = req.body.description;
+      if (req.body.catalogueUrl) itemData.catalogueUrl = req.body.catalogueUrl;
+      
+      // If file metadata was provided (from direct upload), use it
+      if (req.body.filePath && req.body.fileName) {
+        itemData.filePath = req.body.filePath;
+        itemData.fileName = req.body.fileName;
       }
 
       const validatedData = insertCatalogueItemSchema.parse(itemData);
@@ -5070,12 +5141,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/catalogue/:id", requireAdmin, catalogueUpload.single('file'), async (req, res) => {
+  app.put("/api/catalogue/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       const updates: any = {};
       
-      // Parse text fields
+      // Parse fields from JSON body
       if (req.body.mainCategory) updates.mainCategory = req.body.mainCategory;
       if (req.body.subcategory) updates.subcategory = req.body.subcategory;
       if (req.body.vendorBrand !== undefined) updates.vendorBrand = req.body.vendorBrand;
@@ -5083,18 +5154,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.body.catalogueUrl !== undefined) updates.catalogueUrl = req.body.catalogueUrl;
       if (req.body.attributes) updates.attributes = req.body.attributes;
       
-      // If a file was uploaded, save it to object storage
-      if (req.file) {
-        const userId = (req.user as any).claims.sub;
-        const objectPath = await uploadToObjectStorage(
-          req.file.buffer,
-          req.file.originalname,
-          userId,
-          req.file.mimetype
-        );
-        
-        updates.fileName = req.file.originalname;
-        updates.filePath = objectPath;
+      // If file metadata was provided (from direct upload), use it
+      if (req.body.filePath && req.body.fileName) {
+        updates.fileName = req.body.fileName;
+        updates.filePath = req.body.filePath;
       }
       
       const validatedUpdates = insertCatalogueItemSchema.partial().parse(updates);

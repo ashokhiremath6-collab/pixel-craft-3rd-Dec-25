@@ -122,16 +122,59 @@ export default function CataloguePage() {
   // Create/Update mutation
   const saveMutation = useMutation({
     mutationFn: async (data: InsertCatalogueItem) => {
-      const formData = new FormData();
-      formData.append("mainCategory", data.mainCategory);
-      formData.append("subcategory", data.subcategory);
-      if (data.vendorBrand) formData.append("vendorBrand", data.vendorBrand);
-      if (data.description) formData.append("description", data.description);
-      if (data.catalogueUrl) formData.append("catalogueUrl", data.catalogueUrl);
-      formData.append("attributes", data.attributes);
-      
+      let objectPath = null;
+      let fileName = null;
+
+      // If there's a file to upload, use direct upload to object storage
       if (selectedFile) {
-        formData.append("file", selectedFile);
+        // Step 1: Get signed upload URL
+        const uploadUrlResponse = await fetch("/api/catalogue/upload-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ 
+            fileName: selectedFile.name,
+            fileType: selectedFile.type 
+          }),
+        });
+
+        if (!uploadUrlResponse.ok) {
+          throw new Error("Failed to get upload URL");
+        }
+
+        const { uploadUrl, objectPath: path, fileName: fname } = await uploadUrlResponse.json();
+        
+        // Step 2: Upload file directly to object storage
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "PUT",
+          body: selectedFile,
+          headers: {
+            "Content-Type": selectedFile.type,
+          },
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload file to storage");
+        }
+
+        objectPath = path;
+        fileName = fname;
+      }
+
+      // Step 3: Save metadata to database
+      const payload: any = {
+        mainCategory: data.mainCategory,
+        subcategory: data.subcategory,
+        attributes: data.attributes,
+      };
+
+      if (data.vendorBrand) payload.vendorBrand = data.vendorBrand;
+      if (data.description) payload.description = data.description;
+      if (data.catalogueUrl) payload.catalogueUrl = data.catalogueUrl;
+      
+      if (objectPath && fileName) {
+        payload.filePath = objectPath;
+        payload.fileName = fileName;
       }
 
       const url = editingItem ? `/api/catalogue/${editingItem.id}` : "/api/catalogue";
@@ -139,7 +182,8 @@ export default function CataloguePage() {
 
       const response = await fetch(url, {
         method,
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
         credentials: "include",
       });
 
