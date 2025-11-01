@@ -400,6 +400,10 @@ export const insertVendorPaymentSchema = createInsertSchema(vendorPayments).omit
 export const insertCatalogueItemSchema = createInsertSchema(catalogueItems).omit({
   id: true,
   createdAt: true,
+}).extend({
+  mainCategory: z.string().min(1, "Main category is required"),
+  subcategory: z.string().min(1, "Subcategory is required"),
+  attributes: z.string(), // Can be empty
 });
 
 export const insertSpecificationSchema = createInsertSchema(specifications).omit({

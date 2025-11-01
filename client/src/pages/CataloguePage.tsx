@@ -165,7 +165,7 @@ export default function CataloguePage() {
       const payload: any = {
         mainCategory: data.mainCategory,
         subcategory: data.subcategory,
-        attributes: data.attributes,
+        attributes: data.attributes || '',
       };
 
       if (data.vendorBrand) payload.vendorBrand = data.vendorBrand;
@@ -176,6 +176,8 @@ export default function CataloguePage() {
         payload.filePath = objectPath;
         payload.fileName = fileName;
       }
+
+      console.log('Submitting catalogue item:', payload);
 
       const url = editingItem ? `/api/catalogue/${editingItem.id}` : "/api/catalogue";
       const method = editingItem ? "PUT" : "POST";
@@ -188,7 +190,9 @@ export default function CataloguePage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to save catalogue item");
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Server error:', errorData);
+        throw new Error(errorData.error || "Failed to save catalogue item");
       }
 
       return response.json();
