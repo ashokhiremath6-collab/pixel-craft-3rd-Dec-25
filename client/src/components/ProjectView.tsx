@@ -107,7 +107,15 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
           
           <Card>
             <CardContent className="p-0">
-              <Table>
+              <Table className="table-fixed">
+                <colgroup>
+                  <col className="w-[25%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[13%]" />
+                </colgroup>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="py-2">Project Name</TableHead>

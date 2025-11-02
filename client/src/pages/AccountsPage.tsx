@@ -1100,18 +1100,29 @@ export default function AccountsPage() {
                   No transactions recorded yet
                 </div>
               ) : (
-                <Table>
+                <Table className="table-fixed">
+                  <colgroup>
+                    <col className="w-[10%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[20%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[11%]" />
+                    {canManageAccounts && <col className="w-[5%]" />}
+                  </colgroup>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Reference</TableHead>
-                      <TableHead className="w-24">Attachment</TableHead>
+                      <TableHead>Attachment</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead className="text-right">Debit (₹)</TableHead>
                       <TableHead className="text-right">Credit (₹)</TableHead>
                       <TableHead className="text-right">Balance (₹)</TableHead>
-                      {canManageAccounts && <TableHead className="w-12"></TableHead>}
+                      {canManageAccounts && <TableHead className="text-right"></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>

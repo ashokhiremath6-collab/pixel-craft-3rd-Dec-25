@@ -312,7 +312,15 @@ export default function TemplatesPage() {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <Table>
+            <Table className="table-fixed">
+              <colgroup>
+                <col className="w-[22%]" />
+                <col className="w-[15%]" />
+                <col className="w-[10%]" />
+                <col className="w-[30%]" />
+                <col className="w-[12%]" />
+                <col className="w-[11%]" />
+              </colgroup>
               <TableHeader>
                 <TableRow>
                   <TableHead>Template Name</TableHead>
