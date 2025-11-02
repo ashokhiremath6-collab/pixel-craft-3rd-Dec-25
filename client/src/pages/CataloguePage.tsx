@@ -762,7 +762,6 @@ export default function CataloguePage() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="All Subcategories">All Subcategories</SelectItem>
                               {availableSubcategories.map((subcat) => (
                                 <SelectItem key={subcat} value={subcat}>
                                   {subcat}
