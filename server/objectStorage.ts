@@ -90,6 +90,29 @@ export class ObjectStorageService {
   async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
     try {
       const [metadata] = await file.getMetadata();
+      const fileSize = parseInt(String(metadata.size || "0"));
+      
+      // For files larger than 20MB, use signed URL redirect to avoid server streaming timeout
+      const SIZE_THRESHOLD = 20 * 1024 * 1024; // 20MB
+      
+      if (fileSize > SIZE_THRESHOLD) {
+        console.log(`📦 Large file detected (${(fileSize / 1024 / 1024).toFixed(2)}MB) - using signed URL redirect`);
+        
+        // Generate signed URL with 15 minute expiration
+        const signedUrl = await signObjectURL({
+          bucketName: file.bucket.name,
+          objectName: file.name,
+          method: 'GET',
+          ttlSec: 900, // 15 minutes
+        });
+        
+        console.log("🔗 Redirecting to signed URL for direct download");
+        return res.redirect(signedUrl);
+      }
+      
+      // For small files, stream through server as before
+      console.log(`📄 Small file (${(fileSize / 1024 / 1024).toFixed(2)}MB) - streaming through server`);
+      
       const aclPolicy = await getObjectAclPolicy(file);
       const isPublic = aclPolicy?.visibility === "public";
       
