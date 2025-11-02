@@ -5262,16 +5262,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const user = await storage.getUser(userId);
         if (user) {
           try {
-            await storage.createActivityLog({
-              userId: userId,
-              userName: user.firstName && user.lastName 
-                ? `${user.firstName} ${user.lastName}` 
-                : user.email || 'Unknown User',
+            const userName = user.firstName && user.lastName 
+              ? `${user.firstName} ${user.lastName}` 
+              : user.email || 'Unknown';
+            await storage.createActivity({
+              userId: user.id,
+              userName: userName,
               userEmail: user.email || '',
-              activityType: 'specification',
+              activityType: 'specification_upload',
               fileName: req.file.originalname,
               filePath: objectPath,
-              description: `Uploaded specification: ${req.body.title} (${req.body.category})`,
+              description: `uploaded specification: ${req.body.title} (${req.body.category})`,
               metadata: {
                 specificationId: spec.id,
                 category: req.body.category,
@@ -5327,10 +5328,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/specifications/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      
+      // Get specification details before deleting
+      const spec = await storage.getSpecification(id);
+      if (!spec) {
+        return res.status(404).json({ error: "Specification not found" });
+      }
+      
       const deleted = await storage.deleteSpecification(id);
       if (!deleted) {
         return res.status(404).json({ error: "Specification not found" });
       }
+      
+      // Log deletion activity
+      const userId = (req.user as any).claims.sub;
+      const user = await storage.getUser(userId);
+      if (user) {
+        try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'specification_delete',
+            fileName: spec.fileName,
+            filePath: spec.filePath,
+            description: `deleted specification: ${spec.title} (${spec.category})`,
+            metadata: {
+              specificationId: spec.id,
+              category: spec.category,
+              title: spec.title,
+            },
+          });
+        } catch (activityError) {
+          console.error('Error logging specification delete activity:', activityError);
+        }
+      }
+      
       res.json({ success: true });
     } catch (error) {
       console.error('Error deleting specification:', error);
