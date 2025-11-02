@@ -49,6 +49,10 @@ Preferred communication style: Simple, everyday language.
   - Files persist across deployments and workflow restarts
   - ACL-based access control for file security
   - Paths stored in database as `/objects/uploads/<uuid>`
+  - **Smart Download Strategy**: File size-based download optimization
+    - Files ≤20MB: Streamed through Node.js server for better control
+    - Files >20MB: Browser redirected to signed Google Cloud Storage URLs (15-min expiration) to bypass server bottlenecks
+    - Supports large file uploads (>50MB) via direct upload with signed URLs
 
 ### Core Data Models
 - **Vendor Categories**: Hierarchical structure with parent-child relationships
