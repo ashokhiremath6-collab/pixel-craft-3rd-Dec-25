@@ -246,6 +246,20 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       }
     });
 
+    // Sort root categories alphabetically
+    rootCategories.sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Sort children of each category alphabetically
+    const sortChildren = (nodes: CategoryWithChildren[]) => {
+      nodes.forEach(node => {
+        if (node.children.length > 0) {
+          node.children.sort((a, b) => a.name.localeCompare(b.name));
+          sortChildren(node.children);
+        }
+      });
+    };
+    sortChildren(rootCategories);
+
     return rootCategories;
   };
 
