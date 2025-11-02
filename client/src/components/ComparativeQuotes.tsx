@@ -628,7 +628,19 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <Table>
+              <Table className="table-fixed">
+                <colgroup>
+                  <col className={hideValueColumns ? "w-[35%]" : "w-[25%]"} />
+                  {!hideValueColumns && (
+                    <>
+                      <col className="w-[18%]" />
+                      <col className="w-[12%]" />
+                    </>
+                  )}
+                  <col className="w-[15%]" />
+                  <col className="w-[12%]" />
+                  <col className={hideValueColumns ? "w-[38%]" : "w-[18%]"} />
+                </colgroup>
                 <TableHeader>
                   <TableRow className="h-8">
                     <TableHead className="text-xs font-medium">Vendor</TableHead>
