@@ -830,7 +830,15 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
           
           <Card>
             <CardContent className="p-0">
-              <Table>
+              <Table className="table-fixed">
+                <colgroup>
+                  <col className="w-[18%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[12%]" />
+                </colgroup>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Vendor Name</TableHead>
