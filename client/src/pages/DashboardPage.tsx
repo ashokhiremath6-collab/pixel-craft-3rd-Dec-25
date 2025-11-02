@@ -166,14 +166,28 @@ export default function DashboardPage() {
       'working_drawing_delete': 'Working Drawing',
       'quote_upload': 'Quotation',
       'quote_file_delete': 'Quotation',
-      'schedule_upload': 'Project Schedule'
+      'schedule_upload': 'Project Schedule',
+      'specification_upload': 'Specification',
+      'specification_delete': 'Specification',
+      'invoice_create': 'Invoice',
+      'invoice_update': 'Invoice',
+      'invoice_delete': 'Invoice',
+      'vendor_payment': 'Payment',
+      'vendor_create': 'Vendor',
+      'vendor_update': 'Vendor',
+      'vendor_delete': 'Vendor'
     };
     return labels[activityType] || activityType;
   };
 
   // Helper function to get activity action (uploaded or deleted)
   const getActivityAction = (activityType: string) => {
-    return activityType.endsWith('_delete') ? 'deleted' : 'uploaded';
+    if (activityType.endsWith('_delete')) return 'deleted';
+    if (activityType.endsWith('_upload')) return 'uploaded';
+    if (activityType.endsWith('_create')) return 'created';
+    if (activityType.endsWith('_update')) return 'updated';
+    if (activityType === 'vendor_payment') return 'recorded';
+    return 'performed';
   };
 
   // Calculate task alerts (due today or in 5 days)
