@@ -4646,6 +4646,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const invoice = await storage.createVendorInvoice(invoiceData);
+      
+      // Log activity
+      const user = await storage.getUser(userId);
+      const vendor = await storage.getVendor(vendorId);
+      if (user && vendor) {
+        try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'invoice_create',
+            fileName: invoice.invoiceNumber || 'Invoice',
+            description: `created invoice ${invoice.invoiceNumber} for ${vendor.name} - Amount: ₹${invoice.amount}`,
+            metadata: {
+              invoiceId: invoice.id,
+              vendorId: vendor.id,
+              vendorName: vendor.name,
+              amount: invoice.amount,
+              invoiceNumber: invoice.invoiceNumber
+            }
+          });
+        } catch (activityError) {
+          console.error('Error logging invoice creation activity:', activityError);
+        }
+      }
+      
       res.status(201).json(invoice);
     } catch (error) {
       console.error('Error creating vendor invoice:', error);
@@ -4659,6 +4688,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/invoices/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      const userId = (req.user as any).claims.sub;
+      
       // Omit createdBy and vendorId from updates to prevent tampering
       const updates = insertVendorInvoiceSchema.omit({ createdBy: true, vendorId: true }).partial().parse(req.body);
       
@@ -4666,6 +4697,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!invoice) {
         return res.status(404).json({ error: "Invoice not found" });
       }
+      
+      // Log activity
+      const user = await storage.getUser(userId);
+      const vendor = await storage.getVendor(invoice.vendorId);
+      if (user && vendor) {
+        try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'invoice_update',
+            fileName: invoice.invoiceNumber || 'Invoice',
+            description: `updated invoice ${invoice.invoiceNumber} for ${vendor.name}`,
+            metadata: {
+              invoiceId: invoice.id,
+              vendorId: vendor.id,
+              vendorName: vendor.name,
+              amount: invoice.amount,
+              invoiceNumber: invoice.invoiceNumber
+            }
+          });
+        } catch (activityError) {
+          console.error('Error logging invoice update activity:', activityError);
+        }
+      }
+      
       res.json(invoice);
     } catch (error) {
       console.error('Error updating vendor invoice:', error);
@@ -4679,10 +4739,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/invoices/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      const userId = (req.user as any).claims.sub;
+      
+      // Get invoice details before deleting
+      const invoice = await storage.getVendorInvoice(id);
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      
       const deleted = await storage.deleteVendorInvoice(id);
       if (!deleted) {
         return res.status(404).json({ error: "Invoice not found" });
       }
+      
+      // Log activity
+      const user = await storage.getUser(userId);
+      const vendor = await storage.getVendor(invoice.vendorId);
+      if (user && vendor) {
+        try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'invoice_delete',
+            fileName: invoice.invoiceNumber || 'Invoice',
+            description: `deleted invoice ${invoice.invoiceNumber} for ${vendor.name}`,
+            metadata: {
+              invoiceId: invoice.id,
+              vendorId: vendor.id,
+              vendorName: vendor.name,
+              amount: invoice.amount,
+              invoiceNumber: invoice.invoiceNumber
+            }
+          });
+        } catch (activityError) {
+          console.error('Error logging invoice delete activity:', activityError);
+        }
+      }
+      
       res.json({ success: true });
     } catch (error) {
       console.error('Error deleting vendor invoice:', error);
