@@ -90,41 +90,66 @@ export async function canAccessObject({
   objectFile: File;
   requestedPermission: ObjectPermission;
 }): Promise<boolean> {
-  const aclPolicy = await getObjectAclPolicy(objectFile);
-  if (!aclPolicy) {
-    return false;
-  }
+  console.log("🔐 canAccessObject called");
+  console.log("   userId:", userId);
+  console.log("   requestedPermission:", requestedPermission);
+  console.log("   objectFile.name:", objectFile.name);
+  
+  try {
+    console.log("📋 Getting ACL policy...");
+    const aclPolicy = await getObjectAclPolicy(objectFile);
+    console.log("✅ ACL policy retrieved:", aclPolicy);
+    
+    if (!aclPolicy) {
+      console.log("❌ No ACL policy found - denying access");
+      return false;
+    }
 
-  if (
-    aclPolicy.visibility === "public" &&
-    requestedPermission === ObjectPermission.READ
-  ) {
-    return true;
-  }
-
-  if (!userId) {
-    return false;
-  }
-
-  // Allow ALL authenticated users to READ any object
-  if (requestedPermission === ObjectPermission.READ) {
-    return true;
-  }
-
-  // For WRITE permission, check ownership and ACL rules
-  if (aclPolicy.owner === userId) {
-    return true;
-  }
-
-  for (const rule of aclPolicy.aclRules || []) {
-    const accessGroup = createObjectAccessGroup(rule.group);
     if (
-      (await accessGroup.hasMember(userId)) &&
-      isPermissionAllowed(requestedPermission, rule.permission)
+      aclPolicy.visibility === "public" &&
+      requestedPermission === ObjectPermission.READ
     ) {
+      console.log("✅ Public file - allowing READ access");
       return true;
     }
-  }
 
-  return false;
+    if (!userId) {
+      console.log("❌ No userId and not public - denying access");
+      return false;
+    }
+
+    // Allow ALL authenticated users to READ any object
+    if (requestedPermission === ObjectPermission.READ) {
+      console.log("✅ Authenticated user requesting READ - allowing access");
+      return true;
+    }
+
+    // For WRITE permission, check ownership and ACL rules
+    if (aclPolicy.owner === userId) {
+      console.log("✅ User is owner - allowing access");
+      return true;
+    }
+
+    for (const rule of aclPolicy.aclRules || []) {
+      const accessGroup = createObjectAccessGroup(rule.group);
+      if (
+        (await accessGroup.hasMember(userId)) &&
+        isPermissionAllowed(requestedPermission, rule.permission)
+      ) {
+        console.log("✅ User in ACL group - allowing access");
+        return true;
+      }
+    }
+
+    console.log("❌ No matching ACL rules - denying access");
+    return false;
+  } catch (error) {
+    console.error("❌ ERROR in canAccessObject:", error);
+    console.error("Error details:", {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    // In case of error, deny access for safety
+    return false;
+  }
 }
