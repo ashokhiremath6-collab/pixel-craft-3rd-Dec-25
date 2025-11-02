@@ -51,9 +51,15 @@ declare module 'express-session' {
 
 // Authentication middleware for Replit Auth
 const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.log("🔐 requireAuth called for:", req.path);
+  console.log("🔑 isAuthenticated:", req.isAuthenticated());
+  console.log("👤 has user:", !!req.user);
+  
   if (!req.isAuthenticated() || !req.user) {
+    console.log("❌ Auth failed - returning 401");
     return res.status(401).json({ error: "Authentication required" });
   }
+  console.log("✅ Auth passed - calling next()");
   next();
 };
 
