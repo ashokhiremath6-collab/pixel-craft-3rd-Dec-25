@@ -127,7 +127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log("🔍 Getting object entity file...");
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
-      console.log("✅ Object file retrieved:", objectFile);
+      console.log("✅ Object file retrieved successfully");
       
       console.log("🔐 Checking access permissions...");
       const canAccess = await objectStorageService.canAccessObjectEntity({
