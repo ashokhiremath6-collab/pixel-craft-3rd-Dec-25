@@ -616,31 +616,31 @@ export default function CataloguePage() {
                                     <h4 className="font-medium text-sm">{subcat}</h4>
                                   </div>
                                   <div className="overflow-x-auto">
-                                    <table className="w-full">
+                                    <table className="w-full table-fixed">
                                       <thead>
                                         <tr className="border-b bg-muted/30">
-                                          <th className="text-left py-2 px-4 text-xs font-semibold">Vendor/Brand</th>
+                                          <th className="text-left py-2 px-4 text-xs font-semibold w-[180px]">Vendor/Brand</th>
                                           <th className="text-left py-2 px-4 text-xs font-semibold">Description</th>
-                                          <th className="text-left py-2 px-4 text-xs font-semibold">File/Link</th>
-                                          <th className="text-left py-2 px-4 text-xs font-semibold">Type</th>
-                                          <th className="text-left py-2 px-4 text-xs font-semibold">Actions</th>
+                                          <th className="text-left py-2 px-4 text-xs font-semibold w-[260px]">File/Link</th>
+                                          <th className="text-left py-2 px-4 text-xs font-semibold w-[100px]">Type</th>
+                                          <th className="text-left py-2 px-4 text-xs font-semibold w-[110px]">Actions</th>
                                         </tr>
                                       </thead>
                                       <tbody>
                                         {items.map((item) => (
                                           <tr key={item.id} className="border-b last:border-b-0 hover-elevate" data-testid={`library-item-${item.id}`}>
-                                            <td className="py-2 px-4 text-sm">
+                                            <td className="py-2 px-4 text-sm w-[180px] truncate">
                                               {item.vendorBrand || <span className="text-muted-foreground">-</span>}
                                             </td>
-                                            <td className="py-2 px-4 text-sm max-w-md">
+                                            <td className="py-2 px-4 text-sm">
                                               <div className="line-clamp-2">
                                                 {item.description || <span className="text-muted-foreground">-</span>}
                                               </div>
                                             </td>
-                                            <td className="py-2 px-4 text-sm">
+                                            <td className="py-2 px-4 text-sm w-[260px] truncate">
                                               {item.fileName || 'URL Link'}
                                             </td>
-                                            <td className="py-2 px-4 text-sm">
+                                            <td className="py-2 px-4 text-sm w-[100px]">
                                               {item.fileName ? (
                                                 <Badge variant="outline" className="text-xs">
                                                   {getFileType(item.fileName)}
@@ -652,7 +652,7 @@ export default function CataloguePage() {
                                                 </Badge>
                                               )}
                                             </td>
-                                            <td className="py-2 px-4 text-sm">
+                                            <td className="py-2 px-4 text-sm w-[110px]">
                                               {item.filePath ? (
                                                 <Button
                                                   variant="ghost"
