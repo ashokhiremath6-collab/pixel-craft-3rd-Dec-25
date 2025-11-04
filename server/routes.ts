@@ -2029,13 +2029,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (totals.grandTotal === -1) {
         totalValue = -1; // Keep the special marker
         useDetectedTotal = true;
-        console.log(`Unit rates document detected - no total value`);
+        console.log(`📋 Unit rates document detected - setting totalValue to -1`);
       }
       // Use detected grand total from PDF if available
       else if (totals.grandTotal && totals.grandTotal > 0) {
         totalValue = totals.grandTotal;
         useDetectedTotal = true;
-        console.log(`Using detected grand total from PDF: ${totalValue}`);
+        console.log(`📋 Using detected grand total from PDF: ${totalValue}`);
+      } else {
+        console.log(`📋 No grand total detected in PDF. totals.grandTotal = ${totals.grandTotal}, totalValue remains ${totalValue}`);
       }
 
       for (const row of items) {
@@ -2097,6 +2099,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create project vendor record
+      console.log(`📋 Creating project vendor with totalValue=${totalValue}, will be stored as quotationValue="${totalValue.toString()}"`);
       const projectVendorData = {
         projectId,
         vendorId,
@@ -2109,6 +2112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         itemCategory: importParams?.itemCategory || null,
         parentQuotationId: importParams?.parentQuotationId || null
       };
+      console.log(`📋 Project vendor data:`, JSON.stringify(projectVendorData, null, 2));
 
       // Use createProjectVendor when we have importParams to ensure multiple quotes are created
       const projectVendor = importParams 
@@ -2159,6 +2163,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { projectId, vendorId, quoteType } = req.body;
       
+      // DEBUG: Log the received quoteType
+      console.log(`📋 Quote Import - File: ${req.file.originalname}, quoteType received: "${quoteType}", Type: ${typeof quoteType}`);
+      console.log(`📋 Is Unit Rate? ${quoteType === 'unitrate'}`);
+      
       if (!projectId || !vendorId) {
         return res.status(400).json({ error: "Project ID and Vendor ID are required" });
       }
@@ -2176,7 +2184,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Parse the uploaded file from buffer
-      const data = await parseQuoteFile(req.file.buffer, req.file.mimetype, req.file.originalname, quoteType === 'unitrate');
+      const isUnitRate = quoteType === 'unitrate';
+      console.log(`📋 Passing isUnitRate=${isUnitRate} to parseQuoteFile`);
+      const data = await parseQuoteFile(req.file.buffer, req.file.mimetype, req.file.originalname, isUnitRate);
       
       if (!data || data.length === 0) {
         return res.status(400).json({ error: "No valid data found in file" });
