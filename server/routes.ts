@@ -1984,6 +1984,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (isUnitRate) {
           console.log('Unit rate quote detected via dropdown - setting total to -1');
           result.totals.grandTotal = -1; // -1 marker for unit rates
+        } else if (!result.totals.grandTotal || result.totals.grandTotal <= 0) {
+          // For regular quotes, if PDF has no total, leave it undefined
+          // so it will be calculated from BOQ items later
+          console.log('Regular quote selected but PDF has no total - will calculate from BOQ items');
+          result.totals.grandTotal = undefined;
         }
         
         // Return both items and totals for PDF processing
