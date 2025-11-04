@@ -492,40 +492,41 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold" data-testid="heading-comparative-quotes">
-            Comparative Quotes
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Compare vendor quotations side-by-side by project and category
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">
-              {Object.keys(groupedData).length} comparison groups
-            </span>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold" data-testid="heading-comparative-quotes">
+              Comparative Quotes
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Compare vendor quotations side-by-side by project and category
+            </p>
           </div>
-          
-          {/* Export Button */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                disabled={isExporting || filteredQuotations.length === 0}
-                data-testid="button-export-quotes"
-              >
-                {isExporting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Download className="h-4 w-4 mr-2" />
-                )}
-                {isExporting ? "Exporting..." : "Export"}
-              </Button>
-            </DropdownMenuTrigger>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {Object.keys(groupedData).length} comparison groups
+              </span>
+            </div>
+            
+            {/* Export Button */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={isExporting || filteredQuotations.length === 0}
+                  data-testid="button-export-quotes"
+                >
+                  {isExporting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  {isExporting ? "Exporting..." : "Export"}
+                </Button>
+              </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem 
                 onClick={handleExportCSV} 
@@ -553,6 +554,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
       </div>
 
@@ -628,7 +630,8 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <Table className="table-fixed">
+              <div className="overflow-x-auto -mx-6 px-6">
+              <Table className="table-fixed min-w-[800px]">
                 <colgroup>
                   <col className={hideValueColumns ? "w-[35%]" : "w-[25%]"} />
                   {!hideValueColumns && (
@@ -919,6 +922,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                   })()}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         );
