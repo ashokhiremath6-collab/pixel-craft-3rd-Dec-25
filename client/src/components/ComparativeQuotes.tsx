@@ -629,8 +629,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                 {group.category} - {group.projectName}
               </CardTitle>
             </CardHeader>
-            <CardContent className="pt-0">
-              <div className="overflow-x-auto -mx-6 px-6">
+            <CardContent className="pt-0 overflow-x-auto">
               <Table className="table-fixed min-w-[800px]">
                 <colgroup>
                   <col className={hideValueColumns ? "w-[35%]" : "w-[25%]"} />
@@ -922,7 +921,6 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                   })()}
                 </TableBody>
               </Table>
-              </div>
             </CardContent>
           </Card>
         );
