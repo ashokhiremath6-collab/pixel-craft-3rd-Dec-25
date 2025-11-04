@@ -351,6 +351,14 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
+      <Dashboard 
+        vendors={filteredVendors}
+        projects={filteredProjects}
+        recentQuotations={filteredRecentQuotations}
+        allQuotations={filteredQuotations}
+        onNavigate={handleNavigate}
+      />
+
       {/* Recent Activity */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
@@ -409,14 +417,6 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
-
-      <Dashboard 
-        vendors={filteredVendors}
-        projects={filteredProjects}
-        recentQuotations={filteredRecentQuotations}
-        allQuotations={filteredQuotations}
-        onNavigate={handleNavigate}
-      />
     </div>
   );
 }
