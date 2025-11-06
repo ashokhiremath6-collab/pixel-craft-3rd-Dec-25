@@ -414,7 +414,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
             )}
           </div>
 
-          {/* Project and Vendor Selection */}
+          {/* Project and Vendor/Category Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">
@@ -442,31 +442,63 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
               </Select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Select Vendor
-              </label>
-              <Select
-                value={selectedVendor}
-                onValueChange={setSelectedVendor}
-                data-testid="select-vendor"
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a vendor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(vendors as Vendor[]).map((vendor) => (
-                    <SelectItem
-                      key={vendor.id}
-                      value={vendor.id}
-                      data-testid={`option-vendor-${vendor.id}`}
-                    >
-                      {vendor.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Show Category selection for comparative statements, Vendor for regular quotes */}
+            {unitRateSubtype === "comparative" && forceQuoteType === "unitrate" ? (
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Select Category
+                </label>
+                <Select
+                  value={selectedCategory}
+                  onValueChange={setSelectedCategory}
+                  data-testid="select-category"
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem
+                        key={category.id}
+                        value={category.id}
+                        data-testid={`option-category-${category.id}`}
+                      >
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  The comparative statement will compare multiple vendors in this category
+                </p>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Select Vendor
+                </label>
+                <Select
+                  value={selectedVendor}
+                  onValueChange={setSelectedVendor}
+                  data-testid="select-vendor"
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a vendor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(vendors as Vendor[]).map((vendor) => (
+                      <SelectItem
+                        key={vendor.id}
+                        value={vendor.id}
+                        data-testid={`option-vendor-${vendor.id}`}
+                      >
+                        {vendor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           {/* Unit Rate Subtype Selection - only show when importing unit rate quotes */}
