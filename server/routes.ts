@@ -1330,11 +1330,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate totals from BOQ items for quotes without explicit totals
       for (const pv of projectVendors) {
         const project = projectMap.get(pv.projectId);
-        const vendor = vendorMap.get(pv.vendorId);
-        const category = vendor ? categoryMap.get(vendor.categoryId) : null;
+        
+        // For comparative statements, vendor is null and category comes from pv.category
+        // For regular quotes, vendor should exist and category comes from vendor
+        const isComparativeStatement = pv.unitRateSubtype === 'comparative';
+        const vendor = pv.vendorId ? vendorMap.get(pv.vendorId) : null;
+        const categoryFromVendor = vendor ? categoryMap.get(vendor.categoryId) : null;
+        const categoryName = isComparativeStatement ? pv.category : categoryFromVendor?.name;
         
         // Only include project vendors for projects the user has access to
-        if (project && vendor && category && projects.some(p => p.id === project.id)) {
+        // For comparative statements: project and categoryName must exist
+        // For regular quotes: project, vendor, and category must exist
+        const isValid = project && projects.some(p => p.id === project.id) &&
+          (isComparativeStatement ? !!categoryName : !!(vendor && categoryFromVendor));
+        
+        if (isValid) {
           if (!quotationsByProject[pv.projectId]) {
             quotationsByProject[pv.projectId] = [];
           }
@@ -1378,8 +1388,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           quotationsByProject[pv.projectId].push({
             id: pv.id,
-            vendorName: vendor.name,
-            category: category.name,
+            vendorName: isComparativeStatement ? 'Multiple Vendors' : (vendor?.name || 'Unknown'),
+            category: categoryName || 'Uncategorized',
             quotationName: pv.quotationName,
             quotationType: pv.quotationType,
             quotationValue: quotationValue,
@@ -1390,7 +1400,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             isNegotiated: pv.isNegotiated,
             projectId: pv.projectId,
             projectName: project.projectName,
-            uploaderName: uploaderName
+            uploaderName: uploaderName,
+            unitRateSubtype: pv.unitRateSubtype
           });
         }
       }
