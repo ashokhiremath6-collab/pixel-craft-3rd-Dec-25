@@ -2178,7 +2178,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     size: number;
     parsedData: any;
     projectId: string;
-    vendorId: string;
+    vendorId: string | null;
+    categoryId?: string | null;
+    categoryName?: string | null;
     unitRateSubtype?: string;
   }>();
 
@@ -2345,6 +2347,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userName = user.firstName && user.lastName 
             ? `${user.firstName} ${user.lastName}` 
             : user.email || 'Unknown';
+          const activityDescription = isComparativeStatement
+            ? `uploaded comparative statement for ${categoryName} - ${project.projectName}`
+            : `uploaded quotation for ${vendor?.name} - ${project.projectName}`;
+          
           await storage.createActivity({
             userId: user.id,
             userName: userName,
@@ -2352,11 +2358,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             activityType: 'quote_upload',
             fileName: req.file.originalname,
             filePath: objectPath,
-            description: `uploaded quotation for ${vendor.name} - ${project.projectName}`,
+            description: activityDescription,
             projectId: projectId,
             metadata: {
               projectVendorId: results.projectVendor.id,
-              vendorId: vendorId,
+              vendorId: vendorId || null,
+              categoryId: isComparativeStatement ? categoryId : null,
+              categoryName: isComparativeStatement ? categoryName : null,
               quotationValue: results.projectVendor.quotationValue
             }
           });
@@ -2392,6 +2400,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tempFileId, 
         projectId, 
         vendorId, 
+        categoryId,
+        categoryName,
         resolutionType, 
         quotationName, 
         itemCategory, 
@@ -2399,10 +2409,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         unitRateSubtype 
       } = req.body;
       
-      if (!tempFileId || !projectId || !vendorId || !resolutionType) {
+      // Retrieve stored file data from memory to check if it's comparative
+      const tempData = tempQuoteStorage.get(tempFileId);
+      if (!tempData) {
+        return res.status(404).json({ error: "Temporary file not found. Please re-upload the file." });
+      }
+      
+      const isComparativeStatement = tempData.unitRateSubtype === 'comparative';
+      
+      // Validate required fields based on type
+      if (!tempFileId || !projectId || !resolutionType) {
         return res.status(400).json({ 
-          error: "Missing required parameters: tempFileId, projectId, vendorId, resolutionType" 
+          error: "Missing required parameters: tempFileId, projectId, resolutionType" 
         });
+      }
+      
+      if (isComparativeStatement) {
+        if (!categoryId) {
+          return res.status(400).json({ 
+            error: "categoryId is required for comparative statements" 
+          });
+        }
+      } else {
+        if (!vendorId) {
+          return res.status(400).json({ 
+            error: "vendorId is required for regular quotes" 
+          });
+        }
       }
 
       if (resolutionType === "option" && !parentQuotationId) {
@@ -2417,14 +2450,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Retrieve stored file data from memory
-      const tempData = tempQuoteStorage.get(tempFileId);
-      
-      if (!tempData) {
-        return res.status(404).json({ error: "Temporary file not found. Please re-upload the file." });
-      }
-
-      // Use the already-parsed data from memory
+      // Use the already-parsed data from memory (tempData already retrieved above for validation)
       const data = tempData.parsedData;
       
       if (!data || data.length === 0) {
@@ -2463,9 +2489,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (finalUnitRateSubtype) {
         importParams.unitRateSubtype = finalUnitRateSubtype;
       }
+      
+      // Add category info for comparative statements
+      if (isComparativeStatement) {
+        importParams.categoryId = categoryId || tempData.categoryId;
+        importParams.categoryName = categoryName || tempData.categoryName;
+      }
 
       // Process the quote import with additional parameters
-      const results = await processQuoteImport(data, projectId, vendorId, importParams);
+      // For comparative statements, pass null as vendorId
+      const results = await processQuoteImport(
+        data, 
+        projectId, 
+        isComparativeStatement ? null : vendorId, 
+        importParams
+      );
       
       // Upload file to object storage
       const userId = (req.user as any).claims.sub;

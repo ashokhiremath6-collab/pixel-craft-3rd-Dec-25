@@ -67,7 +67,8 @@ export const quoteTemplates = pgTable("quote_templates", {
 export const projectVendors = pgTable("project_vendors", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull().references(() => projects.id),
-  vendorId: varchar("vendor_id").notNull().references(() => vendors.id),
+  vendorId: varchar("vendor_id").references(() => vendors.id), // Nullable for comparative statements
+  category: text("category"), // For comparative statements: category name instead of vendor
   quotationName: text("quotation_name").notNull().default("Main Quote"), // "Option A", "Kitchen Cabinets", etc.
   quotationType: text("quotation_type").notNull().default("item"), // "item" or "option"
   parentQuotationId: varchar("parent_quotation_id"), // Self-reference for grouping options - added later
