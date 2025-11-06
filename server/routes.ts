@@ -2157,6 +2157,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     parsedData: any;
     projectId: string;
     vendorId: string;
+    unitRateSubtype?: string;
   }>();
 
   // Quote Import Routes
@@ -2166,11 +2167,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { projectId, vendorId, quoteType } = req.body;
+      const { projectId, vendorId, quoteType, unitRateSubtype } = req.body;
       
-      // DEBUG: Log the received quoteType
+      // DEBUG: Log the received quoteType and unitRateSubtype
       console.log(`📋 Quote Import - File: ${req.file.originalname}, quoteType received: "${quoteType}", Type: ${typeof quoteType}`);
-      console.log(`📋 Is Unit Rate? ${quoteType === 'unitrate'}`);
+      console.log(`📋 Is Unit Rate? ${quoteType === 'unitrate'}, Unit Rate Subtype: ${unitRateSubtype}`);
       
       if (!projectId || !vendorId) {
         return res.status(400).json({ error: "Project ID and Vendor ID are required" });
@@ -2199,11 +2200,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check if vendor already has quotes for this project (only count records with actual quote data)
       const allProjectVendors = await storage.getProjectVendors(projectId);
-      const existingQuotes = allProjectVendors.filter(pv => 
-        pv.vendorId === vendorId && 
-        pv.quotationValue !== null && 
-        pv.quotationValue !== undefined
-      );
+      
+      // Comparative statements only conflict with other comparative statements
+      // Regular quotes only conflict with other regular quotes (not comparative statements)
+      const existingQuotes = allProjectVendors.filter(pv => {
+        if (pv.vendorId !== vendorId) return false;
+        if (pv.quotationValue === null || pv.quotationValue === undefined) return false;
+        
+        // If importing a comparative statement, only look for other comparative statements
+        if (unitRateSubtype === 'comparative') {
+          return pv.unitRateSubtype === 'comparative';
+        }
+        
+        // If importing a regular quote, exclude comparative statements
+        return pv.unitRateSubtype !== 'comparative';
+      });
       
       if (existingQuotes.length > 0) {
         // Generate a temporary ID and store file data in memory for conflict resolution
@@ -2215,7 +2226,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           size: req.file.size,
           parsedData: data,
           projectId,
-          vendorId
+          vendorId,
+          unitRateSubtype
         });
         
         // Return conflict response
