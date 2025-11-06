@@ -13,7 +13,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, FileText, CheckCircle, AlertCircle, Download, X } from "lucide-react";
-import type { Project, Vendor, ProjectVendor, Boq } from "@shared/schema";
+import type { Project, Vendor, ProjectVendor, Boq, VendorCategory } from "@shared/schema";
 
 interface ImportResult {
   message: string;
@@ -51,6 +51,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [selectedVendor, setSelectedVendor] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [quoteType, setQuoteType] = useState<string>(forceQuoteType || "regular");
   const [unitRateSubtype, setUnitRateSubtype] = useState<string>("quote"); // "quote" or "comparative"
   const [dragActive, setDragActive] = useState(false);
@@ -65,13 +66,17 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch projects and vendors
+  // Fetch projects, vendors, and categories
   const { data: projects = [] } = useQuery({
     queryKey: ['/api/projects'],
   });
 
   const { data: vendors = [] } = useQuery({
     queryKey: ['/api/vendors'],
+  });
+
+  const { data: categories = [] } = useQuery<VendorCategory[]>({
+    queryKey: ['/api/vendor-categories'],
   });
 
   // Import mutation
