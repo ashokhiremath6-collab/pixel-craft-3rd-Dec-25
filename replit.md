@@ -63,6 +63,7 @@ Preferred communication style: Simple, everyday language.
 - **Project-Vendor Relations**: Junction table for many-to-many relationships with quotation data
   - Unit Rate Subtype: Distinguishes between "quote" (standard quotations) and "comparative" (comparative statements)
   - Conflict Detection: Comparative statements only conflict with other comparative statements, not with regular quotes
+  - Display Separation: Comparative statements shown in dedicated "Unit Rate Comparative Statements" section with custom labeling
 - **Quote Templates**: Reusable templates for different vendor categories
 - **BOQ & Quote Files**: File management for quotation documents
 - **Project Schedules**: Gantt chart schedules with 250-task capacity
