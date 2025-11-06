@@ -2012,6 +2012,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     quotationType?: string;
     itemCategory?: string;
     parentQuotationId?: string;
+    unitRateSubtype?: string;
   }) => {
     const results = {
       projectVendor: null as any,
@@ -2105,7 +2106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create project vendor record
       console.log(`📋 Creating project vendor with totalValue=${totalValue}, will be stored as quotationValue="${totalValue.toString()}"`);
-      const projectVendorData = {
+      const projectVendorData: any = {
         projectId,
         vendorId,
         quotationValue: totalValue.toString(),
@@ -2117,6 +2118,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         itemCategory: importParams?.itemCategory || null,
         parentQuotationId: importParams?.parentQuotationId || null
       };
+      
+      // Add unitRateSubtype if provided
+      if (importParams?.unitRateSubtype) {
+        projectVendorData.unitRateSubtype = importParams.unitRateSubtype;
+      }
       console.log(`📋 Project vendor data:`, JSON.stringify(projectVendorData, null, 2));
 
       // Use createProjectVendor when we have importParams to ensure multiple quotes are created
@@ -2250,7 +2256,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Process the quote import (no conflict)
-      const results = await processQuoteImport(data, projectId, vendorId);
+      const results = await processQuoteImport(data, projectId, vendorId, unitRateSubtype ? { unitRateSubtype } : undefined);
       
       // Upload file to object storage
       const userId = (req.user as any).claims.sub;
