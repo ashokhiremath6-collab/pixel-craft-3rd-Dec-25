@@ -246,20 +246,46 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
   };
 
   const handleImport = () => {
-    if (!selectedFile || !selectedProject || !selectedVendor) {
-      toast({
-        variant: "destructive",
-        title: "Missing information",
-        description: "Please select a file, project, and vendor before importing.",
-      });
-      return;
+    // Different validation for comparative statements vs regular quotes
+    const isComparativeStatement = unitRateSubtype === "comparative" && (quoteType === 'unitrate' || forceQuoteType === 'unitrate');
+    
+    if (isComparativeStatement) {
+      // Comparative statements require category instead of vendor
+      if (!selectedFile || !selectedProject || !selectedCategory) {
+        toast({
+          variant: "destructive",
+          title: "Missing information",
+          description: "Please select a file, project, and category before importing.",
+        });
+        return;
+      }
+    } else {
+      // Regular quotes require vendor
+      if (!selectedFile || !selectedProject || !selectedVendor) {
+        toast({
+          variant: "destructive",
+          title: "Missing information",
+          description: "Please select a file, project, and vendor before importing.",
+        });
+        return;
+      }
     }
 
     const formData = new FormData();
     formData.append('quoteFile', selectedFile);
     formData.append('projectId', selectedProject);
-    formData.append('vendorId', selectedVendor);
     formData.append('quoteType', quoteType);
+    
+    // For comparative statements, send categoryId; for regular quotes, send vendorId
+    if (isComparativeStatement) {
+      formData.append('categoryId', selectedCategory);
+      const selectedCategoryData = categories.find(c => c.id === selectedCategory);
+      if (selectedCategoryData) {
+        formData.append('categoryName', selectedCategoryData.name);
+      }
+    } else {
+      formData.append('vendorId', selectedVendor);
+    }
     
     // Include unit rate subtype if importing unit rate quotes
     if (quoteType === 'unitrate' || forceQuoteType === 'unitrate') {
