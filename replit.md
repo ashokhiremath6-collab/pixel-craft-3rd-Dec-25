@@ -62,7 +62,9 @@ Preferred communication style: Simple, everyday language.
 - **Projects**: Client projects with date ranges and vendor associations
 - **Project-Vendor Relations**: Junction table for many-to-many relationships with quotation data
   - Unit Rate Subtype: Distinguishes between "quote" (standard quotations) and "comparative" (comparative statements)
-  - Conflict Detection: Comparative statements only conflict with other comparative statements, not with regular quotes
+  - Vendor Association: Regular quotes require vendorId; comparative statements have null vendorId and use category field instead
+  - Category Tracking: Comparative statements store category info for proper grouping and conflict detection
+  - Conflict Detection: Comparative statements only conflict with other comparative statements in the same category, not with regular quotes
   - Display Separation: Comparative statements shown in dedicated "Unit Rate Comparative Statements" section with custom labeling
 - **Quote Templates**: Reusable templates for different vendor categories
 - **BOQ & Quote Files**: File management for quotation documents
