@@ -52,6 +52,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [selectedVendor, setSelectedVendor] = useState<string>("");
   const [quoteType, setQuoteType] = useState<string>(forceQuoteType || "regular");
+  const [unitRateSubtype, setUnitRateSubtype] = useState<string>("quote"); // "quote" or "comparative"
   const [dragActive, setDragActive] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [conflictData, setConflictData] = useState<ConflictData | null>(null);
@@ -107,6 +108,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
         setSelectedProject("");
         setSelectedVendor("");
         setQuoteType(forceQuoteType || "regular");
+        setUnitRateSubtype("quote");
         onImportComplete?.(result);
         onSuccess?.();
         queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
@@ -160,6 +162,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
       setSelectedProject("");
       setSelectedVendor("");
       setQuoteType(forceQuoteType || "regular");
+      setUnitRateSubtype("quote");
       onImportComplete?.(result);
       onSuccess?.();
       queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
@@ -252,6 +255,11 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
     formData.append('projectId', selectedProject);
     formData.append('vendorId', selectedVendor);
     formData.append('quoteType', quoteType);
+    
+    // Include unit rate subtype if importing unit rate quotes
+    if (quoteType === 'unitrate' || forceQuoteType === 'unitrate') {
+      formData.append('unitRateSubtype', unitRateSubtype);
+    }
 
     importMutation.mutate(formData);
   };
@@ -284,7 +292,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
       return;
     }
 
-    resolveConflictMutation.mutate({
+    const resolutionData: any = {
       tempFileId: conflictData.tempFileId,
       projectId: selectedProject,
       vendorId: selectedVendor,
@@ -292,7 +300,14 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
       quotationName: resolutionType === "new_item" ? quotationName : undefined,
       itemCategory: resolutionType === "new_item" ? itemCategory : undefined,
       parentQuotationId: resolutionType === "option" ? selectedParentQuote : undefined,
-    });
+    };
+    
+    // Include unit rate subtype if importing unit rate quotes
+    if (quoteType === 'unitrate' || forceQuoteType === 'unitrate') {
+      resolutionData.unitRateSubtype = unitRateSubtype;
+    }
+    
+    resolveConflictMutation.mutate(resolutionData);
   };
 
   const handleCloseConflictDialog = () => {
@@ -448,6 +463,35 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
               </Select>
             </div>
           </div>
+
+          {/* Unit Rate Subtype Selection - only show when importing unit rate quotes */}
+          {forceQuoteType === "unitrate" && (
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Unit Rate Type
+              </label>
+              <Select
+                value={unitRateSubtype}
+                onValueChange={setUnitRateSubtype}
+                data-testid="select-unitrate-subtype"
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose unit rate type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="quote" data-testid="option-unitrate-quote">
+                    Unit Rate Quote
+                  </SelectItem>
+                  <SelectItem value="comparative" data-testid="option-unitrate-comparative">
+                    Unit Rate Comparative Statement
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Select the type of unit rate document you're uploading
+              </p>
+            </div>
+          )}
 
           {/* Quote Type Selection - only show if not forced */}
           {!forceQuoteType && (
