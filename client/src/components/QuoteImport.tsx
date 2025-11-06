@@ -440,34 +440,64 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
             )}
           </div>
 
-          {/* Project and Vendor/Category Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Project Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Select Project
+            </label>
+            <Select
+              value={selectedProject}
+              onValueChange={setSelectedProject}
+              data-testid="select-project"
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a project" />
+              </SelectTrigger>
+              <SelectContent>
+                {(projects as Project[]).map((project) => (
+                  <SelectItem
+                    key={project.id}
+                    value={project.id}
+                    data-testid={`option-project-${project.id}`}
+                  >
+                    {project.projectName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Unit Rate Subtype Selection - only show when importing unit rate quotes */}
+          {forceQuoteType === "unitrate" && (
             <div>
               <label className="block text-sm font-medium mb-2">
-                Select Project
+                Unit Rate Type
               </label>
               <Select
-                value={selectedProject}
-                onValueChange={setSelectedProject}
-                data-testid="select-project"
+                value={unitRateSubtype}
+                onValueChange={setUnitRateSubtype}
+                data-testid="select-unitrate-subtype"
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a project" />
+                  <SelectValue placeholder="Choose unit rate type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(projects as Project[]).map((project) => (
-                    <SelectItem
-                      key={project.id}
-                      value={project.id}
-                      data-testid={`option-project-${project.id}`}
-                    >
-                      {project.projectName}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="quote" data-testid="option-unitrate-quote">
+                    Unit Rate Quote
+                  </SelectItem>
+                  <SelectItem value="comparative" data-testid="option-unitrate-comparative">
+                    Unit Rate Comparative Statement
+                  </SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Select the type of unit rate document you're uploading
+              </p>
             </div>
+          )}
 
+          {/* Vendor/Category Selection - show after Unit Rate Type is selected */}
+          <div>
             {/* Show Category selection for comparative statements, Vendor for regular quotes */}
             {unitRateSubtype === "comparative" && forceQuoteType === "unitrate" ? (
               <div>
@@ -527,35 +557,6 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
             )}
           </div>
 
-          {/* Unit Rate Subtype Selection - only show when importing unit rate quotes */}
-          {forceQuoteType === "unitrate" && (
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Unit Rate Type
-              </label>
-              <Select
-                value={unitRateSubtype}
-                onValueChange={setUnitRateSubtype}
-                data-testid="select-unitrate-subtype"
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose unit rate type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="quote" data-testid="option-unitrate-quote">
-                    Unit Rate Quote
-                  </SelectItem>
-                  <SelectItem value="comparative" data-testid="option-unitrate-comparative">
-                    Unit Rate Comparative Statement
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Select the type of unit rate document you're uploading
-              </p>
-            </div>
-          )}
-
           {/* Quote Type Selection - only show if not forced */}
           {!forceQuoteType && (
             <div>
@@ -599,7 +600,12 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
           {/* Import Button */}
           <Button
             onClick={handleImport}
-            disabled={!selectedFile || !selectedProject || !selectedVendor || importMutation.isPending}
+            disabled={
+              !selectedFile || 
+              !selectedProject || 
+              (unitRateSubtype === "comparative" && forceQuoteType === "unitrate" ? !selectedCategory : !selectedVendor) ||
+              importMutation.isPending
+            }
             className="w-full"
             data-testid="button-import-quote"
           >
