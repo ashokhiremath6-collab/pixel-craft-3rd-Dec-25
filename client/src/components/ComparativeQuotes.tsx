@@ -35,6 +35,7 @@ interface QuotationData {
   notes?: string;
   isAboveAverage?: boolean;
   isNegotiated?: boolean; // Mark as final negotiated quote
+  unitRateSubtype?: string | null; // "quote" or "comparative" for unit rate quotes
 }
 
 interface CategoryWithChildren extends VendorCategory {
@@ -350,8 +351,32 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     return matchesProject && matchesCategory;
   });
 
-  // Group by category and project
-  const groupedData = filteredQuotations.reduce((acc, quotation) => {
+  // Separate regular quotes from comparative statements
+  const regularQuotes = filteredQuotations.filter(q => q.unitRateSubtype !== 'comparative');
+  const comparativeStatements = filteredQuotations.filter(q => q.unitRateSubtype === 'comparative');
+
+  // Group regular quotes by category and project
+  const groupedData = regularQuotes.reduce((acc, quotation) => {
+    const key = `${quotation.category}-${quotation.projectId}`;
+    if (!acc[key]) {
+      acc[key] = {
+        category: quotation.category,
+        projectName: quotation.projectName,
+        projectId: quotation.projectId,
+        quotations: []
+      };
+    }
+    acc[key].quotations.push(quotation);
+    return acc;
+  }, {} as Record<string, {
+    category: string;
+    projectName: string;
+    projectId: string;
+    quotations: typeof filteredQuotations;
+  }>);
+
+  // Group comparative statements by category and project
+  const groupedComparativeData = comparativeStatements.reduce((acc, quotation) => {
     const key = `${quotation.category}-${quotation.projectId}`;
     if (!acc[key]) {
       acc[key] = {
@@ -709,7 +734,11 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                 {/* Show quotation name and type */}
                                 <div className={`text-xs ${isFirstQuoteForVendor ? 'text-gray-600 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300 ml-2'} flex items-center gap-1`}>
                                   {quotation.quotationType === "option" && <span className="text-orange-500">└</span>}
-                                  <span className="font-medium">{quotation.quotationName}</span>
+                                  <span className="font-medium">
+                                    {quotation.unitRateSubtype === 'comparative' 
+                                      ? 'Unit rate comparative statement' 
+                                      : quotation.quotationName}
+                                  </span>
                                   {quotation.quotationType === "option" && (
                                     <Badge variant="outline" className="text-xs px-1 py-0">Option</Badge>
                                   )}
@@ -926,7 +955,331 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
         );
       })}
 
-      {Object.keys(groupedData).length === 0 && (
+      {/* Comparative Statements Section */}
+      {Object.keys(groupedComparativeData).length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold mb-4">Unit Rate Comparative Statements</h2>
+          {Object.entries(groupedComparativeData)
+            .sort((a, b) => a[1].category.localeCompare(b[1].category, undefined, { sensitivity: 'base' }))
+            .map(([key, group]) => {
+            const lowestQuote = getLowestQuote(group.quotations);
+            const sortedQuotations = [...group.quotations].sort((a, b) => 
+              {
+                const aValue = a.quotationValue ? parseFloat(a.quotationValue) : 0;
+                const bValue = b.quotationValue ? parseFloat(b.quotationValue) : 0;
+                return aValue - bValue;
+              }
+            );
+
+            return (
+              <Card key={key} className="mb-4" data-testid={`comparison-group-comparative-${key}`}>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">
+                    {group.category} - {group.projectName}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0 overflow-x-auto">
+                  <Table className="table-fixed min-w-[800px]">
+                    <colgroup>
+                      <col className={hideValueColumns ? "w-[35%]" : "w-[25%]"} />
+                      {!hideValueColumns && (
+                        <>
+                          <col className="w-[18%]" />
+                          <col className="w-[12%]" />
+                        </>
+                      )}
+                      <col className="w-[15%]" />
+                      <col className="w-[12%]" />
+                      <col className={hideValueColumns ? "w-[38%]" : "w-[18%]"} />
+                    </colgroup>
+                    <TableHeader>
+                      <TableRow className="h-8">
+                        <TableHead className="text-xs font-medium">Vendor</TableHead>
+                        {!hideValueColumns && (
+                          <>
+                            <TableHead className="text-xs font-medium">Quote Value</TableHead>
+                            <TableHead className="text-xs font-medium">Variance</TableHead>
+                          </>
+                        )}
+                        <TableHead className="text-xs font-medium">Date</TableHead>
+                        <TableHead className="text-xs font-medium">Status</TableHead>
+                        <TableHead className="text-xs font-medium">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(() => {
+                        // Group quotations by vendor to support multiple quotes per vendor
+                        const vendorGroups = sortedQuotations.reduce((acc, quotation) => {
+                          if (!acc[quotation.vendorName]) {
+                            acc[quotation.vendorName] = [];
+                          }
+                          acc[quotation.vendorName].push(quotation);
+                          return acc;
+                        }, {} as Record<string, typeof sortedQuotations>);
+
+                        // Sort vendors alphabetically
+                        const sortedVendorEntries = Object.entries(vendorGroups).sort((a, b) => 
+                          a[0].localeCompare(b[0], undefined, { sensitivity: 'base' })
+                        );
+
+                        return sortedVendorEntries.flatMap(([vendorName, vendorQuotations], vendorIndex) => {
+                          // Sort vendor quotations: items first, then options
+                          const sortedVendorQuotations = vendorQuotations.sort((a, b) => {
+                            if (a.quotationType !== b.quotationType) {
+                              return a.quotationType === "item" ? -1 : 1;
+                            }
+                            const aName = a.quotationName || "Main Quote";
+                            const bName = b.quotationName || "Main Quote";
+                            return aName.localeCompare(bName);
+                          });
+
+                          return sortedVendorQuotations.map((quotation, quotationIndex) => {
+                            const globalIndex = sortedQuotations.findIndex(q => q.id === quotation.id);
+                            const variance = getQuoteVariance(quotation.quotationValue, lowestQuote);
+                            // Only mark as lowest if it has a valid value and equals the lowest quote
+                            const quotationValue = quotation.quotationValue ? parseFloat(quotation.quotationValue) : 0;
+                            const isLowest = quotationValue > 0 && quotationValue === lowestQuote;
+                            const isFirstQuoteForVendor = quotationIndex === 0;
+                            
+                            return (
+                              <TableRow 
+                                key={quotation.id}
+                                className={`h-10 ${quotation.status === "Selected" ? "bg-green-50 dark:bg-green-900/10" : ""}`}
+                                data-testid={`quotation-row-${quotation.id}`}
+                              >
+                                <TableCell className="font-medium text-sm py-2" data-testid="text-vendor-name">
+                                  <div className="flex flex-col">
+                                    {/* Show vendor name only for first quotation */}
+                                    {isFirstQuoteForVendor && (
+                                      <div className="font-semibold text-gray-900 dark:text-gray-100">
+                                        {quotation.vendorName}
+                                      </div>
+                                    )}
+                                    {/* Show quotation name and type */}
+                                    <div className={`text-xs ${isFirstQuoteForVendor ? 'text-gray-600 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300 ml-2'} flex items-center gap-1`}>
+                                      {quotation.quotationType === "option" && <span className="text-orange-500">└</span>}
+                                      <span className="font-medium">
+                                        Unit rate comparative statement
+                                      </span>
+                                      {quotation.quotationType === "option" && (
+                                        <Badge variant="outline" className="text-xs px-1 py-0">Option</Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                </TableCell>
+                            
+                            {!hideValueColumns && (
+                              <>
+                                <TableCell className="py-2" data-testid="text-quotation-value">
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-mono font-semibold text-sm">
+                                      {(() => {
+                                        const quotationValue = quotation.quotationValue || '';
+                                        const numericValue = parseFloat(quotationValue);
+                                        return !isNaN(numericValue) && numericValue > 0 ? formatCurrency(quotationValue) : <span className="text-muted-foreground">No total</span>;
+                                      })()}
+                                    </span>
+                                    {isLowest && (
+                                      <Badge variant="outline" className="text-xs text-green-600 border-green-200 px-1">
+                                        Lowest
+                                      </Badge>
+                                    )}
+                                    {quotation.isNegotiated && (
+                                      <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 px-1">
+                                        Negotiated
+                                      </Badge>
+                                    )}
+                                    {quotation.isAboveAverage && (
+                                      <AlertTriangle className="h-3 w-3 text-orange-500" />
+                                    )}
+                                  </div>
+                                </TableCell>
+                                
+                                <TableCell className="py-2" data-testid="text-variance">
+                                  <div className="flex items-center gap-1">
+                                    {variance === 0 ? (
+                                      <>
+                                        <span className="text-xs text-green-600 font-medium">0.0%</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <TrendingUp className="h-3 w-3 text-red-500" />
+                                        <span className="text-xs text-red-600">
+                                          +{variance.toFixed(1)}%
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </>
+                            )}
+                            
+                            <TableCell className="py-2 text-xs" data-testid="text-quotation-date">
+                              {quotation.dateOfQuotation ? new Date(quotation.dateOfQuotation).toLocaleDateString() : <span className="text-muted-foreground">No date</span>}
+                            </TableCell>
+                            
+                            <TableCell className="py-2" data-testid="cell-status">
+                              <StatusBadge status={quotation.status} />
+                            </TableCell>
+                            
+                            <TableCell className="py-2" data-testid="cell-actions">
+                              <div className="flex gap-0.5">
+                                <Button
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  variant="ghost"
+                                  onClick={() => handleQuoteClick(quotation, group.projectName)}
+                                  data-testid={`button-view-quote-${quotation.id}`}
+                                  title="View detailed quote breakdown"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  variant="ghost"
+                                  onClick={() => handleEditQuote(quotation)}
+                                  data-testid={`button-edit-quote-${quotation.id}`}
+                                  title="Edit quote values"
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </Button>
+                                {quotation.status === "Quoted" && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      className="h-6 text-xs px-2"
+                                      variant="outline"
+                                      onClick={() => onStatusChange?.(quotation.id, "Selected")}
+                                      data-testid="button-select-vendor"
+                                    >
+                                      Select
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      className="h-6 text-xs px-2"
+                                      variant="outline"
+                                      onClick={() => onStatusChange?.(quotation.id, "Rejected")}
+                                      data-testid="button-reject-vendor"
+                                    >
+                                      Reject
+                                    </Button>
+                                  </>
+                                )}
+                                {quotation.status === "Selected" && (
+                                  <Button
+                                    size="sm"
+                                    className="h-6 text-xs px-2"
+                                    variant="outline"
+                                    onClick={() => onStatusChange?.(quotation.id, "Quoted")}
+                                    data-testid="button-unselect-vendor"
+                                  >
+                                    Unselect
+                                  </Button>
+                                )}
+                                {quotation.status === "Rejected" && (
+                                  <Button
+                                    size="sm"
+                                    className="h-6 text-xs px-2"
+                                    variant="outline"
+                                    onClick={() => onStatusChange?.(quotation.id, "Quoted")}
+                                    data-testid="button-unreject-vendor"
+                                  >
+                                    Unreject
+                                  </Button>
+                                )}
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      size="icon"
+                                      variant="outline"
+                                      className="text-red-600 hover:text-red-700 h-6 w-6"
+                                      data-testid={`button-delete-quote-${quotation.id}`}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete Quote</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to delete the quote from {quotation.vendorName}? This action cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteQuote(quotation.id, quotation.vendorName)}
+                                        className="bg-red-600 hover:bg-red-700"
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      variant="ghost"
+                                      data-testid={`button-export-quote-${quotation.id}`}
+                                    >
+                                      <Download className="h-3 w-3" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem 
+                                      onClick={() => handleQuoteClick(quotation, group.projectName)}
+                                      data-testid={`view-quote-${quotation.id}`}
+                                      className="text-xs"
+                                    >
+                                      <Eye className="mr-2 h-3 w-3" />
+                                      View Quote
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => handleIndividualQuoteExport(quotation, group, 'pdf')}
+                                      data-testid={`export-quote-pdf-${quotation.id}`}
+                                      className="text-xs"
+                                    >
+                                      <FileText className="mr-2 h-3 w-3" />
+                                      Export as PDF
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => handleIndividualQuoteExport(quotation, group, 'excel')}
+                                      data-testid={`export-quote-excel-${quotation.id}`}
+                                      className="text-xs"
+                                    >
+                                      <FileSpreadsheet className="mr-2 h-3 w-3" />
+                                      Export as Excel
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => handleIndividualQuoteExport(quotation, group, 'csv')}
+                                      data-testid={`export-quote-csv-${quotation.id}`}
+                                      className="text-xs"
+                                    >
+                                      <FileText className="mr-2 h-3 w-3" />
+                                      Export as CSV
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                            );
+                          });
+                        });
+                      })()}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {Object.keys(groupedData).length === 0 && Object.keys(groupedComparativeData).length === 0 && (
         <Card className="text-center py-8">
           <CardContent>
             <BarChart3 className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
