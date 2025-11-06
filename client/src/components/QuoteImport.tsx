@@ -112,6 +112,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
         setSelectedFile(null);
         setSelectedProject("");
         setSelectedVendor("");
+        setSelectedCategory("");
         setQuoteType(forceQuoteType || "regular");
         setUnitRateSubtype("quote");
         onImportComplete?.(result);
