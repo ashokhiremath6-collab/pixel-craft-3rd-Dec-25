@@ -61,6 +61,8 @@ Preferred communication style: Simple, everyday language.
   - Vendors are not tied to specific projects; project associations only track quotation history
 - **Projects**: Client projects with date ranges and vendor associations
 - **Project-Vendor Relations**: Junction table for many-to-many relationships with quotation data
+  - Unit Rate Subtype: Distinguishes between "quote" (standard quotations) and "comparative" (comparative statements)
+  - Conflict Detection: Comparative statements only conflict with other comparative statements, not with regular quotes
 - **Quote Templates**: Reusable templates for different vendor categories
 - **BOQ & Quote Files**: File management for quotation documents
 - **Project Schedules**: Gantt chart schedules with 250-task capacity
