@@ -2007,12 +2007,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Helper function to process quote data and create records
-  const processQuoteImport = async (data: any, projectId: string, vendorId: string, importParams?: {
+  const processQuoteImport = async (data: any, projectId: string, vendorId: string | null, importParams?: {
     quotationName?: string;
     quotationType?: string;
     itemCategory?: string;
     parentQuotationId?: string;
     unitRateSubtype?: string;
+    categoryId?: string;
+    categoryName?: string;
   }) => {
     const results = {
       projectVendor: null as any,
@@ -2106,9 +2108,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create project vendor record
       console.log(`📋 Creating project vendor with totalValue=${totalValue}, will be stored as quotationValue="${totalValue.toString()}"`);
+      
+      // For comparative statements (null vendorId), we need to handle them specially
+      const isComparativeStatement = vendorId === null && importParams?.unitRateSubtype === 'comparative';
+      
       const projectVendorData: any = {
         projectId,
-        vendorId,
         quotationValue: totalValue.toString(),
         dateOfQuotation: new Date().toISOString().split('T')[0],
         status: 'Quoted' as const,
@@ -2118,6 +2123,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         itemCategory: importParams?.itemCategory || null,
         parentQuotationId: importParams?.parentQuotationId || null
       };
+      
+      // For comparative statements, use categoryName instead of vendorId
+      if (isComparativeStatement) {
+        // Store the category name - comparative statements are identified by category, not vendor
+        projectVendorData.category = importParams?.categoryName || 'Unknown Category';
+        projectVendorData.vendorId = null; // Explicitly set to null for comparative statements
+        console.log(`📋 Comparative statement: category="${projectVendorData.category}", vendorId=null`);
+      } else {
+        // Regular quote: use the provided vendorId
+        projectVendorData.vendorId = vendorId;
+      }
       
       // Add unitRateSubtype if provided
       if (importParams?.unitRateSubtype) {
@@ -2173,26 +2189,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { projectId, vendorId, quoteType, unitRateSubtype } = req.body;
+      const { projectId, vendorId, categoryId, categoryName, quoteType, unitRateSubtype } = req.body;
       
       // DEBUG: Log the received quoteType and unitRateSubtype
       console.log(`📋 Quote Import - File: ${req.file.originalname}, quoteType received: "${quoteType}", Type: ${typeof quoteType}`);
       console.log(`📋 Is Unit Rate? ${quoteType === 'unitrate'}, Unit Rate Subtype: ${unitRateSubtype}`);
+      console.log(`📋 Comparative Statement? categoryId: ${categoryId}, vendorId: ${vendorId}`);
       
-      if (!projectId || !vendorId) {
-        return res.status(400).json({ error: "Project ID and Vendor ID are required" });
+      // Validation: comparative statements require categoryId, regular quotes require vendorId
+      const isComparativeStatement = unitRateSubtype === 'comparative';
+      
+      if (!projectId) {
+        return res.status(400).json({ error: "Project ID is required" });
+      }
+      
+      if (isComparativeStatement) {
+        if (!categoryId) {
+          return res.status(400).json({ error: "Category ID is required for comparative statements" });
+        }
+      } else {
+        if (!vendorId) {
+          return res.status(400).json({ error: "Vendor ID is required" });
+        }
       }
 
-      // Verify project and vendor exist
+      // Verify project exists
       const project = await storage.getProject(projectId);
-      const vendor = await storage.getVendor(vendorId);
-      
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
       
-      if (!vendor) {
-        return res.status(404).json({ error: "Vendor not found" });
+      // Verify vendor exists (only for regular quotes)
+      let vendor = null;
+      if (!isComparativeStatement) {
+        vendor = await storage.getVendor(vendorId);
+        if (!vendor) {
+          return res.status(404).json({ error: "Vendor not found" });
+        }
       }
 
       // Parse the uploaded file from buffer
@@ -2204,23 +2237,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No valid data found in file" });
       }
 
-      // Check if vendor already has quotes for this project (only count records with actual quote data)
+      // Check for existing quotes (logic differs for comparative statements vs regular quotes)
       const allProjectVendors = await storage.getProjectVendors(projectId);
       
-      // Comparative statements only conflict with other comparative statements
-      // Regular quotes only conflict with other regular quotes (not comparative statements)
-      const existingQuotes = allProjectVendors.filter(pv => {
-        if (pv.vendorId !== vendorId) return false;
-        if (pv.quotationValue === null || pv.quotationValue === undefined) return false;
-        
-        // If importing a comparative statement, only look for other comparative statements
-        if (unitRateSubtype === 'comparative') {
-          return pv.unitRateSubtype === 'comparative';
-        }
-        
-        // If importing a regular quote, exclude comparative statements
-        return pv.unitRateSubtype !== 'comparative';
-      });
+      let existingQuotes;
+      if (isComparativeStatement) {
+        // For comparative statements: check by category, not by vendor
+        // Comparative statements only conflict with other comparative statements in the same category
+        existingQuotes = allProjectVendors.filter(pv => {
+          if (pv.quotationValue === null || pv.quotationValue === undefined) return false;
+          if (pv.unitRateSubtype !== 'comparative') return false;
+          
+          // Match by category name - comparative statements are identified by category
+          return pv.category === categoryName;
+        });
+      } else {
+        // For regular quotes: check by vendor
+        // Regular quotes only conflict with other regular quotes from the same vendor (not comparative statements)
+        existingQuotes = allProjectVendors.filter(pv => {
+          if (pv.vendorId !== vendorId) return false;
+          if (pv.quotationValue === null || pv.quotationValue === undefined) return false;
+          
+          // Exclude comparative statements
+          return pv.unitRateSubtype !== 'comparative';
+        });
+      }
       
       if (existingQuotes.length > 0) {
         // Generate a temporary ID and store file data in memory for conflict resolution
@@ -2232,14 +2273,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           size: req.file.size,
           parsedData: data,
           projectId,
-          vendorId,
+          vendorId: vendorId || null,
+          categoryId: categoryId || null,
+          categoryName: categoryName || null,
           unitRateSubtype
         });
         
-        // Return conflict response
+        // Return conflict response with appropriate message
+        const conflictMessage = isComparativeStatement
+          ? "A comparative statement already exists for this category in this project."
+          : "This vendor already has quotes for this project. Please specify if this is an option for existing items or a new item category.";
+        
         return res.status(409).json({
           conflictType: "existing_quotes",
-          message: "This vendor already has quotes for this project. Please specify if this is an option for existing items or a new item category.",
+          message: conflictMessage,
           existingQuotes: existingQuotes.map(quote => ({
             id: quote.id,
             quotationName: quote.quotationName || "Main Quote",
@@ -2256,7 +2303,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Process the quote import (no conflict)
-      const results = await processQuoteImport(data, projectId, vendorId, unitRateSubtype ? { unitRateSubtype } : undefined);
+      // For comparative statements, we need to pass categoryId and categoryName instead of vendorId
+      const results = await processQuoteImport(
+        data, 
+        projectId, 
+        isComparativeStatement ? null : vendorId,
+        unitRateSubtype ? { unitRateSubtype, categoryId, categoryName } : undefined
+      );
       
       // Upload file to object storage
       const userId = (req.user as any).claims.sub;
