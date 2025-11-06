@@ -1,7 +1,19 @@
 import ComparativeQuotes from '@/components/ComparativeQuotes';
+import QuoteImport from '@/components/QuoteImport';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Upload } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import type { VendorCategory, Project } from '@shared/schema';
 
 interface QuotationsResponse {
@@ -12,6 +24,7 @@ interface QuotationsResponse {
 export default function UnitRatesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   // Fetch vendor categories for hierarchical filtering
   const { data: categories = [] } = useQuery({
@@ -98,12 +111,41 @@ export default function UnitRatesPage() {
   });
 
   return (
-    <ComparativeQuotes 
-      projects={projects}
-      categories={categories as VendorCategory[]}
-      quotations={filteredQuotations}
-      onStatusChange={handleStatusChange}
-      hideValueColumns={true}
-    />
+    <div className="space-y-6">
+      {/* Import Button */}
+      <div className="flex justify-end">
+        <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-open-import-dialog">
+              <Upload className="h-4 w-4 mr-2" />
+              Import Unit Rate Quote
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Import Unit Rate Quote</DialogTitle>
+              <DialogDescription>
+                Upload Excel, CSV, or PDF files to import unit rate quotations
+              </DialogDescription>
+            </DialogHeader>
+            <QuoteImport 
+              forceQuoteType="unitrate"
+              onSuccess={() => {
+                setImportDialogOpen(false);
+                queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <ComparativeQuotes 
+        projects={projects}
+        categories={categories as VendorCategory[]}
+        quotations={filteredQuotations}
+        onStatusChange={handleStatusChange}
+        hideValueColumns={true}
+      />
+    </div>
   );
 }
