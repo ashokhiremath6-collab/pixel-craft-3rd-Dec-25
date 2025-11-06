@@ -2342,7 +2342,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resolutionType, 
         quotationName, 
         itemCategory, 
-        parentQuotationId 
+        parentQuotationId,
+        unitRateSubtype 
       } = req.body;
       
       if (!tempFileId || !projectId || !vendorId || !resolutionType) {
@@ -2397,12 +2398,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         finalQuotationName = `Option ${optionNumber}`;
       }
       
-      const importParams = {
+      const importParams: any = {
         quotationName: finalQuotationName,
         quotationType: resolutionType === "option" ? "option" : "item",
         itemCategory: itemCategory || null,
         parentQuotationId: resolutionType === "option" ? parentQuotationId : null
       };
+      
+      // Add unitRateSubtype if provided (from request body or stored temp data)
+      const finalUnitRateSubtype = unitRateSubtype || tempData.unitRateSubtype;
+      if (finalUnitRateSubtype) {
+        importParams.unitRateSubtype = finalUnitRateSubtype;
+      }
 
       // Process the quote import with additional parameters
       const results = await processQuoteImport(data, projectId, vendorId, importParams);
