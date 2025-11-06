@@ -80,6 +80,7 @@ export const projectVendors = pgTable("project_vendors", {
   notes: text("notes"),
   templateId: varchar("template_id").references(() => quoteTemplates.id),
   submittedAt: timestamp("submitted_at").default(sql`now()`),
+  unitRateSubtype: text("unit_rate_subtype"), // For unit rate quotes: "quote" or "comparative"
 });
 
 // BOQ (Bill of Quantities) table
