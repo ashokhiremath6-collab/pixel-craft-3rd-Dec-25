@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import VendorCard from "./VendorCard";
 import ProjectCard from "./ProjectCard";
-import { Users, Building2, FileText, TrendingUp, Plus, ArrowRight } from "lucide-react";
+import { Users, Building2, FileText, TrendingUp, Plus, ArrowRight, Clock } from "lucide-react";
 import type { Vendor, Project } from "@shared/schema";
 import { formatCurrencyCompact, formatVendorNameWithProjectAndCategory } from "@/lib/currencyUtils";
+import { format } from "date-fns";
 
 interface VendorWithCategory extends Omit<Vendor, 'categoryName'> {
   category: string;
@@ -26,6 +27,7 @@ interface DashboardProps {
     quotationName?: string;
     quotationType?: string;
     uploaderName?: string | null;
+    uploadedAt?: string | null;
   }>;
   allQuotations?: Array<{
     id: string;
@@ -38,6 +40,7 @@ interface DashboardProps {
     quotationName?: string;
     quotationType?: string;
     uploaderName?: string | null;
+    uploadedAt?: string | null;
   }>;
   onNavigate?: (path: string) => void;
 }
@@ -201,6 +204,14 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
                         </span>
                       )}
                     </div>
+                    {quotation.uploadedAt && (
+                      <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        <span data-testid={`text-uploaded-time-${quotation.id}`}>
+                          {format(new Date(quotation.uploadedAt), "MMM d, yyyy 'at' h:mm a")}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div className="text-right">
                     <div className="font-mono font-semibold">
