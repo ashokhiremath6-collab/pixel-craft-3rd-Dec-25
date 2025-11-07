@@ -1373,8 +1373,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
-          // Get uploader info from activity log (using pre-fetched activities)
+          // Get uploader info and upload timestamp from activity log (using pre-fetched activities)
           let uploaderName = null;
+          let uploadedAt = null;
           const uploadActivity = allActivities.find(
             a => a.activityType === 'quote_file' && 
             a.metadata && 
@@ -1384,6 +1385,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
           if (uploadActivity) {
             uploaderName = uploadActivity.userName;
+            uploadedAt = uploadActivity.createdAt;
           }
 
           quotationsByProject[pv.projectId].push({
@@ -1401,6 +1403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             projectId: pv.projectId,
             projectName: project.projectName,
             uploaderName: uploaderName,
+            uploadedAt: uploadedAt,
             unitRateSubtype: pv.unitRateSubtype
           });
         }

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { X, FileUp, Clock, AlertCircle, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatDistanceToNow, differenceInDays, startOfDay } from "date-fns";
+import { formatDistanceToNow, differenceInDays, startOfDay, format } from "date-fns";
 
 interface VendorWithCategory extends Omit<Vendor, 'categoryName'> {
   category: string;
@@ -374,7 +374,8 @@ export default function DashboardPage() {
             <div className="space-y-3">
               {activitiesData.slice(0, 10).map((activity) => {
                 const project = quotationsData?.projects.find(p => p.id === activity.projectId);
-                const timeAgo = formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true });
+                const activityDate = new Date(activity.createdAt);
+                const formattedDateTime = format(activityDate, "MMM d, yyyy 'at' h:mm a");
                 
                 return (
                   <div 
@@ -407,7 +408,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
                         <Clock className="h-3 w-3" />
-                        <span data-testid={`text-time-${activity.id}`}>{timeAgo}</span>
+                        <span data-testid={`text-time-${activity.id}`}>{formattedDateTime}</span>
                       </div>
                     </div>
                   </div>

@@ -19,6 +19,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Project, VendorCategory } from "@shared/schema";
 import { formatCurrencyCompact, formatVendorNameWithCategory } from "@/lib/currencyUtils";
+import { format } from "date-fns";
 
 interface QuotationData {
   id: string;
@@ -36,6 +37,8 @@ interface QuotationData {
   isAboveAverage?: boolean;
   isNegotiated?: boolean; // Mark as final negotiated quote
   unitRateSubtype?: string | null; // "quote" or "comparative" for unit rate quotes
+  uploaderName?: string | null; // Who uploaded the file
+  uploadedAt?: string | null; // When the file was uploaded
 }
 
 interface CategoryWithChildren extends VendorCategory {
@@ -655,18 +658,19 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 overflow-x-auto">
-              <Table className="table-fixed min-w-[800px]">
+              <Table className="table-fixed min-w-[900px]">
                 <colgroup>
-                  <col className={hideValueColumns ? "w-[35%]" : "w-[25%]"} />
+                  <col className={hideValueColumns ? "w-[28%]" : "w-[20%]"} />
                   {!hideValueColumns && (
                     <>
-                      <col className="w-[18%]" />
-                      <col className="w-[12%]" />
+                      <col className="w-[15%]" />
+                      <col className="w-[10%]" />
                     </>
                   )}
-                  <col className="w-[15%]" />
                   <col className="w-[12%]" />
-                  <col className={hideValueColumns ? "w-[38%]" : "w-[18%]"} />
+                  <col className="w-[15%]" />
+                  <col className="w-[10%]" />
+                  <col className={hideValueColumns ? "w-[30%]" : "w-[18%]"} />
                 </colgroup>
                 <TableHeader>
                   <TableRow className="h-8">
@@ -677,7 +681,8 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         <TableHead className="text-xs font-medium">Variance</TableHead>
                       </>
                     )}
-                    <TableHead className="text-xs font-medium">Date</TableHead>
+                    <TableHead className="text-xs font-medium">Quote Date</TableHead>
+                    <TableHead className="text-xs font-medium">Uploaded</TableHead>
                     <TableHead className="text-xs font-medium">Status</TableHead>
                     <TableHead className="text-xs font-medium">Actions</TableHead>
                   </TableRow>
@@ -794,6 +799,17 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         
                         <TableCell className="py-2 text-xs" data-testid="text-quotation-date">
                           {quotation.dateOfQuotation ? new Date(quotation.dateOfQuotation).toLocaleDateString() : <span className="text-muted-foreground">No date</span>}
+                        </TableCell>
+                        
+                        <TableCell className="py-2 text-xs" data-testid="text-uploaded-at">
+                          {quotation.uploadedAt ? (
+                            <div className="flex flex-col">
+                              <span className="text-xs">{format(new Date(quotation.uploadedAt), "MMM d, yyyy")}</span>
+                              <span className="text-xs text-muted-foreground">{format(new Date(quotation.uploadedAt), "h:mm a")}</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         
                         <TableCell className="py-2" data-testid="cell-status">
@@ -979,18 +995,19 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0 overflow-x-auto">
-                  <Table className="table-fixed min-w-[800px]">
+                  <Table className="table-fixed min-w-[900px]">
                     <colgroup>
-                      <col className={hideValueColumns ? "w-[35%]" : "w-[25%]"} />
+                      <col className={hideValueColumns ? "w-[28%]" : "w-[20%]"} />
                       {!hideValueColumns && (
                         <>
-                          <col className="w-[18%]" />
-                          <col className="w-[12%]" />
+                          <col className="w-[15%]" />
+                          <col className="w-[10%]" />
                         </>
                       )}
-                      <col className="w-[15%]" />
                       <col className="w-[12%]" />
-                      <col className={hideValueColumns ? "w-[38%]" : "w-[18%]"} />
+                      <col className="w-[15%]" />
+                      <col className="w-[10%]" />
+                      <col className={hideValueColumns ? "w-[30%]" : "w-[18%]"} />
                     </colgroup>
                     <TableHeader>
                       <TableRow className="h-8">
@@ -1001,7 +1018,8 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                             <TableHead className="text-xs font-medium">Variance</TableHead>
                           </>
                         )}
-                        <TableHead className="text-xs font-medium">Date</TableHead>
+                        <TableHead className="text-xs font-medium">Quote Date</TableHead>
+                        <TableHead className="text-xs font-medium">Uploaded</TableHead>
                         <TableHead className="text-xs font-medium">Status</TableHead>
                         <TableHead className="text-xs font-medium">Actions</TableHead>
                       </TableRow>
@@ -1116,6 +1134,17 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                             
                             <TableCell className="py-2 text-xs" data-testid="text-quotation-date">
                               {quotation.dateOfQuotation ? new Date(quotation.dateOfQuotation).toLocaleDateString() : <span className="text-muted-foreground">No date</span>}
+                            </TableCell>
+                            
+                            <TableCell className="py-2 text-xs" data-testid="text-uploaded-at">
+                              {quotation.uploadedAt ? (
+                                <div className="flex flex-col">
+                                  <span className="text-xs">{format(new Date(quotation.uploadedAt), "MMM d, yyyy")}</span>
+                                  <span className="text-xs text-muted-foreground">{format(new Date(quotation.uploadedAt), "h:mm a")}</span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
                             </TableCell>
                             
                             <TableCell className="py-2" data-testid="cell-status">
