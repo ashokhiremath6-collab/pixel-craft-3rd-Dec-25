@@ -1377,7 +1377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let uploaderName = null;
           let uploadedAt = null;
           const uploadActivity = allActivities.find(
-            a => a.activityType === 'quote_file' && 
+            a => a.activityType === 'quote_upload' && 
             a.metadata && 
             typeof a.metadata === 'object' && 
             'projectVendorId' in a.metadata && 
