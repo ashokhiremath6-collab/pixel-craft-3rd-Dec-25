@@ -23,6 +23,8 @@ interface QuotationData {
   quotationFile?: string;
   notes?: string;
   isAboveAverage?: boolean;
+  uploaderName?: string | null;
+  uploadedAt?: string | null;
 }
 
 interface QuotationsResponse {
@@ -119,9 +121,13 @@ export default function DashboardPage() {
   // Create recent quotations for display (latest 10 by submission date)
   const recentQuotations = allQuotations
     .sort((a, b) => {
-      // Sort by dateOfQuotation if available, otherwise fall back to comparing IDs as a proxy for creation time
-      const dateA = a.dateOfQuotation ? new Date(a.dateOfQuotation).getTime() : 0;
-      const dateB = b.dateOfQuotation ? new Date(b.dateOfQuotation).getTime() : 0;
+      // Sort by uploadedAt if available, otherwise dateOfQuotation, otherwise fall back to IDs
+      const dateA = a.uploadedAt 
+        ? new Date(a.uploadedAt).getTime() 
+        : (a.dateOfQuotation ? new Date(a.dateOfQuotation).getTime() : 0);
+      const dateB = b.uploadedAt 
+        ? new Date(b.uploadedAt).getTime() 
+        : (b.dateOfQuotation ? new Date(b.dateOfQuotation).getTime() : 0);
       return dateB - dateA; // Most recent first
     })
     .slice(0, 10);
@@ -169,6 +175,8 @@ export default function DashboardPage() {
       'schedule_upload': 'Project Schedule',
       'specification_upload': 'Specification',
       'specification_delete': 'Specification',
+      'catalogue_upload': 'Catalogue Item',
+      'catalogue_delete': 'Catalogue Item',
       'invoice_create': 'Invoice',
       'invoice_update': 'Invoice',
       'invoice_delete': 'Invoice',
