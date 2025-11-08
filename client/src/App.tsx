@@ -65,17 +65,17 @@ function AuthenticatedApp() {
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full">
+      <div className="flex h-screen w-full overflow-hidden">
         <AppSidebar />
-        <div className="flex flex-col flex-1">
-          <header className="flex items-center justify-between p-4 border-b bg-background">
-            <div className="flex items-center gap-3">
+        <div className="flex flex-col flex-1 min-w-0">
+          <header className="flex items-center justify-between p-4 border-b bg-background shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <h1 className="text-lg font-semibold" data-testid="heading-app-title">
+              <h1 className="text-lg font-semibold truncate" data-testid="heading-app-title">
                 PixelCraft Designer
               </h1>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               {user && (
                 <div className="flex items-center gap-2">
                   <Badge 
@@ -106,7 +106,7 @@ function AuthenticatedApp() {
               <ThemeToggle />
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-6 bg-background">
+          <main className="flex-1 overflow-auto p-4 sm:p-6 bg-background min-w-0">
             <Router />
           </main>
         </div>

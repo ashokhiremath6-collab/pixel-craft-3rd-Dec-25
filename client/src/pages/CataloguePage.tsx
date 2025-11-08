@@ -615,50 +615,55 @@ export default function CataloguePage() {
                                   <div className="bg-muted/50 px-4 py-2">
                                     <h4 className="font-medium text-sm">{subcat}</h4>
                                   </div>
-                                  <div className="overflow-x-auto">
-                                    <table className="w-full table-fixed">
+                                  <div className="overflow-x-auto -mx-4 sm:mx-0">
+                                    <table className="w-full min-w-[640px]">
                                       <thead>
                                         <tr className="border-b bg-muted/30">
-                                          <th className="text-left py-2 px-4 text-xs font-semibold w-[180px]">Vendor/Brand</th>
+                                          <th className="text-left py-2 px-4 text-xs font-semibold">Vendor/Brand</th>
                                           <th className="text-left py-2 px-4 text-xs font-semibold">Description</th>
-                                          <th className="text-left py-2 px-4 text-xs font-semibold w-[260px]">File/Link</th>
-                                          <th className="text-left py-2 px-4 text-xs font-semibold w-[100px]">Type</th>
-                                          <th className="text-left py-2 px-4 text-xs font-semibold w-[110px]">Actions</th>
+                                          <th className="text-left py-2 px-4 text-xs font-semibold">File/Link</th>
+                                          <th className="text-left py-2 px-4 text-xs font-semibold">Type</th>
+                                          <th className="text-left py-2 px-4 text-xs font-semibold">Actions</th>
                                         </tr>
                                       </thead>
                                       <tbody>
                                         {items.map((item) => (
                                           <tr key={item.id} className="border-b last:border-b-0 hover-elevate" data-testid={`library-item-${item.id}`}>
-                                            <td className="py-2 px-4 text-sm w-[180px] truncate">
-                                              {item.vendorBrand || <span className="text-muted-foreground">-</span>}
+                                            <td className="py-2 px-4 text-sm">
+                                              <div className="max-w-[140px] truncate">
+                                                {item.vendorBrand || <span className="text-muted-foreground">-</span>}
+                                              </div>
                                             </td>
                                             <td className="py-2 px-4 text-sm">
-                                              <div className="line-clamp-2">
+                                              <div className="line-clamp-2 max-w-[200px]">
                                                 {item.description || <span className="text-muted-foreground">-</span>}
                                               </div>
                                             </td>
-                                            <td className="py-2 px-4 text-sm w-[260px] truncate">
-                                              {item.fileName || 'URL Link'}
+                                            <td className="py-2 px-4 text-sm">
+                                              <div className="max-w-[180px] truncate">
+                                                {item.fileName || 'URL Link'}
+                                              </div>
                                             </td>
-                                            <td className="py-2 px-4 text-sm w-[100px]">
+                                            <td className="py-2 px-4 text-sm">
                                               {item.fileName ? (
-                                                <Badge variant="outline" className="text-xs">
+                                                <Badge variant="outline" className="text-xs whitespace-nowrap">
                                                   {getFileType(item.fileName)}
                                                 </Badge>
                                               ) : (
-                                                <Badge variant="outline" className="text-xs">
+                                                <Badge variant="outline" className="text-xs whitespace-nowrap">
                                                   <ExternalLink className="h-3 w-3 mr-1" />
                                                   URL
                                                 </Badge>
                                               )}
                                             </td>
-                                            <td className="py-2 px-4 text-sm w-[110px]">
+                                            <td className="py-2 px-4 text-sm">
                                               {item.filePath ? (
                                                 <Button
                                                   variant="ghost"
                                                   size="sm"
                                                   asChild
                                                   data-testid={`button-view-${item.id}`}
+                                                  className="whitespace-nowrap"
                                                 >
                                                   <a
                                                     href={item.filePath}
@@ -675,6 +680,7 @@ export default function CataloguePage() {
                                                   size="sm"
                                                   asChild
                                                   data-testid={`button-open-${item.id}`}
+                                                  className="whitespace-nowrap"
                                                 >
                                                   <a
                                                     href={item.catalogueUrl}
