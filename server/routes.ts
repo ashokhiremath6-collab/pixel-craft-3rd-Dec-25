@@ -5660,7 +5660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "File is required" });
         }
 
-        const requiredFields = ['meetingDate', 'meetingTitle', 'meetingType', 'attendees'];
+        const requiredFields = ['meetingDate', 'meetingTitle', 'meetingType'];
         for (const field of requiredFields) {
           if (!req.body[field]) {
             return res.status(400).json({ error: `${field} is required` });
@@ -5681,7 +5681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           meetingDate: req.body.meetingDate,
           meetingTitle: req.body.meetingTitle,
           meetingType: req.body.meetingType,
-          attendees: req.body.attendees,
+          attendees: req.body.attendees || null,
           location: req.body.location || null,
           filePath: objectPath,
           fileName: req.file.originalname,
