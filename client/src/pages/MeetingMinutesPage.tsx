@@ -372,7 +372,7 @@ export default function MeetingMinutesPage() {
             <div>
               <Label>Search</Label>
               <Input
-                placeholder="Search title, attendees..."
+                placeholder="Search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 data-testid="input-search"
