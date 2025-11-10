@@ -23,6 +23,7 @@ import MoodboardsPage from "@/pages/MoodboardsPage";
 import AccountsPage from "@/pages/AccountsPage";
 import CataloguePage from "@/pages/CataloguePage";
 import SpecificationsPage from "@/pages/SpecificationsPage";
+import MeetingMinutesPage from "@/pages/MeetingMinutesPage";
 import LoginPage from "@/pages/LoginPage";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,7 @@ function Router() {
       <Route path="/accounts" component={AccountsPage} />
       <Route path="/catalogue" component={CataloguePage} />
       <Route path="/specifications" component={SpecificationsPage} />
+      <Route path="/meeting-minutes" component={MeetingMinutesPage} />
       <Route path="/moodboards" component={MoodboardsPage} />
       <Route path="/working-drawings" component={MoodboardsPage} />
       <Route path="/renders" component={MoodboardsPage} />
