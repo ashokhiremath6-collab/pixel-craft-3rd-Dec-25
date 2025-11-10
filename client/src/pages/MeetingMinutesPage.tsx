@@ -55,8 +55,7 @@ export default function MeetingMinutesPage() {
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [meetingTypeFilter, setMeetingTypeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [meetingDateFilter, setMeetingDateFilter] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMOM, setEditingMOM] = useState<MeetingMinutes | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -90,9 +89,8 @@ export default function MeetingMinutesPage() {
   // Filter and search
   const filteredMinutes = useMemo(() => {
     return minutes.filter((mom) => {
-      // Date range filter
-      if (startDate && mom.meetingDate < startDate) return false;
-      if (endDate && mom.meetingDate > endDate) return false;
+      // Meeting date filter
+      if (meetingDateFilter && mom.meetingDate !== meetingDateFilter) return false;
       
       // Project filter
       if (projectFilter !== "all") {
@@ -118,7 +116,7 @@ export default function MeetingMinutesPage() {
       
       return true;
     });
-  }, [minutes, projectFilter, meetingTypeFilter, searchQuery, startDate, endDate]);
+  }, [minutes, projectFilter, meetingTypeFilter, searchQuery, meetingDateFilter]);
 
   // Group by month
   const groupedMinutes = useMemo(() => {
@@ -327,25 +325,15 @@ export default function MeetingMinutesPage() {
           <CardTitle className="text-base">Filters</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <Label htmlFor="startDate">Start Date</Label>
+              <Label htmlFor="meetingDate">Meeting Date</Label>
               <Input
-                id="startDate"
+                id="meetingDate"
                 type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                data-testid="input-start-date"
-              />
-            </div>
-            <div>
-              <Label htmlFor="endDate">End Date</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                data-testid="input-end-date"
+                value={meetingDateFilter}
+                onChange={(e) => setMeetingDateFilter(e.target.value)}
+                data-testid="input-meeting-date"
               />
             </div>
             <div>
