@@ -5619,6 +5619,204 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Configure multer for meeting minutes file uploads
+  const meetingMinutesUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 100 * 1024 * 1024, // 100MB limit
+    },
+  });
+
+  // Meeting Minutes Routes - Admin/Designer only
+  app.get("/api/meeting-minutes", requireAdmin, async (req, res) => {
+    try {
+      const { projectId, startDate, endDate } = req.query;
+      
+      let minutes;
+      if (projectId) {
+        minutes = await storage.getMeetingMinutesByProject(projectId as string);
+      } else if (startDate && endDate) {
+        minutes = await storage.getMeetingMinutesByDateRange(startDate as string, endDate as string);
+      } else {
+        minutes = await storage.getAllMeetingMinutes();
+      }
+      
+      res.json(minutes);
+    } catch (error) {
+      console.error('Error fetching meeting minutes:', error);
+      res.status(500).json({ error: "Failed to fetch meeting minutes" });
+    }
+  });
+
+  app.post("/api/meeting-minutes", requireAdmin, (req, res, next) => {
+    meetingMinutesUpload.single('file')(req, res, async (err) => {
+      if (err) {
+        console.error('Multer error:', err);
+        return res.status(400).json({ error: err.message });
+      }
+
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: "File is required" });
+        }
+
+        const requiredFields = ['meetingDate', 'meetingTitle', 'meetingType', 'attendees'];
+        for (const field of requiredFields) {
+          if (!req.body[field]) {
+            return res.status(400).json({ error: `${field} is required` });
+          }
+        }
+
+        // Upload file to object storage
+        const userId = (req.user as any).claims.sub;
+        const objectPath = await uploadToObjectStorage(
+          req.file.buffer,
+          req.file.originalname,
+          userId,
+          req.file.mimetype
+        );
+
+        const momData = {
+          projectId: req.body.projectId || null,
+          meetingDate: req.body.meetingDate,
+          meetingTitle: req.body.meetingTitle,
+          meetingType: req.body.meetingType,
+          attendees: req.body.attendees,
+          location: req.body.location || null,
+          filePath: objectPath,
+          fileName: req.file.originalname,
+          fileType: path.extname(req.file.originalname).slice(1),
+          fileSize: req.file.size.toString(),
+          summary: req.body.summary || null,
+          uploadedBy: userId,
+        };
+
+        const minutes = await storage.createMeetingMinutes(momData);
+
+        // Log activity
+        const user = await storage.getUser(userId);
+        if (user) {
+          try {
+            const userName = user.firstName && user.lastName 
+              ? `${user.firstName} ${user.lastName}` 
+              : user.email || 'Unknown';
+            await storage.createActivity({
+              userId: user.id,
+              userName: userName,
+              userEmail: user.email || '',
+              activityType: 'meeting_minutes_upload',
+              fileName: req.file.originalname,
+              filePath: objectPath,
+              description: `uploaded meeting minutes: ${req.body.meetingTitle} (${req.body.meetingType})`,
+              metadata: {
+                momId: minutes.id,
+                meetingDate: req.body.meetingDate,
+                meetingType: req.body.meetingType,
+                projectId: req.body.projectId,
+              },
+            });
+          } catch (activityError) {
+            console.error('Error logging meeting minutes activity:', activityError);
+          }
+        }
+
+        res.status(201).json(minutes);
+      } catch (error) {
+        console.error('Error creating meeting minutes:', error);
+        res.status(500).json({ error: "Failed to create meeting minutes" });
+      }
+    });
+  });
+
+  app.put("/api/meeting-minutes/:id", requireAdmin, meetingMinutesUpload.single('file'), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates: any = {};
+
+      if (req.body.projectId !== undefined) updates.projectId = req.body.projectId || null;
+      if (req.body.meetingDate) updates.meetingDate = req.body.meetingDate;
+      if (req.body.meetingTitle) updates.meetingTitle = req.body.meetingTitle;
+      if (req.body.meetingType) updates.meetingType = req.body.meetingType;
+      if (req.body.attendees) updates.attendees = req.body.attendees;
+      if (req.body.location !== undefined) updates.location = req.body.location || null;
+      if (req.body.summary !== undefined) updates.summary = req.body.summary || null;
+
+      // Handle file upload if provided
+      if (req.file) {
+        const userId = (req.user as any).claims.sub;
+        const objectPath = await uploadToObjectStorage(
+          req.file.buffer,
+          req.file.originalname,
+          userId,
+          req.file.mimetype
+        );
+        updates.fileName = req.file.originalname;
+        updates.filePath = objectPath;
+        updates.fileType = path.extname(req.file.originalname).slice(1);
+        updates.fileSize = req.file.size.toString();
+      }
+
+      const minutes = await storage.updateMeetingMinutes(id, updates);
+      if (!minutes) {
+        return res.status(404).json({ error: "Meeting minutes not found" });
+      }
+      res.json(minutes);
+    } catch (error) {
+      console.error('Error updating meeting minutes:', error);
+      res.status(500).json({ error: "Failed to update meeting minutes" });
+    }
+  });
+
+  app.delete("/api/meeting-minutes/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get meeting minutes details before deleting
+      const minutes = await storage.getMeetingMinutes(id);
+      if (!minutes) {
+        return res.status(404).json({ error: "Meeting minutes not found" });
+      }
+      
+      const deleted = await storage.deleteMeetingMinutes(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Meeting minutes not found" });
+      }
+      
+      // Log deletion activity
+      const userId = (req.user as any).claims.sub;
+      const user = await storage.getUser(userId);
+      if (user) {
+        try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'meeting_minutes_delete',
+            fileName: minutes.fileName,
+            filePath: minutes.filePath,
+            description: `deleted meeting minutes: ${minutes.meetingTitle} (${minutes.meetingType})`,
+            metadata: {
+              momId: minutes.id,
+              meetingDate: minutes.meetingDate,
+              meetingType: minutes.meetingType,
+              projectId: minutes.projectId,
+            },
+          });
+        } catch (activityError) {
+          console.error('Error logging meeting minutes delete activity:', activityError);
+        }
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting meeting minutes:', error);
+      res.status(500).json({ error: "Failed to delete meeting minutes" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
