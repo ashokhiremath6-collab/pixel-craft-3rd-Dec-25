@@ -108,7 +108,7 @@ export default function MeetingMinutesPage() {
         const query = searchQuery.toLowerCase();
         return (
           mom.meetingTitle.toLowerCase().includes(query) ||
-          mom.attendees.toLowerCase().includes(query) ||
+          (mom.attendees && mom.attendees.toLowerCase().includes(query)) ||
           (mom.location && mom.location.toLowerCase().includes(query)) ||
           (mom.summary && mom.summary.toLowerCase().includes(query))
         );
@@ -241,7 +241,7 @@ export default function MeetingMinutesPage() {
         meetingDate: mom.meetingDate,
         meetingTitle: mom.meetingTitle,
         meetingType: mom.meetingType,
-        attendees: mom.attendees,
+        attendees: mom.attendees || "",
         location: mom.location || "none",
         summary: mom.summary || "",
       });
@@ -277,11 +277,11 @@ export default function MeetingMinutesPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.meetingDate || !formData.meetingTitle || !formData.meetingType || !formData.attendees) {
+    if (!formData.meetingDate || !formData.meetingTitle || !formData.meetingType) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Meeting date, title, type, and attendees are required",
+        description: "Meeting date, title, and type are required",
       });
       return;
     }
@@ -560,14 +560,13 @@ export default function MeetingMinutesPage() {
             </div>
 
             <div>
-              <Label htmlFor="attendees">Attendees *</Label>
+              <Label htmlFor="attendees">Attendees</Label>
               <Textarea
                 id="attendees"
                 value={formData.attendees}
                 onChange={(e) => setFormData({ ...formData, attendees: e.target.value })}
-                placeholder="Enter attendee names (one per line or comma-separated)"
+                placeholder="Optional: Enter attendee names (one per line or comma-separated)"
                 rows={3}
-                required
                 data-testid="input-attendees"
               />
             </div>
@@ -592,7 +591,6 @@ export default function MeetingMinutesPage() {
                 id="file"
                 type="file"
                 onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                accept=".pdf,.doc,.docx"
                 data-testid="input-file"
               />
               {selectedFile && (

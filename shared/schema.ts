@@ -481,7 +481,7 @@ export const meetingMinutes = pgTable("meeting_minutes", {
   meetingDate: date("meeting_date").notNull(),
   meetingTitle: text("meeting_title").notNull(),
   meetingType: text("meeting_type").notNull(), // Client Meeting, Internal Meeting, Site Visit, Vendor Meeting, Design Review
-  attendees: text("attendees").notNull(), // Comma-separated or newline-separated list
+  attendees: text("attendees"), // Optional: Comma-separated or newline-separated list
   location: text("location"), // Office, Site, Online/Video Call, Client Office, etc.
   filePath: text("file_path").notNull(), // path to MOM document in object storage
   fileName: text("file_name").notNull(),
@@ -500,6 +500,7 @@ export const insertMeetingMinutesSchema = createInsertSchema(meetingMinutes).omi
   uploadedAt: true,
 }).extend({
   projectId: z.string().optional().nullable(),
+  attendees: z.string().optional().nullable(),
   location: z.string().optional().nullable(),
   summary: z.string().optional().nullable(),
   fileSize: z.union([z.string(), z.number()]).optional().nullable(),
