@@ -324,15 +324,27 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
       return;
     }
 
+    const isComparativeStatement = unitRateSubtype === "comparative" && (quoteType === 'unitrate' || forceQuoteType === 'unitrate');
+
     const resolutionData: any = {
       tempFileId: conflictData.tempFileId,
       projectId: selectedProject,
-      vendorId: selectedVendor,
       resolutionType,
       quotationName: resolutionType === "new_item" ? quotationName : undefined,
       itemCategory: resolutionType === "new_item" ? itemCategory : undefined,
       parentQuotationId: resolutionType === "option" ? selectedParentQuote : undefined,
     };
+    
+    // For comparative statements, send categoryId; for regular quotes, send vendorId
+    if (isComparativeStatement) {
+      resolutionData.categoryId = selectedCategory;
+      const selectedCategoryData = categories.find(c => c.id === selectedCategory);
+      if (selectedCategoryData) {
+        resolutionData.categoryName = selectedCategoryData.name;
+      }
+    } else {
+      resolutionData.vendorId = selectedVendor;
+    }
     
     // Include unit rate subtype if importing unit rate quotes
     if (quoteType === 'unitrate' || forceQuoteType === 'unitrate') {

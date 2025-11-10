@@ -2439,12 +2439,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (isComparativeStatement) {
-        if (!categoryId) {
+        // For comparative statements adding to existing category (option), categoryId is required
+        if (resolutionType === "option" && !categoryId) {
           return res.status(400).json({ 
-            error: "categoryId is required for comparative statements" 
+            error: "categoryId is required when adding comparative statement to existing category" 
           });
         }
+        // For new categories, itemCategory name is required (validated below)
       } else {
+        // For regular quotes, vendorId is always required
         if (!vendorId) {
           return res.status(400).json({ 
             error: "vendorId is required for regular quotes" 
