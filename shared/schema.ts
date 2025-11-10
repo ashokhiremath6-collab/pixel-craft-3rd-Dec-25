@@ -474,6 +474,40 @@ export type CatalogueItem = typeof catalogueItems.$inferSelect;
 export type InsertSpecification = z.infer<typeof insertSpecificationSchema>;
 export type Specification = typeof specifications.$inferSelect;
 
+// Meeting Minutes table
+export const meetingMinutes = pgTable("meeting_minutes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").references(() => projects.id), // Nullable for general/company meetings
+  meetingDate: date("meeting_date").notNull(),
+  meetingTitle: text("meeting_title").notNull(),
+  meetingType: text("meeting_type").notNull(), // Client Meeting, Internal Meeting, Site Visit, Vendor Meeting, Design Review
+  attendees: text("attendees").notNull(), // Comma-separated or newline-separated list
+  location: text("location"), // Office, Site, Online/Video Call, Client Office, etc.
+  filePath: text("file_path").notNull(), // path to MOM document in object storage
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(), // pdf, doc, docx, etc.
+  fileSize: decimal("file_size"), // in bytes
+  summary: text("summary"), // Optional text summary of key points
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("idx_meeting_date").on(table.meetingDate),
+  index("idx_project_id").on(table.projectId),
+]);
+
+export const insertMeetingMinutesSchema = createInsertSchema(meetingMinutes).omit({
+  id: true,
+  uploadedAt: true,
+}).extend({
+  projectId: z.string().optional().nullable(),
+  location: z.string().optional().nullable(),
+  summary: z.string().optional().nullable(),
+  fileSize: z.union([z.string(), z.number()]).optional().nullable(),
+});
+
+export type InsertMeetingMinutes = z.infer<typeof insertMeetingMinutesSchema>;
+export type MeetingMinutes = typeof meetingMinutes.$inferSelect;
+
 // Session storage table for Replit Auth
 export const sessions = pgTable(
   "sessions",

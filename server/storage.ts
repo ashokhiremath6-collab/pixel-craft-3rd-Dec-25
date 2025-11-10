@@ -43,6 +43,10 @@ import {
   type InsertVendorPayment,
   type CatalogueItem,
   type InsertCatalogueItem,
+  type Specification,
+  type InsertSpecification,
+  type MeetingMinutes,
+  type InsertMeetingMinutes,
   users,
   userRoles,
   designerAllowlist,
@@ -66,6 +70,7 @@ import {
   vendorPayments,
   catalogueItems,
   specifications,
+  meetingMinutes,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -255,6 +260,15 @@ export interface IStorage {
   createSpecification(spec: InsertSpecification): Promise<Specification>;
   updateSpecification(id: string, spec: Partial<InsertSpecification>): Promise<Specification | undefined>;
   deleteSpecification(id: string): Promise<boolean>;
+  
+  // Meeting Minutes
+  getAllMeetingMinutes(): Promise<MeetingMinutes[]>;
+  getMeetingMinutes(id: string): Promise<MeetingMinutes | undefined>;
+  getMeetingMinutesByProject(projectId: string): Promise<MeetingMinutes[]>;
+  getMeetingMinutesByDateRange(startDate: string, endDate: string): Promise<MeetingMinutes[]>;
+  createMeetingMinutes(minutes: InsertMeetingMinutes): Promise<MeetingMinutes>;
+  updateMeetingMinutes(id: string, minutes: Partial<InsertMeetingMinutes>): Promise<MeetingMinutes | undefined>;
+  deleteMeetingMinutes(id: string): Promise<boolean>;
   
   // Vendors (with role-based filtering)
   getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
@@ -2063,6 +2077,48 @@ export class DBStorage implements IStorage {
 
   async deleteSpecification(id: string): Promise<boolean> {
     const result = await db.delete(specifications).where(eq(specifications.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Meeting Minutes methods
+  async getAllMeetingMinutes(): Promise<MeetingMinutes[]> {
+    return await db.select().from(meetingMinutes).orderBy(desc(meetingMinutes.meetingDate));
+  }
+
+  async getMeetingMinutes(id: string): Promise<MeetingMinutes | undefined> {
+    const result = await db.select().from(meetingMinutes).where(eq(meetingMinutes.id, id));
+    return result[0];
+  }
+
+  async getMeetingMinutesByProject(projectId: string): Promise<MeetingMinutes[]> {
+    return await db.select()
+      .from(meetingMinutes)
+      .where(eq(meetingMinutes.projectId, projectId))
+      .orderBy(desc(meetingMinutes.meetingDate));
+  }
+
+  async getMeetingMinutesByDateRange(startDate: string, endDate: string): Promise<MeetingMinutes[]> {
+    return await db.select()
+      .from(meetingMinutes)
+      .where(and(
+        sql`${meetingMinutes.meetingDate} >= ${startDate}`,
+        sql`${meetingMinutes.meetingDate} <= ${endDate}`
+      ))
+      .orderBy(desc(meetingMinutes.meetingDate));
+  }
+
+  async createMeetingMinutes(minutes: InsertMeetingMinutes): Promise<MeetingMinutes> {
+    const result = await db.insert(meetingMinutes).values(minutes).returning();
+    return result[0];
+  }
+
+  async updateMeetingMinutes(id: string, minutes: Partial<InsertMeetingMinutes>): Promise<MeetingMinutes | undefined> {
+    const result = await db.update(meetingMinutes).set(minutes).where(eq(meetingMinutes.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteMeetingMinutes(id: string): Promise<boolean> {
+    const result = await db.delete(meetingMinutes).where(eq(meetingMinutes.id, id));
     return result.rowCount !== null && result.rowCount > 0;
   }
 }
