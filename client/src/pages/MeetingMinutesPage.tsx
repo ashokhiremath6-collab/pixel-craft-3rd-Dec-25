@@ -60,12 +60,12 @@ export default function MeetingMinutesPage() {
   const [editingMOM, setEditingMOM] = useState<MeetingMinutes | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
-    projectId: "",
+    projectId: "general",
     meetingDate: "",
     meetingTitle: "",
     meetingType: "",
     attendees: "",
-    location: "",
+    location: "none",
     summary: "",
   });
 
@@ -140,12 +140,12 @@ export default function MeetingMinutesPage() {
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const formDataToSend = new FormData();
-      if (data.projectId) formDataToSend.append("projectId", data.projectId);
+      if (data.projectId && data.projectId !== "general") formDataToSend.append("projectId", data.projectId);
       formDataToSend.append("meetingDate", data.meetingDate);
       formDataToSend.append("meetingTitle", data.meetingTitle);
       formDataToSend.append("meetingType", data.meetingType);
       formDataToSend.append("attendees", data.attendees);
-      if (data.location) formDataToSend.append("location", data.location);
+      if (data.location && data.location !== "none") formDataToSend.append("location", data.location);
       if (data.summary) formDataToSend.append("summary", data.summary);
       
       if (selectedFile) {
@@ -237,23 +237,23 @@ export default function MeetingMinutesPage() {
     if (mom) {
       setEditingMOM(mom);
       setFormData({
-        projectId: mom.projectId || "",
+        projectId: mom.projectId || "general",
         meetingDate: mom.meetingDate,
         meetingTitle: mom.meetingTitle,
         meetingType: mom.meetingType,
         attendees: mom.attendees,
-        location: mom.location || "",
+        location: mom.location || "none",
         summary: mom.summary || "",
       });
     } else {
       setEditingMOM(null);
       setFormData({
-        projectId: projectFilter !== "all" && projectFilter !== "general" ? projectFilter : "",
+        projectId: projectFilter !== "all" && projectFilter !== "general" ? projectFilter : "general",
         meetingDate: new Date().toISOString().split('T')[0],
         meetingTitle: "",
         meetingType: meetingTypeFilter !== "all" ? meetingTypeFilter : "",
         attendees: "",
-        location: "",
+        location: "none",
         summary: "",
       });
     }
@@ -265,12 +265,12 @@ export default function MeetingMinutesPage() {
     setEditingMOM(null);
     setSelectedFile(null);
     setFormData({
-      projectId: "",
+      projectId: "general",
       meetingDate: "",
       meetingTitle: "",
       meetingType: "",
       attendees: "",
-      location: "",
+      location: "none",
       summary: "",
     });
   };
@@ -485,7 +485,7 @@ export default function MeetingMinutesPage() {
                     <SelectValue placeholder="General/Company Meeting" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">General/Company Meeting</SelectItem>
+                    <SelectItem value="general">General/Company Meeting</SelectItem>
                     {projects.map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.projectName}
@@ -548,6 +548,7 @@ export default function MeetingMinutesPage() {
                     <SelectValue placeholder="Select location" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Not specified</SelectItem>
                     {LOCATIONS.map((loc) => (
                       <SelectItem key={loc} value={loc}>
                         {loc}
