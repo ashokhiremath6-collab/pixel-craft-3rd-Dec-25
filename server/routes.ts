@@ -5377,6 +5377,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = insertCatalogueItemSchema.parse(itemData);
       const item = await storage.createCatalogueItem(validatedData);
+      
+      // Log activity
+      const userId = (req.user as any).claims.sub;
+      const user = await storage.getUser(userId);
+      if (user) {
+        const userName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.email || 'Unknown';
+        const displayName = `${item.mainCategory} > ${item.subcategory}${item.vendorBrand ? ` (${item.vendorBrand})` : ''}`;
+        await storage.createActivity({
+          userId: user.id,
+          userName: userName,
+          userEmail: user.email,
+          activityType: 'catalogue_upload',
+          fileName: displayName,
+          filePath: item.filePath || undefined,
+          description: `uploaded catalogue item "${displayName}"`,
+          metadata: { catalogueItemId: item.id }
+        });
+      }
+      
       res.status(201).json(item);
     } catch (error) {
       console.error('Error creating catalogue item:', error);
@@ -5411,6 +5432,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!item) {
         return res.status(404).json({ error: "Catalogue item not found" });
       }
+      
+      // Log activity
+      const userId = (req.user as any).claims.sub;
+      const user = await storage.getUser(userId);
+      if (user) {
+        const userName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.email || 'Unknown';
+        const displayName = `${item.mainCategory} > ${item.subcategory}${item.vendorBrand ? ` (${item.vendorBrand})` : ''}`;
+        await storage.createActivity({
+          userId: user.id,
+          userName: userName,
+          userEmail: user.email,
+          activityType: 'catalogue_update',
+          fileName: displayName,
+          filePath: item.filePath || undefined,
+          description: `updated catalogue item "${displayName}"`,
+          metadata: { catalogueItemId: item.id }
+        });
+      }
+      
       res.json(item);
     } catch (error) {
       console.error('Error updating catalogue item:', error);
