@@ -5469,8 +5469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user!;
       
       // Fetch the item details before deleting for activity logging
-      const items = await storage.getCatalogueItems();
-      const item = items.find(i => i.id === id);
+      const item = await storage.getCatalogueItem(id);
       
       const deleted = await storage.deleteCatalogueItem(id);
       if (!deleted) {
