@@ -5466,7 +5466,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/catalogue/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const user = req.user!;
       
       // Fetch the item details before deleting for activity logging
       const item = await storage.getCatalogueItem(id);
@@ -5477,7 +5476,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Log the deletion activity
-      if (item) {
+      const userId = (req.user as any).claims.sub;
+      const user = await storage.getUser(userId);
+      if (item && user) {
         const userName = user.firstName && user.lastName 
           ? `${user.firstName} ${user.lastName}` 
           : user.email || 'Unknown';
