@@ -349,7 +349,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   });
 
   return (
-    <div className="space-y-3 p-4">
+    <div className="space-y-6 p-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div>
@@ -807,7 +807,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       </Card>
 
       {/* Results Summary */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <span data-testid="text-results-count">
           {filteredVendors.length} vendor{filteredVendors.length !== 1 ? 's' : ''} found
         </span>
