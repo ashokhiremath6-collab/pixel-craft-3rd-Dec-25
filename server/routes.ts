@@ -5466,10 +5466,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/catalogue/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      const user = req.user!;
+      
+      // Fetch the item details before deleting for activity logging
+      const items = await storage.getCatalogueItems();
+      const item = items.find(i => i.id === id);
+      
       const deleted = await storage.deleteCatalogueItem(id);
       if (!deleted) {
         return res.status(404).json({ error: "Catalogue item not found" });
       }
+      
+      // Log the deletion activity
+      if (item) {
+        const userName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.email || 'Unknown';
+        const displayName = `${item.mainCategory} > ${item.subcategory}${item.vendorBrand ? ` (${item.vendorBrand})` : ''}`;
+        await storage.createActivity({
+          userId: user.id,
+          userName: userName,
+          userEmail: user.email,
+          activityType: 'catalogue_delete',
+          fileName: displayName,
+          filePath: item.filePath || undefined,
+          description: `deleted catalogue item "${displayName}"`,
+          metadata: { catalogueItemId: item.id }
+        });
+      }
+      
       res.json({ success: true });
     } catch (error) {
       console.error('Error deleting catalogue item:', error);
