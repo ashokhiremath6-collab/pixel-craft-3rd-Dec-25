@@ -757,7 +757,7 @@ export default function CataloguePage() {
                     return (
                       <FormItem>
                         <FormLabel>Subcategory</FormLabel>
-                        {selectedMainCategory ? (
+                        {selectedMainCategory && availableSubcategories.length > 0 ? (
                           <Select 
                             onValueChange={field.onChange} 
                             value={field.value}
@@ -778,7 +778,7 @@ export default function CataloguePage() {
                         ) : (
                           <FormControl>
                             <Input
-                              placeholder="Enter subcategory (select main category first)"
+                              placeholder={selectedMainCategory ? "Enter subcategory (first item in this category)" : "Enter subcategory (select main category first)"}
                               {...field}
                               data-testid="input-subcategory"
                             />
