@@ -727,13 +727,33 @@ export default function CataloguePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Main Category</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="e.g., Furniture, Lighting, Kitchens"
-                          {...field}
-                          data-testid="input-main-category"
-                        />
-                      </FormControl>
+                      {mainCategories.length > 0 ? (
+                        <Select 
+                          onValueChange={field.onChange} 
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-main-category">
+                              <SelectValue placeholder="Select a category" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {mainCategories.map((cat) => (
+                              <SelectItem key={cat} value={cat}>
+                                {cat}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., Furniture, Lighting, Kitchens"
+                            {...field}
+                            data-testid="input-main-category"
+                          />
+                        </FormControl>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
