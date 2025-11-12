@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -110,6 +110,11 @@ const designerOnlyItems: NavigationItem[] = [
     title: "Meeting Minutes",
     url: "/meeting-minutes",
     icon: Calendar,
+  },
+  {
+    title: "Works Orders",
+    url: "/works-orders",
+    icon: FileSignature,
   },
   {
     title: "Client Access",
