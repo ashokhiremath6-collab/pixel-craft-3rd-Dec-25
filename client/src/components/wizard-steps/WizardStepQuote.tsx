@@ -5,20 +5,26 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Calendar } from "lucide-react";
-import type { ProjectVendor } from "@shared/schema";
+import type { ProjectVendor, VendorCategory } from "@shared/schema";
 import { format } from "date-fns";
 
 interface WizardStepQuoteProps {
   quotes: ProjectVendor[];
   categoryId: string;
+  categories: VendorCategory[];
 }
 
-export function WizardStepQuote({ quotes, categoryId }: WizardStepQuoteProps) {
+export function WizardStepQuote({ quotes, categoryId, categories }: WizardStepQuoteProps) {
   const form = useFormContext();
 
   const filteredQuotes = useMemo(() => {
-    return quotes.filter((q) => q.category === categoryId);
-  }, [quotes, categoryId]);
+    // Find the category name from the ID
+    const selectedCategory = categories.find(c => c.id === categoryId);
+    if (!selectedCategory) return [];
+    
+    // Filter quotes by category name (ProjectVendor stores category name, not ID)
+    return quotes.filter((q) => q.category === selectedCategory.name);
+  }, [quotes, categoryId, categories]);
 
   return (
     <div className="space-y-4">

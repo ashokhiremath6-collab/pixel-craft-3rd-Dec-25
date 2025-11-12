@@ -136,6 +136,7 @@ export function WorksOrderWizard({
             <WizardStepQuote 
               quotes={quotes}
               categoryId={form.watch("categoryId")}
+              categories={categories}
             />
           )}
           {currentStep === "template" && <WizardStepTemplate templates={templates} />}
