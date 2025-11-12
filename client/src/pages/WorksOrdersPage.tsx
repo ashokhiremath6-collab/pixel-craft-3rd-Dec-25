@@ -108,6 +108,11 @@ export default function WorksOrdersPage() {
     paymentTerms: "",
   });
   
+  // Cascading dropdown state
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string>("");
+  
   // Detail drawer state
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<WorksOrder | null>(null);
@@ -139,6 +144,18 @@ export default function WorksOrdersPage() {
   // Fetch project vendors (quotations)
   const { data: projectVendors = [] } = useQuery<ProjectVendor[]>({
     queryKey: ['/api/project-vendors'],
+  });
+
+  // Conditional query for categories with quotes
+  const { data: categoriesWithQuotes = [] } = useQuery<Array<{ category: string; quotesCount: number }>>({
+    queryKey: [`/api/projects/${selectedProjectId}/categories-with-quotes`],
+    enabled: !!selectedProjectId,
+  });
+
+  // Conditional query for quotes by category
+  const { data: quotesByCategory = [] } = useQuery<Array<ProjectVendor & { vendorName: string }>>({
+    queryKey: [`/api/projects/${selectedProjectId}/quotes?category=${encodeURIComponent(selectedCategory)}`],
+    enabled: !!selectedProjectId && !!selectedCategory,
   });
 
   // Create template mutation
@@ -384,6 +401,9 @@ export default function WorksOrdersPage() {
       completionDate: "",
       paymentTerms: "",
     });
+    setSelectedProjectId("");
+    setSelectedCategory("");
+    setSelectedQuoteId("");
     setEditingOrder(null);
   };
 
@@ -419,6 +439,14 @@ export default function WorksOrdersPage() {
       completionDate: order.completionDate || "",
       paymentTerms: order.paymentTerms || "",
     });
+    
+    const pv = projectVendors.find(v => v.id === order.projectVendorId);
+    if (pv) {
+      setSelectedProjectId(pv.projectId);
+      setSelectedCategory(pv.category || "");
+      setSelectedQuoteId(order.projectVendorId);
+    }
+    
     setOrderDialogOpen(true);
   };
 
@@ -879,27 +907,80 @@ export default function WorksOrdersPage() {
                 </Select>
               </div>
 
-              <div>
-                <Label htmlFor="order-project-vendor">Project / Quote *</Label>
-                <Select
-                  value={orderFormData.projectVendorId}
-                  onValueChange={(value) => setOrderFormData({ ...orderFormData, projectVendorId: value })}
-                  required
-                >
-                  <SelectTrigger id="order-project-vendor" data-testid="select-order-project-vendor">
-                    <SelectValue placeholder="Select project and quote" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projectVendors.map((pv) => {
-                      const project = projects.find(p => p.id === pv.projectId);
-                      return (
-                        <SelectItem key={pv.id} value={pv.id}>
-                          {project?.projectName} - {pv.quotationName}
+              <div className="grid gap-4">
+                <div>
+                  <Label htmlFor="order-project">Project *</Label>
+                  <Select
+                    value={selectedProjectId}
+                    onValueChange={(value) => {
+                      setSelectedProjectId(value);
+                      setSelectedCategory("");
+                      setSelectedQuoteId("");
+                      setOrderFormData({ ...orderFormData, projectVendorId: "" });
+                    }}
+                    required
+                  >
+                    <SelectTrigger id="order-project" data-testid="select-order-project">
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.projectName}
                         </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="order-category">Category *</Label>
+                  <Select
+                    value={selectedCategory}
+                    onValueChange={(value) => {
+                      setSelectedCategory(value);
+                      setSelectedQuoteId("");
+                      setOrderFormData({ ...orderFormData, projectVendorId: "" });
+                    }}
+                    disabled={!selectedProjectId}
+                    required
+                  >
+                    <SelectTrigger id="order-category" data-testid="select-order-category">
+                      <SelectValue placeholder={selectedProjectId ? "Select category" : "Select project first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoriesWithQuotes.map((cat) => (
+                        <SelectItem key={cat.category} value={cat.category}>
+                          {cat.category} ({cat.quotesCount} {cat.quotesCount === 1 ? 'quote' : 'quotes'})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="order-quote">Quote *</Label>
+                  <Select
+                    value={selectedQuoteId}
+                    onValueChange={(value) => {
+                      setSelectedQuoteId(value);
+                      setOrderFormData({ ...orderFormData, projectVendorId: value });
+                    }}
+                    disabled={!selectedCategory}
+                    required
+                  >
+                    <SelectTrigger id="order-quote" data-testid="select-order-quote">
+                      <SelectValue placeholder={selectedCategory ? "Select quote" : "Select category first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {quotesByCategory.map((quote) => (
+                        <SelectItem key={quote.id} value={quote.id}>
+                          {quote.vendorName} - {quote.quotationName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div>
