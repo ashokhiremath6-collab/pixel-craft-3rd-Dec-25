@@ -18,15 +18,33 @@ export function WizardStepQuote({ quotes, categoryId, categories }: WizardStepQu
   const form = useFormContext();
 
   const filteredQuotes = useMemo(() => {
+    console.log("=== Quote Filter Debug ===");
+    console.log("categoryId:", categoryId);
+    console.log("Total quotes:", quotes.length);
+    console.log("All quotes:", quotes.map(q => ({ id: q.id, category: q.category, name: q.quotationName })));
+    
     // Find the category name from the ID
     const selectedCategory = categories.find(c => c.id === categoryId);
-    if (!selectedCategory) return [];
+    console.log("selectedCategory:", selectedCategory);
+    
+    if (!selectedCategory) {
+      console.log("No category found for ID:", categoryId);
+      return [];
+    }
     
     // Filter quotes by category name (case-insensitive comparison)
     const categoryName = selectedCategory.name.toLowerCase().trim();
-    return quotes.filter((q) => 
-      q.category && q.category.toLowerCase().trim() === categoryName
-    );
+    console.log("Looking for quotes with category:", categoryName);
+    
+    const filtered = quotes.filter((q) => {
+      const qCategory = q.category?.toLowerCase().trim();
+      console.log(`Quote ${q.id}: category="${q.category}" (normalized: "${qCategory}") matches? ${qCategory === categoryName}`);
+      return q.category && qCategory === categoryName;
+    });
+    
+    console.log("Filtered quotes:", filtered.length);
+    console.log("=========================");
+    return filtered;
   }, [quotes, categoryId, categories]);
 
   return (
