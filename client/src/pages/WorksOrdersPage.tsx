@@ -129,6 +129,17 @@ export default function WorksOrdersPage() {
     sourceWorksOrderId?: string;
   };
   const [items, setItems] = useState<LocalItem[]>([]);
+  const [isItemFormOpen, setIsItemFormOpen] = useState(false);
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
+  const [itemFormData, setItemFormData] = useState({
+    description: "",
+    quantity: "",
+    unit: "",
+    unitRate: "",
+    category: "",
+    itemCode: "",
+    specifications: "",
+  });
   
   // Detail drawer state
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
@@ -467,6 +478,70 @@ export default function WorksOrdersPage() {
 
   const recalculateTotal = (items: LocalItem[]): number => {
     return items.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
+  };
+
+  const resetItemForm = () => {
+    setItemFormData({
+      description: "",
+      quantity: "",
+      unit: "",
+      unitRate: "",
+      category: "",
+      itemCode: "",
+      specifications: "",
+    });
+    setEditingItemIndex(null);
+    setIsItemFormOpen(false);
+  };
+
+  const handleAddItem = () => {
+    const qty = parseFloat(itemFormData.quantity);
+    const rate = parseFloat(itemFormData.unitRate);
+    
+    if (!itemFormData.description || !itemFormData.quantity || !itemFormData.unit || !itemFormData.unitRate) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newItem: LocalItem = {
+      description: itemFormData.description,
+      quantity: qty,
+      unit: itemFormData.unit,
+      unitRate: rate,
+      totalAmount: qty * rate,
+      category: itemFormData.category || undefined,
+      itemCode: itemFormData.itemCode || undefined,
+      specifications: itemFormData.specifications || undefined,
+    };
+
+    if (editingItemIndex !== null) {
+      const updated = [...items];
+      updated[editingItemIndex] = newItem;
+      setItems(updated);
+    } else {
+      setItems([...items, newItem]);
+    }
+
+    resetItemForm();
+  };
+
+  const handleEditItem = (index: number) => {
+    const item = items[index];
+    setItemFormData({
+      description: item.description,
+      quantity: item.quantity.toString(),
+      unit: item.unit,
+      unitRate: item.unitRate.toString(),
+      category: item.category || "",
+      itemCode: item.itemCode || "",
+      specifications: item.specifications || "",
+    });
+    setEditingItemIndex(index);
+    setIsItemFormOpen(true);
   };
 
   const handleCreateTemplate = () => {
@@ -1107,6 +1182,219 @@ export default function WorksOrdersPage() {
                   rows={3}
                   data-testid="input-order-payment-terms"
                 />
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <Label className="text-base font-semibold">Line Items</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!selectedQuoteId}
+                      data-testid="button-import-boq"
+                    >
+                      Import from BOQ
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      data-testid="button-import-order"
+                    >
+                      Import from Order
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        resetItemForm();
+                        setIsItemFormOpen(true);
+                      }}
+                      data-testid="button-add-item"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Item
+                    </Button>
+                  </div>
+                </div>
+
+                {items.length > 0 ? (
+                  <div className="border rounded-md">
+                    <div className="max-h-64 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted sticky top-0">
+                          <tr>
+                            <th className="text-left p-2 font-medium">Description</th>
+                            <th className="text-right p-2 font-medium w-20">Qty</th>
+                            <th className="text-left p-2 font-medium w-20">Unit</th>
+                            <th className="text-right p-2 font-medium w-24">Rate</th>
+                            <th className="text-right p-2 font-medium w-24">Amount</th>
+                            <th className="w-16"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((item, index) => (
+                            <tr key={index} className="border-t">
+                              <td className="p-2">
+                                <div className="font-medium">{item.description}</div>
+                                {item.specifications && (
+                                  <div className="text-xs text-muted-foreground mt-0.5">{item.specifications}</div>
+                                )}
+                              </td>
+                              <td className="p-2 text-right">{item.quantity}</td>
+                              <td className="p-2">{item.unit}</td>
+                              <td className="p-2 text-right">{Number(item.unitRate).toFixed(2)}</td>
+                              <td className="p-2 text-right font-medium">{Number(item.totalAmount).toFixed(2)}</td>
+                              <td className="p-2">
+                                <div className="flex gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEditItem(index)}
+                                    data-testid={`button-edit-item-${index}`}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setItems(items.filter((_, i) => i !== index));
+                                    }}
+                                    data-testid={`button-delete-item-${index}`}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-muted border-t-2">
+                          <tr>
+                            <td colSpan={4} className="p-2 text-right font-semibold">Total:</td>
+                            <td className="p-2 text-right font-bold">{recalculateTotal(items).toFixed(2)}</td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border rounded-md p-8 text-center text-muted-foreground">
+                    No items added yet. Import from BOQ or add items manually.
+                  </div>
+                )}
+
+                {isItemFormOpen && (
+                  <div className="mt-4 p-4 border rounded-md bg-muted/50">
+                    <div className="flex items-center justify-between mb-3">
+                      <Label className="font-semibold">
+                        {editingItemIndex !== null ? `Edit Item #${editingItemIndex + 1}` : 'Add New Item'}
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={resetItemForm}
+                        data-testid="button-cancel-item-form"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <Label htmlFor="item-description">Description *</Label>
+                        <Input
+                          id="item-description"
+                          value={itemFormData.description}
+                          onChange={(e) => setItemFormData({ ...itemFormData, description: e.target.value })}
+                          placeholder="Item description"
+                          data-testid="input-item-description"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="item-quantity">Quantity *</Label>
+                        <Input
+                          id="item-quantity"
+                          type="number"
+                          step="0.01"
+                          value={itemFormData.quantity}
+                          onChange={(e) => setItemFormData({ ...itemFormData, quantity: e.target.value })}
+                          placeholder="0.00"
+                          data-testid="input-item-quantity"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="item-unit">Unit *</Label>
+                        <Input
+                          id="item-unit"
+                          value={itemFormData.unit}
+                          onChange={(e) => setItemFormData({ ...itemFormData, unit: e.target.value })}
+                          placeholder="e.g., m², kg, pieces"
+                          data-testid="input-item-unit"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="item-unit-rate">Unit Rate *</Label>
+                        <Input
+                          id="item-unit-rate"
+                          type="number"
+                          step="0.01"
+                          value={itemFormData.unitRate}
+                          onChange={(e) => setItemFormData({ ...itemFormData, unitRate: e.target.value })}
+                          placeholder="0.00"
+                          data-testid="input-item-unit-rate"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="item-category">Category</Label>
+                        <Input
+                          id="item-category"
+                          value={itemFormData.category}
+                          onChange={(e) => setItemFormData({ ...itemFormData, category: e.target.value })}
+                          placeholder="e.g., Labor, Material"
+                          data-testid="input-item-category"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="item-code">Item Code</Label>
+                        <Input
+                          id="item-code"
+                          value={itemFormData.itemCode}
+                          onChange={(e) => setItemFormData({ ...itemFormData, itemCode: e.target.value })}
+                          placeholder="Optional code"
+                          data-testid="input-item-code"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label htmlFor="item-specifications">Specifications</Label>
+                        <Textarea
+                          id="item-specifications"
+                          value={itemFormData.specifications}
+                          onChange={(e) => setItemFormData({ ...itemFormData, specifications: e.target.value })}
+                          placeholder="Optional specifications"
+                          rows={2}
+                          data-testid="input-item-specifications"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Button
+                          type="button"
+                          onClick={handleAddItem}
+                          className="w-full"
+                          data-testid="button-save-item"
+                        >
+                          {editingItemIndex !== null ? 'Update Item' : 'Add Item'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
