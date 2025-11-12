@@ -286,6 +286,68 @@ export const specifications = pgTable("specifications", {
   categoryIdx: index("specifications_category_idx").on(table.category),
 }));
 
+// Works Order Templates table for reusable templates
+export const worksOrderTemplates = pgTable("works_order_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // "Standard Works Order", "Residential Project Template", etc.
+  category: text("category"), // Optional category for organization
+  description: text("description"), // Template description
+  templateContent: text("template_content").notNull(), // HTML/rich-text template with merge fields
+  mergeFields: jsonb("merge_fields"), // Available merge fields: {projectName, clientName, scope, terms, etc.}
+  sourceFilePath: text("source_file_path"), // Optional original template file in object storage
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+// Works Orders table for tracking client-signed work orders
+export const worksOrders = pgTable("works_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectVendorId: varchar("project_vendor_id").notNull().references(() => projectVendors.id), // Links to quote
+  quoteFileId: varchar("quote_file_id").references(() => quoteFiles.id), // Optional link to specific quote file
+  templateId: varchar("template_id").references(() => worksOrderTemplates.id), // Template used
+  templateVersion: text("template_version"), // Snapshot of template at send time
+  orderNumber: text("order_number").notNull(), // Auto-generated order number (e.g., WO-2025-001)
+  title: text("title").notNull(), // Works order title
+  scope: text("scope").notNull(), // Scope of work description
+  paymentTerms: text("payment_terms"), // Payment terms and schedule
+  startDate: date("start_date"), // Expected start date
+  completionDate: date("completion_date"), // Expected completion date
+  totalValue: decimal("total_value", { precision: 15, scale: 2 }), // Total value of work
+  status: text("status").notNull().default("draft"), // draft, sent, signed, void
+  draftFilePath: text("draft_file_path"), // Path to generated draft PDF
+  signedFilePath: text("signed_file_path"), // Path to signed PDF with embedded signatures
+  accessToken: text("access_token"), // Unique token for client access
+  sentAt: timestamp("sent_at"), // When sent to client
+  signedAt: timestamp("signed_at"), // When fully signed
+  voidedAt: timestamp("voided_at"), // When voided
+  voidReason: text("void_reason"), // Reason for voiding
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+}, (table) => ({
+  // Index for faster filtering by status
+  statusIdx: index("works_orders_status_idx").on(table.status),
+  // Index for order number lookup
+  orderNumberIdx: index("works_orders_order_number_idx").on(table.orderNumber),
+}));
+
+// Works Order Signatures table for tracking who signed and when
+export const worksOrderSignatures = pgTable("works_order_signatures", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worksOrderId: varchar("works_order_id").notNull().references(() => worksOrders.id, { onDelete: 'cascade' }),
+  signerId: varchar("signer_id").references(() => users.id), // User who signed (null for clients)
+  signerEmail: text("signer_email").notNull(), // Email of signer
+  signerName: text("signer_name").notNull(), // Name of signer
+  signerRole: text("signer_role").notNull(), // "client", "designer", "admin"
+  signatureMethod: text("signature_method").notNull(), // "drawn", "typed", "uploaded"
+  signatureData: text("signature_data"), // Base64 signature image or typed text
+  signaturePath: text("signature_path"), // Path to signature file in object storage
+  ipAddress: text("ip_address"), // IP address of signer for audit
+  signedAt: timestamp("signed_at").notNull().default(sql`now()`),
+});
+
 // Insert schemas
 export const insertVendorCategorySchema = createInsertSchema(vendorCategories).omit({
   id: true,
@@ -384,7 +446,7 @@ export const insertActivityLogSchema = createInsertSchema(activityLog).omit({
   id: true,
   createdAt: true,
 }).extend({
-  activityType: z.enum(["floor_plan", "moodboard", "quote_file", "boq_file", "schedule", "working_drawing", "render", "specification", "vendor_payment", "vendor_create", "vendor_update", "vendor_delete", "catalogue_upload", "catalogue_update", "catalogue_delete"]),
+  activityType: z.enum(["floor_plan", "moodboard", "quote_file", "boq_file", "schedule", "working_drawing", "render", "specification", "vendor_payment", "vendor_create", "vendor_update", "vendor_delete", "catalogue_upload", "catalogue_update", "catalogue_delete", "works_order_create", "works_order_send", "works_order_sign", "works_order_void"]),
 });
 
 export const insertVendorInvoiceSchema = createInsertSchema(vendorInvoices).omit({
@@ -411,6 +473,28 @@ export const insertCatalogueItemSchema = createInsertSchema(catalogueItems).omit
 export const insertSpecificationSchema = createInsertSchema(specifications).omit({
   id: true,
   uploadedAt: true,
+});
+
+export const insertWorksOrderTemplateSchema = createInsertSchema(worksOrderTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertWorksOrderSchema = createInsertSchema(worksOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  status: z.enum(["draft", "sent", "signed", "void"]).default("draft"),
+});
+
+export const insertWorksOrderSignatureSchema = createInsertSchema(worksOrderSignatures).omit({
+  id: true,
+  signedAt: true,
+}).extend({
+  signerRole: z.enum(["client", "designer", "admin"]),
+  signatureMethod: z.enum(["drawn", "typed", "uploaded"]),
 });
 
 // Types
@@ -473,6 +557,15 @@ export type CatalogueItem = typeof catalogueItems.$inferSelect;
 
 export type InsertSpecification = z.infer<typeof insertSpecificationSchema>;
 export type Specification = typeof specifications.$inferSelect;
+
+export type InsertWorksOrderTemplate = z.infer<typeof insertWorksOrderTemplateSchema>;
+export type WorksOrderTemplate = typeof worksOrderTemplates.$inferSelect;
+
+export type InsertWorksOrder = z.infer<typeof insertWorksOrderSchema>;
+export type WorksOrder = typeof worksOrders.$inferSelect;
+
+export type InsertWorksOrderSignature = z.infer<typeof insertWorksOrderSignatureSchema>;
+export type WorksOrderSignature = typeof worksOrderSignatures.$inferSelect;
 
 // Meeting Minutes table
 export const meetingMinutes = pgTable("meeting_minutes", {

@@ -47,6 +47,12 @@ import {
   type InsertSpecification,
   type MeetingMinutes,
   type InsertMeetingMinutes,
+  type WorksOrderTemplate,
+  type InsertWorksOrderTemplate,
+  type WorksOrder,
+  type InsertWorksOrder,
+  type WorksOrderSignature,
+  type InsertWorksOrderSignature,
   users,
   userRoles,
   designerAllowlist,
@@ -71,10 +77,13 @@ import {
   catalogueItems,
   specifications,
   meetingMinutes,
+  worksOrderTemplates,
+  worksOrders,
+  worksOrderSignatures,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, inArray, isNull, and, desc } from "drizzle-orm";
+import { eq, inArray, isNull, and, desc, sql } from "drizzle-orm";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -269,6 +278,34 @@ export interface IStorage {
   createMeetingMinutes(minutes: InsertMeetingMinutes): Promise<MeetingMinutes>;
   updateMeetingMinutes(id: string, minutes: Partial<InsertMeetingMinutes>): Promise<MeetingMinutes | undefined>;
   deleteMeetingMinutes(id: string): Promise<boolean>;
+  
+  // Works Order Templates
+  getAllWorksOrderTemplates(): Promise<WorksOrderTemplate[]>;
+  getWorksOrderTemplate(id: string): Promise<WorksOrderTemplate | undefined>;
+  getActiveWorksOrderTemplates(): Promise<WorksOrderTemplate[]>;
+  getWorksOrderTemplatesForUser(userId: string, role: string): Promise<WorksOrderTemplate[]>;
+  createWorksOrderTemplate(template: InsertWorksOrderTemplate): Promise<WorksOrderTemplate>;
+  updateWorksOrderTemplate(id: string, updates: Partial<InsertWorksOrderTemplate>): Promise<WorksOrderTemplate | undefined>;
+  deleteWorksOrderTemplate(id: string): Promise<boolean>;
+  
+  // Works Orders
+  getAllWorksOrders(): Promise<WorksOrder[]>;
+  getWorksOrder(id: string): Promise<WorksOrder | undefined>;
+  getWorksOrderWithRelations(id: string): Promise<WorksOrder & { projectName?: string; clientName?: string; vendorName?: string; templateName?: string } | undefined>;
+  getWorksOrdersByProject(projectId: string): Promise<WorksOrder[]>;
+  getWorksOrdersByProjectVendor(projectVendorId: string): Promise<WorksOrder[]>;
+  getWorksOrdersForUser(userId: string, role: string, projectId?: string): Promise<WorksOrder[]>;
+  getWorksOrderByToken(token: string): Promise<WorksOrder | undefined>;
+  createWorksOrder(order: InsertWorksOrder): Promise<WorksOrder>;
+  updateWorksOrder(id: string, updates: Partial<InsertWorksOrder>): Promise<WorksOrder | undefined>;
+  updateWorksOrderStatus(id: string, status: string, metadata?: { sentAt?: Date; signedAt?: Date; voidedAt?: Date; voidReason?: string; signedFilePath?: string }): Promise<WorksOrder | undefined>;
+  deleteWorksOrder(id: string): Promise<boolean>;
+  generateOrderNumber(): Promise<string>;
+  
+  // Works Order Signatures
+  getSignaturesByWorksOrder(worksOrderId: string): Promise<WorksOrderSignature[]>;
+  getSignatureByOrderAndEmail(worksOrderId: string, email: string): Promise<WorksOrderSignature | undefined>;
+  createSignature(signature: InsertWorksOrderSignature): Promise<WorksOrderSignature>;
   
   // Vendors (with role-based filtering)
   getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
@@ -2120,6 +2157,212 @@ export class DBStorage implements IStorage {
   async deleteMeetingMinutes(id: string): Promise<boolean> {
     const result = await db.delete(meetingMinutes).where(eq(meetingMinutes.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Works Order Templates methods
+  async getAllWorksOrderTemplates(): Promise<WorksOrderTemplate[]> {
+    return await db.select().from(worksOrderTemplates).orderBy(desc(worksOrderTemplates.createdAt));
+  }
+
+  async getWorksOrderTemplate(id: string): Promise<WorksOrderTemplate | undefined> {
+    const result = await db.select().from(worksOrderTemplates).where(eq(worksOrderTemplates.id, id));
+    return result[0];
+  }
+
+  async getActiveWorksOrderTemplates(): Promise<WorksOrderTemplate[]> {
+    return await db.select()
+      .from(worksOrderTemplates)
+      .where(eq(worksOrderTemplates.isActive, true))
+      .orderBy(worksOrderTemplates.name);
+  }
+
+  async getWorksOrderTemplatesForUser(userId: string, role: string): Promise<WorksOrderTemplate[]> {
+    // Clients cannot access templates
+    if (role === 'client') {
+      return [];
+    }
+    // Admins and designers can access all active templates
+    return this.getActiveWorksOrderTemplates();
+  }
+
+  async createWorksOrderTemplate(template: InsertWorksOrderTemplate): Promise<WorksOrderTemplate> {
+    const result = await db.insert(worksOrderTemplates).values(template).returning();
+    return result[0];
+  }
+
+  async updateWorksOrderTemplate(id: string, updates: Partial<InsertWorksOrderTemplate>): Promise<WorksOrderTemplate | undefined> {
+    const result = await db.update(worksOrderTemplates).set({
+      ...updates,
+      updatedAt: new Date(),
+    }).where(eq(worksOrderTemplates.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteWorksOrderTemplate(id: string): Promise<boolean> {
+    const result = await db.delete(worksOrderTemplates).where(eq(worksOrderTemplates.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Works Orders methods
+  async getAllWorksOrders(): Promise<WorksOrder[]> {
+    return await db.select().from(worksOrders).orderBy(desc(worksOrders.createdAt));
+  }
+
+  async getWorksOrder(id: string): Promise<WorksOrder | undefined> {
+    const result = await db.select().from(worksOrders).where(eq(worksOrders.id, id));
+    return result[0];
+  }
+
+  async getWorksOrderWithRelations(id: string): Promise<WorksOrder & { projectName?: string; clientName?: string; vendorName?: string; templateName?: string } | undefined> {
+    const result = await db.select({
+      worksOrder: worksOrders,
+      projectName: projects.projectName,
+      clientName: projects.clientName,
+      vendorName: vendors.name,
+      templateName: worksOrderTemplates.name,
+    })
+      .from(worksOrders)
+      .leftJoin(projectVendors, eq(worksOrders.projectVendorId, projectVendors.id))
+      .leftJoin(projects, eq(projectVendors.projectId, projects.id))
+      .leftJoin(vendors, eq(projectVendors.vendorId, vendors.id))
+      .leftJoin(worksOrderTemplates, eq(worksOrders.templateId, worksOrderTemplates.id))
+      .where(eq(worksOrders.id, id));
+
+    if (!result[0]) return undefined;
+
+    return {
+      ...result[0].worksOrder,
+      projectName: result[0].projectName || undefined,
+      clientName: result[0].clientName || undefined,
+      vendorName: result[0].vendorName || undefined,
+      templateName: result[0].templateName || undefined,
+    };
+  }
+
+  async getWorksOrdersByProject(projectId: string): Promise<WorksOrder[]> {
+    const result = await db.select({ worksOrder: worksOrders })
+      .from(worksOrders)
+      .leftJoin(projectVendors, eq(worksOrders.projectVendorId, projectVendors.id))
+      .where(eq(projectVendors.projectId, projectId))
+      .orderBy(desc(worksOrders.createdAt));
+    
+    return result.map(r => r.worksOrder);
+  }
+
+  async getWorksOrdersByProjectVendor(projectVendorId: string): Promise<WorksOrder[]> {
+    return await db.select()
+      .from(worksOrders)
+      .where(eq(worksOrders.projectVendorId, projectVendorId))
+      .orderBy(desc(worksOrders.createdAt));
+  }
+
+  async getWorksOrdersForUser(userId: string, role: string, projectId?: string): Promise<WorksOrder[]> {
+    if (role === 'admin' || role === 'designer') {
+      // Admins and designers see all orders
+      if (projectId) {
+        return this.getWorksOrdersByProject(projectId);
+      }
+      return this.getAllWorksOrders();
+    }
+
+    if (role === 'client') {
+      // Clients only see orders for their assigned projects
+      const userProjects = await this.getProjectsForUser(userId, role);
+      const projectIds = userProjects.map(p => p.id);
+      
+      if (projectIds.length === 0) return [];
+
+      const result = await db.select({ worksOrder: worksOrders })
+        .from(worksOrders)
+        .leftJoin(projectVendors, eq(worksOrders.projectVendorId, projectVendors.id))
+        .where(inArray(projectVendors.projectId, projectIds))
+        .orderBy(desc(worksOrders.createdAt));
+
+      return result.map(r => r.worksOrder);
+    }
+
+    return [];
+  }
+
+  async getWorksOrderByToken(token: string): Promise<WorksOrder | undefined> {
+    const result = await db.select().from(worksOrders).where(eq(worksOrders.accessToken, token));
+    return result[0];
+  }
+
+  async createWorksOrder(order: InsertWorksOrder): Promise<WorksOrder> {
+    const result = await db.insert(worksOrders).values(order).returning();
+    return result[0];
+  }
+
+  async updateWorksOrder(id: string, updates: Partial<InsertWorksOrder>): Promise<WorksOrder | undefined> {
+    const result = await db.update(worksOrders).set({
+      ...updates,
+      updatedAt: new Date(),
+    }).where(eq(worksOrders.id, id)).returning();
+    return result[0];
+  }
+
+  async updateWorksOrderStatus(id: string, status: string, metadata?: { sentAt?: Date; signedAt?: Date; voidedAt?: Date; voidReason?: string; signedFilePath?: string }): Promise<WorksOrder | undefined> {
+    const updates: any = {
+      status,
+      updatedAt: new Date(),
+    };
+
+    if (metadata) {
+      if (metadata.sentAt) updates.sentAt = metadata.sentAt;
+      if (metadata.signedAt) updates.signedAt = metadata.signedAt;
+      if (metadata.voidedAt) updates.voidedAt = metadata.voidedAt;
+      if (metadata.voidReason) updates.voidReason = metadata.voidReason;
+      if (metadata.signedFilePath) updates.signedFilePath = metadata.signedFilePath;
+    }
+
+    const result = await db.update(worksOrders).set(updates).where(eq(worksOrders.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteWorksOrder(id: string): Promise<boolean> {
+    const result = await db.delete(worksOrders).where(eq(worksOrders.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async generateOrderNumber(): Promise<string> {
+    const year = new Date().getFullYear();
+    
+    // Get count of orders this year
+    const yearStart = `${year}-01-01`;
+    const result = await db.select()
+      .from(worksOrders)
+      .where(and(
+        sql`${worksOrders.createdAt} >= ${yearStart}::date`
+      ));
+
+    const count = result.length + 1;
+    const paddedCount = count.toString().padStart(3, '0');
+    
+    return `WO-${year}-${paddedCount}`;
+  }
+
+  // Works Order Signatures methods
+  async getSignaturesByWorksOrder(worksOrderId: string): Promise<WorksOrderSignature[]> {
+    return await db.select()
+      .from(worksOrderSignatures)
+      .where(eq(worksOrderSignatures.worksOrderId, worksOrderId))
+      .orderBy(worksOrderSignatures.signedAt);
+  }
+
+  async getSignatureByOrderAndEmail(worksOrderId: string, email: string): Promise<WorksOrderSignature | undefined> {
+    const result = await db.select()
+      .from(worksOrderSignatures)
+      .where(and(
+        eq(worksOrderSignatures.worksOrderId, worksOrderId),
+        eq(worksOrderSignatures.signerEmail, email)
+      ));
+    return result[0];
+  }
+
+  async createSignature(signature: InsertWorksOrderSignature): Promise<WorksOrderSignature> {
+    const result = await db.insert(worksOrderSignatures).values(signature).returning();
+    return result[0];
   }
 }
 
