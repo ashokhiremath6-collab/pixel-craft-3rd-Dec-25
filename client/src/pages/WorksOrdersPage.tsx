@@ -174,9 +174,11 @@ export default function WorksOrdersPage() {
     queryKey: ['/api/projects'],
   });
 
-  // Fetch project vendors (quotations)
+  // Fetch project vendors (quotations) - enable after auth to avoid 401
   const { data: projectVendors = [] } = useQuery<ProjectVendor[]>({
     queryKey: ['/api/project-vendors'],
+    retry: 3, // Retry on failure (including 401)
+    retryDelay: 1000, // Wait 1s between retries to allow auth to complete
   });
 
   // Fetch vendor categories for wizard
