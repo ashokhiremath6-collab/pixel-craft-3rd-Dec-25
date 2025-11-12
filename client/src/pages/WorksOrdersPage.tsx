@@ -59,7 +59,8 @@ import type {
   WorksOrderTemplate, 
   WorksOrder, 
   Project, 
-  ProjectVendor 
+  ProjectVendor,
+  WorksOrderItem
 } from "@shared/schema";
 import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -112,6 +113,22 @@ export default function WorksOrdersPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedQuoteId, setSelectedQuoteId] = useState<string>("");
+  
+  // Item management state
+  type LocalItem = {
+    id?: string;
+    description: string;
+    quantity: number;
+    unit: string;
+    unitRate: number;
+    totalAmount: number;
+    category?: string;
+    itemCode?: string;
+    specifications?: string;
+    sourceProjectVendorId?: string;
+    sourceWorksOrderId?: string;
+  };
+  const [items, setItems] = useState<LocalItem[]>([]);
   
   // Detail drawer state
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
@@ -404,7 +421,52 @@ export default function WorksOrdersPage() {
     setSelectedProjectId("");
     setSelectedCategory("");
     setSelectedQuoteId("");
+    setItems([]);
     setEditingOrder(null);
+  };
+
+  // Item management helpers
+  const mergeItems = (existingItems: LocalItem[], newItems: LocalItem[]): LocalItem[] => {
+    const merged = [...existingItems];
+    
+    for (const newItem of newItems) {
+      const dedupeKey = [
+        newItem.description.trim().toLowerCase(),
+        newItem.unit.trim().toLowerCase(),
+        (newItem.category || '').trim().toLowerCase(),
+        (newItem.itemCode || '').trim().toLowerCase(),
+        (newItem.specifications || '').trim().toLowerCase(),
+        newItem.unitRate.toString(),
+      ].join('|');
+      
+      const existingIndex = merged.findIndex(item => {
+        const itemKey = [
+          item.description.trim().toLowerCase(),
+          item.unit.trim().toLowerCase(),
+          (item.category || '').trim().toLowerCase(),
+          (item.itemCode || '').trim().toLowerCase(),
+          (item.specifications || '').trim().toLowerCase(),
+          item.unitRate.toString(),
+        ].join('|');
+        return itemKey === dedupeKey;
+      });
+      
+      if (existingIndex >= 0) {
+        merged[existingIndex] = {
+          ...merged[existingIndex],
+          quantity: merged[existingIndex].quantity + newItem.quantity,
+          totalAmount: Number((merged[existingIndex].quantity + newItem.quantity) * merged[existingIndex].unitRate),
+        };
+      } else {
+        merged.push(newItem);
+      }
+    }
+    
+    return merged;
+  };
+
+  const recalculateTotal = (items: LocalItem[]): number => {
+    return items.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
   };
 
   const handleCreateTemplate = () => {
