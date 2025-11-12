@@ -110,6 +110,7 @@ export default function WorksOrdersPage() {
     startDate: "",
     completionDate: "",
     paymentTerms: "",
+    notes: "",
   });
   
   // Cascading dropdown state
@@ -404,6 +405,7 @@ export default function WorksOrdersPage() {
       startDate: "",
       completionDate: "",
       paymentTerms: "",
+      notes: "",
     });
     setSelectedProjectId("");
     setSelectedCategory("");
@@ -551,6 +553,7 @@ export default function WorksOrdersPage() {
       startDate: order.startDate || "",
       completionDate: order.completionDate || "",
       paymentTerms: order.paymentTerms || "",
+      notes: order.notes || "",
     });
     
     const pv = projectVendors.find(v => v.id === order.projectVendorId);
@@ -643,20 +646,14 @@ export default function WorksOrdersPage() {
       
       if (editingOrder) {
         // Update existing order
-        await updateOrderMutation.mutateAsync(
-          {
-            id: editingOrder.id,
-            data: orderFormData,
-          },
-          { throwOnError: true }
-        );
+        await updateOrderMutation.mutateAsync({
+          id: editingOrder.id,
+          data: orderFormData,
+        });
         orderId = editingOrder.id;
       } else {
         // Create new order
-        const createdOrder = await createOrderMutation.mutateAsync(
-          orderFormData,
-          { throwOnError: true }
-        );
+        const createdOrder: any = await createOrderMutation.mutateAsync(orderFormData);
         orderId = createdOrder.id;
       }
       
@@ -708,20 +705,17 @@ export default function WorksOrdersPage() {
   }) => {
     try {
       // Step 1: Create works order with all required fields
-      const createdOrder = await createOrderMutation.mutateAsync(
-        {
-          title: data.name,
-          notes: data.notes || "",
-          templateId: data.templateId || "",
-          projectVendorId: data.projectVendorId,
-          scope: "", // Will be populated from merged document
-          totalValue: "", // Calculated from BOQ items in merged document
-          startDate: "", // Can be set later if needed
-          completionDate: "", // Can be set later if needed
-          paymentTerms: "", // Can be set later if needed
-        },
-        { throwOnError: true }
-      );
+      const createdOrder: any = await createOrderMutation.mutateAsync({
+        title: data.name || "Works Order",
+        notes: data.notes || "",
+        templateId: data.templateId || "",
+        projectVendorId: data.projectVendorId,
+        scope: "", // Will be populated from merged document
+        totalValue: "", // Calculated from BOQ items in merged document
+        startDate: "", // Can be set later if needed
+        completionDate: "", // Can be set later if needed
+        paymentTerms: "", // Can be set later if needed
+      });
 
       // Step 2: Call merge endpoint to generate document
       await apiRequest('POST', `/api/works-orders/${createdOrder.id}/merge`, {

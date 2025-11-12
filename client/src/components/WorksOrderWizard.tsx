@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,9 +7,7 @@ import { DialogFooter } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import type { VendorCategory, WorksOrderTemplate, ProjectVendor } from "@shared/schema";
-import { WizardStepName } from "./wizard-steps/WizardStepName";
 import { WizardStepCategory } from "./wizard-steps/WizardStepCategory";
-import { WizardStepVendors } from "./wizard-steps/WizardStepVendors";
 import { WizardStepTemplate } from "./wizard-steps/WizardStepTemplate";
 import { WizardStepQuote } from "./wizard-steps/WizardStepQuote";
 import { WizardStepReview } from "./wizard-steps/WizardStepReview";
@@ -24,16 +22,14 @@ const worksOrderSchema = z.object({
 
 type WorksOrderFormData = z.infer<typeof worksOrderSchema>;
 
-type WizardStep = "name" | "category" | "vendors" | "template" | "quote" | "review";
+type WizardStep = "category" | "quote" | "template" | "review";
 
-const STEPS: WizardStep[] = ["name", "category", "vendors", "template", "quote", "review"];
+const STEPS: WizardStep[] = ["category", "quote", "template", "review"];
 
 const STEP_LABELS: Record<WizardStep, string> = {
-  name: "Name",
   category: "Category",
-  vendors: "Vendors",
-  template: "Template",
   quote: "Quote",
+  template: "Covering Letter",
   review: "Review",
 };
 
@@ -54,7 +50,7 @@ export function WorksOrderWizard({
   onCancel,
   isSubmitting,
 }: WorksOrderWizardProps) {
-  const [currentStep, setCurrentStep] = useState<WizardStep>("name");
+  const [currentStep, setCurrentStep] = useState<WizardStep>("category");
 
   const form = useForm<WorksOrderFormData>({
     resolver: zodResolver(worksOrderSchema),
@@ -68,22 +64,34 @@ export function WorksOrderWizard({
     mode: "onChange",
   });
 
+  // Auto-select first quote when category changes
+  const categoryId = form.watch("categoryId");
+  React.useEffect(() => {
+    if (categoryId && categories.length > 0) {
+      // Find the category name from categoryId
+      const selectedCategory = categories.find(c => c.id === categoryId);
+      if (selectedCategory) {
+        // Filter quotes by category name (ProjectVendor has 'category' field, not 'categoryId')
+        const quotesInCategory = quotes.filter(q => q.category === selectedCategory.name);
+        if (quotesInCategory.length > 0 && !form.getValues("projectVendorId")) {
+          form.setValue("projectVendorId", quotesInCategory[0].id);
+        }
+      }
+    }
+  }, [categoryId, categories, quotes, form]);
+
   const currentStepIndex = STEPS.indexOf(currentStep);
   const progress = ((currentStepIndex + 1) / STEPS.length) * 100;
 
   const canGoNext = () => {
     const values = form.getValues();
     switch (currentStep) {
-      case "name":
-        return !!values.name;
       case "category":
         return !!values.categoryId;
-      case "vendors":
-        return true; // Read-only step
-      case "template":
-        return !!values.templateId;
       case "quote":
         return !!values.projectVendorId;
+      case "template":
+        return !!values.templateId;
       case "review":
         return form.formState.isValid;
       default:
@@ -123,16 +131,14 @@ export function WorksOrderWizard({
 
         {/* Step Content */}
         <div className="min-h-[400px]">
-          {currentStep === "name" && <WizardStepName />}
           {currentStep === "category" && <WizardStepCategory categories={categories} />}
-          {currentStep === "vendors" && <WizardStepVendors categoryId={form.watch("categoryId")} />}
-          {currentStep === "template" && <WizardStepTemplate templates={templates} />}
           {currentStep === "quote" && (
             <WizardStepQuote 
               quotes={quotes}
               categoryId={form.watch("categoryId")}
             />
           )}
+          {currentStep === "template" && <WizardStepTemplate templates={templates} />}
           {currentStep === "review" && <WizardStepReview />}
         </div>
 
