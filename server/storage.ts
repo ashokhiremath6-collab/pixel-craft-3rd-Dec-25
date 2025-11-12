@@ -318,6 +318,15 @@ export interface IStorage {
   getSignatureByOrderAndEmail(worksOrderId: string, email: string): Promise<WorksOrderSignature | undefined>;
   createSignature(signature: InsertWorksOrderSignature): Promise<WorksOrderSignature>;
   
+  // Works Order Items
+  getWorksOrderItems(worksOrderId: string): Promise<WorksOrderItem[]>;
+  createWorksOrderItem(item: InsertWorksOrderItem): Promise<WorksOrderItem>;
+  createWorksOrderItemsBatch(items: InsertWorksOrderItem[]): Promise<WorksOrderItem[]>;
+  updateWorksOrderItem(id: string, updates: Partial<InsertWorksOrderItem>): Promise<WorksOrderItem | undefined>;
+  deleteWorksOrderItem(id: string): Promise<boolean>;
+  deleteWorksOrderItemsByOrder(worksOrderId: string): Promise<boolean>;
+  replaceWorksOrderItems(worksOrderId: string, items: InsertWorksOrderItem[]): Promise<WorksOrderItem[]>;
+  
   // Vendors (with role-based filtering)
   getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
   getProjectVendorsForUser(userId: string, role: string): Promise<ProjectVendor[]>;
@@ -2571,6 +2580,71 @@ export class DBStorage implements IStorage {
   async createSignature(signature: InsertWorksOrderSignature): Promise<WorksOrderSignature> {
     const result = await db.insert(worksOrderSignatures).values(signature).returning();
     return result[0];
+  }
+
+  async getWorksOrderItems(worksOrderId: string): Promise<WorksOrderItem[]> {
+    return await db.select()
+      .from(worksOrderItems)
+      .where(eq(worksOrderItems.worksOrderId, worksOrderId))
+      .orderBy(worksOrderItems.sortOrder);
+  }
+
+  async createWorksOrderItem(item: InsertWorksOrderItem): Promise<WorksOrderItem> {
+    const result = await db.insert(worksOrderItems).values(item).returning();
+    return result[0];
+  }
+
+  async createWorksOrderItemsBatch(items: InsertWorksOrderItem[]): Promise<WorksOrderItem[]> {
+    if (items.length === 0) return [];
+    const result = await db.insert(worksOrderItems).values(items).returning();
+    return result;
+  }
+
+  async updateWorksOrderItem(id: string, updates: Partial<InsertWorksOrderItem>): Promise<WorksOrderItem | undefined> {
+    const result = await db.update(worksOrderItems)
+      .set(updates)
+      .where(eq(worksOrderItems.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteWorksOrderItem(id: string): Promise<boolean> {
+    const result = await db.delete(worksOrderItems).where(eq(worksOrderItems.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async deleteWorksOrderItemsByOrder(worksOrderId: string): Promise<boolean> {
+    await db.delete(worksOrderItems).where(eq(worksOrderItems.worksOrderId, worksOrderId));
+    return true;
+  }
+
+  async replaceWorksOrderItems(worksOrderId: string, items: InsertWorksOrderItem[]): Promise<WorksOrderItem[]> {
+    for (const item of items) {
+      if (item.worksOrderId !== worksOrderId) {
+        throw new Error(`Item worksOrderId mismatch: expected ${worksOrderId}, got ${item.worksOrderId}`);
+      }
+    }
+    
+    return await db.transaction(async (tx) => {
+      const lockedOrder = await tx.select().from(worksOrders).where(eq(worksOrders.id, worksOrderId)).for('update');
+      
+      if (lockedOrder.length === 0) {
+        throw new Error(`Works order ${worksOrderId} not found`);
+      }
+      
+      if (lockedOrder[0].status === 'signed' || lockedOrder[0].status === 'void') {
+        throw new Error(`Cannot modify items for ${lockedOrder[0].status} works order`);
+      }
+      
+      await tx.delete(worksOrderItems).where(eq(worksOrderItems.worksOrderId, worksOrderId));
+      
+      if (items.length === 0) {
+        return [];
+      }
+      
+      const result = await tx.insert(worksOrderItems).values(items).returning();
+      return result;
+    });
   }
 }
 
