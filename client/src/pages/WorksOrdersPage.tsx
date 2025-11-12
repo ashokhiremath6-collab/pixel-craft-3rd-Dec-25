@@ -183,11 +183,6 @@ export default function WorksOrdersPage() {
     queryKey: ['/api/vendor-categories/tree'],
   });
 
-  // Fetch works order document templates for wizard
-  const { data: documentTemplates = [] } = useQuery<WorksOrderDocument[]>({
-    queryKey: ['/api/works-order-templates'],
-  });
-
   // Conditional query for categories with quotes
   const { data: categoriesWithQuotes = [] } = useQuery<Array<{ category: string; quotesCount: number }>>({
     queryKey: [`/api/projects/${selectedProjectId}/categories-with-quotes`],
@@ -703,6 +698,54 @@ export default function WorksOrdersPage() {
     });
   };
 
+  // Wizard submission handler
+  const handleWizardSubmit = async (data: {
+    name: string;
+    notes?: string;
+    categoryId: string;
+    templateId?: string;
+    projectVendorId: string;
+  }) => {
+    try {
+      // Step 1: Create works order with all required fields
+      const createdOrder = await createOrderMutation.mutateAsync(
+        {
+          title: data.name,
+          notes: data.notes || "",
+          templateId: data.templateId || "",
+          projectVendorId: data.projectVendorId,
+          scope: "", // Will be populated from merged document
+          totalValue: "", // Calculated from BOQ items in merged document
+          startDate: "", // Can be set later if needed
+          completionDate: "", // Can be set later if needed
+          paymentTerms: "", // Can be set later if needed
+        },
+        { throwOnError: true }
+      );
+
+      // Step 2: Call merge endpoint to generate document
+      await apiRequest('POST', `/api/works-orders/${createdOrder.id}/merge`, {
+        projectVendorId: data.projectVendorId,
+        templateId: data.templateId,
+      });
+
+      // Step 3: Invalidate cache and close dialog
+      queryClient.invalidateQueries({ queryKey: ["/api/works-orders"] });
+      setOrderDialogOpen(false);
+
+      toast({
+        title: "Success",
+        description: "Works order created and merged successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create works order",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -1035,13 +1078,25 @@ export default function WorksOrdersPage() {
 
       {/* Order Dialog */}
       <Dialog open={orderDialogOpen} onOpenChange={setOrderDialogOpen}>
-        <DialogContent className="max-w-2xl" data-testid="dialog-order">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="dialog-order">
           <DialogHeader>
             <DialogTitle>
               {editingOrder ? 'Edit Works Order' : 'Create Works Order'}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmitOrder}>
+
+          {/* Use wizard for new orders, old form for edits */}
+          {!editingOrder ? (
+            <WorksOrderWizard
+              categories={vendorCategories}
+              templates={templates}
+              quotes={projectVendors}
+              onSubmit={handleWizardSubmit}
+              onCancel={() => setOrderDialogOpen(false)}
+              isSubmitting={createOrderMutation.isPending}
+            />
+          ) : (
+            <form onSubmit={handleSubmitOrder}>
             <div className="grid gap-4 py-4">
               <div>
                 <Label htmlFor="order-title">Works Order Title *</Label>
@@ -1470,6 +1525,7 @@ export default function WorksOrdersPage() {
               </Button>
             </DialogFooter>
           </form>
+          )}
         </DialogContent>
       </Dialog>
 

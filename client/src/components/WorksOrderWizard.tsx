@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
-import type { VendorCategory, WorksOrderDocument, ProjectVendor } from "@shared/schema";
+import type { VendorCategory, WorksOrderTemplate, ProjectVendor } from "@shared/schema";
 import { WizardStepName } from "./wizard-steps/WizardStepName";
 import { WizardStepCategory } from "./wizard-steps/WizardStepCategory";
 import { WizardStepVendors } from "./wizard-steps/WizardStepVendors";
@@ -39,7 +39,7 @@ const STEP_LABELS: Record<WizardStep, string> = {
 
 interface WorksOrderWizardProps {
   categories: VendorCategory[];
-  templates: WorksOrderDocument[];
+  templates: WorksOrderTemplate[];
   quotes: ProjectVendor[];
   onSubmit: (data: WorksOrderFormData) => Promise<void>;
   onCancel: () => void;
