@@ -91,20 +91,21 @@ export default function WorksOrdersPage() {
   const [templateFormData, setTemplateFormData] = useState({
     name: "",
     description: "",
-    content: "",
+    templateContent: "",
   });
   
   // Order state
   const [orderDialogOpen, setOrderDialogOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<WorksOrder | null>(null);
   const [orderFormData, setOrderFormData] = useState({
+    title: "",
     templateId: "",
     projectVendorId: "",
-    workDescription: "",
-    estimatedCost: "",
+    scope: "",
+    totalValue: "",
     startDate: "",
-    endDate: "",
-    notes: "",
+    completionDate: "",
+    paymentTerms: "",
   });
   
   // Detail drawer state
@@ -137,18 +138,15 @@ export default function WorksOrdersPage() {
 
   // Fetch project vendors (quotations)
   const { data: projectVendors = [] } = useQuery<ProjectVendor[]>({
-    queryKey: ['/api/quotations'],
+    queryKey: ['/api/project-vendors'],
   });
 
   // Create template mutation
   const createTemplateMutation = useMutation({
     mutationFn: async (data: typeof templateFormData) => {
-      return apiRequest("/api/works-order-templates", {
-        method: "POST",
-        body: JSON.stringify({
-          ...data,
-          isActive: true,
-        }),
+      return apiRequest('POST', "/api/works-order-templates", {
+        ...data,
+        isActive: true,
       });
     },
     onSuccess: () => {
@@ -172,10 +170,7 @@ export default function WorksOrdersPage() {
   // Update template mutation
   const updateTemplateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof templateFormData }) => {
-      return apiRequest(`/api/works-order-templates/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      });
+      return apiRequest('PUT', `/api/works-order-templates/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/works-order-templates"] });
@@ -199,9 +194,7 @@ export default function WorksOrdersPage() {
   // Delete template mutation
   const deleteTemplateMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/works-order-templates/${id}`, {
-        method: "DELETE",
-      });
+      return apiRequest('DELETE', `/api/works-order-templates/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/works-order-templates"] });
@@ -222,14 +215,11 @@ export default function WorksOrdersPage() {
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: async (data: typeof orderFormData) => {
-      return apiRequest("/api/works-orders", {
-        method: "POST",
-        body: JSON.stringify({
-          ...data,
-          estimatedCost: data.estimatedCost ? parseFloat(data.estimatedCost) : null,
-          startDate: data.startDate || null,
-          endDate: data.endDate || null,
-        }),
+      return apiRequest('POST', "/api/works-orders", {
+        ...data,
+        totalValue: data.totalValue ? parseFloat(data.totalValue) : null,
+        startDate: data.startDate || null,
+        completionDate: data.completionDate || null,
       });
     },
     onSuccess: () => {
@@ -253,14 +243,11 @@ export default function WorksOrdersPage() {
   // Update order mutation
   const updateOrderMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof orderFormData }) => {
-      return apiRequest(`/api/works-orders/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          ...data,
-          estimatedCost: data.estimatedCost ? parseFloat(data.estimatedCost) : null,
-          startDate: data.startDate || null,
-          endDate: data.endDate || null,
-        }),
+      return apiRequest('PUT', `/api/works-orders/${id}`, {
+        ...data,
+        totalValue: data.totalValue ? parseFloat(data.totalValue) : null,
+        startDate: data.startDate || null,
+        completionDate: data.completionDate || null,
       });
     },
     onSuccess: () => {
@@ -285,9 +272,7 @@ export default function WorksOrdersPage() {
   // Send order mutation
   const sendOrderMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/works-orders/${id}/send`, {
-        method: "POST",
-      });
+      return apiRequest('POST', `/api/works-orders/${id}/send`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/works-orders"] });
@@ -308,10 +293,7 @@ export default function WorksOrdersPage() {
   // Void order mutation
   const voidOrderMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      return apiRequest(`/api/works-orders/${id}/void`, {
-        method: "POST",
-        body: JSON.stringify({ reason }),
-      });
+      return apiRequest('POST', `/api/works-orders/${id}/void`, { reason });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/works-orders"] });
@@ -335,9 +317,7 @@ export default function WorksOrdersPage() {
   // Delete order mutation
   const deleteOrderMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/works-orders/${id}`, {
-        method: "DELETE",
-      });
+      return apiRequest('DELETE', `/api/works-orders/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/works-orders"] });
@@ -374,8 +354,8 @@ export default function WorksOrdersPage() {
         const query = searchQuery.toLowerCase();
         return (
           order.orderNumber.toLowerCase().includes(query) ||
-          (order.workDescription && order.workDescription.toLowerCase().includes(query)) ||
-          (order.notes && order.notes.toLowerCase().includes(query))
+          (order.scope && order.scope.toLowerCase().includes(query)) ||
+          (order.paymentTerms && order.paymentTerms.toLowerCase().includes(query))
         );
       }
       
@@ -388,20 +368,21 @@ export default function WorksOrdersPage() {
     setTemplateFormData({
       name: "",
       description: "",
-      content: "",
+      templateContent: "",
     });
     setEditingTemplate(null);
   };
 
   const resetOrderForm = () => {
     setOrderFormData({
+      title: "",
       templateId: "",
       projectVendorId: "",
-      workDescription: "",
-      estimatedCost: "",
+      scope: "",
+      totalValue: "",
       startDate: "",
-      endDate: "",
-      notes: "",
+      completionDate: "",
+      paymentTerms: "",
     });
     setEditingOrder(null);
   };
@@ -416,7 +397,7 @@ export default function WorksOrdersPage() {
     setTemplateFormData({
       name: template.name,
       description: template.description || "",
-      content: template.content,
+      templateContent: template.templateContent,
     });
     setTemplateDialogOpen(true);
   };
@@ -429,13 +410,14 @@ export default function WorksOrdersPage() {
   const handleEditOrder = (order: WorksOrder) => {
     setEditingOrder(order);
     setOrderFormData({
-      templateId: order.templateId,
+      title: order.title,
+      templateId: order.templateId || "",
       projectVendorId: order.projectVendorId,
-      workDescription: order.workDescription,
-      estimatedCost: order.estimatedCost ? order.estimatedCost.toString() : "",
+      scope: order.scope,
+      totalValue: order.totalValue ? order.totalValue.toString() : "",
       startDate: order.startDate || "",
-      endDate: order.endDate || "",
-      notes: order.notes || "",
+      completionDate: order.completionDate || "",
+      paymentTerms: order.paymentTerms || "",
     });
     setOrderDialogOpen(true);
   };
@@ -635,22 +617,22 @@ export default function WorksOrdersPage() {
                                 {project?.projectName || 'Unknown Project'}
                               </p>
                               
-                              {order.workDescription && (
+                              {order.scope && (
                                 <p className="text-sm mt-2" data-testid={`text-description-${order.id}`}>
-                                  {order.workDescription}
+                                  {order.scope}
                                 </p>
                               )}
                               
                               <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
-                                {order.estimatedCost && (
+                                {order.totalValue && (
                                   <span data-testid={`text-cost-${order.id}`}>
-                                    Cost: ${order.estimatedCost.toLocaleString()}
+                                    Cost: ${order.totalValue.toLocaleString()}
                                   </span>
                                 )}
                                 {order.startDate && (
                                   <span data-testid={`text-dates-${order.id}`}>
                                     {format(new Date(order.startDate), 'MMM d, yyyy')}
-                                    {order.endDate && ` - ${format(new Date(order.endDate), 'MMM d, yyyy')}`}
+                                    {order.completionDate && ` - ${format(new Date(order.completionDate), 'MMM d, yyyy')}`}
                                   </span>
                                 )}
                               </div>
@@ -831,15 +813,15 @@ export default function WorksOrdersPage() {
                 <Label htmlFor="template-content">Template Content *</Label>
                 <Textarea
                   id="template-content"
-                  value={templateFormData.content}
-                  onChange={(e) => setTemplateFormData({ ...templateFormData, content: e.target.value })}
-                  placeholder="Enter template content with merge fields: {{orderNumber}}, {{projectName}}, {{clientName}}, {{workDescription}}, {{estimatedCost}}, {{startDate}}, {{endDate}}"
+                  value={templateFormData.templateContent}
+                  onChange={(e) => setTemplateFormData({ ...templateFormData, templateContent: e.target.value })}
+                  placeholder="Enter template content with merge fields: {{orderNumber}}, {{projectName}}, {{clientName}}, {{scope}}, {{totalValue}}, {{startDate}}, {{completionDate}}"
                   rows={12}
                   required
                   data-testid="input-template-content"
                 />
                 <p className="text-xs text-muted-foreground mt-2">
-                  Available merge fields: {`{{orderNumber}}, {{projectName}}, {{clientName}}, {{workDescription}}, {{estimatedCost}}, {{startDate}}, {{endDate}}`}
+                  Available merge fields: {`{{orderNumber}}, {{projectName}}, {{clientName}}, {{scope}}, {{totalValue}}, {{startDate}}, {{completionDate}}, {{paymentTerms}}`}
                 </p>
               </div>
             </div>
@@ -867,14 +849,25 @@ export default function WorksOrdersPage() {
           <form onSubmit={handleSubmitOrder}>
             <div className="grid gap-4 py-4">
               <div>
-                <Label htmlFor="order-template">Template *</Label>
+                <Label htmlFor="order-title">Works Order Title *</Label>
+                <Input
+                  id="order-title"
+                  value={orderFormData.title}
+                  onChange={(e) => setOrderFormData({ ...orderFormData, title: e.target.value })}
+                  placeholder="e.g., Electrical Works - Phase 1"
+                  required
+                  data-testid="input-order-title"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="order-template">Template</Label>
                 <Select
                   value={orderFormData.templateId}
                   onValueChange={(value) => setOrderFormData({ ...orderFormData, templateId: value })}
-                  required
                 >
                   <SelectTrigger id="order-template" data-testid="select-order-template">
-                    <SelectValue placeholder="Select template" />
+                    <SelectValue placeholder="Select template (optional)" />
                   </SelectTrigger>
                   <SelectContent>
                     {templates.map((template) => (
@@ -910,29 +903,29 @@ export default function WorksOrdersPage() {
               </div>
 
               <div>
-                <Label htmlFor="order-work-description">Work Description *</Label>
+                <Label htmlFor="order-scope">Scope of Work *</Label>
                 <Textarea
-                  id="order-work-description"
-                  value={orderFormData.workDescription}
-                  onChange={(e) => setOrderFormData({ ...orderFormData, workDescription: e.target.value })}
-                  placeholder="Describe the work to be performed"
+                  id="order-scope"
+                  value={orderFormData.scope}
+                  onChange={(e) => setOrderFormData({ ...orderFormData, scope: e.target.value })}
+                  placeholder="Describe the scope of work to be performed"
                   rows={4}
                   required
-                  data-testid="input-order-work-description"
+                  data-testid="input-order-scope"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="order-estimated-cost">Estimated Cost</Label>
+                  <Label htmlFor="order-total-value">Total Value</Label>
                   <Input
-                    id="order-estimated-cost"
+                    id="order-total-value"
                     type="number"
                     step="0.01"
-                    value={orderFormData.estimatedCost}
-                    onChange={(e) => setOrderFormData({ ...orderFormData, estimatedCost: e.target.value })}
+                    value={orderFormData.totalValue}
+                    onChange={(e) => setOrderFormData({ ...orderFormData, totalValue: e.target.value })}
                     placeholder="0.00"
-                    data-testid="input-order-estimated-cost"
+                    data-testid="input-order-total-value"
                   />
                 </div>
               </div>
@@ -950,26 +943,26 @@ export default function WorksOrdersPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="order-end-date">End Date</Label>
+                  <Label htmlFor="order-completion-date">Completion Date</Label>
                   <Input
-                    id="order-end-date"
+                    id="order-completion-date"
                     type="date"
-                    value={orderFormData.endDate}
-                    onChange={(e) => setOrderFormData({ ...orderFormData, endDate: e.target.value })}
-                    data-testid="input-order-end-date"
+                    value={orderFormData.completionDate}
+                    onChange={(e) => setOrderFormData({ ...orderFormData, completionDate: e.target.value })}
+                    data-testid="input-order-completion-date"
                   />
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="order-notes">Additional Notes</Label>
+                <Label htmlFor="order-payment-terms">Payment Terms</Label>
                 <Textarea
-                  id="order-notes"
-                  value={orderFormData.notes}
-                  onChange={(e) => setOrderFormData({ ...orderFormData, notes: e.target.value })}
-                  placeholder="Any additional notes or requirements"
+                  id="order-payment-terms"
+                  value={orderFormData.paymentTerms}
+                  onChange={(e) => setOrderFormData({ ...orderFormData, paymentTerms: e.target.value })}
+                  placeholder="Payment schedule and terms"
                   rows={3}
-                  data-testid="input-order-notes"
+                  data-testid="input-order-payment-terms"
                 />
               </div>
             </div>
@@ -1058,37 +1051,37 @@ export default function WorksOrdersPage() {
                 </div>
               </div>
 
-              {selectedOrder.workDescription && (
+              {selectedOrder.scope && (
                 <div>
-                  <Label className="text-muted-foreground">Work Description</Label>
-                  <p className="mt-1" data-testid="detail-work-description">{selectedOrder.workDescription}</p>
+                  <Label className="text-muted-foreground">Scope of Work</Label>
+                  <p className="mt-1" data-testid="detail-scope">{selectedOrder.scope}</p>
                 </div>
               )}
 
-              {selectedOrder.estimatedCost && (
+              {selectedOrder.totalValue && (
                 <div>
-                  <Label className="text-muted-foreground">Estimated Cost</Label>
-                  <p className="mt-1 text-lg font-semibold" data-testid="detail-estimated-cost">
-                    ${selectedOrder.estimatedCost.toLocaleString()}
+                  <Label className="text-muted-foreground">Total Value</Label>
+                  <p className="mt-1 text-lg font-semibold" data-testid="detail-total-value">
+                    ${selectedOrder.totalValue.toLocaleString()}
                   </p>
                 </div>
               )}
 
-              {(selectedOrder.startDate || selectedOrder.endDate) && (
+              {(selectedOrder.startDate || selectedOrder.completionDate) && (
                 <div>
                   <Label className="text-muted-foreground">Timeline</Label>
                   <p className="mt-1" data-testid="detail-timeline">
                     {selectedOrder.startDate && format(new Date(selectedOrder.startDate), 'MMM d, yyyy')}
-                    {selectedOrder.startDate && selectedOrder.endDate && ' - '}
-                    {selectedOrder.endDate && format(new Date(selectedOrder.endDate), 'MMM d, yyyy')}
+                    {selectedOrder.startDate && selectedOrder.completionDate && ' - '}
+                    {selectedOrder.completionDate && format(new Date(selectedOrder.completionDate), 'MMM d, yyyy')}
                   </p>
                 </div>
               )}
 
-              {selectedOrder.notes && (
+              {selectedOrder.paymentTerms && (
                 <div>
-                  <Label className="text-muted-foreground">Notes</Label>
-                  <p className="mt-1 text-sm" data-testid="detail-notes">{selectedOrder.notes}</p>
+                  <Label className="text-muted-foreground">Payment Terms</Label>
+                  <p className="mt-1 text-sm" data-testid="detail-payment-terms">{selectedOrder.paymentTerms}</p>
                 </div>
               )}
 
