@@ -140,6 +140,7 @@ export default function WorksOrdersPage() {
     itemCode: "",
     specifications: "",
   });
+  const [importOrderDialogOpen, setImportOrderDialogOpen] = useState(false);
   
   // Detail drawer state
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
@@ -1193,6 +1194,38 @@ export default function WorksOrdersPage() {
                       variant="outline"
                       size="sm"
                       disabled={!selectedQuoteId}
+                      onClick={async () => {
+                        if (!selectedQuoteId) return;
+                        try {
+                          const response = await fetch(`/api/project-vendors/${selectedQuoteId}/boq`);
+                          if (!response.ok) throw new Error('Failed to fetch BOQ');
+                          const boqItems = await response.json();
+                          
+                          const convertedItems: LocalItem[] = boqItems.map((boq: any) => ({
+                            description: boq.description,
+                            quantity: Number(boq.quantity),
+                            unit: boq.unit,
+                            unitRate: Number(boq.unitRate),
+                            totalAmount: Number(boq.totalAmount),
+                            category: boq.category || undefined,
+                            itemCode: boq.itemCode || undefined,
+                            specifications: boq.specifications || undefined,
+                            sourceProjectVendorId: boq.projectVendorId,
+                          }));
+                          
+                          setItems(mergeItems(items, convertedItems));
+                          toast({
+                            title: "Success",
+                            description: `Imported ${convertedItems.length} items from BOQ`,
+                          });
+                        } catch (error) {
+                          toast({
+                            title: "Error",
+                            description: "Failed to import BOQ items",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
                       data-testid="button-import-boq"
                     >
                       Import from BOQ
@@ -1201,6 +1234,7 @@ export default function WorksOrdersPage() {
                       type="button"
                       variant="outline"
                       size="sm"
+                      onClick={() => setImportOrderDialogOpen(true)}
                       data-testid="button-import-order"
                     >
                       Import from Order
@@ -1459,6 +1493,74 @@ export default function WorksOrdersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Import from Order Dialog */}
+      <Dialog open={importOrderDialogOpen} onOpenChange={setImportOrderDialogOpen}>
+        <DialogContent data-testid="dialog-import-order">
+          <DialogHeader>
+            <DialogTitle>Import Items from Existing Order</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-96 overflow-y-auto">
+            {orders.filter(o => o.id !== editingOrder?.id).map((order) => {
+              const pv = projectVendors.find(v => v.id === order.projectVendorId);
+              const project = projects.find(p => p.id === pv?.projectId);
+              return (
+                <Button
+                  key={order.id}
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start mb-2"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch(`/api/works-orders/${order.id}/items`);
+                      if (!response.ok) throw new Error('Failed to fetch items');
+                      const orderItems = await response.json();
+                      
+                      const convertedItems: LocalItem[] = orderItems.map((item: WorksOrderItem) => ({
+                        description: item.description,
+                        quantity: Number(item.quantity),
+                        unit: item.unit,
+                        unitRate: Number(item.unitRate),
+                        totalAmount: Number(item.totalAmount),
+                        category: item.category || undefined,
+                        itemCode: item.itemCode || undefined,
+                        specifications: item.specifications || undefined,
+                        sourceWorksOrderId: order.id,
+                      }));
+                      
+                      setItems(mergeItems(items, convertedItems));
+                      setImportOrderDialogOpen(false);
+                      toast({
+                        title: "Success",
+                        description: `Imported ${convertedItems.length} items from ${order.orderNumber}`,
+                      });
+                    } catch (error) {
+                      toast({
+                        title: "Error",
+                        description: "Failed to import items from order",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  data-testid={`button-import-from-${order.id}`}
+                >
+                  <div className="text-left">
+                    <div className="font-semibold">{order.orderNumber}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {project?.projectName} - {order.title}
+                    </div>
+                  </div>
+                </Button>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setImportOrderDialogOpen(false)} data-testid="button-cancel-import">
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Order Detail Drawer */}
       <Sheet open={detailDrawerOpen} onOpenChange={setDetailDrawerOpen}>
