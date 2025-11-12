@@ -22,8 +22,11 @@ export function WizardStepQuote({ quotes, categoryId, categories }: WizardStepQu
     const selectedCategory = categories.find(c => c.id === categoryId);
     if (!selectedCategory) return [];
     
-    // Filter quotes by category name (ProjectVendor stores category name, not ID)
-    return quotes.filter((q) => q.category === selectedCategory.name);
+    // Filter quotes by category name (case-insensitive comparison)
+    const categoryName = selectedCategory.name.toLowerCase().trim();
+    return quotes.filter((q) => 
+      q.category && q.category.toLowerCase().trim() === categoryName
+    );
   }, [quotes, categoryId, categories]);
 
   return (

@@ -71,8 +71,11 @@ export function WorksOrderWizard({
       // Find the category name from categoryId
       const selectedCategory = categories.find(c => c.id === categoryId);
       if (selectedCategory) {
-        // Filter quotes by category name (ProjectVendor has 'category' field, not 'categoryId')
-        const quotesInCategory = quotes.filter(q => q.category === selectedCategory.name);
+        // Filter quotes by category name (case-insensitive comparison)
+        const categoryName = selectedCategory.name.toLowerCase().trim();
+        const quotesInCategory = quotes.filter(q => 
+          q.category && q.category.toLowerCase().trim() === categoryName
+        );
         if (quotesInCategory.length > 0 && !form.getValues("projectVendorId")) {
           form.setValue("projectVendorId", quotesInCategory[0].id);
         }
