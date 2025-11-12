@@ -6689,6 +6689,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Merge template with quote data (admin/designer only)
+  app.post("/api/works-orders/:id/merge", requireAdmin, async (req, res) => {
+    try {
+      const { projectVendorId, templateId } = req.body;
+      const userId = (req.user as any).claims.sub;
+      
+      if (!projectVendorId) {
+        return res.status(400).json({ error: "projectVendorId is required" });
+      }
+      
+      // Get works order
+      const worksOrder = await storage.getWorksOrder(req.params.id);
+      if (!worksOrder) {
+        return res.status(404).json({ error: "Works order not found" });
+      }
+      
+      // Get quote details
+      const quote = await storage.getProjectVendor(projectVendorId);
+      if (!quote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+      
+      // Get vendor details
+      const vendor = quote.vendorId ? await storage.getVendor(quote.vendorId) : null;
+      
+      // Get BOQ items
+      const boqItems = await storage.getBOQItemsForQuote(projectVendorId);
+      
+      // Get template
+      let template;
+      if (templateId) {
+        template = await storage.getWorksOrderDocument(templateId);
+        if (!template || !template.isGlobalTemplate) {
+          return res.status(404).json({ error: "Template not found" });
+        }
+      } else {
+        const templates = await storage.getGlobalTemplates();
+        if (templates.length === 0) {
+          return res.status(400).json({ error: "No templates available. Please upload a template first." });
+        }
+        template = templates[0];
+      }
+      
+      // Prepare merge data
+      const items = boqItems.map(item => ({
+        description: item.description || '',
+        quantity: parseFloat(item.quantity || '0'),
+        unit: item.unit || '',
+        unitRate: parseFloat(item.unitRate || '0'),
+        amount: parseFloat(item.totalPrice || '0'),
+      }));
+      
+      const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
+      
+      const mergeData = {
+        worksOrderName: worksOrder.name,
+        categoryName: quote.categoryName || '',
+        vendorName: vendor?.name || quote.categoryName || '',
+        vendorContact: vendor?.contactPerson || '',
+        vendorPhone: vendor?.phone || '',
+        projectName: '',
+        items,
+        totalAmount,
+        date: new Date().toLocaleDateString('en-IN', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        }),
+      };
+      
+      // Import and use the merge service
+      const { worksOrderDocService } = await import('../utils/worksOrderDocService');
+      const mergedBuffer = await worksOrderDocService.mergeTemplate(template.filePath, mergeData);
+      
+      // Upload merged document
+      const fileName = `${worksOrder.name}_merged_${Date.now()}.docx`;
+      const objectPath = await uploadToObjectStorage(
+        mergedBuffer,
+        fileName,
+        userId,
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      );
+      
+      // Create document record
+      const document = await storage.createWorksOrderDocument({
+        worksOrderId: worksOrder.id,
+        documentType: 'exported',
+        filePath: objectPath,
+        fileName,
+        fileSize: mergedBuffer.length.toString(),
+        isGlobalTemplate: false,
+        version: null,
+        uploadedBy: userId,
+      });
+      
+      res.json(document);
+    } catch (error) {
+      console.error('Error merging works order:', error);
+      res.status(500).json({ error: `Failed to merge works order: ${error instanceof Error ? error.message : 'Unknown error'}` });
+    }
+  });
+
   // ===== Public Signature Routes (no auth required) =====
 
   // Get works order by access token (public)

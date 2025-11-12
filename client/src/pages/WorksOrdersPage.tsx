@@ -60,10 +60,13 @@ import type {
   WorksOrder, 
   Project, 
   ProjectVendor,
-  WorksOrderItem
+  WorksOrderItem,
+  VendorCategory,
+  WorksOrderDocument
 } from "@shared/schema";
 import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { WorksOrderWizard } from "@/components/WorksOrderWizard";
 
 const STATUS_COLORS = {
   draft: "bg-gray-500",
@@ -173,6 +176,16 @@ export default function WorksOrdersPage() {
   // Fetch project vendors (quotations)
   const { data: projectVendors = [] } = useQuery<ProjectVendor[]>({
     queryKey: ['/api/project-vendors'],
+  });
+
+  // Fetch vendor categories for wizard
+  const { data: vendorCategories = [] } = useQuery<VendorCategory[]>({
+    queryKey: ['/api/vendor-categories/tree'],
+  });
+
+  // Fetch works order document templates for wizard
+  const { data: documentTemplates = [] } = useQuery<WorksOrderDocument[]>({
+    queryKey: ['/api/works-order-templates'],
   });
 
   // Conditional query for categories with quotes

@@ -340,6 +340,9 @@ export interface IStorage {
   createWorksOrderDocument(document: InsertWorksOrderDocument): Promise<WorksOrderDocument>;
   deleteWorksOrderDocument(id: string): Promise<boolean>;
   
+  // BOQ Items (for works order merge)
+  getBOQItemsForQuote(projectVendorId: string): Promise<BOQItem[]>;
+  
   // Vendors (with role-based filtering)
   getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
   getProjectVendorsForUser(userId: string, role: string): Promise<ProjectVendor[]>;
@@ -2697,6 +2700,14 @@ export class DBStorage implements IStorage {
   async deleteWorksOrderDocument(id: string): Promise<boolean> {
     const result = await db.delete(worksOrderDocuments).where(eq(worksOrderDocuments.id, id));
     return true;
+  }
+
+  // BOQ Items (for works order merge)
+  async getBOQItemsForQuote(projectVendorId: string): Promise<BOQItem[]> {
+    return await db.select()
+      .from(boqItems)
+      .where(eq(boqItems.projectVendorId, projectVendorId))
+      .orderBy(asc(boqItems.itemNumber));
   }
 }
 
