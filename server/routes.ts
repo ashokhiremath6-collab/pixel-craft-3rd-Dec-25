@@ -38,7 +38,8 @@ import {
   insertWorksOrderTemplateSchema,
   insertWorksOrderSchema,
   insertWorksOrderSignatureSchema,
-  insertWorksOrderItemSchema
+  insertWorksOrderItemSchema,
+  insertWorksOrderDocumentSchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -6526,6 +6527,165 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting works order:', error);
       res.status(500).json({ error: "Failed to delete works order" });
+    }
+  });
+
+  // ===== Works Order Documents =====
+  
+  // Get global templates
+  app.get("/api/works-order-templates", requireAuth, async (req, res) => {
+    try {
+      const templates = await storage.getGlobalTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching works order templates:', error);
+      res.status(500).json({ error: "Failed to fetch templates" });
+    }
+  });
+
+  // Upload a new global template (admin/designer only)
+  app.post("/api/works-order-templates", requireAdmin, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file provided" });
+      }
+
+      const userId = (req.user as any).claims.sub;
+      const { version } = req.body;
+      
+      // Upload to object storage
+      const objectPath = await uploadToObjectStorage(
+        req.file.buffer,
+        req.file.originalname,
+        userId,
+        req.file.mimetype
+      );
+      
+      // Create document record
+      const document = await storage.createWorksOrderDocument({
+        worksOrderId: null,
+        documentType: 'template',
+        filePath: objectPath,
+        fileName: req.file.originalname,
+        fileSize: req.file.size.toString(),
+        isGlobalTemplate: true,
+        version: version || '1.0',
+        uploadedBy: userId,
+      });
+      
+      res.json(document);
+    } catch (error) {
+      console.error('Error uploading template:', error);
+      res.status(500).json({ error: "Failed to upload template" });
+    }
+  });
+
+  // Download a template
+  app.get("/api/works-order-templates/:id/download", requireAuth, async (req, res) => {
+    try {
+      const document = await storage.getWorksOrderDocument(req.params.id);
+      
+      if (!document || !document.isGlobalTemplate) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(document.filePath);
+      await objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ error: "Template file not found" });
+      }
+      res.status(500).json({ error: "Failed to download template" });
+    }
+  });
+
+  // Get documents for a works order (admin/designer only)
+  app.get("/api/works-orders/:id/documents", requireAdmin, async (req, res) => {
+    try {
+      // Verify works order exists
+      const worksOrder = await storage.getWorksOrder(req.params.id);
+      if (!worksOrder) {
+        return res.status(404).json({ error: "Works order not found" });
+      }
+      
+      const documents = await storage.getWorksOrderDocuments(req.params.id);
+      res.json(documents);
+    } catch (error) {
+      console.error('Error fetching works order documents:', error);
+      res.status(500).json({ error: "Failed to fetch documents" });
+    }
+  });
+
+  // Upload a document for a works order (admin/designer only)
+  app.post("/api/works-orders/:id/documents", requireAdmin, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file provided" });
+      }
+
+      const userId = (req.user as any).claims.sub;
+      const { documentType } = req.body;
+      
+      // Validate document type
+      if (!['uploaded', 'exported'].includes(documentType)) {
+        return res.status(400).json({ error: "Invalid document type. Must be 'uploaded' or 'exported'" });
+      }
+      
+      // Upload to object storage
+      const objectPath = await uploadToObjectStorage(
+        req.file.buffer,
+        req.file.originalname,
+        userId,
+        req.file.mimetype
+      );
+      
+      // Create document record
+      const document = await storage.createWorksOrderDocument({
+        worksOrderId: req.params.id,
+        documentType,
+        filePath: objectPath,
+        fileName: req.file.originalname,
+        fileSize: req.file.size.toString(),
+        isGlobalTemplate: false,
+        version: null,
+        uploadedBy: userId,
+      });
+      
+      res.json(document);
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      res.status(500).json({ error: "Failed to upload document" });
+    }
+  });
+
+  // Delete a works order document (admin/designer only)
+  app.delete("/api/works-order-documents/:id", requireAdmin, async (req, res) => {
+    try {
+      const documents = await storage.getWorksOrderDocuments();
+      const document = documents.find(d => d.id === req.params.id);
+      
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      // Delete from object storage
+      try {
+        const objectStorageService = new ObjectStorageService();
+        const objectFile = await objectStorageService.getObjectEntityFile(document.filePath);
+        await objectFile.delete();
+      } catch (storageError) {
+        console.error('Error deleting from object storage:', storageError);
+      }
+      
+      // Delete from database
+      await storage.deleteWorksOrderDocument(req.params.id);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      res.status(500).json({ error: "Failed to delete document" });
     }
   });
 
