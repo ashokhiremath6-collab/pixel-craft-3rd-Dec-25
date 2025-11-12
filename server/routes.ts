@@ -33,7 +33,10 @@ import {
   insertApprovalSchema,
   insertVendorInvoiceSchema,
   insertVendorPaymentSchema,
-  insertCatalogueItemSchema
+  insertCatalogueItemSchema,
+  insertWorksOrderTemplateSchema,
+  insertWorksOrderSchema,
+  insertWorksOrderSignatureSchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -5881,6 +5884,571 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting meeting minutes:', error);
       res.status(500).json({ error: "Failed to delete meeting minutes" });
+    }
+  });
+
+  // ===== Works Order Templates Routes =====
+  
+  // Get all templates (role-based access)
+  app.get("/api/works-order-templates", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
+
+      const templates = await storage.getWorksOrderTemplatesForUser(userId, userRole.role);
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching works order templates:', error);
+      res.status(500).json({ error: "Failed to fetch works order templates" });
+    }
+  });
+
+  // Get single template (with role-based access control)
+  app.get("/api/works-order-templates/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
+
+      // Clients cannot access templates
+      if (userRole.role === 'client') {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const template = await storage.getWorksOrderTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      console.error('Error fetching works order template:', error);
+      res.status(500).json({ error: "Failed to fetch works order template" });
+    }
+  });
+
+  // Create template (admin/designer only)
+  app.post("/api/works-order-templates", requireAdmin, async (req, res) => {
+    try {
+      const validated = insertWorksOrderTemplateSchema.parse(req.body);
+      const userId = (req.user as any).claims.sub;
+      
+      const template = await storage.createWorksOrderTemplate({
+        ...validated,
+        createdBy: userId,
+      });
+      
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'works_order_template_create',
+            fileName: template.name,
+            filePath: '',
+            description: `created works order template "${template.name}"`,
+            metadata: {
+              templateId: template.id,
+              templateName: template.name,
+            },
+          });
+        } catch (activityError) {
+          console.error('Error logging template creation activity:', activityError);
+        }
+      }
+      
+      res.status(201).json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid template data", details: error.errors });
+      }
+      console.error('Error creating works order template:', error);
+      res.status(500).json({ error: "Failed to create works order template" });
+    }
+  });
+
+  // Update template (admin/designer only)
+  app.put("/api/works-order-templates/:id", requireAdmin, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      const validated = insertWorksOrderTemplateSchema.partial().parse(req.body);
+      const template = await storage.updateWorksOrderTemplate(req.params.id, validated);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'works_order_template_update',
+            fileName: template.name,
+            filePath: '',
+            description: `updated works order template "${template.name}"`,
+            metadata: {
+              templateId: template.id,
+              templateName: template.name,
+            },
+          });
+        } catch (activityError) {
+          console.error('Error logging template update activity:', activityError);
+        }
+      }
+      
+      res.json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid template data", details: error.errors });
+      }
+      console.error('Error updating works order template:', error);
+      res.status(500).json({ error: "Failed to update works order template" });
+    }
+  });
+
+  // Delete template (admin/designer only)
+  app.delete("/api/works-order-templates/:id", requireAdmin, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      
+      // Get template details before deleting
+      const template = await storage.getWorksOrderTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      const deleted = await storage.deleteWorksOrderTemplate(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'works_order_template_delete',
+            fileName: template.name,
+            filePath: '',
+            description: `deleted works order template "${template.name}"`,
+            metadata: {
+              templateId: template.id,
+              templateName: template.name,
+            },
+          });
+        } catch (activityError) {
+          console.error('Error logging template deletion activity:', activityError);
+        }
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting works order template:', error);
+      res.status(500).json({ error: "Failed to delete works order template" });
+    }
+  });
+
+  // ===== Works Orders Routes =====
+
+  // Get all works orders (role-based access, optional project filter)
+  app.get("/api/works-orders", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
+
+      const projectId = req.query.projectId as string | undefined;
+      const orders = await storage.getWorksOrdersForUser(userId, userRole.role, projectId);
+      res.json(orders);
+    } catch (error) {
+      console.error('Error fetching works orders:', error);
+      res.status(500).json({ error: "Failed to fetch works orders" });
+    }
+  });
+
+  // Get single works order with relations
+  app.get("/api/works-orders/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      if (!userRole) {
+        return res.status(403).json({ error: "User role not found" });
+      }
+
+      const order = await storage.getWorksOrderWithRelations(req.params.id);
+      if (!order) {
+        return res.status(404).json({ error: "Works order not found" });
+      }
+
+      // Role-based access check
+      if (userRole.role === 'client') {
+        // Clients can only access orders for their assigned projects
+        const userProjects = await storage.getProjectsForUser(userId, userRole.role);
+        const projectIds = userProjects.map(p => p.id);
+        
+        const projectVendor = await storage.getProjectVendor(order.projectVendorId);
+        if (!projectVendor || !projectIds.includes(projectVendor.projectId)) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+      }
+
+      res.json(order);
+    } catch (error) {
+      console.error('Error fetching works order:', error);
+      res.status(500).json({ error: "Failed to fetch works order" });
+    }
+  });
+
+  // Create works order (admin/designer only)
+  app.post("/api/works-orders", requireAdmin, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      
+      // Generate order number
+      const orderNumber = await storage.generateOrderNumber();
+      
+      // Generate access token for client signing
+      const accessToken = randomUUID();
+      
+      const validated = insertWorksOrderSchema.parse({
+        ...req.body,
+        orderNumber,
+        accessToken,
+        createdBy: userId,
+        status: 'draft',
+      });
+      
+      const order = await storage.createWorksOrder(validated);
+      
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'works_order_create',
+            fileName: `${orderNumber}.pdf`,
+            filePath: '',
+            description: `created works order ${orderNumber}`,
+            metadata: {
+              worksOrderId: order.id,
+              orderNumber: order.orderNumber,
+              projectVendorId: order.projectVendorId,
+            },
+          });
+        } catch (activityError) {
+          console.error('Error logging works order creation activity:', activityError);
+        }
+      }
+      
+      res.status(201).json(order);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid works order data", details: error.errors });
+      }
+      console.error('Error creating works order:', error);
+      res.status(500).json({ error: "Failed to create works order" });
+    }
+  });
+
+  // Update works order (admin/designer only)
+  app.put("/api/works-orders/:id", requireAdmin, async (req, res) => {
+    try {
+      const validated = insertWorksOrderSchema.partial().parse(req.body);
+      const order = await storage.updateWorksOrder(req.params.id, validated);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Works order not found" });
+      }
+      
+      res.json(order);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid works order data", details: error.errors });
+      }
+      console.error('Error updating works order:', error);
+      res.status(500).json({ error: "Failed to update works order" });
+    }
+  });
+
+  // Send works order (mark as sent, admin/designer only)
+  app.post("/api/works-orders/:id/send", requireAdmin, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      const order = await storage.getWorksOrder(req.params.id);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Works order not found" });
+      }
+      
+      if (order.status !== 'draft') {
+        return res.status(400).json({ error: "Only draft orders can be sent" });
+      }
+      
+      const updatedOrder = await storage.updateWorksOrderStatus(req.params.id, 'sent', {
+        sentAt: new Date(),
+      });
+      
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'works_order_send',
+            fileName: `${order.orderNumber}.pdf`,
+            filePath: '',
+            description: `sent works order ${order.orderNumber} to client`,
+            metadata: {
+              worksOrderId: order.id,
+              orderNumber: order.orderNumber,
+              projectVendorId: order.projectVendorId,
+            },
+          });
+        } catch (activityError) {
+          console.error('Error logging works order send activity:', activityError);
+        }
+      }
+      
+      res.json(updatedOrder);
+    } catch (error) {
+      console.error('Error sending works order:', error);
+      res.status(500).json({ error: "Failed to send works order" });
+    }
+  });
+
+  // Void works order (admin/designer only)
+  app.post("/api/works-orders/:id/void", requireAdmin, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      const { reason } = req.body;
+      const order = await storage.getWorksOrder(req.params.id);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Works order not found" });
+      }
+      
+      if (order.status === 'void') {
+        return res.status(400).json({ error: "Order is already voided" });
+      }
+      
+      const updatedOrder = await storage.updateWorksOrderStatus(req.params.id, 'void', {
+        voidedAt: new Date(),
+        voidReason: reason || null,
+      });
+      
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'works_order_void',
+            fileName: `${order.orderNumber}.pdf`,
+            filePath: '',
+            description: `voided works order ${order.orderNumber}${reason ? `: ${reason}` : ''}`,
+            metadata: {
+              worksOrderId: order.id,
+              orderNumber: order.orderNumber,
+              projectVendorId: order.projectVendorId,
+              voidReason: reason,
+            },
+          });
+        } catch (activityError) {
+          console.error('Error logging works order void activity:', activityError);
+        }
+      }
+      
+      res.json(updatedOrder);
+    } catch (error) {
+      console.error('Error voiding works order:', error);
+      res.status(500).json({ error: "Failed to void works order" });
+    }
+  });
+
+  // Delete works order (admin/designer only)
+  app.delete("/api/works-orders/:id", requireAdmin, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      const order = await storage.getWorksOrder(req.params.id);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Works order not found" });
+      }
+      
+      const deleted = await storage.deleteWorksOrder(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Works order not found" });
+      }
+      
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'works_order_delete',
+            fileName: `${order.orderNumber}.pdf`,
+            filePath: '',
+            description: `deleted works order ${order.orderNumber}`,
+            metadata: {
+              worksOrderId: order.id,
+              orderNumber: order.orderNumber,
+              projectVendorId: order.projectVendorId,
+            },
+          });
+        } catch (activityError) {
+          console.error('Error logging works order delete activity:', activityError);
+        }
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting works order:', error);
+      res.status(500).json({ error: "Failed to delete works order" });
+    }
+  });
+
+  // ===== Public Signature Routes (no auth required) =====
+
+  // Get works order by access token (public)
+  app.get("/api/works-orders/sign/:token", async (req, res) => {
+    try {
+      const order = await storage.getWorksOrderByToken(req.params.token);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Works order not found" });
+      }
+      
+      if (order.status !== 'sent') {
+        return res.status(400).json({ error: "This works order is not available for signing" });
+      }
+      
+      // Get full order details with relations
+      const orderWithRelations = await storage.getWorksOrderWithRelations(order.id);
+      
+      // Get existing signatures
+      const signatures = await storage.getSignaturesByWorksOrder(order.id);
+      
+      res.json({
+        order: orderWithRelations,
+        signatures,
+      });
+    } catch (error) {
+      console.error('Error fetching works order for signing:', error);
+      res.status(500).json({ error: "Failed to fetch works order" });
+    }
+  });
+
+  // Submit signature (public)
+  app.post("/api/works-orders/sign/:token", async (req, res) => {
+    try {
+      const order = await storage.getWorksOrderByToken(req.params.token);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Works order not found" });
+      }
+      
+      if (order.status !== 'sent') {
+        return res.status(400).json({ error: "This works order is not available for signing" });
+      }
+      
+      const validated = insertWorksOrderSignatureSchema.parse({
+        ...req.body,
+        worksOrderId: order.id,
+      });
+      
+      // Check if this email has already signed
+      const existingSignature = await storage.getSignatureByOrderAndEmail(
+        order.id,
+        validated.signerEmail
+      );
+      
+      if (existingSignature) {
+        return res.status(400).json({ error: "This email has already signed this works order" });
+      }
+      
+      const signature = await storage.createSignature(validated);
+      
+      // Update order status to signed and set signedAt timestamp
+      await storage.updateWorksOrderStatus(order.id, 'signed', {
+        signedAt: new Date(),
+      });
+      
+      // Log activity (no user context for public signatures)
+      try {
+        await storage.createActivity({
+          userId: '', // No user for public signatures
+          userName: validated.signerName,
+          userEmail: validated.signerEmail,
+          activityType: 'works_order_sign',
+          fileName: `${order.orderNumber}.pdf`,
+          filePath: '',
+          description: `signed works order ${order.orderNumber}`,
+          metadata: {
+            worksOrderId: order.id,
+            orderNumber: order.orderNumber,
+            signatureId: signature.id,
+            signerName: validated.signerName,
+            signerEmail: validated.signerEmail,
+          },
+        });
+      } catch (activityError) {
+        console.error('Error logging signature activity:', activityError);
+      }
+      
+      res.status(201).json({ success: true, signature });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid signature data", details: error.errors });
+      }
+      console.error('Error submitting signature:', error);
+      res.status(500).json({ error: "Failed to submit signature" });
     }
   });
 
