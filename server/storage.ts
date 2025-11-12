@@ -165,6 +165,8 @@ export interface IStorage {
   upsertProjectVendor(projectVendor: InsertProjectVendor): Promise<ProjectVendor>;
   updateProjectVendor(id: string, projectVendor: Partial<InsertProjectVendor>): Promise<ProjectVendor | undefined>;
   deleteProjectVendor(id: string): Promise<boolean>;
+  getProjectCategoriesWithQuotes(projectId: string): Promise<Array<{ category: string; quotesCount: number }>>;
+  getProjectQuotesByCategory(projectId: string, category: string): Promise<Array<ProjectVendor & { vendorName: string }>>;
   
   // Quote Templates
   getAllQuoteTemplates(): Promise<QuoteTemplate[]>;
@@ -1677,6 +1679,100 @@ export class DBStorage implements IStorage {
       };
       
       return await deleteWithinTransaction(id);
+    });
+  }
+
+  async getProjectCategoriesWithQuotes(projectId: string): Promise<Array<{ category: string; quotesCount: number }>> {
+    const regularQuotes = await db.select({
+      categoryName: vendorCategories.name,
+      quotesCount: sql<number>`count(*)::int`
+    })
+    .from(projectVendors)
+    .innerJoin(vendors, eq(projectVendors.vendorId, vendors.id))
+    .innerJoin(vendorCategories, eq(vendors.categoryId, vendorCategories.id))
+    .where(eq(projectVendors.projectId, projectId))
+    .groupBy(vendorCategories.name)
+    .orderBy(vendorCategories.name);
+    
+    const comparativeStatements = await db.select({
+      categoryName: projectVendors.category,
+      quotesCount: sql<number>`count(*)::int`
+    })
+    .from(projectVendors)
+    .where(
+      and(
+        eq(projectVendors.projectId, projectId),
+        sql`${projectVendors.category} IS NOT NULL`,
+        sql`${projectVendors.vendorId} IS NULL`
+      )
+    )
+    .groupBy(projectVendors.category)
+    .orderBy(projectVendors.category);
+    
+    const categoryMap = new Map<string, number>();
+    
+    for (const quote of regularQuotes) {
+      categoryMap.set(quote.categoryName, (categoryMap.get(quote.categoryName) || 0) + quote.quotesCount);
+    }
+    
+    for (const quote of comparativeStatements) {
+      if (quote.categoryName) {
+        categoryMap.set(quote.categoryName, (categoryMap.get(quote.categoryName) || 0) + quote.quotesCount);
+      }
+    }
+    
+    return Array.from(categoryMap.entries())
+      .map(([category, quotesCount]) => ({ category, quotesCount }))
+      .sort((a, b) => a.category.localeCompare(b.category));
+  }
+
+  async getProjectQuotesByCategory(projectId: string, category: string): Promise<Array<ProjectVendor & { vendorName: string }>> {
+    const regularQuotes = await db.select({
+      projectVendor: projectVendors,
+      vendorName: vendors.name,
+      categoryName: vendorCategories.name
+    })
+    .from(projectVendors)
+    .innerJoin(vendors, eq(projectVendors.vendorId, vendors.id))
+    .innerJoin(vendorCategories, eq(vendors.categoryId, vendorCategories.id))
+    .where(
+      and(
+        eq(projectVendors.projectId, projectId),
+        eq(vendorCategories.name, category)
+      )
+    )
+    .orderBy(projectVendors.submittedAt);
+    
+    const comparativeQuotes = await db.select({
+      projectVendor: projectVendors,
+      vendorName: sql<string>`NULL`,
+      categoryName: projectVendors.category
+    })
+    .from(projectVendors)
+    .where(
+      and(
+        eq(projectVendors.projectId, projectId),
+        eq(projectVendors.category, category),
+        sql`${projectVendors.vendorId} IS NULL`
+      )
+    )
+    .orderBy(projectVendors.submittedAt);
+    
+    const allQuotes = [
+      ...regularQuotes.map(q => ({
+        ...q.projectVendor,
+        vendorName: q.vendorName || 'Unknown Vendor'
+      })),
+      ...comparativeQuotes.map(q => ({
+        ...q.projectVendor,
+        vendorName: 'Comparative Statement'
+      }))
+    ];
+    
+    return allQuotes.sort((a, b) => {
+      const dateA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+      const dateB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+      return dateB - dateA;
     });
   }
 

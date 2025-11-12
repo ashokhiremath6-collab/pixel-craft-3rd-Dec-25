@@ -1203,6 +1203,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/projects/:id/categories-with-quotes", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role || 'client';
+      
+      const userProjects = await storage.getProjectsForUser(userId, role);
+      const hasAccess = userProjects.some(p => p.id === req.params.id);
+      
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const categories = await storage.getProjectCategoriesWithQuotes(req.params.id);
+      res.json(categories);
+    } catch (error) {
+      console.error('Get project categories with quotes error:', error);
+      res.status(500).json({ error: "Failed to fetch categories" });
+    }
+  });
+
+  app.get("/api/projects/:id/quotes", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role || 'client';
+      
+      const userProjects = await storage.getProjectsForUser(userId, role);
+      const hasAccess = userProjects.some(p => p.id === req.params.id);
+      
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const category = req.query.category as string;
+      if (!category) {
+        return res.status(400).json({ error: "Category parameter is required" });
+      }
+      
+      const quotes = await storage.getProjectQuotesByCategory(req.params.id, category);
+      res.json(quotes);
+    } catch (error) {
+      console.error('Get project quotes by category error:', error);
+      res.status(500).json({ error: "Failed to fetch quotes" });
+    }
+  });
+
   // Project Clients Routes (Admin/Designer only)
   app.get("/api/projects/:projectId/clients", requireAdmin, async (req, res) => {
     try {
