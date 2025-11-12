@@ -1213,19 +1213,17 @@ export class DBStorage implements IStorage {
   }
 
   async assignUserToProject(assignment: InsertUserProjectAssignment): Promise<UserProjectAssignment> {
+    // Use onConflictDoUpdate to ensure we always get a row back (idempotent)
     const result = await db.insert(userProjectAssignments)
       .values(assignment)
-      .onConflictDoNothing()
+      .onConflictDoUpdate({
+        target: [userProjectAssignments.userId, userProjectAssignments.projectId],
+        set: { assignedAt: sql`CURRENT_TIMESTAMP` } // Update timestamp to show last assignment
+      })
       .returning();
     
-    // If conflict occurred (already assigned), fetch the existing assignment
-    if (result.length === 0) {
-      const existing = await db.select().from(userProjectAssignments)
-        .where(and(
-          eq(userProjectAssignments.userId, assignment.userId),
-          eq(userProjectAssignments.projectId, assignment.projectId)
-        ));
-      return existing[0];
+    if (!result[0]) {
+      throw new Error('Failed to assign user to project: no result returned');
     }
     
     return result[0];
@@ -1493,41 +1491,84 @@ export class DBStorage implements IStorage {
   }
 
   async getProjectsForUser(userId: string, role: string): Promise<Project[]> {
-    // ALL authenticated users (designers, admins, and clients) can access all projects
-    return await db.select().from(projects);
+    // Admins and designers can access all projects
+    if (role === 'admin' || role === 'designer') {
+      return await db.select().from(projects);
+    }
+    
+    // Project managers can only access assigned projects
+    if (role === 'project_manager') {
+      const assignments = await this.getUserProjectAssignments(userId);
+      const projectIds = assignments.map(a => a.projectId);
+      if (projectIds.length === 0) return [];
+      return await db.select().from(projects).where(inArray(projects.id, projectIds));
+    }
+    
+    // Clients can only access projects where they're the client
+    const user = await this.getUser(userId);
+    if (!user?.email) return [];
+    
+    // Get projects from both old clientEmail field and new projectClients table
+    const clientEmailProjects = await db.select().from(projects).where(eq(projects.clientEmail, user.email));
+    const projectClientProjects = await this.getProjectsByClientEmail(user.email);
+    
+    // Combine and deduplicate
+    const projectIds = new Set([
+      ...clientEmailProjects.map(p => p.id),
+      ...projectClientProjects.map(p => p.id)
+    ]);
+    return await db.select().from(projects).where(inArray(projects.id, Array.from(projectIds)));
   }
 
   async getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]> {
-    // ALL authenticated users (designers, admins, and clients) can access all project vendors/quotations
+    // Admins and designers can access all project vendors
+    if (role === 'admin' || role === 'designer') {
+      if (projectId) {
+        return await db.select().from(projectVendors).where(eq(projectVendors.projectId, projectId));
+      }
+      return await db.select().from(projectVendors);
+    }
+    
+    // Project managers and clients can only access project vendors for their accessible projects
+    const accessibleProjects = await this.getProjectsForUser(userId, role);
+    const accessibleProjectIds = accessibleProjects.map(p => p.id);
+    
+    if (accessibleProjectIds.length === 0) return [];
+    
     if (projectId) {
+      // Check if user has access to the specified project
+      if (!accessibleProjectIds.includes(projectId)) return [];
       return await db.select().from(projectVendors).where(eq(projectVendors.projectId, projectId));
     }
-    return await db.select().from(projectVendors);
+    
+    return await db.select().from(projectVendors).where(inArray(projectVendors.projectId, accessibleProjectIds));
   }
 
   async getBOQForUser(userId: string, role: string, projectVendorId: string): Promise<Boq[]> {
-    if (role === 'designer' || role === 'admin') {
-      // Designers and admins can access all BOQ data
-      return await db.select().from(boq).where(eq(boq.projectVendorId, projectVendorId));
-    } else {
-      // Clients can only access BOQ for project vendors in their accessible projects
-      const projectVendor = await db.select().from(projectVendors).where(eq(projectVendors.id, projectVendorId));
-      if (projectVendor.length === 0) {
-        return [];
-      }
-      
-      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
-      if (!accessibleProjectIds.includes(projectVendor[0].projectId)) {
-        return [];
-      }
-      
+    // Admins and designers can access all BOQ data
+    if (role === 'admin' || role === 'designer') {
       return await db.select().from(boq).where(eq(boq.projectVendorId, projectVendorId));
     }
+    
+    // Project managers and clients can only access BOQ for project vendors in their accessible projects
+    const projectVendor = await db.select().from(projectVendors).where(eq(projectVendors.id, projectVendorId));
+    if (projectVendor.length === 0) {
+      return [];
+    }
+    
+    const accessibleProjects = await this.getProjectsForUser(userId, role);
+    const accessibleProjectIds = accessibleProjects.map(p => p.id);
+    
+    if (!accessibleProjectIds.includes(projectVendor[0].projectId)) {
+      return [];
+    }
+    
+    return await db.select().from(boq).where(eq(boq.projectVendorId, projectVendorId));
   }
 
   async getQuoteFilesForUser(userId: string, role: string, projectVendorId: string): Promise<QuoteFile[]> {
-    if (role === 'designer' || role === 'admin') {
-      // Designers and admins can access all quote files
+    if (role === 'admin' || role === 'designer') {
+      // Admins and designers can access all quote files
       return await db.select().from(quoteFiles).where(eq(quoteFiles.projectVendorId, projectVendorId));
     } else {
       // Clients can only access quote files for project vendors in their accessible projects

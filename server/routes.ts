@@ -27,6 +27,7 @@ import {
   insertFloorPlanSchema,
   insertMoodboardSchema,
   insertUserRoleSchema,
+  insertUserProjectAssignmentSchema,
   insertTaskSchema,
   insertTaskDependencySchema,
   insertTaskAlertSchema,
@@ -674,6 +675,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Delete user project access error:', error);
       res.status(500).json({ error: "Failed to delete user project access" });
+    }
+  });
+  
+  // User Project Assignments routes (admin only) - for project_manager role
+  app.get("/api/user-project-assignments/:userId", requireAdminOnly, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const assignments = await storage.getUserProjectAssignments(userId);
+      res.json(assignments);
+    } catch (error) {
+      console.error('Get user project assignments error:', error);
+      res.status(500).json({ error: "Failed to fetch user project assignments" });
+    }
+  });
+  
+  app.post("/api/user-project-assignments", requireAdminOnly, async (req, res) => {
+    try {
+      // Validate request body with Zod
+      const assignmentSchema = insertUserProjectAssignmentSchema.pick({ userId: true, projectId: true });
+      const parseResult = assignmentSchema.safeParse(req.body);
+      
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid request data", 
+          details: parseResult.error.errors 
+        });
+      }
+      
+      const { userId, projectId } = parseResult.data;
+      const currentUserId = (req.user as any).claims.sub;
+      
+      const assignment = await storage.assignUserToProject({
+        userId,
+        projectId,
+        assignedBy: currentUserId
+      });
+      
+      res.status(201).json(assignment);
+    } catch (error) {
+      console.error('Assign user to project error:', error);
+      res.status(500).json({ error: "Failed to assign user to project" });
+    }
+  });
+  
+  app.delete("/api/user-project-assignments/:userId/:projectId", requireAdminOnly, async (req, res) => {
+    try {
+      const { userId, projectId } = req.params;
+      
+      // Validate params
+      const paramSchema = z.object({
+        userId: z.string().min(1, "userId is required"),
+        projectId: z.string().uuid("projectId must be a valid UUID")
+      });
+      
+      const parseResult = paramSchema.safeParse({ userId, projectId });
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid parameters", 
+          details: parseResult.error.errors 
+        });
+      }
+      
+      const deleted = await storage.removeUserFromProject(userId, projectId);
+      
+      if (!deleted) {
+        return res.status(404).json({ error: "Project assignment not found" });
+      }
+      
+      res.json({ message: "Project assignment removed successfully" });
+    } catch (error) {
+      console.error('Remove user from project error:', error);
+      res.status(500).json({ error: "Failed to remove project assignment" });
     }
   });
   

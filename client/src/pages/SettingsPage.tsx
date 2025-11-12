@@ -66,6 +66,8 @@ export default function SettingsPage() {
         return "default";
       case "designer":
         return "default";
+      case "project_manager":
+        return "default";
       case "client":
         return "secondary";
       default:
@@ -79,6 +81,8 @@ export default function SettingsPage() {
       case "admin":
         return <Shield className="h-3 w-3" />;
       case "designer":
+        return <UserCog className="h-3 w-3" />;
+      case "project_manager":
         return <UserCog className="h-3 w-3" />;
       case "client":
         return <Eye className="h-3 w-3" />;
@@ -169,6 +173,7 @@ export default function SettingsPage() {
                             <SelectContent>
                               <SelectItem value="admin">Admin</SelectItem>
                               <SelectItem value="designer">Designer</SelectItem>
+                              <SelectItem value="project_manager">Project Manager</SelectItem>
                               <SelectItem value="client">Client</SelectItem>
                             </SelectContent>
                           </Select>
