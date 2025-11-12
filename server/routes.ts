@@ -37,7 +37,8 @@ import {
   insertCatalogueItemSchema,
   insertWorksOrderTemplateSchema,
   insertWorksOrderSchema,
-  insertWorksOrderSignatureSchema
+  insertWorksOrderSignatureSchema,
+  insertWorksOrderItemSchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -6423,6 +6424,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error voiding works order:', error);
       res.status(500).json({ error: "Failed to void works order" });
+    }
+  });
+
+  // Get works order items
+  app.get("/api/works-orders/:id/items", requireAuth, async (req, res) => {
+    try {
+      const items = await storage.getWorksOrderItems(req.params.id);
+      res.json(items);
+    } catch (error) {
+      console.error('Error fetching works order items:', error);
+      res.status(500).json({ error: "Failed to fetch works order items" });
+    }
+  });
+
+  // Replace works order items (admin/designer only)
+  app.post("/api/works-orders/:id/items/replace", requireAdmin, async (req, res) => {
+    try {
+      const { items } = req.body;
+      
+      if (!Array.isArray(items)) {
+        return res.status(400).json({ error: "Items must be an array" });
+      }
+      
+      // Validate each item
+      const validatedItems = items.map((item, index) => {
+        try {
+          const validated = insertWorksOrderItemSchema.parse({
+            ...item,
+            worksOrderId: req.params.id,
+          });
+          return validated;
+        } catch (validationError) {
+          if (validationError instanceof z.ZodError) {
+            throw new Error(`Validation failed for item at index ${index}: ${validationError.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`);
+          }
+          throw validationError;
+        }
+      });
+      
+      // Replace all items for this works order
+      await storage.replaceWorksOrderItems(req.params.id, validatedItems);
+      
+      // Return the updated items
+      const updatedItems = await storage.getWorksOrderItems(req.params.id);
+      res.json(updatedItems);
+    } catch (error) {
+      console.error('Error replacing works order items:', error);
+      
+      // Return 400 for validation errors, 500 for server errors
+      if (error instanceof Error && error.message.includes('Validation failed')) {
+        return res.status(400).json({ error: error.message });
+      }
+      
+      res.status(500).json({ error: "Failed to replace works order items" });
     }
   });
 
