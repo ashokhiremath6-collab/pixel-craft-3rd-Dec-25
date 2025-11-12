@@ -258,7 +258,7 @@ export default function WorksOrdersPage() {
     },
   });
 
-  // Create order mutation
+  // Create order mutation (no items persistence or invalidation here)
   const createOrderMutation = useMutation({
     mutationFn: async (data: typeof orderFormData) => {
       return apiRequest('POST', "/api/works-orders", {
@@ -268,25 +268,9 @@ export default function WorksOrdersPage() {
         completionDate: data.completionDate || null,
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/works-orders"] });
-      setOrderDialogOpen(false);
-      resetOrderForm();
-      toast({
-        title: "Success",
-        description: "Works order created successfully",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
   });
 
-  // Update order mutation
+  // Update order mutation (no items persistence or invalidation here)
   const updateOrderMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof orderFormData }) => {
       return apiRequest('PUT', `/api/works-orders/${id}`, {
@@ -294,23 +278,6 @@ export default function WorksOrdersPage() {
         totalValue: data.totalValue ? parseFloat(data.totalValue) : null,
         startDate: data.startDate || null,
         completionDate: data.completionDate || null,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/works-orders"] });
-      setOrderDialogOpen(false);
-      setEditingOrder(null);
-      resetOrderForm();
-      toast({
-        title: "Success",
-        description: "Works order updated successfully",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
       });
     },
   });
@@ -654,15 +621,64 @@ export default function WorksOrdersPage() {
     }
   };
 
-  const handleSubmitOrder = (e: React.FormEvent) => {
+  const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingOrder) {
-      updateOrderMutation.mutate({
-        id: editingOrder.id,
-        data: orderFormData,
+    
+    // Deep clone items to prevent race conditions with UI edits (JSON approach for compatibility)
+    const itemsSnapshot = JSON.parse(JSON.stringify(items));
+    
+    // Capture isEdit flag before any state changes
+    const isEdit = !!editingOrder;
+    
+    try {
+      let orderId: string;
+      
+      if (editingOrder) {
+        // Update existing order
+        await updateOrderMutation.mutateAsync(
+          {
+            id: editingOrder.id,
+            data: orderFormData,
+          },
+          { throwOnError: true }
+        );
+        orderId = editingOrder.id;
+      } else {
+        // Create new order
+        const createdOrder = await createOrderMutation.mutateAsync(
+          orderFormData,
+          { throwOnError: true }
+        );
+        orderId = createdOrder.id;
+      }
+      
+      // Always persist items (even if empty) to ensure consistency
+      await apiRequest('POST', `/api/works-orders/${orderId}/items/replace`, { 
+        items: itemsSnapshot 
       });
-    } else {
-      createOrderMutation.mutate(orderFormData);
+      
+      // Both operations succeeded - invalidate cache
+      queryClient.invalidateQueries({ queryKey: ["/api/works-orders"] });
+      
+      // Success - close dialog and reset
+      setOrderDialogOpen(false);
+      if (editingOrder) {
+        setEditingOrder(null);
+      }
+      resetOrderForm();
+      
+      toast({
+        title: "Success",
+        description: isEdit 
+          ? "Works order updated successfully" 
+          : "Works order created successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save works order",
+        variant: "destructive",
+      });
     }
   };
 
