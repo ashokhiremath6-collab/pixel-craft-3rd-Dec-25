@@ -3,6 +3,8 @@ import {
   type UpsertUser,
   type UserRole,
   type InsertUserRole,
+  type UserProjectAssignment,
+  type InsertUserProjectAssignment,
   type DesignerAllowlist,
   type InsertDesignerAllowlist,
   type VendorCategory,
@@ -55,6 +57,7 @@ import {
   type InsertWorksOrderSignature,
   users,
   userRoles,
+  userProjectAssignments,
   designerAllowlist,
   vendorCategories,
   vendors,
@@ -102,6 +105,12 @@ export interface IStorage {
   getUserRole(userId: string): Promise<UserRole | undefined>;
   createUserRole(userRole: InsertUserRole): Promise<UserRole>;
   updateUserRole(userId: string, role: string): Promise<UserRole | undefined>;
+  
+  // User Project Assignments - for project managers
+  getUserProjectAssignments(userId: string): Promise<UserProjectAssignment[]>;
+  assignUserToProject(assignment: InsertUserProjectAssignment): Promise<UserProjectAssignment>;
+  removeUserFromProject(userId: string, projectId: string): Promise<boolean>;
+  getUsersAssignedToProject(projectId: string): Promise<UserProjectAssignment[]>;
   
   // Designer Allowlist
   getDesignerAllowlist(): Promise<DesignerAllowlist[]>;
@@ -401,6 +410,34 @@ export class MemStorage implements IStorage {
       return existingRole;
     }
     return undefined;
+  }
+
+  // User Project Assignments - for project manager role (MemStorage stubs)
+  async getUserProjectAssignments(userId: string): Promise<UserProjectAssignment[]> {
+    // Stub implementation for MemStorage
+    return [];
+  }
+
+  async assignUserToProject(assignment: InsertUserProjectAssignment): Promise<UserProjectAssignment> {
+    // Stub implementation for MemStorage
+    const result: UserProjectAssignment = {
+      id: randomUUID(),
+      userId: assignment.userId,
+      projectId: assignment.projectId,
+      assignedBy: assignment.assignedBy || null,
+      assignedAt: new Date(),
+    };
+    return result;
+  }
+
+  async removeUserFromProject(userId: string, projectId: string): Promise<boolean> {
+    // Stub implementation for MemStorage
+    return true;
+  }
+
+  async getUsersAssignedToProject(projectId: string): Promise<UserProjectAssignment[]> {
+    // Stub implementation for MemStorage
+    return [];
   }
 
   // User Project Access - simplified implementation using project.clientEmail
@@ -1168,6 +1205,40 @@ export class DBStorage implements IStorage {
       .where(and(eq(userRoles.userId, userId), eq(userRoles.isActive, true)))
       .returning();
     return result[0];
+  }
+
+  // User Project Assignments - for project manager role
+  async getUserProjectAssignments(userId: string): Promise<UserProjectAssignment[]> {
+    return await db.select().from(userProjectAssignments).where(eq(userProjectAssignments.userId, userId));
+  }
+
+  async assignUserToProject(assignment: InsertUserProjectAssignment): Promise<UserProjectAssignment> {
+    const result = await db.insert(userProjectAssignments)
+      .values(assignment)
+      .onConflictDoNothing()
+      .returning();
+    
+    // If conflict occurred (already assigned), fetch the existing assignment
+    if (result.length === 0) {
+      const existing = await db.select().from(userProjectAssignments)
+        .where(and(
+          eq(userProjectAssignments.userId, assignment.userId),
+          eq(userProjectAssignments.projectId, assignment.projectId)
+        ));
+      return existing[0];
+    }
+    
+    return result[0];
+  }
+
+  async removeUserFromProject(userId: string, projectId: string): Promise<boolean> {
+    const result = await db.delete(userProjectAssignments)
+      .where(and(eq(userProjectAssignments.userId, userId), eq(userProjectAssignments.projectId, projectId)));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async getUsersAssignedToProject(projectId: string): Promise<UserProjectAssignment[]> {
+    return await db.select().from(userProjectAssignments).where(eq(userProjectAssignments.projectId, projectId));
   }
 
   // User Project Access - simplified implementation using existing project access control
