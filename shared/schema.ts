@@ -348,6 +348,26 @@ export const worksOrderSignatures = pgTable("works_order_signatures", {
   signedAt: timestamp("signed_at").notNull().default(sql`now()`),
 });
 
+// Works Order Items table for structured line items (supports merging quotes + imported orders)
+export const worksOrderItems = pgTable("works_order_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worksOrderId: varchar("works_order_id").notNull().references(() => worksOrders.id, { onDelete: 'cascade' }),
+  description: text("description").notNull(), // Item description
+  quantity: decimal("quantity", { precision: 15, scale: 2 }).notNull(),
+  unit: text("unit").notNull(), // m², kg, pieces, etc.
+  unitRate: decimal("unit_rate", { precision: 15, scale: 2 }).notNull(),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
+  category: text("category"), // labor, material, equipment, etc.
+  itemCode: text("item_code"),
+  specifications: text("specifications"),
+  sourceProjectVendorId: varchar("source_project_vendor_id").references(() => projectVendors.id), // Traceability to quote
+  sourceWorksOrderId: varchar("source_works_order_id").references(() => worksOrders.id, { onDelete: 'set null' }), // Traceability to imported order
+  sortOrder: decimal("sort_order", { precision: 10, scale: 0 }).notNull().default(sql`0`), // Display order
+}, (table) => ({
+  // Composite index for ordered lookup
+  worksOrderSortIdx: index("works_order_items_order_sort_idx").on(table.worksOrderId, table.sortOrder),
+}));
+
 // Insert schemas
 export const insertVendorCategorySchema = createInsertSchema(vendorCategories).omit({
   id: true,
@@ -497,6 +517,10 @@ export const insertWorksOrderSignatureSchema = createInsertSchema(worksOrderSign
   signatureMethod: z.enum(["drawn", "typed", "uploaded"]),
 });
 
+export const insertWorksOrderItemSchema = createInsertSchema(worksOrderItems).omit({
+  id: true,
+});
+
 // Types
 export type InsertVendorCategory = z.infer<typeof insertVendorCategorySchema>;
 export type VendorCategory = typeof vendorCategories.$inferSelect;
@@ -566,6 +590,9 @@ export type WorksOrder = typeof worksOrders.$inferSelect;
 
 export type InsertWorksOrderSignature = z.infer<typeof insertWorksOrderSignatureSchema>;
 export type WorksOrderSignature = typeof worksOrderSignatures.$inferSelect;
+
+export type InsertWorksOrderItem = z.infer<typeof insertWorksOrderItemSchema>;
+export type WorksOrderItem = typeof worksOrderItems.$inferSelect;
 
 // Meeting Minutes table
 export const meetingMinutes = pgTable("meeting_minutes", {
