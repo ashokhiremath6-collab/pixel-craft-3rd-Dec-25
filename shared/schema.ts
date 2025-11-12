@@ -628,11 +628,23 @@ export const users = pgTable("users", {
 export const userRoles = pgTable("user_roles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
-  role: text("role").notNull().default("client"), // admin, designer, client
+  role: text("role").notNull().default("client"), // admin, designer, project_manager, client
   isActive: boolean("is_active").notNull().default(true),
   assignedBy: varchar("assigned_by").references(() => users.id),
   assignedAt: timestamp("assigned_at").notNull().default(sql`now()`),
 });
+
+// User Project Assignments - tracks which projects users (especially project managers) can access
+export const userProjectAssignments = pgTable("user_project_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  assignedBy: varchar("assigned_by").references(() => users.id),
+  assignedAt: timestamp("assigned_at").notNull().default(sql`now()`),
+}, (table) => ({
+  // Composite unique constraint to prevent duplicate assignments
+  uniqueUserProject: uniqueIndex("unique_user_project").on(table.userId, table.projectId),
+}));
 
 // Designer Email Allowlist - predefined emails that should have designer role
 export const designerAllowlist = pgTable("designer_allowlist", {
@@ -658,6 +670,14 @@ export const insertDesignerAllowlistSchema = createInsertSchema(designerAllowlis
 
 export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
 export type UserRole = typeof userRoles.$inferSelect;
+
+export const insertUserProjectAssignmentSchema = createInsertSchema(userProjectAssignments).omit({
+  id: true,
+  assignedAt: true,
+});
+
+export type InsertUserProjectAssignment = z.infer<typeof insertUserProjectAssignmentSchema>;
+export type UserProjectAssignment = typeof userProjectAssignments.$inferSelect;
 
 export type InsertDesignerAllowlist = z.infer<typeof insertDesignerAllowlistSchema>;
 export type DesignerAllowlist = typeof designerAllowlist.$inferSelect;
