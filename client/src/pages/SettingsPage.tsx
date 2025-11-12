@@ -4,10 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Settings, UserCog, Shield, Eye } from "lucide-react";
-import type { User } from "@shared/schema";
+import { Settings, UserCog, Shield, Eye, Briefcase } from "lucide-react";
+import type { User, Project, UserProjectAssignment } from "@shared/schema";
 
 type UserWithRole = User & {
   role: string | null;
@@ -22,6 +23,16 @@ export default function SettingsPage() {
   // Fetch all users with their roles
   const { data: users, isLoading } = useQuery<UserWithRole[]>({
     queryKey: ["/api/users"],
+  });
+
+  // Fetch all projects
+  const { data: projects, isLoading: projectsLoading, isError: projectsError } = useQuery<Project[]>({
+    queryKey: ["/api/projects"],
+  });
+
+  // Fetch all project assignments
+  const { data: allAssignments, isLoading: assignmentsLoading, isError: assignmentsError } = useQuery<UserProjectAssignment[]>({
+    queryKey: ["/api/user-project-assignments"],
   });
 
   // Mutation to update user role
@@ -42,6 +53,48 @@ export default function SettingsPage() {
       toast({
         title: "Error updating role",
         description: error.message || "Failed to update user role",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation to assign project to user
+  const assignProjectMutation = useMutation({
+    mutationFn: async ({ userId, projectId }: { userId: string; projectId: string }) => {
+      return apiRequest("POST", "/api/user-project-assignments", { userId, projectId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user-project-assignments"] });
+      toast({
+        title: "Project assigned",
+        description: "Project has been assigned to user successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error assigning project",
+        description: error.message || "Failed to assign project",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation to unassign project from user
+  const unassignProjectMutation = useMutation({
+    mutationFn: async ({ userId, projectId }: { userId: string; projectId: string }) => {
+      return apiRequest("DELETE", `/api/user-project-assignments/${userId}/${projectId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user-project-assignments"] });
+      toast({
+        title: "Project unassigned",
+        description: "Project has been removed from user successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error unassigning project",
+        description: error.message || "Failed to unassign project",
         variant: "destructive",
       });
     },
@@ -90,6 +143,23 @@ export default function SettingsPage() {
         return <Eye className="h-3 w-3" />;
     }
   };
+
+  // Helper to check if a user is assigned to a project
+  const isUserAssignedToProject = (userId: string, projectId: string) => {
+    return allAssignments?.some(a => a.userId === userId && a.projectId === projectId) || false;
+  };
+
+  // Helper to toggle project assignment
+  const handleToggleProjectAssignment = (userId: string, projectId: string, isAssigned: boolean) => {
+    if (isAssigned) {
+      unassignProjectMutation.mutate({ userId, projectId });
+    } else {
+      assignProjectMutation.mutate({ userId, projectId });
+    }
+  };
+
+  // Get project managers
+  const projectManagers = users?.filter(u => u.role === 'project_manager') || [];
 
   if (isLoading) {
     return (
@@ -220,6 +290,83 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {projectManagers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5" />
+              Project Assignments
+            </CardTitle>
+            <CardDescription>
+              Assign projects to project managers. Project managers only have access to their assigned projects.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {projectsLoading || assignmentsLoading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Loading project assignments...
+              </div>
+            ) : projectsError || assignmentsError ? (
+              <div className="text-center py-8 text-destructive">
+                <p className="font-medium mb-1">Error loading project assignments</p>
+                <p className="text-sm">Please refresh the page to try again</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {projectManagers.map((pm) => (
+                  <div key={pm.id} className="space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b">
+                      <Badge variant={getRoleBadgeVariant(pm.role)} className="flex items-center gap-1">
+                        {getRoleIcon(pm.role)}
+                        {pm.role}
+                      </Badge>
+                      <p className="font-medium">
+                        {pm.firstName} {pm.lastName}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        ({allAssignments?.filter(a => a.userId === pm.id).length || 0} projects)
+                      </p>
+                    </div>
+                    
+                    {!projects || projects.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-2">No projects available</p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {projects.map((project) => {
+                          const isAssigned = isUserAssignedToProject(pm.id, project.id);
+                          const isMutating = assignProjectMutation.isPending || unassignProjectMutation.isPending;
+                          return (
+                            <div
+                              key={project.id}
+                              className="flex items-center gap-2 p-2 rounded-md border hover-elevate"
+                              data-testid={`project-assignment-${pm.id}-${project.id}`}
+                            >
+                              <Checkbox
+                                id={`${pm.id}-${project.id}`}
+                                checked={isAssigned}
+                                onCheckedChange={() => handleToggleProjectAssignment(pm.id, project.id, isAssigned)}
+                                disabled={isMutating}
+                                data-testid={`checkbox-project-${pm.id}-${project.id}`}
+                              />
+                              <label
+                                htmlFor={`${pm.id}-${project.id}`}
+                                className="text-sm cursor-pointer flex-1"
+                              >
+                                {project.name}
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Role Permissions</CardTitle>
@@ -239,6 +386,13 @@ export default function SettingsPage() {
               <div>
                 <p className="font-medium">Designer</p>
                 <p className="text-muted-foreground">Can upload and manage all project content, vendors, and documents</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <UserCog className="h-5 w-5 text-primary mt-0.5" />
+              <div>
+                <p className="font-medium">Project Manager</p>
+                <p className="text-muted-foreground">Full access to assigned projects only; can upload and manage content for those projects</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
