@@ -315,6 +315,7 @@ export const worksOrders = pgTable("works_orders", {
   startDate: date("start_date"), // Expected start date
   completionDate: date("completion_date"), // Expected completion date
   totalValue: decimal("total_value", { precision: 15, scale: 2 }), // Total value of work
+  notes: text("notes"), // Additional notes or comments
   status: text("status").notNull().default("draft"), // draft, sent, signed, void
   draftFilePath: text("draft_file_path"), // Path to generated draft PDF
   signedFilePath: text("signed_file_path"), // Path to signed PDF with embedded signatures
