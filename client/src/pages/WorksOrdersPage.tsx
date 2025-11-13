@@ -542,8 +542,6 @@ export default function WorksOrdersPage() {
 
   const handleCreateOrder = () => {
     resetOrderForm();
-    // Force fresh data fetch to get latest categories
-    queryClient.invalidateQueries({ queryKey: ['/api/project-vendors'] });
     setOrderDialogOpen(true);
   };
 
