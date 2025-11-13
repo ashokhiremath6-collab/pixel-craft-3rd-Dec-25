@@ -70,11 +70,18 @@ export function WorksOrderWizard({
     if (categoryId && categories.length > 0 && quotes.length > 0) {
       // Find the category name from categoryId
       const selectedCategory = categories.find(c => c.id === categoryId);
-      console.log('Auto-selection debug:', {
-        categoryId,
-        selectedCategory,
-        totalQuotes: quotes.length,
-        allQuoteCategories: quotes.map(q => ({ id: q.id, category: q.category }))
+      console.log('===== AUTO-SELECTION DEBUG =====');
+      console.log('Category ID:', categoryId);
+      console.log('Selected Category:', selectedCategory);
+      console.log('Total Quotes:', quotes.length);
+      console.log('All Quote Categories:');
+      quotes.forEach(q => {
+        console.log(`  - Quote ${q.id}:`, {
+          category: q.category,
+          categoryType: typeof q.category,
+          categoryLower: q.category?.toLowerCase(),
+          categoryTrimmed: q.category?.trim(),
+        });
       });
       
       if (selectedCategory) {
@@ -84,9 +91,10 @@ export function WorksOrderWizard({
           q.category && q.category.toLowerCase().trim() === categoryName
         );
         
-        console.log('Filtering result:', {
-          categoryName,
-          quotesInCategory: quotesInCategory.map(q => ({ id: q.id, name: q.quotationName }))
+        console.log('Category Name (normalized):', categoryName);
+        console.log('Filtered Quotes:', quotesInCategory.length);
+        quotesInCategory.forEach(q => {
+          console.log(`  - Matched: ${q.id} - ${q.quotationName}`);
         });
         
         // Always auto-select the first quote when category changes
