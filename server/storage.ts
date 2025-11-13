@@ -2421,8 +2421,21 @@ export class DBStorage implements IStorage {
   }
 
   // Works Orders methods
-  async getAllWorksOrders(): Promise<WorksOrder[]> {
-    return await db.select().from(worksOrders).orderBy(desc(worksOrders.createdAt));
+  async getAllWorksOrders(): Promise<any[]> {
+    const result = await db.select({
+      worksOrder: worksOrders,
+      projectName: projects.projectName,
+      projectId: projects.id,
+      category: projectVendors.category,
+      vendorName: vendors.name,
+    })
+      .from(worksOrders)
+      .leftJoin(projectVendors, eq(worksOrders.projectVendorId, projectVendors.id))
+      .leftJoin(projects, eq(projectVendors.projectId, projects.id))
+      .leftJoin(vendors, eq(projectVendors.vendorId, vendors.id))
+      .orderBy(desc(worksOrders.createdAt));
+
+    return result.map(r => ({ ...r.worksOrder, projectName: r.projectName, projectId: r.projectId, category: r.category, vendorName: r.vendorName }));
   }
 
   async getWorksOrder(id: string): Promise<WorksOrder | undefined> {
@@ -2456,14 +2469,22 @@ export class DBStorage implements IStorage {
     };
   }
 
-  async getWorksOrdersByProject(projectId: string): Promise<WorksOrder[]> {
-    const result = await db.select({ worksOrder: worksOrders })
+  async getWorksOrdersByProject(projectId: string): Promise<any[]> {
+    const result = await db.select({
+      worksOrder: worksOrders,
+      projectName: projects.projectName,
+      projectId: projects.id,
+      category: projectVendors.category,
+      vendorName: vendors.name,
+    })
       .from(worksOrders)
       .leftJoin(projectVendors, eq(worksOrders.projectVendorId, projectVendors.id))
+      .leftJoin(projects, eq(projectVendors.projectId, projects.id))
+      .leftJoin(vendors, eq(projectVendors.vendorId, vendors.id))
       .where(eq(projectVendors.projectId, projectId))
       .orderBy(desc(worksOrders.createdAt));
     
-    return result.map(r => r.worksOrder);
+    return result.map(r => ({ ...r.worksOrder, projectName: r.projectName, projectId: r.projectId, category: r.category, vendorName: r.vendorName }));
   }
 
   async getWorksOrdersByProjectVendor(projectVendorId: string): Promise<WorksOrder[]> {
@@ -2489,13 +2510,21 @@ export class DBStorage implements IStorage {
       
       if (projectIds.length === 0) return [];
 
-      const result = await db.select({ worksOrder: worksOrders })
+      const result = await db.select({
+        worksOrder: worksOrders,
+        projectName: projects.projectName,
+        projectId: projects.id,
+        category: projectVendors.category,
+        vendorName: vendors.name,
+      })
         .from(worksOrders)
         .leftJoin(projectVendors, eq(worksOrders.projectVendorId, projectVendors.id))
+        .leftJoin(projects, eq(projectVendors.projectId, projects.id))
+        .leftJoin(vendors, eq(projectVendors.vendorId, vendors.id))
         .where(inArray(projectVendors.projectId, projectIds))
         .orderBy(desc(worksOrders.createdAt));
 
-      return result.map(r => r.worksOrder);
+      return result.map(r => ({ ...r.worksOrder, projectName: r.projectName, projectId: r.projectId, category: r.category, vendorName: r.vendorName }));
     }
 
     return [];
