@@ -174,13 +174,12 @@ export default function WorksOrdersPage() {
     queryKey: ['/api/projects'],
   });
 
-  // Fetch project vendors (quotations) - enable after auth to avoid 401
+  // Fetch project vendors (quotations) - always refetch on mount to get fresh category data
   const { data: projectVendors = [] } = useQuery<ProjectVendor[]>({
     queryKey: ['/api/project-vendors'],
     retry: 3, // Retry on failure (including 401)
     retryDelay: 1000, // Wait 1s between retries to allow auth to complete
-    staleTime: 0, // Always refetch - disable cache during debug
-    gcTime: 0, // Clear from cache immediately
+    refetchOnMount: 'always', // Override global staleTime:Infinity to ensure fresh data
   });
 
   // Fetch vendor categories for wizard
