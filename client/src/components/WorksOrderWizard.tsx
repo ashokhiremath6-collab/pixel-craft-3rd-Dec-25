@@ -67,7 +67,7 @@ export function WorksOrderWizard({
   // Auto-select first quote when category changes
   const categoryId = form.watch("categoryId");
   React.useEffect(() => {
-    if (categoryId && categories.length > 0) {
+    if (categoryId && categories.length > 0 && quotes.length > 0) {
       // Find the category name from categoryId
       const selectedCategory = categories.find(c => c.id === categoryId);
       if (selectedCategory) {
@@ -76,8 +76,12 @@ export function WorksOrderWizard({
         const quotesInCategory = quotes.filter(q => 
           q.category && q.category.toLowerCase().trim() === categoryName
         );
-        if (quotesInCategory.length > 0 && !form.getValues("projectVendorId")) {
+        // Always auto-select the first quote when category changes
+        if (quotesInCategory.length > 0) {
           form.setValue("projectVendorId", quotesInCategory[0].id);
+        } else {
+          // Clear selection if no quotes available for this category
+          form.setValue("projectVendorId", "");
         }
       }
     }
