@@ -519,7 +519,8 @@ export default function WorksOrdersPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Import failed');
+        const errorData = await response.json().catch(() => ({ error: 'Import failed' }));
+        throw new Error(errorData.error || 'Import failed');
       }
 
       queryClient.invalidateQueries({ queryKey: ["/api/works-orders"] });
@@ -531,7 +532,7 @@ export default function WorksOrdersPage() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to import works order",
+        description: error instanceof Error ? error.message : "Failed to import works order",
         variant: "destructive",
       });
     }
