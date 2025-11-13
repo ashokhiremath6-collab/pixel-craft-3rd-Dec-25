@@ -1301,6 +1301,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Use role-based helper method for consistent access control
       const projectVendors = await storage.getProjectVendorsForUser(userId, role);
+      
+      console.log('===== PROJECT VENDORS API DEBUG =====');
+      console.log('Total project vendors:', projectVendors.length);
+      projectVendors.forEach(pv => {
+        console.log(`  - PV ${pv.id}:`, {
+          category: pv.category,
+          categoryType: typeof pv.category,
+          quotationName: pv.quotationName
+        });
+      });
+      
       res.json(projectVendors);
     } catch (error) {
       console.error('Get project vendors error:', error);
