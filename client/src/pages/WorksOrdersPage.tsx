@@ -179,6 +179,8 @@ export default function WorksOrdersPage() {
     queryKey: ['/api/project-vendors'],
     retry: 3, // Retry on failure (including 401)
     retryDelay: 1000, // Wait 1s between retries to allow auth to complete
+    staleTime: 0, // Always refetch - disable cache during debug
+    gcTime: 0, // Clear from cache immediately
   });
 
   // Fetch vendor categories for wizard
