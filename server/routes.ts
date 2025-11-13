@@ -6597,7 +6597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Find or create a placeholder projectVendor for this category
       // This links the works order to the project even without a specific vendor
       // Look for existing placeholder: same projectId, same categoryId, vendorId IS NULL, and quotationType='category-placeholder'
-      const existingPlaceholders = await storage.getProjectVendorsByProject(projectId);
+      const existingPlaceholders = await storage.getProjectVendors(projectId);
       const existingProjectVendor = existingPlaceholders.find(
         pv => pv.categoryId === categoryId && pv.vendorId === null && pv.quotationType === 'category-placeholder'
       );
@@ -6632,22 +6632,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'draft',
         templateId: null,
         projectVendorId, // Link to project through projectVendor
-        scope: `Imported from ${req.file.originalname}`,
+        scope: `Imported from ${req.file.originalname}. File path: ${objectPath}`,
         totalValue: null,
         startDate: null,
         completionDate: null,
         paymentTerms: null,
-        templateContent: JSON.stringify({
-          categoryId,
-          categoryName,
-          projectId,
-          importedFile: {
-            fileName: req.file.originalname,
-            filePath: objectPath,
-            fileSize: req.file.size,
-            uploadedAt: new Date().toISOString(),
-          }
-        }),
+        createdBy: userId,
       });
 
       // Log activity
@@ -6656,16 +6646,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId,
           userName: (req.user as any).claims.name || 'Unknown',
           userEmail: (req.user as any).claims.email || '',
-          activityType: 'works_order_import',
+          activityType: 'works_order_create',
           fileName: req.file.originalname,
           filePath: objectPath,
-          description: `imported works order from file`,
+          description: `created works order ${worksOrder.orderNumber} from imported file`,
           metadata: {
             worksOrderId: worksOrder.id,
             orderNumber: worksOrder.orderNumber,
             categoryId,
             categoryName,
             projectId,
+            imported: true,
           },
         });
       } catch (activityError) {
@@ -6679,7 +6670,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Error importing works order:', error);
-      res.status(500).json({ error: "Failed to import works order" });
+      const errorMessage = error instanceof Error ? error.message : "Failed to import works order";
+      res.status(500).json({ error: errorMessage });
     }
   });
 
