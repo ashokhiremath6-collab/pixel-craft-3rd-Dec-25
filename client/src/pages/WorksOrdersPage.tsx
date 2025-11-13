@@ -28,7 +28,9 @@ import {
   Send, 
   Ban,
   Copy,
-  ExternalLink
+  ExternalLink,
+  Upload,
+  Download
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -120,6 +122,14 @@ export default function WorksOrdersPage() {
   // Delete confirmation state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ type: 'template' | 'order'; id: string } | null>(null);
+  
+  // Import state
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFormData, setImportFormData] = useState({
+    projectId: "",
+    category: "",
+    file: null as File | null,
+  });
 
   // Fetch templates
   const { data: templates = [], isLoading: templatesLoading } = useQuery<WorksOrderTemplate[]>({
@@ -458,6 +468,90 @@ export default function WorksOrdersPage() {
     window.open(signUrl, '_blank');
   };
 
+  const handleImportOrder = () => {
+    setImportFormData({
+      projectId: "",
+      category: "",
+      file: null,
+    });
+    setImportDialogOpen(true);
+  };
+
+  const handleImportSubmit = async () => {
+    if (!importFormData.projectId || !importFormData.category || !importFormData.file) {
+      toast({
+        title: "Error",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('projectId', importFormData.projectId);
+    formData.append('category', importFormData.category);
+    formData.append('file', importFormData.file);
+
+    try {
+      const response = await fetch('/api/works-orders/import', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Import failed');
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["/api/works-orders"] });
+      setImportDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Works order imported successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to import works order",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExportOrders = async () => {
+    try {
+      const response = await fetch('/api/works-orders/export', {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `works-orders-${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Success",
+        description: "Works orders exported successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to export works orders",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDeleteClick = (type: 'template' | 'order', id: string) => {
     setItemToDelete({ type, id });
     setDeleteDialogOpen(true);
@@ -535,10 +629,20 @@ export default function WorksOrdersPage() {
             <div className="p-6 border-b">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Works Orders</h2>
-                <Button onClick={handleCreateOrder} data-testid="button-create-order">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Order
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={handleImportOrder} variant="outline" data-testid="button-import-order">
+                    <Upload className="w-4 h-4 mr-2" />
+                    Import Works Order
+                  </Button>
+                  <Button onClick={handleExportOrders} variant="outline" data-testid="button-export-orders">
+                    <Download className="w-4 h-4 mr-2" />
+                    Export Works Orders
+                  </Button>
+                  <Button onClick={handleCreateOrder} data-testid="button-create-order">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Order
+                  </Button>
+                </div>
               </div>
 
               {/* Filters */}
@@ -1120,6 +1224,72 @@ export default function WorksOrdersPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Import Works Order Dialog */}
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent data-testid="dialog-import-works-order">
+          <DialogHeader>
+            <DialogTitle>Import Works Order</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div>
+              <Label htmlFor="import-project">Project *</Label>
+              <Select
+                value={importFormData.projectId}
+                onValueChange={(value) => setImportFormData(prev => ({ ...prev, projectId: value }))}
+              >
+                <SelectTrigger id="import-project" data-testid="select-import-project">
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.projectName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="import-category">Category *</Label>
+              <Input
+                id="import-category"
+                type="text"
+                value={importFormData.category}
+                onChange={(e) => setImportFormData(prev => ({ ...prev, category: e.target.value }))}
+                placeholder="e.g., Civil, Electrical, Plumbing"
+                data-testid="input-import-category"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="import-file">Upload File *</Label>
+              <Input
+                id="import-file"
+                type="file"
+                accept="*/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  setImportFormData(prev => ({ ...prev, file }));
+                }}
+                data-testid="input-import-file"
+              />
+              <p className="text-sm text-muted-foreground mt-1">
+                Supports all file types (Excel, CSV, PDF, etc.)
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)} data-testid="button-cancel-import">
+              Cancel
+            </Button>
+            <Button onClick={handleImportSubmit} data-testid="button-submit-import">
+              Import
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

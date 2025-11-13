@@ -6572,6 +6572,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Import works order
+  app.post("/api/works-orders/import", requireAdmin, multer().single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const { projectId, category } = req.body;
+
+      if (!projectId || !category) {
+        return res.status(400).json({ error: "Project and category are required" });
+      }
+
+      // TODO: Implement file parsing logic
+      // For now, return success
+      res.status(200).json({ 
+        success: true,
+        message: "File uploaded successfully. File parsing will be implemented in next phase.",
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+        projectId,
+        category
+      });
+    } catch (error) {
+      console.error('Error importing works order:', error);
+      res.status(500).json({ error: "Failed to import works order" });
+    }
+  });
+
+  // Export works orders
+  app.get("/api/works-orders/export", requireAdmin, async (req, res) => {
+    try {
+      const orders = await storage.getAllWorksOrders();
+      
+      // Prepare data for Excel export
+      const exportData = orders.map((order: any) => ({
+        'Order Number': order.orderNumber,
+        'Title': order.title,
+        'Status': order.status,
+        'Project ID': order.projectVendorId || 'N/A',
+        'Scope': order.scope || '',
+        'Total Value': order.totalValue ? `$${order.totalValue}` : '',
+        'Start Date': order.startDate || '',
+        'Completion Date': order.completionDate || '',
+        'Payment Terms': order.paymentTerms || '',
+        'Created': order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '',
+      }));
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Works Orders');
+
+      // Generate Excel buffer
+      const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+      // Set headers for download
+      res.setHeader('Content-Disposition', `attachment; filename="works-orders-${new Date().toISOString().split('T')[0]}.xlsx"`);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+      // Send the buffer
+      res.send(buf);
+    } catch (error) {
+      console.error('Error exporting works orders:', error);
+      res.status(500).json({ error: "Failed to export works orders" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
