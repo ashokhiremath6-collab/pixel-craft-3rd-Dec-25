@@ -70,18 +70,33 @@ export function WorksOrderWizard({
     if (categoryId && categories.length > 0 && quotes.length > 0) {
       // Find the category name from categoryId
       const selectedCategory = categories.find(c => c.id === categoryId);
+      console.log('Auto-selection debug:', {
+        categoryId,
+        selectedCategory,
+        totalQuotes: quotes.length,
+        allQuoteCategories: quotes.map(q => ({ id: q.id, category: q.category }))
+      });
+      
       if (selectedCategory) {
         // Filter quotes by category name (case-insensitive comparison)
         const categoryName = selectedCategory.name.toLowerCase().trim();
         const quotesInCategory = quotes.filter(q => 
           q.category && q.category.toLowerCase().trim() === categoryName
         );
+        
+        console.log('Filtering result:', {
+          categoryName,
+          quotesInCategory: quotesInCategory.map(q => ({ id: q.id, name: q.quotationName }))
+        });
+        
         // Always auto-select the first quote when category changes
         if (quotesInCategory.length > 0) {
           form.setValue("projectVendorId", quotesInCategory[0].id);
+          console.log('Auto-selected quote:', quotesInCategory[0].id);
         } else {
           // Clear selection if no quotes available for this category
           form.setValue("projectVendorId", "");
+          console.log('No quotes found - cleared selection');
         }
       }
     }
