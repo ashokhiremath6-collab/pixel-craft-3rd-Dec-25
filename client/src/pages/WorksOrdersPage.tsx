@@ -127,7 +127,8 @@ export default function WorksOrdersPage() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importFormData, setImportFormData] = useState({
     projectId: "",
-    category: "",
+    categoryId: "",
+    categoryName: "",
     file: null as File | null,
   });
 
@@ -150,6 +151,22 @@ export default function WorksOrdersPage() {
   const { data: projectVendors = [] } = useQuery<ProjectVendor[]>({
     queryKey: ['/api/project-vendors'],
   });
+
+  // Fetch vendor categories for dropdown
+  const { data: vendorCategories = [] } = useQuery<any[]>({
+    queryKey: ['/api/vendor-categories/tree'],
+  });
+
+  // Flatten categories for dropdown
+  const flatCategories = useMemo(() => {
+    const flatten = (categories: any[], level = 0): any[] => {
+      return categories.flatMap(cat => [
+        { ...cat, level },
+        ...flatten(cat.children || [], level + 1)
+      ]);
+    };
+    return flatten(vendorCategories);
+  }, [vendorCategories]);
 
   // Create template mutation
   const createTemplateMutation = useMutation({
@@ -471,14 +488,15 @@ export default function WorksOrdersPage() {
   const handleImportOrder = () => {
     setImportFormData({
       projectId: "",
-      category: "",
+      categoryId: "",
+      categoryName: "",
       file: null,
     });
     setImportDialogOpen(true);
   };
 
   const handleImportSubmit = async () => {
-    if (!importFormData.projectId || !importFormData.category || !importFormData.file) {
+    if (!importFormData.projectId || !importFormData.categoryId || !importFormData.file) {
       toast({
         title: "Error",
         description: "Please fill in all fields",
@@ -489,7 +507,8 @@ export default function WorksOrdersPage() {
 
     const formData = new FormData();
     formData.append('projectId', importFormData.projectId);
-    formData.append('category', importFormData.category);
+    formData.append('categoryId', importFormData.categoryId);
+    formData.append('categoryName', importFormData.categoryName);
     formData.append('file', importFormData.file);
 
     try {
@@ -637,10 +656,6 @@ export default function WorksOrdersPage() {
                   <Button onClick={handleExportOrders} variant="outline" data-testid="button-export-orders">
                     <Download className="w-4 h-4 mr-2" />
                     Export Works Orders
-                  </Button>
-                  <Button onClick={handleCreateOrder} data-testid="button-create-order">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Order
                   </Button>
                 </div>
               </div>
@@ -1253,14 +1268,28 @@ export default function WorksOrdersPage() {
 
             <div>
               <Label htmlFor="import-category">Category *</Label>
-              <Input
-                id="import-category"
-                type="text"
-                value={importFormData.category}
-                onChange={(e) => setImportFormData(prev => ({ ...prev, category: e.target.value }))}
-                placeholder="e.g., Civil, Electrical, Plumbing"
-                data-testid="input-import-category"
-              />
+              <Select
+                value={importFormData.categoryId}
+                onValueChange={(value) => {
+                  const selectedCategory = flatCategories.find(cat => cat.id === value);
+                  setImportFormData(prev => ({
+                    ...prev,
+                    categoryId: value,
+                    categoryName: selectedCategory?.name || ''
+                  }));
+                }}
+              >
+                <SelectTrigger id="import-category" data-testid="select-import-category">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {flatCategories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {'\u00A0'.repeat(category.level * 4)}{category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>

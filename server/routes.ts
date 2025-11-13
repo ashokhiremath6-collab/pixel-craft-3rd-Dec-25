@@ -6579,21 +6579,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { projectId, category } = req.body;
+      const { projectId, categoryId, categoryName } = req.body;
 
-      if (!projectId || !category) {
-        return res.status(400).json({ error: "Project and category are required" });
+      if (!projectId || !categoryId || !categoryName) {
+        return res.status(400).json({ error: "Project, category ID, and category name are required" });
       }
 
-      // TODO: Implement file parsing logic
-      // For now, return success
-      res.status(200).json({ 
+      // Upload file to object storage
+      const userId = (req.user as any).claims.sub;
+      const objectPath = await uploadToObjectStorage(
+        req.file.buffer,
+        req.file.originalname,
+        userId,
+        req.file.mimetype
+      );
+
+      // Find or create a placeholder projectVendor for this category
+      // This links the works order to the project even without a specific vendor
+      // Look for existing placeholder: same projectId, same categoryId, vendorId IS NULL, and quotationType='category-placeholder'
+      const existingPlaceholders = await storage.getProjectVendorsByProject(projectId);
+      const existingProjectVendor = existingPlaceholders.find(
+        pv => pv.categoryId === categoryId && pv.vendorId === null && pv.quotationType === 'category-placeholder'
+      );
+      
+      let projectVendorId: string;
+      if (existingProjectVendor) {
+        projectVendorId = existingProjectVendor.id;
+      } else {
+        // Create a placeholder projectVendor for the category
+        const newProjectVendor = await storage.createProjectVendor({
+          projectId,
+          vendorId: null, // No specific vendor
+          categoryId, // Store categoryId for precise lookup
+          category: categoryName, // Store category name for display
+          quotationName: `${categoryName} - Imported Works Order`, // Display name
+          quotationType: 'category-placeholder', // Mark as placeholder
+          quotationFile: objectPath, // Link to uploaded file
+          status: 'Quoted',
+        });
+        projectVendorId = newProjectVendor.id;
+      }
+
+      // Generate unique order number
+      const timestamp = Date.now().toString().slice(-6);
+      const orderNumber = `WO-${timestamp}`;
+
+      // Create draft works order
+      const sanitizedFileName = req.file.originalname.replace(/\.[^/.]+$/, ""); // Remove extension
+      const worksOrder = await storage.createWorksOrder({
+        orderNumber,
+        title: `${sanitizedFileName} - ${categoryName}`,
+        status: 'draft',
+        templateId: null,
+        projectVendorId, // Link to project through projectVendor
+        scope: `Imported from ${req.file.originalname}`,
+        totalValue: null,
+        startDate: null,
+        completionDate: null,
+        paymentTerms: null,
+        templateContent: JSON.stringify({
+          categoryId,
+          categoryName,
+          projectId,
+          importedFile: {
+            fileName: req.file.originalname,
+            filePath: objectPath,
+            fileSize: req.file.size,
+            uploadedAt: new Date().toISOString(),
+          }
+        }),
+      });
+
+      // Log activity
+      try {
+        await storage.createActivity({
+          userId,
+          userName: (req.user as any).claims.name || 'Unknown',
+          userEmail: (req.user as any).claims.email || '',
+          activityType: 'works_order_import',
+          fileName: req.file.originalname,
+          filePath: objectPath,
+          description: `imported works order from file`,
+          metadata: {
+            worksOrderId: worksOrder.id,
+            orderNumber: worksOrder.orderNumber,
+            categoryId,
+            categoryName,
+            projectId,
+          },
+        });
+      } catch (activityError) {
+        console.error('Error logging import activity:', activityError);
+      }
+
+      res.status(201).json({ 
         success: true,
-        message: "File uploaded successfully. File parsing will be implemented in next phase.",
-        fileName: req.file.originalname,
-        fileSize: req.file.size,
-        projectId,
-        category
+        message: "Works order created successfully from import",
+        worksOrder
       });
     } catch (error) {
       console.error('Error importing works order:', error);

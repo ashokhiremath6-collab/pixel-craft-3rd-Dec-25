@@ -68,6 +68,7 @@ export const projectVendors = pgTable("project_vendors", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull().references(() => projects.id),
   vendorId: varchar("vendor_id").references(() => vendors.id), // Nullable for comparative statements
+  categoryId: varchar("category_id").references(() => vendorCategories.id), // Nullable, for precise category lookup
   category: text("category"), // For comparative statements: category name instead of vendor
   quotationName: text("quotation_name").notNull().default("Main Quote"), // "Option A", "Kitchen Cabinets", etc.
   quotationType: text("quotation_type").notNull().default("item"), // "item" or "option"
