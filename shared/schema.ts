@@ -315,7 +315,6 @@ export const worksOrders = pgTable("works_orders", {
   startDate: date("start_date"), // Expected start date
   completionDate: date("completion_date"), // Expected completion date
   totalValue: decimal("total_value", { precision: 15, scale: 2 }), // Total value of work
-  notes: text("notes"), // Additional notes or comments
   status: text("status").notNull().default("draft"), // draft, sent, signed, void
   draftFilePath: text("draft_file_path"), // Path to generated draft PDF
   signedFilePath: text("signed_file_path"), // Path to signed PDF with embedded signatures
@@ -367,25 +366,6 @@ export const worksOrderItems = pgTable("works_order_items", {
 }, (table) => ({
   // Composite index for ordered lookup
   worksOrderSortIdx: index("works_order_items_order_sort_idx").on(table.worksOrderId, table.sortOrder),
-}));
-
-// Works Order Documents table for DOCX template/upload/export file tracking
-export const worksOrderDocuments = pgTable("works_order_documents", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  worksOrderId: varchar("works_order_id").references(() => worksOrders.id, { onDelete: 'cascade' }), // Null for global templates
-  documentType: text("document_type").notNull(), // "template", "uploaded", "exported"
-  filePath: text("file_path").notNull(), // Object storage path
-  fileName: text("file_name").notNull(), // Original filename
-  fileSize: decimal("file_size", { precision: 15, scale: 0 }), // File size in bytes
-  isGlobalTemplate: boolean("is_global_template").notNull().default(false), // True for reusable templates
-  version: text("version"), // Template version for global templates
-  uploadedBy: varchar("uploaded_by").references(() => users.id),
-  uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
-}, (table) => ({
-  // Index for filtering by works order
-  worksOrderIdx: index("works_order_documents_works_order_idx").on(table.worksOrderId),
-  // Index for global templates
-  globalTemplateIdx: index("works_order_documents_global_template_idx").on(table.isGlobalTemplate),
 }));
 
 // Insert schemas
@@ -541,11 +521,6 @@ export const insertWorksOrderItemSchema = createInsertSchema(worksOrderItems).om
   id: true,
 });
 
-export const insertWorksOrderDocumentSchema = createInsertSchema(worksOrderDocuments).omit({
-  id: true,
-  uploadedAt: true,
-});
-
 // Types
 export type InsertVendorCategory = z.infer<typeof insertVendorCategorySchema>;
 export type VendorCategory = typeof vendorCategories.$inferSelect;
@@ -618,9 +593,6 @@ export type WorksOrderSignature = typeof worksOrderSignatures.$inferSelect;
 
 export type InsertWorksOrderItem = z.infer<typeof insertWorksOrderItemSchema>;
 export type WorksOrderItem = typeof worksOrderItems.$inferSelect;
-
-export type InsertWorksOrderDocument = z.infer<typeof insertWorksOrderDocumentSchema>;
-export type WorksOrderDocument = typeof worksOrderDocuments.$inferSelect;
 
 // Meeting Minutes table
 export const meetingMinutes = pgTable("meeting_minutes", {

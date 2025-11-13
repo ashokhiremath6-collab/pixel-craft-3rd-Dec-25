@@ -55,10 +55,6 @@ import {
   type InsertWorksOrder,
   type WorksOrderSignature,
   type InsertWorksOrderSignature,
-  type WorksOrderItem,
-  type InsertWorksOrderItem,
-  type WorksOrderDocument,
-  type InsertWorksOrderDocument,
   users,
   userRoles,
   userProjectAssignments,
@@ -87,8 +83,6 @@ import {
   worksOrderTemplates,
   worksOrders,
   worksOrderSignatures,
-  worksOrderItems,
-  worksOrderDocuments,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -332,16 +326,6 @@ export interface IStorage {
   deleteWorksOrderItem(id: string): Promise<boolean>;
   deleteWorksOrderItemsByOrder(worksOrderId: string): Promise<boolean>;
   replaceWorksOrderItems(worksOrderId: string, items: InsertWorksOrderItem[]): Promise<WorksOrderItem[]>;
-  
-  // Works Order Documents
-  getWorksOrderDocuments(worksOrderId?: string): Promise<WorksOrderDocument[]>;
-  getWorksOrderDocument(id: string): Promise<WorksOrderDocument | undefined>;
-  getGlobalTemplates(): Promise<WorksOrderDocument[]>;
-  createWorksOrderDocument(document: InsertWorksOrderDocument): Promise<WorksOrderDocument>;
-  deleteWorksOrderDocument(id: string): Promise<boolean>;
-  
-  // BOQ Items (for works order merge)
-  getBOQItemsForQuote(projectVendorId: string): Promise<BOQItem[]>;
   
   // Vendors (with role-based filtering)
   getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
@@ -2661,53 +2645,6 @@ export class DBStorage implements IStorage {
       const result = await tx.insert(worksOrderItems).values(items).returning();
       return result;
     });
-  }
-
-  // Works Order Documents
-  async getWorksOrderDocuments(worksOrderId?: string): Promise<WorksOrderDocument[]> {
-    if (worksOrderId) {
-      return await db.select()
-        .from(worksOrderDocuments)
-        .where(eq(worksOrderDocuments.worksOrderId, worksOrderId))
-        .orderBy(desc(worksOrderDocuments.uploadedAt));
-    } else {
-      return await db.select()
-        .from(worksOrderDocuments)
-        .orderBy(desc(worksOrderDocuments.uploadedAt));
-    }
-  }
-
-  async getWorksOrderDocument(id: string): Promise<WorksOrderDocument | undefined> {
-    const result = await db.select()
-      .from(worksOrderDocuments)
-      .where(eq(worksOrderDocuments.id, id))
-      .limit(1);
-    return result[0];
-  }
-
-  async getGlobalTemplates(): Promise<WorksOrderDocument[]> {
-    return await db.select()
-      .from(worksOrderDocuments)
-      .where(eq(worksOrderDocuments.isGlobalTemplate, true))
-      .orderBy(desc(worksOrderDocuments.uploadedAt));
-  }
-
-  async createWorksOrderDocument(document: InsertWorksOrderDocument): Promise<WorksOrderDocument> {
-    const result = await db.insert(worksOrderDocuments).values(document).returning();
-    return result[0];
-  }
-
-  async deleteWorksOrderDocument(id: string): Promise<boolean> {
-    const result = await db.delete(worksOrderDocuments).where(eq(worksOrderDocuments.id, id));
-    return true;
-  }
-
-  // BOQ Items (for works order merge)
-  async getBOQItemsForQuote(projectVendorId: string): Promise<BOQItem[]> {
-    return await db.select()
-      .from(boqItems)
-      .where(eq(boqItems.projectVendorId, projectVendorId))
-      .orderBy(asc(boqItems.itemNumber));
   }
 }
 

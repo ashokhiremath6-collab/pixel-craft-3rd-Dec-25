@@ -59,14 +59,10 @@ import type {
   WorksOrderTemplate, 
   WorksOrder, 
   Project, 
-  ProjectVendor,
-  WorksOrderItem,
-  VendorCategory,
-  WorksOrderDocument
+  ProjectVendor 
 } from "@shared/schema";
 import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { WorksOrderWizard } from "@/components/WorksOrderWizard";
 
 const STATUS_COLORS = {
   draft: "bg-gray-500",
@@ -110,41 +106,7 @@ export default function WorksOrdersPage() {
     startDate: "",
     completionDate: "",
     paymentTerms: "",
-    notes: "",
   });
-  
-  // Cascading dropdown state
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [selectedQuoteId, setSelectedQuoteId] = useState<string>("");
-  
-  // Item management state
-  type LocalItem = {
-    id?: string;
-    description: string;
-    quantity: number;
-    unit: string;
-    unitRate: number;
-    totalAmount: number;
-    category?: string;
-    itemCode?: string;
-    specifications?: string;
-    sourceProjectVendorId?: string;
-    sourceWorksOrderId?: string;
-  };
-  const [items, setItems] = useState<LocalItem[]>([]);
-  const [isItemFormOpen, setIsItemFormOpen] = useState(false);
-  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
-  const [itemFormData, setItemFormData] = useState({
-    description: "",
-    quantity: "",
-    unit: "",
-    unitRate: "",
-    category: "",
-    itemCode: "",
-    specifications: "",
-  });
-  const [importOrderDialogOpen, setImportOrderDialogOpen] = useState(false);
   
   // Detail drawer state
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
@@ -174,29 +136,9 @@ export default function WorksOrdersPage() {
     queryKey: ['/api/projects'],
   });
 
-  // Fetch project vendors (quotations) - always refetch on mount to get fresh category data
+  // Fetch project vendors (quotations)
   const { data: projectVendors = [] } = useQuery<ProjectVendor[]>({
     queryKey: ['/api/project-vendors'],
-    retry: 3, // Retry on failure (including 401)
-    retryDelay: 1000, // Wait 1s between retries to allow auth to complete
-    refetchOnMount: 'always', // Override global staleTime:Infinity to ensure fresh data
-  });
-
-  // Fetch vendor categories for wizard
-  const { data: vendorCategories = [] } = useQuery<VendorCategory[]>({
-    queryKey: ['/api/vendor-categories/tree'],
-  });
-
-  // Conditional query for categories with quotes
-  const { data: categoriesWithQuotes = [] } = useQuery<Array<{ category: string; quotesCount: number }>>({
-    queryKey: [`/api/projects/${selectedProjectId}/categories-with-quotes`],
-    enabled: !!selectedProjectId,
-  });
-
-  // Conditional query for quotes by category
-  const { data: quotesByCategory = [] } = useQuery<Array<ProjectVendor & { vendorName: string }>>({
-    queryKey: [`/api/projects/${selectedProjectId}/quotes?category=${encodeURIComponent(selectedCategory)}`],
-    enabled: !!selectedProjectId && !!selectedCategory,
   });
 
   // Create template mutation
@@ -270,7 +212,7 @@ export default function WorksOrdersPage() {
     },
   });
 
-  // Create order mutation (no items persistence or invalidation here)
+  // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: async (data: typeof orderFormData) => {
       return apiRequest('POST', "/api/works-orders", {
@@ -280,9 +222,25 @@ export default function WorksOrdersPage() {
         completionDate: data.completionDate || null,
       });
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/works-orders"] });
+      setOrderDialogOpen(false);
+      resetOrderForm();
+      toast({
+        title: "Success",
+        description: "Works order created successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
-  // Update order mutation (no items persistence or invalidation here)
+  // Update order mutation
   const updateOrderMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof orderFormData }) => {
       return apiRequest('PUT', `/api/works-orders/${id}`, {
@@ -290,6 +248,23 @@ export default function WorksOrdersPage() {
         totalValue: data.totalValue ? parseFloat(data.totalValue) : null,
         startDate: data.startDate || null,
         completionDate: data.completionDate || null,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/works-orders"] });
+      setOrderDialogOpen(false);
+      setEditingOrder(null);
+      resetOrderForm();
+      toast({
+        title: "Success",
+        description: "Works order updated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });
@@ -408,121 +383,8 @@ export default function WorksOrdersPage() {
       startDate: "",
       completionDate: "",
       paymentTerms: "",
-      notes: "",
     });
-    setSelectedProjectId("");
-    setSelectedCategory("");
-    setSelectedQuoteId("");
-    setItems([]);
     setEditingOrder(null);
-  };
-
-  // Item management helpers
-  const mergeItems = (existingItems: LocalItem[], newItems: LocalItem[]): LocalItem[] => {
-    const merged = [...existingItems];
-    
-    for (const newItem of newItems) {
-      const dedupeKey = [
-        newItem.description.trim().toLowerCase(),
-        newItem.unit.trim().toLowerCase(),
-        (newItem.category || '').trim().toLowerCase(),
-        (newItem.itemCode || '').trim().toLowerCase(),
-        (newItem.specifications || '').trim().toLowerCase(),
-        newItem.unitRate.toString(),
-      ].join('|');
-      
-      const existingIndex = merged.findIndex(item => {
-        const itemKey = [
-          item.description.trim().toLowerCase(),
-          item.unit.trim().toLowerCase(),
-          (item.category || '').trim().toLowerCase(),
-          (item.itemCode || '').trim().toLowerCase(),
-          (item.specifications || '').trim().toLowerCase(),
-          item.unitRate.toString(),
-        ].join('|');
-        return itemKey === dedupeKey;
-      });
-      
-      if (existingIndex >= 0) {
-        merged[existingIndex] = {
-          ...merged[existingIndex],
-          quantity: merged[existingIndex].quantity + newItem.quantity,
-          totalAmount: Number((merged[existingIndex].quantity + newItem.quantity) * merged[existingIndex].unitRate),
-        };
-      } else {
-        merged.push(newItem);
-      }
-    }
-    
-    return merged;
-  };
-
-  const recalculateTotal = (items: LocalItem[]): number => {
-    return items.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
-  };
-
-  const resetItemForm = () => {
-    setItemFormData({
-      description: "",
-      quantity: "",
-      unit: "",
-      unitRate: "",
-      category: "",
-      itemCode: "",
-      specifications: "",
-    });
-    setEditingItemIndex(null);
-    setIsItemFormOpen(false);
-  };
-
-  const handleAddItem = () => {
-    const qty = parseFloat(itemFormData.quantity);
-    const rate = parseFloat(itemFormData.unitRate);
-    
-    if (!itemFormData.description || !itemFormData.quantity || !itemFormData.unit || !itemFormData.unitRate) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const newItem: LocalItem = {
-      description: itemFormData.description,
-      quantity: qty,
-      unit: itemFormData.unit,
-      unitRate: rate,
-      totalAmount: qty * rate,
-      category: itemFormData.category || undefined,
-      itemCode: itemFormData.itemCode || undefined,
-      specifications: itemFormData.specifications || undefined,
-    };
-
-    if (editingItemIndex !== null) {
-      const updated = [...items];
-      updated[editingItemIndex] = newItem;
-      setItems(updated);
-    } else {
-      setItems([...items, newItem]);
-    }
-
-    resetItemForm();
-  };
-
-  const handleEditItem = (index: number) => {
-    const item = items[index];
-    setItemFormData({
-      description: item.description,
-      quantity: item.quantity.toString(),
-      unit: item.unit,
-      unitRate: item.unitRate.toString(),
-      category: item.category || "",
-      itemCode: item.itemCode || "",
-      specifications: item.specifications || "",
-    });
-    setEditingItemIndex(index);
-    setIsItemFormOpen(true);
   };
 
   const handleCreateTemplate = () => {
@@ -556,16 +418,7 @@ export default function WorksOrdersPage() {
       startDate: order.startDate || "",
       completionDate: order.completionDate || "",
       paymentTerms: order.paymentTerms || "",
-      notes: order.notes || "",
     });
-    
-    const pv = projectVendors.find(v => v.id === order.projectVendorId);
-    if (pv) {
-      setSelectedProjectId(pv.projectId);
-      setSelectedCategory(pv.category || "");
-      setSelectedQuoteId(order.projectVendorId);
-    }
-    
     setOrderDialogOpen(true);
   };
 
@@ -635,58 +488,15 @@ export default function WorksOrdersPage() {
     }
   };
 
-  const handleSubmitOrder = async (e: React.FormEvent) => {
+  const handleSubmitOrder = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Deep clone items to prevent race conditions with UI edits (JSON approach for compatibility)
-    const itemsSnapshot = JSON.parse(JSON.stringify(items));
-    
-    // Capture isEdit flag before any state changes
-    const isEdit = !!editingOrder;
-    
-    try {
-      let orderId: string;
-      
-      if (editingOrder) {
-        // Update existing order
-        await updateOrderMutation.mutateAsync({
-          id: editingOrder.id,
-          data: orderFormData,
-        });
-        orderId = editingOrder.id;
-      } else {
-        // Create new order
-        const createdOrder: any = await createOrderMutation.mutateAsync(orderFormData);
-        orderId = createdOrder.id;
-      }
-      
-      // Always persist items (even if empty) to ensure consistency
-      await apiRequest('POST', `/api/works-orders/${orderId}/items/replace`, { 
-        items: itemsSnapshot 
+    if (editingOrder) {
+      updateOrderMutation.mutate({
+        id: editingOrder.id,
+        data: orderFormData,
       });
-      
-      // Both operations succeeded - invalidate cache
-      queryClient.invalidateQueries({ queryKey: ["/api/works-orders"] });
-      
-      // Success - close dialog and reset
-      setOrderDialogOpen(false);
-      if (editingOrder) {
-        setEditingOrder(null);
-      }
-      resetOrderForm();
-      
-      toast({
-        title: "Success",
-        description: isEdit 
-          ? "Works order updated successfully" 
-          : "Works order created successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save works order",
-        variant: "destructive",
-      });
+    } else {
+      createOrderMutation.mutate(orderFormData);
     }
   };
 
@@ -696,51 +506,6 @@ export default function WorksOrdersPage() {
       id: orderToVoid.id,
       reason: voidReason,
     });
-  };
-
-  // Wizard submission handler
-  const handleWizardSubmit = async (data: {
-    name: string;
-    notes?: string;
-    categoryId: string;
-    templateId?: string;
-    projectVendorId: string;
-  }) => {
-    try {
-      // Step 1: Create works order with all required fields
-      const createdOrder: any = await createOrderMutation.mutateAsync({
-        title: data.name || "Works Order",
-        notes: data.notes || "",
-        templateId: data.templateId || "",
-        projectVendorId: data.projectVendorId,
-        scope: "", // Will be populated from merged document
-        totalValue: "", // Calculated from BOQ items in merged document
-        startDate: "", // Can be set later if needed
-        completionDate: "", // Can be set later if needed
-        paymentTerms: "", // Can be set later if needed
-      });
-
-      // Step 2: Call merge endpoint to generate document
-      await apiRequest('POST', `/api/works-orders/${createdOrder.id}/merge`, {
-        projectVendorId: data.projectVendorId,
-        templateId: data.templateId,
-      });
-
-      // Step 3: Invalidate cache and close dialog
-      queryClient.invalidateQueries({ queryKey: ["/api/works-orders"] });
-      setOrderDialogOpen(false);
-
-      toast({
-        title: "Success",
-        description: "Works order created and merged successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create works order",
-        variant: "destructive",
-      });
-    }
   };
 
   return (
@@ -1075,25 +840,13 @@ export default function WorksOrdersPage() {
 
       {/* Order Dialog */}
       <Dialog open={orderDialogOpen} onOpenChange={setOrderDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="dialog-order">
+        <DialogContent className="max-w-2xl" data-testid="dialog-order">
           <DialogHeader>
             <DialogTitle>
               {editingOrder ? 'Edit Works Order' : 'Create Works Order'}
             </DialogTitle>
           </DialogHeader>
-
-          {/* Use wizard for new orders, old form for edits */}
-          {!editingOrder ? (
-            <WorksOrderWizard
-              categories={vendorCategories}
-              templates={templates}
-              quotes={projectVendors}
-              onSubmit={handleWizardSubmit}
-              onCancel={() => setOrderDialogOpen(false)}
-              isSubmitting={createOrderMutation.isPending}
-            />
-          ) : (
-            <form onSubmit={handleSubmitOrder}>
+          <form onSubmit={handleSubmitOrder}>
             <div className="grid gap-4 py-4">
               <div>
                 <Label htmlFor="order-title">Works Order Title *</Label>
@@ -1126,80 +879,27 @@ export default function WorksOrdersPage() {
                 </Select>
               </div>
 
-              <div className="grid gap-4">
-                <div>
-                  <Label htmlFor="order-project">Project *</Label>
-                  <Select
-                    value={selectedProjectId}
-                    onValueChange={(value) => {
-                      setSelectedProjectId(value);
-                      setSelectedCategory("");
-                      setSelectedQuoteId("");
-                      setOrderFormData({ ...orderFormData, projectVendorId: "" });
-                    }}
-                    required
-                  >
-                    <SelectTrigger id="order-project" data-testid="select-order-project">
-                      <SelectValue placeholder="Select project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects.map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
-                          {project.projectName}
+              <div>
+                <Label htmlFor="order-project-vendor">Project / Quote *</Label>
+                <Select
+                  value={orderFormData.projectVendorId}
+                  onValueChange={(value) => setOrderFormData({ ...orderFormData, projectVendorId: value })}
+                  required
+                >
+                  <SelectTrigger id="order-project-vendor" data-testid="select-order-project-vendor">
+                    <SelectValue placeholder="Select project and quote" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projectVendors.map((pv) => {
+                      const project = projects.find(p => p.id === pv.projectId);
+                      return (
+                        <SelectItem key={pv.id} value={pv.id}>
+                          {project?.projectName} - {pv.quotationName}
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="order-category">Category *</Label>
-                  <Select
-                    value={selectedCategory}
-                    onValueChange={(value) => {
-                      setSelectedCategory(value);
-                      setSelectedQuoteId("");
-                      setOrderFormData({ ...orderFormData, projectVendorId: "" });
-                    }}
-                    disabled={!selectedProjectId}
-                    required
-                  >
-                    <SelectTrigger id="order-category" data-testid="select-order-category">
-                      <SelectValue placeholder={selectedProjectId ? "Select category" : "Select project first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categoriesWithQuotes.map((cat) => (
-                        <SelectItem key={cat.category} value={cat.category}>
-                          {cat.category} ({cat.quotesCount} {cat.quotesCount === 1 ? 'quote' : 'quotes'})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="order-quote">Quote *</Label>
-                  <Select
-                    value={selectedQuoteId}
-                    onValueChange={(value) => {
-                      setSelectedQuoteId(value);
-                      setOrderFormData({ ...orderFormData, projectVendorId: value });
-                    }}
-                    disabled={!selectedCategory}
-                    required
-                  >
-                    <SelectTrigger id="order-quote" data-testid="select-order-quote">
-                      <SelectValue placeholder={selectedCategory ? "Select quote" : "Select category first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {quotesByCategory.map((quote) => (
-                        <SelectItem key={quote.id} value={quote.id}>
-                          {quote.vendorName} - {quote.quotationName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
@@ -1265,252 +965,6 @@ export default function WorksOrdersPage() {
                   data-testid="input-order-payment-terms"
                 />
               </div>
-
-              <div className="border-t pt-4 mt-4">
-                <div className="flex items-center justify-between mb-4">
-                  <Label className="text-base font-semibold">Line Items</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={!selectedQuoteId}
-                      onClick={async () => {
-                        if (!selectedQuoteId) return;
-                        try {
-                          const response = await fetch(`/api/project-vendors/${selectedQuoteId}/boq`);
-                          if (!response.ok) throw new Error('Failed to fetch BOQ');
-                          const boqItems = await response.json();
-                          
-                          const convertedItems: LocalItem[] = boqItems.map((boq: any) => ({
-                            description: boq.description,
-                            quantity: Number(boq.quantity),
-                            unit: boq.unit,
-                            unitRate: Number(boq.unitRate),
-                            totalAmount: Number(boq.totalAmount),
-                            category: boq.category || undefined,
-                            itemCode: boq.itemCode || undefined,
-                            specifications: boq.specifications || undefined,
-                            sourceProjectVendorId: boq.projectVendorId,
-                          }));
-                          
-                          setItems(mergeItems(items, convertedItems));
-                          toast({
-                            title: "Success",
-                            description: `Imported ${convertedItems.length} items from BOQ`,
-                          });
-                        } catch (error) {
-                          toast({
-                            title: "Error",
-                            description: "Failed to import BOQ items",
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                      data-testid="button-import-boq"
-                    >
-                      Import from BOQ
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setImportOrderDialogOpen(true)}
-                      data-testid="button-import-order"
-                    >
-                      Import from Order
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => {
-                        resetItemForm();
-                        setIsItemFormOpen(true);
-                      }}
-                      data-testid="button-add-item"
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add Item
-                    </Button>
-                  </div>
-                </div>
-
-                {items.length > 0 ? (
-                  <div className="border rounded-md">
-                    <div className="max-h-64 overflow-y-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted sticky top-0">
-                          <tr>
-                            <th className="text-left p-2 font-medium">Description</th>
-                            <th className="text-right p-2 font-medium w-20">Qty</th>
-                            <th className="text-left p-2 font-medium w-20">Unit</th>
-                            <th className="text-right p-2 font-medium w-24">Rate</th>
-                            <th className="text-right p-2 font-medium w-24">Amount</th>
-                            <th className="w-16"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {items.map((item, index) => (
-                            <tr key={index} className="border-t">
-                              <td className="p-2">
-                                <div className="font-medium">{item.description}</div>
-                                {item.specifications && (
-                                  <div className="text-xs text-muted-foreground mt-0.5">{item.specifications}</div>
-                                )}
-                              </td>
-                              <td className="p-2 text-right">{item.quantity}</td>
-                              <td className="p-2">{item.unit}</td>
-                              <td className="p-2 text-right">{Number(item.unitRate).toFixed(2)}</td>
-                              <td className="p-2 text-right font-medium">{Number(item.totalAmount).toFixed(2)}</td>
-                              <td className="p-2">
-                                <div className="flex gap-1">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleEditItem(index)}
-                                    data-testid={`button-edit-item-${index}`}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      setItems(items.filter((_, i) => i !== index));
-                                    }}
-                                    data-testid={`button-delete-item-${index}`}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot className="bg-muted border-t-2">
-                          <tr>
-                            <td colSpan={4} className="p-2 text-right font-semibold">Total:</td>
-                            <td className="p-2 text-right font-bold">{recalculateTotal(items).toFixed(2)}</td>
-                            <td></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="border rounded-md p-8 text-center text-muted-foreground">
-                    No items added yet. Import from BOQ or add items manually.
-                  </div>
-                )}
-
-                {isItemFormOpen && (
-                  <div className="mt-4 p-4 border rounded-md bg-muted/50">
-                    <div className="flex items-center justify-between mb-3">
-                      <Label className="font-semibold">
-                        {editingItemIndex !== null ? `Edit Item #${editingItemIndex + 1}` : 'Add New Item'}
-                      </Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={resetItemForm}
-                        data-testid="button-cancel-item-form"
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="col-span-2">
-                        <Label htmlFor="item-description">Description *</Label>
-                        <Input
-                          id="item-description"
-                          value={itemFormData.description}
-                          onChange={(e) => setItemFormData({ ...itemFormData, description: e.target.value })}
-                          placeholder="Item description"
-                          data-testid="input-item-description"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="item-quantity">Quantity *</Label>
-                        <Input
-                          id="item-quantity"
-                          type="number"
-                          step="0.01"
-                          value={itemFormData.quantity}
-                          onChange={(e) => setItemFormData({ ...itemFormData, quantity: e.target.value })}
-                          placeholder="0.00"
-                          data-testid="input-item-quantity"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="item-unit">Unit *</Label>
-                        <Input
-                          id="item-unit"
-                          value={itemFormData.unit}
-                          onChange={(e) => setItemFormData({ ...itemFormData, unit: e.target.value })}
-                          placeholder="e.g., m², kg, pieces"
-                          data-testid="input-item-unit"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="item-unit-rate">Unit Rate *</Label>
-                        <Input
-                          id="item-unit-rate"
-                          type="number"
-                          step="0.01"
-                          value={itemFormData.unitRate}
-                          onChange={(e) => setItemFormData({ ...itemFormData, unitRate: e.target.value })}
-                          placeholder="0.00"
-                          data-testid="input-item-unit-rate"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="item-category">Category</Label>
-                        <Input
-                          id="item-category"
-                          value={itemFormData.category}
-                          onChange={(e) => setItemFormData({ ...itemFormData, category: e.target.value })}
-                          placeholder="e.g., Labor, Material"
-                          data-testid="input-item-category"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="item-code">Item Code</Label>
-                        <Input
-                          id="item-code"
-                          value={itemFormData.itemCode}
-                          onChange={(e) => setItemFormData({ ...itemFormData, itemCode: e.target.value })}
-                          placeholder="Optional code"
-                          data-testid="input-item-code"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <Label htmlFor="item-specifications">Specifications</Label>
-                        <Textarea
-                          id="item-specifications"
-                          value={itemFormData.specifications}
-                          onChange={(e) => setItemFormData({ ...itemFormData, specifications: e.target.value })}
-                          placeholder="Optional specifications"
-                          rows={2}
-                          data-testid="input-item-specifications"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <Button
-                          type="button"
-                          onClick={handleAddItem}
-                          className="w-full"
-                          data-testid="button-save-item"
-                        >
-                          {editingItemIndex !== null ? 'Update Item' : 'Add Item'}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
 
             <DialogFooter>
@@ -1522,7 +976,6 @@ export default function WorksOrdersPage() {
               </Button>
             </DialogFooter>
           </form>
-          )}
         </DialogContent>
       </Dialog>
 
@@ -1575,74 +1028,6 @@ export default function WorksOrdersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Import from Order Dialog */}
-      <Dialog open={importOrderDialogOpen} onOpenChange={setImportOrderDialogOpen}>
-        <DialogContent data-testid="dialog-import-order">
-          <DialogHeader>
-            <DialogTitle>Import Items from Existing Order</DialogTitle>
-          </DialogHeader>
-          <div className="max-h-96 overflow-y-auto">
-            {orders.filter(o => o.id !== editingOrder?.id).map((order) => {
-              const pv = projectVendors.find(v => v.id === order.projectVendorId);
-              const project = projects.find(p => p.id === pv?.projectId);
-              return (
-                <Button
-                  key={order.id}
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-start mb-2"
-                  onClick={async () => {
-                    try {
-                      const response = await fetch(`/api/works-orders/${order.id}/items`);
-                      if (!response.ok) throw new Error('Failed to fetch items');
-                      const orderItems = await response.json();
-                      
-                      const convertedItems: LocalItem[] = orderItems.map((item: WorksOrderItem) => ({
-                        description: item.description,
-                        quantity: Number(item.quantity),
-                        unit: item.unit,
-                        unitRate: Number(item.unitRate),
-                        totalAmount: Number(item.totalAmount),
-                        category: item.category || undefined,
-                        itemCode: item.itemCode || undefined,
-                        specifications: item.specifications || undefined,
-                        sourceWorksOrderId: order.id,
-                      }));
-                      
-                      setItems(mergeItems(items, convertedItems));
-                      setImportOrderDialogOpen(false);
-                      toast({
-                        title: "Success",
-                        description: `Imported ${convertedItems.length} items from ${order.orderNumber}`,
-                      });
-                    } catch (error) {
-                      toast({
-                        title: "Error",
-                        description: "Failed to import items from order",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                  data-testid={`button-import-from-${order.id}`}
-                >
-                  <div className="text-left">
-                    <div className="font-semibold">{order.orderNumber}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {project?.projectName} - {order.title}
-                    </div>
-                  </div>
-                </Button>
-              );
-            })}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setImportOrderDialogOpen(false)} data-testid="button-cancel-import">
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Order Detail Drawer */}
       <Sheet open={detailDrawerOpen} onOpenChange={setDetailDrawerOpen}>
