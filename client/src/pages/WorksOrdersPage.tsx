@@ -161,7 +161,7 @@ export default function WorksOrdersPage() {
 
   // Fetch vendors for selected category in import dialog
   const { data: categoryVendors = [] } = useQuery<any[]>({
-    queryKey: ['/api/vendors/category', importFormData.categoryId],
+    queryKey: [`/api/vendors/category/${importFormData.categoryId}`],
     enabled: !!importFormData.categoryId,
   });
 
