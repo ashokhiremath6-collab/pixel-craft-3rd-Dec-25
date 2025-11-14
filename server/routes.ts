@@ -6052,6 +6052,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Import template (admin/designer only)
+  app.post("/api/works-order-templates/import", requireAdmin, multer().single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const { categoryId, categoryName, description } = req.body;
+      const userId = (req.user as any).claims.sub;
+
+      // Upload file to object storage
+      const objectPath = await uploadToObjectStorage(
+        req.file.buffer,
+        req.file.originalname,
+        userId,
+        req.file.mimetype
+      );
+
+      // Create template with file metadata
+      const template = await storage.createWorksOrderTemplate({
+        name: categoryName || req.file.originalname.replace(/\.[^/.]+$/, ""), // Use category name or filename
+        categoryId: categoryId || null,
+        description: description || null,
+        objectPath,
+        originalFileName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        fileSize: req.file.size,
+        isActive: true,
+        createdBy: userId,
+      });
+
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        try {
+          const userName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email || 'Unknown';
+          await storage.createActivity({
+            userId: user.id,
+            userName: userName,
+            userEmail: user.email || '',
+            activityType: 'works_order_template_create',
+            fileName: template.originalFileName,
+            filePath: template.objectPath,
+            description: `imported works order template "${template.name}"`,
+            metadata: {
+              templateId: template.id,
+              templateName: template.name,
+            },
+          });
+        } catch (activityError) {
+          console.error('Error logging template import activity:', activityError);
+        }
+      }
+
+      res.status(201).json(template);
+    } catch (error) {
+      console.error('Error importing template:', error);
+      res.status(500).json({ error: "Failed to import template" });
+    }
+  });
+
   // Create template (admin/designer only)
   app.post("/api/works-order-templates", requireAdmin, async (req, res) => {
     try {
