@@ -6648,10 +6648,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Generate unique order number: Serial (timestamp-based) + DDMMYY
-      // Using timestamp ensures uniqueness without race conditions
+      // Generate unique order number: Random 6-digit serial + DDMMYY
+      // Using crypto.randomBytes ensures uniqueness without race conditions
       const now = new Date();
-      const serial = Date.now().toString().slice(-6); // Last 6 digits of timestamp for uniqueness
+      const randomBytes = require('crypto').randomBytes(3);
+      const serial = parseInt(randomBytes.toString('hex'), 16).toString().slice(0, 6).padStart(6, '0');
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const year = String(now.getFullYear()).slice(-2);
