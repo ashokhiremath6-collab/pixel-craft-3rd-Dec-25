@@ -391,6 +391,22 @@ export default function WorksOrdersPage() {
     });
   }, [orders, projectFilter, statusFilter, searchQuery, projectVendors]);
 
+  // Group orders by category
+  const ordersByCategory = useMemo(() => {
+    const grouped = new Map<string, any[]>();
+    
+    filteredOrders.forEach((order: any) => {
+      const category = order.category || 'Uncategorized';
+      if (!grouped.has(category)) {
+        grouped.set(category, []);
+      }
+      grouped.get(category)!.push(order);
+    });
+    
+    // Sort categories alphabetically
+    return Array.from(grouped.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredOrders]);
+
   // Helper functions
   const resetTemplateForm = () => {
     setTemplateFormData({
@@ -722,8 +738,17 @@ export default function WorksOrdersPage() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid gap-4">
-                  {filteredOrders.map((order: any) => {
+                <div className="space-y-8">
+                  {ordersByCategory.map(([category, categoryOrders]) => (
+                    <div key={category}>
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <span>{category}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {categoryOrders.length} {categoryOrders.length === 1 ? 'order' : 'orders'}
+                        </Badge>
+                      </h3>
+                      <div className="grid gap-4">
+                        {categoryOrders.map((order: any) => {
                     const pv = projectVendors.find(v => v.id === order.projectVendorId);
                     const project = projects.find(p => p.id === pv?.projectId);
                     
@@ -736,12 +761,14 @@ export default function WorksOrdersPage() {
                                 <h3 className="font-semibold" data-testid={`text-order-number-${order.id}`}>
                                   {order.orderNumber}
                                 </h3>
-                                <Badge 
-                                  className={STATUS_COLORS[order.status as keyof typeof STATUS_COLORS]}
-                                  data-testid={`badge-status-${order.id}`}
-                                >
-                                  {STATUS_LABELS[order.status as keyof typeof STATUS_LABELS]}
-                                </Badge>
+                                {order.status !== 'draft' && (
+                                  <Badge 
+                                    className={STATUS_COLORS[order.status as keyof typeof STATUS_COLORS]}
+                                    data-testid={`badge-status-${order.id}`}
+                                  >
+                                    {STATUS_LABELS[order.status as keyof typeof STATUS_LABELS]}
+                                  </Badge>
+                                )}
                               </div>
                               
                               <div className="flex items-center gap-2 mb-1">
@@ -844,9 +871,12 @@ export default function WorksOrdersPage() {
                             </div>
                           </div>
                         </CardContent>
-                      </Card>
-                    );
-                  })}
+                          </Card>
+                        );
+                      })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
