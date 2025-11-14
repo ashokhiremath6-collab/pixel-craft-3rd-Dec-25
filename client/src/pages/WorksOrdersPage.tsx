@@ -712,7 +712,7 @@ export default function WorksOrdersPage() {
                 </Card>
               ) : (
                 <div className="grid gap-4">
-                  {filteredOrders.map((order) => {
+                  {filteredOrders.map((order: any) => {
                     const pv = projectVendors.find(v => v.id === order.projectVendorId);
                     const project = projects.find(p => p.id === pv?.projectId);
                     
@@ -733,12 +733,22 @@ export default function WorksOrdersPage() {
                                 </Badge>
                               </div>
                               
-                              <p className="text-sm text-muted-foreground mb-1">
-                                {project?.projectName || 'Unknown Project'}
-                              </p>
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-sm font-medium">
+                                  {order.projectName || project?.projectName || 'Unknown Project'}
+                                </p>
+                                {order.category && (
+                                  <>
+                                    <span className="text-muted-foreground">•</span>
+                                    <Badge variant="outline" className="text-xs">
+                                      {order.category}
+                                    </Badge>
+                                  </>
+                                )}
+                              </div>
                               
                               {order.scope && (
-                                <p className="text-sm mt-2" data-testid={`text-description-${order.id}`}>
+                                <p className="text-sm mt-2 text-muted-foreground" data-testid={`text-description-${order.id}`}>
                                   {order.scope}
                                 </p>
                               )}
