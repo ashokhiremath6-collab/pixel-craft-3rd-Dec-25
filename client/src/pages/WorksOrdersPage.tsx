@@ -471,8 +471,6 @@ export default function WorksOrdersPage() {
     if (order.scope && order.scope.includes('/objects/uploads/')) {
       const match = order.scope.match(/\/objects\/uploads\/[a-f0-9-]+/);
       if (match) {
-        console.log('📂 Opening file:', match[0], 'from order:', order.orderNumber);
-        console.log('📝 Full scope:', order.scope);
         window.open(match[0], '_blank');
         return;
       }
@@ -789,7 +787,7 @@ export default function WorksOrdersPage() {
                               
                               {order.scope && (
                                 <p className="text-sm mt-2 text-muted-foreground" data-testid={`text-description-${order.id}`}>
-                                  {order.scope}
+                                  {order.scope.replace(/\.\s*File path:.*$/, '')}
                                 </p>
                               )}
                               
@@ -812,10 +810,7 @@ export default function WorksOrdersPage() {
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
-                                onClick={() => {
-                                  console.log('🖱️ Eye clicked for order:', order.orderNumber, order.id);
-                                  handleViewOrder(order);
-                                }}
+                                onClick={() => handleViewOrder(order)}
                                 data-testid={`button-view-${order.id}`}
                               >
                                 <Eye className="w-4 h-4" />
