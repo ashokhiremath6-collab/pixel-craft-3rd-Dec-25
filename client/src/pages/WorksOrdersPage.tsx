@@ -176,13 +176,27 @@ export default function WorksOrdersPage() {
     return flatten(vendorCategories);
   }, [vendorCategories]);
 
-  // Create template mutation
-  const createTemplateMutation = useMutation({
+  // Import template mutation
+  const importTemplateMutation = useMutation({
     mutationFn: async (data: typeof templateFormData) => {
-      return apiRequest('POST', "/api/works-order-templates", {
-        ...data,
-        isActive: true,
+      const formData = new FormData();
+      if (data.categoryId) formData.append('categoryId', data.categoryId);
+      if (data.categoryName) formData.append('categoryName', data.categoryName);
+      if (data.description) formData.append('description', data.description);
+      if (data.file) formData.append('file', data.file);
+      
+      const response = await fetch('/api/works-order-templates/import', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Import failed' }));
+        throw new Error(errorData.error || 'Import failed');
+      }
+      
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/works-order-templates"] });
@@ -190,31 +204,7 @@ export default function WorksOrdersPage() {
       resetTemplateForm();
       toast({
         title: "Success",
-        description: "Template created successfully",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Update template mutation
-  const updateTemplateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: typeof templateFormData }) => {
-      return apiRequest('PUT', `/api/works-order-templates/${id}`, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/works-order-templates"] });
-      setTemplateDialogOpen(false);
-      setEditingTemplate(null);
-      resetTemplateForm();
-      toast({
-        title: "Success",
-        description: "Template updated successfully",
+        description: "Template imported successfully",
       });
     },
     onError: (error: Error) => {
@@ -417,11 +407,11 @@ export default function WorksOrdersPage() {
   // Helper functions
   const resetTemplateForm = () => {
     setTemplateFormData({
-      name: "",
+      categoryId: "",
+      categoryName: "",
       description: "",
-      templateContent: "",
+      file: null,
     });
-    setEditingTemplate(null);
   };
 
   const resetOrderForm = () => {
@@ -438,18 +428,8 @@ export default function WorksOrdersPage() {
     setEditingOrder(null);
   };
 
-  const handleCreateTemplate = () => {
+  const handleImportTemplate = () => {
     resetTemplateForm();
-    setTemplateDialogOpen(true);
-  };
-
-  const handleEditTemplate = (template: WorksOrderTemplate) => {
-    setEditingTemplate(template);
-    setTemplateFormData({
-      name: template.name,
-      description: template.description || "",
-      templateContent: template.templateContent,
-    });
     setTemplateDialogOpen(true);
   };
 
@@ -624,16 +604,26 @@ export default function WorksOrdersPage() {
     setItemToDelete(null);
   };
 
+  const handleCategoryChange = (value: string) => {
+    const category = flatCategories.find((cat: any) => cat.id === value);
+    setTemplateFormData({
+      ...templateFormData,
+      categoryId: value,
+      categoryName: category?.name || "",
+    });
+  };
+
   const handleSubmitTemplate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingTemplate) {
-      updateTemplateMutation.mutate({
-        id: editingTemplate.id,
-        data: templateFormData,
+    if (!templateFormData.file) {
+      toast({
+        title: "Error",
+        description: "Please select a file to import",
+        variant: "destructive",
       });
-    } else {
-      createTemplateMutation.mutate(templateFormData);
+      return;
     }
+    importTemplateMutation.mutate(templateFormData);
   };
 
   const handleSubmitOrder = (e: React.FormEvent) => {
@@ -901,9 +891,9 @@ export default function WorksOrdersPage() {
             <div className="p-6 border-b">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Templates</h2>
-                <Button onClick={handleCreateTemplate} data-testid="button-create-template">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Template
+                <Button onClick={handleImportTemplate} data-testid="button-import-template">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Import Template
                 </Button>
               </div>
             </div>
@@ -933,10 +923,6 @@ export default function WorksOrdersPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEditTemplate(template)} data-testid={`menu-edit-template-${template.id}`}>
-                              <Pencil className="w-4 h-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
                             <DropdownMenuItem 
                               onClick={() => handleDeleteClick('template', template.id)}
                               className="text-destructive"
@@ -967,53 +953,68 @@ export default function WorksOrdersPage() {
         </Tabs>
       </div>
 
-      {/* Template Dialog */}
+      {/* Template Import Dialog */}
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
         <DialogContent className="max-w-2xl" data-testid="dialog-template">
           <DialogHeader>
-            <DialogTitle>
-              {editingTemplate ? 'Edit Template' : 'Create Template'}
-            </DialogTitle>
+            <DialogTitle>Import Template</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmitTemplate}>
             <div className="grid gap-4 py-4">
               <div>
-                <Label htmlFor="template-name">Template Name *</Label>
-                <Input
-                  id="template-name"
-                  value={templateFormData.name}
-                  onChange={(e) => setTemplateFormData({ ...templateFormData, name: e.target.value })}
-                  placeholder="e.g., Standard Works Order"
-                  required
-                  data-testid="input-template-name"
-                />
+                <Label htmlFor="template-category">Category</Label>
+                <Select
+                  value={templateFormData.categoryId}
+                  onValueChange={handleCategoryChange}
+                >
+                  <SelectTrigger id="template-category" data-testid="select-template-category">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {flatCategories.map((cat: any) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {'\u00A0'.repeat(cat.level * 4)}{cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
                 <Label htmlFor="template-description">Description</Label>
-                <Input
+                <Textarea
                   id="template-description"
                   value={templateFormData.description}
                   onChange={(e) => setTemplateFormData({ ...templateFormData, description: e.target.value })}
                   placeholder="Brief description of this template"
+                  rows={3}
                   data-testid="input-template-description"
                 />
               </div>
 
               <div>
-                <Label htmlFor="template-content">Template Content *</Label>
-                <Textarea
-                  id="template-content"
-                  value={templateFormData.templateContent}
-                  onChange={(e) => setTemplateFormData({ ...templateFormData, templateContent: e.target.value })}
-                  placeholder="Enter template content with merge fields: {{orderNumber}}, {{projectName}}, {{clientName}}, {{scope}}, {{totalValue}}, {{startDate}}, {{completionDate}}"
-                  rows={12}
+                <Label htmlFor="template-file">Template File *</Label>
+                <Input
+                  id="template-file"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setTemplateFormData({ ...templateFormData, file });
+                  }}
                   required
-                  data-testid="input-template-content"
+                  data-testid="input-template-file"
                 />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Available merge fields: {`{{orderNumber}}, {{projectName}}, {{clientName}}, {{scope}}, {{totalValue}}, {{startDate}}, {{completionDate}}, {{paymentTerms}}`}
-                </p>
+                {templateFormData.file && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Selected: {templateFormData.file.name}
+                  </p>
+                )}
+                {!templateFormData.file && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Supported formats: PDF, Word (.doc, .docx), Excel (.xls, .xlsx)
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1021,8 +1022,9 @@ export default function WorksOrdersPage() {
               <Button type="button" variant="outline" onClick={() => setTemplateDialogOpen(false)} data-testid="button-cancel-template">
                 Cancel
               </Button>
-              <Button type="submit" disabled={createTemplateMutation.isPending || updateTemplateMutation.isPending} data-testid="button-save-template">
-                {editingTemplate ? 'Update' : 'Create'}
+              <Button type="submit" disabled={importTemplateMutation.isPending} data-testid="button-import-template-submit">
+                <Upload className="w-4 h-4 mr-2" />
+                Import Template
               </Button>
             </DialogFooter>
           </form>
