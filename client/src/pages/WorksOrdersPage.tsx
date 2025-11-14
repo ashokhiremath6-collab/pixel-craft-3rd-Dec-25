@@ -650,7 +650,7 @@ export default function WorksOrdersPage() {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="min-h-full">
       {/* Header */}
       <div className="p-6 border-b">
         <div className="flex items-center justify-between">
@@ -662,8 +662,8 @@ export default function WorksOrdersPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+      <div>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <div className="px-6 pt-4">
             <TabsList>
               <TabsTrigger value="orders" data-testid="tab-works-orders">Works Orders</TabsTrigger>
@@ -672,7 +672,7 @@ export default function WorksOrdersPage() {
           </div>
 
           {/* Works Orders Tab */}
-          <TabsContent value="orders" className="flex-1 overflow-hidden flex flex-col mt-0">
+          <TabsContent value="orders" className="mt-0">
             <div className="p-6 border-b">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Works Orders</h2>
@@ -728,7 +728,7 @@ export default function WorksOrdersPage() {
             </div>
 
             {/* Orders List */}
-            <div className="flex-1 overflow-auto p-6">
+            <div className="p-6">
               {ordersLoading ? (
                 <div className="text-center py-8 text-muted-foreground">Loading...</div>
               ) : filteredOrders.length === 0 ? (
@@ -883,7 +883,7 @@ export default function WorksOrdersPage() {
           </TabsContent>
 
           {/* Templates Tab */}
-          <TabsContent value="templates" className="flex-1 overflow-hidden flex flex-col mt-0">
+          <TabsContent value="templates" className="mt-0">
             <div className="p-6 border-b">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Templates</h2>
@@ -895,7 +895,7 @@ export default function WorksOrdersPage() {
             </div>
 
             {/* Templates List */}
-            <div className="flex-1 overflow-auto p-6">
+            <div className="p-6">
               {templatesLoading ? (
                 <div className="text-center py-8 text-muted-foreground">Loading...</div>
               ) : templates.length === 0 ? (
