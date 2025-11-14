@@ -30,7 +30,8 @@ import {
   Copy,
   ExternalLink,
   Upload,
-  Download
+  Download,
+  Eye
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -768,63 +769,69 @@ export default function WorksOrdersPage() {
                               </div>
                             </div>
 
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" data-testid={`button-menu-${order.id}`}>
-                                  <MoreVertical className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleViewOrder(order)} data-testid={`menu-view-${order.id}`}>
-                                  <FileText className="w-4 h-4 mr-2" />
-                                  View Details
-                                </DropdownMenuItem>
-                                
-                                {order.status === 'draft' && (
-                                  <>
-                                    <DropdownMenuItem onClick={() => handleEditOrder(order)} data-testid={`menu-edit-${order.id}`}>
-                                      <Pencil className="w-4 h-4 mr-2" />
-                                      Edit
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => handleViewOrder(order)}
+                                data-testid={`button-view-${order.id}`}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" data-testid={`button-menu-${order.id}`}>
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {order.status === 'draft' && (
+                                    <>
+                                      <DropdownMenuItem onClick={() => handleEditOrder(order)} data-testid={`menu-edit-${order.id}`}>
+                                        <Pencil className="w-4 h-4 mr-2" />
+                                        Edit
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => handleSendOrder(order)} data-testid={`menu-send-${order.id}`}>
+                                        <Send className="w-4 h-4 mr-2" />
+                                        Send to Client
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                  
+                                  {order.status === 'sent' && (
+                                    <>
+                                      <DropdownMenuItem onClick={() => handleCopySigningLink(order)} data-testid={`menu-copy-link-${order.id}`}>
+                                        <Copy className="w-4 h-4 mr-2" />
+                                        Copy Signing Link
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => handleOpenSigningLink(order)} data-testid={`menu-open-link-${order.id}`}>
+                                        <ExternalLink className="w-4 h-4 mr-2" />
+                                        Open Signing Page
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                  
+                                  {order.status !== 'void' && order.status !== 'signed' && (
+                                    <DropdownMenuItem onClick={() => handleVoidOrder(order)} data-testid={`menu-void-${order.id}`}>
+                                      <Ban className="w-4 h-4 mr-2" />
+                                      Void Order
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleSendOrder(order)} data-testid={`menu-send-${order.id}`}>
-                                      <Send className="w-4 h-4 mr-2" />
-                                      Send to Client
+                                  )}
+                                  
+                                  {order.status === 'draft' && (
+                                    <DropdownMenuItem 
+                                      onClick={() => handleDeleteClick('order', order.id)}
+                                      className="text-destructive"
+                                      data-testid={`menu-delete-${order.id}`}
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" />
+                                      Delete
                                     </DropdownMenuItem>
-                                  </>
-                                )}
-                                
-                                {order.status === 'sent' && (
-                                  <>
-                                    <DropdownMenuItem onClick={() => handleCopySigningLink(order)} data-testid={`menu-copy-link-${order.id}`}>
-                                      <Copy className="w-4 h-4 mr-2" />
-                                      Copy Signing Link
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleOpenSigningLink(order)} data-testid={`menu-open-link-${order.id}`}>
-                                      <ExternalLink className="w-4 h-4 mr-2" />
-                                      Open Signing Page
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                                
-                                {order.status !== 'void' && order.status !== 'signed' && (
-                                  <DropdownMenuItem onClick={() => handleVoidOrder(order)} data-testid={`menu-void-${order.id}`}>
-                                    <Ban className="w-4 h-4 mr-2" />
-                                    Void Order
-                                  </DropdownMenuItem>
-                                )}
-                                
-                                {order.status === 'draft' && (
-                                  <DropdownMenuItem 
-                                    onClick={() => handleDeleteClick('order', order.id)}
-                                    className="text-destructive"
-                                    data-testid={`menu-delete-${order.id}`}
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -1185,6 +1192,24 @@ export default function WorksOrdersPage() {
                 <div>
                   <Label className="text-muted-foreground">Scope of Work</Label>
                   <p className="mt-1" data-testid="detail-scope">{selectedOrder.scope}</p>
+                  
+                  {selectedOrder.scope.includes('/objects/uploads/') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => {
+                        const match = selectedOrder.scope.match(/\/objects\/uploads\/[a-f0-9-]+/);
+                        if (match) {
+                          window.open(`/api/files${match[0]}`, '_blank');
+                        }
+                      }}
+                      data-testid="button-download-file"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Imported File
+                    </Button>
+                  )}
                 </div>
               )}
 
