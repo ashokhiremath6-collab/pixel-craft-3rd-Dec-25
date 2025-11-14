@@ -6620,14 +6620,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         projectVendorId = newProjectVendor.id;
       }
 
-      // Generate unique order number: Serial# + DDMMYY
-      const allOrders = await storage.getAllWorksOrders();
-      const serialNumber = allOrders.length + 1;
-      const today = new Date();
-      const day = String(today.getDate()).padStart(2, '0');
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const year = String(today.getFullYear()).slice(-2);
-      const orderNumber = `${serialNumber}${day}${month}${year}`;
+      // Generate unique order number: Serial (timestamp-based) + DDMMYY
+      // Using timestamp ensures uniqueness without race conditions
+      const now = new Date();
+      const serial = Date.now().toString().slice(-6); // Last 6 digits of timestamp for uniqueness
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = String(now.getFullYear()).slice(-2);
+      const orderNumber = `${serial}${day}${month}${year}`;
 
       // Create draft works order
       const sanitizedFileName = req.file.originalname.replace(/\.[^/.]+$/, ""); // Remove extension
