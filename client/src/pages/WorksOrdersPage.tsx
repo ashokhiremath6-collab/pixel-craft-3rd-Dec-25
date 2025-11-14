@@ -590,9 +590,8 @@ export default function WorksOrdersPage() {
       }
 
       const filePath = filePathMatch[1];
-      // Open/download the original imported file
-      const signUrl = `/api/files/sign?path=${encodeURIComponent(filePath)}`;
-      window.open(signUrl, '_blank');
+      // Open/download the original imported file using the authenticated object storage route
+      window.open(filePath, '_blank');
 
       toast({
         title: "Success",
