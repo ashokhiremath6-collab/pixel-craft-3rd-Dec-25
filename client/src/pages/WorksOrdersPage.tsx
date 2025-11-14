@@ -812,7 +812,10 @@ export default function WorksOrdersPage() {
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
-                                onClick={() => handleViewOrder(order)}
+                                onClick={() => {
+                                  console.log('🖱️ Eye clicked for order:', order.orderNumber, order.id);
+                                  handleViewOrder(order);
+                                }}
                                 data-testid={`button-view-${order.id}`}
                               >
                                 <Eye className="w-4 h-4" />
