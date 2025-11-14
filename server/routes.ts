@@ -6377,6 +6377,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Only draft orders can be sent" });
       }
       
+      // Ensure the order has an access token for client signing
+      if (!order.accessToken) {
+        await storage.updateWorksOrder(req.params.id, {
+          accessToken: randomUUID(),
+        });
+      }
+      
       const updatedOrder = await storage.updateWorksOrderStatus(req.params.id, 'sent', {
         sentAt: new Date(),
       });
