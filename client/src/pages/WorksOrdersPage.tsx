@@ -451,6 +451,16 @@ export default function WorksOrdersPage() {
   };
 
   const handleViewOrder = (order: WorksOrder) => {
+    // Extract file path from scope and open it directly
+    if (order.scope && order.scope.includes('/objects/uploads/')) {
+      const match = order.scope.match(/\/objects\/uploads\/[a-f0-9-]+/);
+      if (match) {
+        window.open(match[0], '_blank');
+        return;
+      }
+    }
+    
+    // Fallback: open detail drawer if no file to download
     setSelectedOrder(order);
     setDetailDrawerOpen(true);
   };
@@ -1201,7 +1211,7 @@ export default function WorksOrdersPage() {
                       onClick={() => {
                         const match = selectedOrder.scope.match(/\/objects\/uploads\/[a-f0-9-]+/);
                         if (match) {
-                          window.open(`/api/files${match[0]}`, '_blank');
+                          window.open(match[0], '_blank');
                         }
                       }}
                       data-testid="button-download-file"
