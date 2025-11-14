@@ -6659,7 +6659,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get next serial number from sequence
       const serialResult = await db.execute(sql`SELECT nextval('works_order_serial_seq'::regclass) as serial`);
       const serial = (serialResult.rows[0] as any).serial;
-      const orderNumber = `${serial}${day}${month}${year}`;
+      const orderNumber = `WO-${serial}${day}${month}${year}`;
 
       // Create draft works order
       const sanitizedFileName = req.file.originalname.replace(/\.[^/.]+$/, ""); // Remove extension
