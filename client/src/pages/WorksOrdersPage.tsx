@@ -576,35 +576,32 @@ export default function WorksOrdersPage() {
     }
   };
 
-  const handleExportOrders = async () => {
+  const handleExportOrder = async (order: any) => {
     try {
-      const response = await fetch('/api/works-orders/export', {
-        method: 'GET',
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error('Export failed');
+      // Extract the file path from the scope field
+      const filePathMatch = order.scope?.match(/File path: (.+)$/);
+      if (!filePathMatch) {
+        toast({
+          title: "Error",
+          description: "No file found for this works order",
+          variant: "destructive",
+        });
+        return;
       }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `works-orders-${new Date().toISOString().split('T')[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const filePath = filePathMatch[1];
+      // Open/download the original imported file
+      const signUrl = `/api/files/sign?path=${encodeURIComponent(filePath)}`;
+      window.open(signUrl, '_blank');
 
       toast({
         title: "Success",
-        description: "Works orders exported successfully",
+        description: "Opening works order file",
       });
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to export works orders",
+        description: "Failed to export works order",
         variant: "destructive",
       });
     }
@@ -691,10 +688,6 @@ export default function WorksOrdersPage() {
                   <Button onClick={handleImportOrder} variant="outline" data-testid="button-import-order">
                     <Upload className="w-4 h-4 mr-2" />
                     Import Works Order
-                  </Button>
-                  <Button onClick={handleExportOrders} variant="outline" data-testid="button-export-orders">
-                    <Download className="w-4 h-4 mr-2" />
-                    Export Works Orders
                   </Button>
                 </div>
               </div>
@@ -823,8 +816,19 @@ export default function WorksOrdersPage() {
                                 size="icon" 
                                 onClick={() => handleViewOrder(order)}
                                 data-testid={`button-view-${order.id}`}
+                                title="View details"
                               >
                                 <Eye className="w-4 h-4" />
+                              </Button>
+                              
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => handleExportOrder(order)}
+                                data-testid={`button-export-${order.id}`}
+                                title="Download works order file"
+                              >
+                                <Download className="w-4 h-4" />
                               </Button>
                               
                               <DropdownMenu>
