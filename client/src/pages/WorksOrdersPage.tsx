@@ -90,11 +90,11 @@ export default function WorksOrdersPage() {
   
   // Template state
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<WorksOrderTemplate | null>(null);
   const [templateFormData, setTemplateFormData] = useState({
-    name: "",
+    categoryId: "",
+    categoryName: "",
     description: "",
-    templateContent: "",
+    file: null as File | null,
   });
   
   // Order state

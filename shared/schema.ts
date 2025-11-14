@@ -287,20 +287,24 @@ export const specifications = pgTable("specifications", {
   categoryIdx: index("specifications_category_idx").on(table.category),
 }));
 
-// Works Order Templates table for reusable templates
+// Works Order Templates table for reusable templates (file-based)
 export const worksOrderTemplates = pgTable("works_order_templates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(), // "Standard Works Order", "Residential Project Template", etc.
-  category: text("category"), // Optional category for organization
+  name: text("name").notNull(), // Template name (derived from filename or user-provided)
+  categoryId: varchar("category_id").references(() => vendorCategories.id), // Category for organization
   description: text("description"), // Template description
-  templateContent: text("template_content").notNull(), // HTML/rich-text template with merge fields
-  mergeFields: jsonb("merge_fields"), // Available merge fields: {projectName, clientName, scope, terms, etc.}
-  sourceFilePath: text("source_file_path"), // Optional original template file in object storage
+  objectPath: text("object_path").notNull(), // Path to template file in object storage
+  originalFileName: text("original_file_name").notNull(), // Original uploaded filename
+  mimeType: text("mime_type"), // File MIME type
+  fileSize: integer("file_size"), // File size in bytes
   isActive: boolean("is_active").notNull().default(true),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
-});
+}, (table) => ({
+  // Index for faster filtering by category
+  categoryIdx: index("works_order_templates_category_idx").on(table.categoryId),
+}));
 
 // Works Orders table for tracking client-signed work orders
 export const worksOrders = pgTable("works_orders", {
