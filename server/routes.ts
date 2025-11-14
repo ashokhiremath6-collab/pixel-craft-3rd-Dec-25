@@ -6579,7 +6579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { projectId, categoryId, categoryName } = req.body;
+      const { projectId, categoryId, categoryName, vendorId } = req.body;
 
       if (!projectId || !categoryId || !categoryName) {
         return res.status(400).json({ error: "Project, category ID, and category name are required" });
@@ -6594,30 +6594,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.file.mimetype
       );
 
-      // Find or create a placeholder projectVendor for this category
-      // This links the works order to the project even without a specific vendor
-      // Look for existing placeholder: same projectId, same categoryId, vendorId IS NULL, and quotationType='category-placeholder'
-      const existingPlaceholders = await storage.getProjectVendors(projectId);
-      const existingProjectVendor = existingPlaceholders.find(
-        pv => pv.categoryId === categoryId && pv.vendorId === null && pv.quotationType === 'category-placeholder'
-      );
-      
       let projectVendorId: string;
-      if (existingProjectVendor) {
-        projectVendorId = existingProjectVendor.id;
+      
+      if (vendorId) {
+        // Vendor selected: Find or create projectVendor with this specific vendor
+        const existingProjectVendors = await storage.getProjectVendors(projectId);
+        const existingVendorPV = existingProjectVendors.find(
+          pv => pv.vendorId === vendorId && pv.categoryId === categoryId
+        );
+        
+        if (existingVendorPV) {
+          projectVendorId = existingVendorPV.id;
+        } else {
+          // Get vendor name for display
+          const vendor = await storage.getVendor(vendorId);
+          const vendorName = vendor?.name || 'Unknown Vendor';
+          
+          // Create projectVendor for this vendor
+          const newProjectVendor = await storage.createProjectVendor({
+            projectId,
+            vendorId,
+            categoryId,
+            category: categoryName,
+            quotationName: `${categoryName} - ${vendorName} Works Order`,
+            quotationType: 'quote',
+            quotationFile: objectPath,
+            status: 'Quoted',
+          });
+          projectVendorId = newProjectVendor.id;
+        }
       } else {
-        // Create a placeholder projectVendor for the category
-        const newProjectVendor = await storage.createProjectVendor({
-          projectId,
-          vendorId: null, // No specific vendor
-          categoryId, // Store categoryId for precise lookup
-          category: categoryName, // Store category name for display
-          quotationName: `${categoryName} - Imported Works Order`, // Display name
-          quotationType: 'category-placeholder', // Mark as placeholder
-          quotationFile: objectPath, // Link to uploaded file
-          status: 'Quoted',
-        });
-        projectVendorId = newProjectVendor.id;
+        // No vendor: Find or create a placeholder projectVendor for this category
+        const existingPlaceholders = await storage.getProjectVendors(projectId);
+        const existingProjectVendor = existingPlaceholders.find(
+          pv => pv.categoryId === categoryId && pv.vendorId === null && pv.quotationType === 'category-placeholder'
+        );
+        
+        if (existingProjectVendor) {
+          projectVendorId = existingProjectVendor.id;
+        } else {
+          // Create a placeholder projectVendor for the category
+          const newProjectVendor = await storage.createProjectVendor({
+            projectId,
+            vendorId: null,
+            categoryId,
+            category: categoryName,
+            quotationName: `${categoryName} - Imported Works Order`,
+            quotationType: 'category-placeholder',
+            quotationFile: objectPath,
+            status: 'Quoted',
+          });
+          projectVendorId = newProjectVendor.id;
+        }
       }
 
       // Generate unique order number: Serial (timestamp-based) + DDMMYY

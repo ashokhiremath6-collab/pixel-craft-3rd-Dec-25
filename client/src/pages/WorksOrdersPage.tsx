@@ -130,6 +130,7 @@ export default function WorksOrdersPage() {
     projectId: "",
     categoryId: "",
     categoryName: "",
+    vendorId: "",
     file: null as File | null,
   });
 
@@ -156,6 +157,12 @@ export default function WorksOrdersPage() {
   // Fetch vendor categories for dropdown
   const { data: vendorCategories = [] } = useQuery<any[]>({
     queryKey: ['/api/vendor-categories/tree'],
+  });
+
+  // Fetch vendors for selected category in import dialog
+  const { data: categoryVendors = [] } = useQuery<any[]>({
+    queryKey: ['/api/vendors/category', importFormData.categoryId],
+    enabled: !!importFormData.categoryId,
   });
 
   // Flatten categories for dropdown
@@ -517,6 +524,7 @@ export default function WorksOrdersPage() {
       projectId: "",
       categoryId: "",
       categoryName: "",
+      vendorId: "",
       file: null,
     });
     setImportDialogOpen(true);
@@ -536,6 +544,9 @@ export default function WorksOrdersPage() {
     formData.append('projectId', importFormData.projectId);
     formData.append('categoryId', importFormData.categoryId);
     formData.append('categoryName', importFormData.categoryName);
+    if (importFormData.vendorId) {
+      formData.append('vendorId', importFormData.vendorId);
+    }
     formData.append('file', importFormData.file);
 
     try {
@@ -1351,7 +1362,8 @@ export default function WorksOrdersPage() {
                   setImportFormData(prev => ({
                     ...prev,
                     categoryId: value,
-                    categoryName: selectedCategory?.name || ''
+                    categoryName: selectedCategory?.name || '',
+                    vendorId: '' // Reset vendor when category changes
                   }));
                 }}
               >
@@ -1366,6 +1378,29 @@ export default function WorksOrdersPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="import-vendor">Vendor (Optional)</Label>
+              <Select
+                value={importFormData.vendorId}
+                onValueChange={(value) => setImportFormData(prev => ({ ...prev, vendorId: value }))}
+                disabled={!importFormData.categoryId}
+              >
+                <SelectTrigger id="import-vendor" data-testid="select-import-vendor">
+                  <SelectValue placeholder={importFormData.categoryId ? "Select vendor" : "Select category first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoryVendors.map((vendor) => (
+                    <SelectItem key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground mt-1">
+                Leave empty if no specific vendor
+              </p>
             </div>
 
             <div>
