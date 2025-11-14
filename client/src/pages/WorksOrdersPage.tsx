@@ -471,6 +471,8 @@ export default function WorksOrdersPage() {
     if (order.scope && order.scope.includes('/objects/uploads/')) {
       const match = order.scope.match(/\/objects\/uploads\/[a-f0-9-]+/);
       if (match) {
+        console.log('📂 Opening file:', match[0], 'from order:', order.orderNumber);
+        console.log('📝 Full scope:', order.scope);
         window.open(match[0], '_blank');
         return;
       }
