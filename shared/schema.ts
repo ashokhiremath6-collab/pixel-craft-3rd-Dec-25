@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, decimal, date, boolean, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, decimal, date, boolean, jsonb, index, uniqueIndex, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -309,7 +309,8 @@ export const worksOrders = pgTable("works_orders", {
   quoteFileId: varchar("quote_file_id").references(() => quoteFiles.id), // Optional link to specific quote file
   templateId: varchar("template_id").references(() => worksOrderTemplates.id), // Template used
   templateVersion: text("template_version"), // Snapshot of template at send time
-  orderNumber: text("order_number").notNull(), // Auto-generated order number (e.g., WO-2025-001)
+  serialCounter: integer("serial_counter").notNull(), // Sequential counter for order numbering
+  orderNumber: text("order_number").notNull().unique(), // Auto-generated order number (e.g., 1141125)
   title: text("title").notNull(), // Works order title
   scope: text("scope").notNull(), // Scope of work description
   paymentTerms: text("payment_terms"), // Payment terms and schedule
@@ -508,6 +509,7 @@ export const insertWorksOrderSchema = createInsertSchema(worksOrders).omit({
   updatedAt: true,
 }).extend({
   status: z.enum(["draft", "sent", "signed", "void"]).default("draft"),
+  serialCounter: z.number().int().positive(), // Must be provided from sequence
 });
 
 export const insertWorksOrderSignatureSchema = createInsertSchema(worksOrderSignatures).omit({

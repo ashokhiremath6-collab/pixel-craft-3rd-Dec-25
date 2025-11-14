@@ -3,7 +3,7 @@ import express from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import { pool } from "./db";
+import { pool, db } from "./db";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
@@ -12,6 +12,7 @@ import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
+import { sql } from "drizzle-orm";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL } from "./objectStorage";
@@ -6648,19 +6649,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Generate unique order number: Random 6-digit serial + DDMMYY
-      // Using crypto.randomBytes ensures uniqueness without race conditions
+      // Generate unique order number: Sequential number + DDMMYY
+      // Get next sequence number atomically from PostgreSQL
       const now = new Date();
-      const randomBytes = require('crypto').randomBytes(3);
-      const serial = parseInt(randomBytes.toString('hex'), 16).toString().slice(0, 6).padStart(6, '0');
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const year = String(now.getFullYear()).slice(-2);
+      
+      // Get next serial number from sequence
+      const serialResult = await db.execute(sql`SELECT nextval('works_order_serial_seq'::regclass) as serial`);
+      const serial = (serialResult.rows[0] as any).serial;
       const orderNumber = `${serial}${day}${month}${year}`;
 
       // Create draft works order
       const sanitizedFileName = req.file.originalname.replace(/\.[^/.]+$/, ""); // Remove extension
       const worksOrder = await storage.createWorksOrder({
+        serialCounter: Number(serial), // Store serial for audit trail
         orderNumber,
         title: `${sanitizedFileName} - ${categoryName}`,
         status: 'draft',
