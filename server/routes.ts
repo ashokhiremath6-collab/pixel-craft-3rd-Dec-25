@@ -128,8 +128,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log("📥 OBJECT DOWNLOAD REQUEST:", req.path);
     const userId = (req.user as any).claims.sub;
     console.log("👤 User ID:", userId);
-    const objectStorageService = new ObjectStorageService();
+    
     try {
+      const objectStorageService = new ObjectStorageService();
       console.log("🔍 Getting object entity file...");
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
       console.log("✅ Object file retrieved successfully");
@@ -144,7 +145,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!canAccess) {
         console.log("❌ Access denied - returning 403");
-        return res.sendStatus(403);
+        return res.status(403).send("Access denied: You don't have permission to view this file");
       }
       
       console.log("📤 Starting download...");
@@ -159,10 +160,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       if (error instanceof ObjectNotFoundError) {
         console.log("🔍 Error type: ObjectNotFoundError - returning 404");
-        return res.sendStatus(404);
+        return res.status(404).send("File not found: This file may have been deleted or moved");
+      }
+      // Check for configuration errors
+      if (error instanceof Error && error.message.includes('PRIVATE_OBJECT_DIR')) {
+        console.log("⚙️ Configuration error - returning 503");
+        return res.status(503).send("Service temporarily unavailable: Object storage configuration error");
       }
       console.log("💥 Unknown error type - returning 500");
-      return res.sendStatus(500);
+      return res.status(500).send("Internal server error: Failed to retrieve file");
     }
   });
 

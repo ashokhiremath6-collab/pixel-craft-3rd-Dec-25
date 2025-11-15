@@ -198,7 +198,13 @@ export default function QuoteDetailModal({
                           <Button 
                             size="sm" 
                             variant="outline"
-                            onClick={() => quoteDetails.quote.quotationFile && window.open(quoteDetails.quote.quotationFile, '_blank')}
+                            onClick={() => {
+                              if (quoteDetails.quote.quotationFile) {
+                                // Open file directly - let browser/server handle errors
+                                // Server will return 404 page if file doesn't exist
+                                window.open(quoteDetails.quote.quotationFile, '_blank');
+                              }
+                            }}
                             data-testid="button-view-original-file"
                           >
                             <Eye className="h-4 w-4 mr-2" />
@@ -208,10 +214,16 @@ export default function QuoteDetailModal({
                             size="sm" 
                             variant="outline"
                             onClick={() => {
-                              const link = document.createElement('a');
-                              link.href = quoteDetails.quote.quotationFile!;
-                              link.download = quoteDetails.quote.quotationFile!.split('/').pop() || 'quote.pdf';
-                              link.click();
+                              if (quoteDetails.quote.quotationFile) {
+                                // Attempt download directly via anchor tag
+                                // If file doesn't exist, browser will show download error
+                                const link = document.createElement('a');
+                                link.href = quoteDetails.quote.quotationFile!;
+                                link.download = quoteDetails.quote.quotationFile!.split('/').pop() || 'quote.pdf';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              }
                             }}
                             data-testid="button-download-original-file"
                           >
