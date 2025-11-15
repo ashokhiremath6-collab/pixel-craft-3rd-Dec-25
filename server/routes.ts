@@ -6062,6 +6062,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { categoryId, categoryName, description } = req.body;
       const userId = (req.user as any).claims.sub;
 
+      // Validate category selection is required
+      if (!categoryId) {
+        return res.status(400).json({ error: "Category selection is required" });
+      }
+
+      // Validate file type - only allow specific document types
+      const allowedMimeTypes = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+        'application/msword', // .doc
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/vnd.ms-excel', // .xls
+      ];
+
+      if (!allowedMimeTypes.includes(req.file.mimetype)) {
+        return res.status(400).json({ error: "Invalid file type. Only PDF, Word (.doc, .docx), and Excel (.xls, .xlsx) files are allowed." });
+      }
+
+      // Validate file size - max 50MB
+      const maxFileSize = 50 * 1024 * 1024; // 50MB in bytes
+      if (req.file.size > maxFileSize) {
+        return res.status(400).json({ error: "File size exceeds 50MB limit" });
+      }
+
+      // Get category to validate it exists and get its name
+      const category = await storage.getVendorCategoryById(categoryId);
+      if (!category) {
+        return res.status(400).json({ error: "Invalid category selected" });
+      }
+
       // Upload file to object storage
       const objectPath = await uploadToObjectStorage(
         req.file.buffer,
@@ -6072,8 +6102,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create template with file metadata
       const template = await storage.createWorksOrderTemplate({
-        name: categoryName || req.file.originalname.replace(/\.[^/.]+$/, ""), // Use category name or filename
-        categoryId: categoryId || null,
+        name: categoryName || category.name, // Use provided name or category name
+        categoryId: categoryId,
         description: description || null,
         objectPath,
         originalFileName: req.file.originalname,
@@ -6101,6 +6131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             metadata: {
               templateId: template.id,
               templateName: template.name,
+              categoryName: category.name,
             },
           });
         } catch (activityError) {

@@ -615,6 +615,16 @@ export default function WorksOrdersPage() {
 
   const handleSubmitTemplate = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!templateFormData.categoryId) {
+      toast({
+        title: "Error",
+        description: "Please select a category",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (!templateFormData.file) {
       toast({
         title: "Error",
@@ -623,6 +633,7 @@ export default function WorksOrdersPage() {
       });
       return;
     }
+    
     importTemplateMutation.mutate(templateFormData);
   };
 
@@ -923,6 +934,25 @@ export default function WorksOrdersPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            {template.objectPath ? (
+                              <DropdownMenuItem 
+                                onClick={() => {
+                                  try {
+                                    window.open(template.objectPath, '_blank');
+                                  } catch (error) {
+                                    toast({
+                                      title: "Error",
+                                      description: "Failed to open template file",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                                data-testid={`menu-view-template-${template.id}`}
+                              >
+                                <Eye className="w-4 h-4 mr-2" />
+                                View Template
+                              </DropdownMenuItem>
+                            ) : null}
                             <DropdownMenuItem 
                               onClick={() => handleDeleteClick('template', template.id)}
                               className="text-destructive"
@@ -962,10 +992,11 @@ export default function WorksOrdersPage() {
           <form onSubmit={handleSubmitTemplate}>
             <div className="grid gap-4 py-4">
               <div>
-                <Label htmlFor="template-category">Category</Label>
+                <Label htmlFor="template-category">Category *</Label>
                 <Select
                   value={templateFormData.categoryId}
                   onValueChange={handleCategoryChange}
+                  required
                 >
                   <SelectTrigger id="template-category" data-testid="select-template-category">
                     <SelectValue placeholder="Select category" />
