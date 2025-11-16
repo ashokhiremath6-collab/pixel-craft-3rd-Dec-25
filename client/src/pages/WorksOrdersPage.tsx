@@ -65,8 +65,8 @@ import type {
   ProjectVendor 
 } from "@shared/schema";
 import { format } from "date-fns";
-import { openFile } from "@/lib/fileUtils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FileViewerModal } from "@/components/FileViewerModal";
 
 const STATUS_COLORS = {
   draft: "bg-gray-500",
@@ -88,6 +88,11 @@ export default function WorksOrdersPage() {
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // File viewer state
+  const [fileViewerOpen, setFileViewerOpen] = useState(false);
+  const [fileViewerUrl, setFileViewerUrl] = useState("");
+  const [fileViewerName, setFileViewerName] = useState("");
   
   // Template state
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
@@ -479,7 +484,9 @@ export default function WorksOrdersPage() {
     if (order.scope && order.scope.includes('/objects/uploads/')) {
       const match = order.scope.match(/\/objects\/uploads\/[a-f0-9-]+/);
       if (match) {
-        openFile(match[0], `${order.orderNumber}.pdf`);
+        setFileViewerUrl(match[0]);
+        setFileViewerName(`${order.orderNumber}.pdf`);
+        setFileViewerOpen(true);
         return;
       }
     }
@@ -517,7 +524,9 @@ export default function WorksOrdersPage() {
 
   const handleOpenSigningLink = (order: WorksOrder) => {
     const signUrl = `/sign/${order.accessToken}`;
-    openFile(signUrl);
+    setFileViewerUrl(signUrl);
+    setFileViewerName(`${order.orderNumber} - Signing Page`);
+    setFileViewerOpen(true);
   };
 
   const handleImportOrder = () => {
@@ -591,8 +600,10 @@ export default function WorksOrdersPage() {
       }
 
       const filePath = filePathMatch[1];
-      // Open/download the original imported file using the authenticated object storage route
-      openFile(filePath, `works-order-${Date.now()}.pdf`);
+      // View the original imported file using the authenticated object storage route
+      setFileViewerUrl(filePath);
+      setFileViewerName(`${order.orderNumber}.pdf`);
+      setFileViewerOpen(true);
 
       toast({
         title: "Success",
