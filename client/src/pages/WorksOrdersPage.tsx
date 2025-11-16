@@ -795,10 +795,18 @@ export default function WorksOrdersPage() {
                                 )}
                               </div>
                               
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <p className="text-sm font-medium">
                                   {order.projectName || project?.projectName || 'Unknown Project'}
                                 </p>
+                                {order.vendorName && (
+                                  <>
+                                    <span className="text-muted-foreground">•</span>
+                                    <span className="text-sm text-muted-foreground">
+                                      {order.vendorName}
+                                    </span>
+                                  </>
+                                )}
                                 {order.category && (
                                   <>
                                     <span className="text-muted-foreground">•</span>
