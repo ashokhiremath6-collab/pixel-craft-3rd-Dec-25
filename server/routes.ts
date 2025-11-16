@@ -606,7 +606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "User ID and role are required" });
       }
       
-      if (!['client', 'designer', 'admin'].includes(role)) {
+      if (!['client', 'designer', 'project_manager', 'admin'].includes(role)) {
         return res.status(400).json({ error: "Invalid role" });
       }
       
