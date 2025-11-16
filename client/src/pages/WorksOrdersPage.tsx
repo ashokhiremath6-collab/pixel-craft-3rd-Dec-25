@@ -65,6 +65,7 @@ import type {
   ProjectVendor 
 } from "@shared/schema";
 import { format } from "date-fns";
+import { openFile } from "@/lib/fileUtils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const STATUS_COLORS = {
@@ -478,7 +479,7 @@ export default function WorksOrdersPage() {
     if (order.scope && order.scope.includes('/objects/uploads/')) {
       const match = order.scope.match(/\/objects\/uploads\/[a-f0-9-]+/);
       if (match) {
-        window.open(match[0], '_blank');
+        openFile(match[0], `${order.orderNumber}.pdf`);
         return;
       }
     }
@@ -516,7 +517,7 @@ export default function WorksOrdersPage() {
 
   const handleOpenSigningLink = (order: WorksOrder) => {
     const signUrl = `/sign/${order.accessToken}`;
-    window.open(signUrl, '_blank');
+    openFile(signUrl);
   };
 
   const handleImportOrder = () => {
@@ -591,7 +592,7 @@ export default function WorksOrdersPage() {
 
       const filePath = filePathMatch[1];
       // Open/download the original imported file using the authenticated object storage route
-      window.open(filePath, '_blank');
+      openFile(filePath, `works-order-${Date.now()}.pdf`);
 
       toast({
         title: "Success",
@@ -983,7 +984,7 @@ export default function WorksOrdersPage() {
                                   size="icon"
                                   onClick={() => {
                                     try {
-                                      window.open(template.objectPath, '_blank');
+                                      openFile(template.objectPath, template.originalFileName || 'template');
                                     } catch (error) {
                                       toast({
                                         title: "Error",
@@ -1008,7 +1009,7 @@ export default function WorksOrdersPage() {
                                     <DropdownMenuItem 
                                       onClick={() => {
                                         try {
-                                          window.open(template.objectPath, '_blank');
+                                          openFile(template.objectPath, template.originalFileName || 'template');
                                         } catch (error) {
                                           toast({
                                             title: "Error",
@@ -1351,7 +1352,7 @@ export default function WorksOrdersPage() {
                       onClick={() => {
                         const match = selectedOrder.scope.match(/\/objects\/uploads\/[a-f0-9-]+/);
                         if (match) {
-                          window.open(match[0], '_blank');
+                          openFile(match[0], `${selectedOrder.orderNumber}.pdf`);
                         }
                       }}
                       data-testid="button-download-file"

@@ -17,6 +17,7 @@ import { Loader2, FileText, Calendar, IndianRupee, Package, User, AlertCircle, E
 import { useToast } from "@/hooks/use-toast";
 import type { Boq, ProjectVendor } from "@shared/schema";
 import { formatCurrencyCompact, parseLocalizedNumber } from "@/lib/currencyUtils";
+import { openFile } from "@/lib/fileUtils";
 
 interface QuoteDetailModalProps {
   isOpen: boolean;
@@ -200,9 +201,8 @@ export default function QuoteDetailModal({
                             variant="outline"
                             onClick={() => {
                               if (quoteDetails.quote.quotationFile) {
-                                // Open file directly - let browser/server handle errors
-                                // Server will return 404 page if file doesn't exist
-                                window.open(quoteDetails.quote.quotationFile, '_blank');
+                                // Open file - mobile-friendly (downloads on mobile, opens in new tab on desktop)
+                                openFile(quoteDetails.quote.quotationFile);
                               }
                             }}
                             data-testid="button-view-original-file"
