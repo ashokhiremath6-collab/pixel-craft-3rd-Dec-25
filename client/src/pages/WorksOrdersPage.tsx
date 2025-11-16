@@ -958,11 +958,11 @@ export default function WorksOrdersPage() {
                                 <FileText className="w-5 h-5 text-muted-foreground" />
                                 <div>
                                   <p className="font-medium" data-testid={`text-template-name-${template.id}`}>
-                                    {template.name}
+                                    {template.description || template.name}
                                   </p>
-                                  {template.description && (
-                                    <p className="text-sm text-muted-foreground" data-testid={`text-template-desc-${template.id}`}>
-                                      {template.description}
+                                  {template.originalFileName && (
+                                    <p className="text-sm text-muted-foreground" data-testid={`text-template-filename-${template.id}`}>
+                                      {template.originalFileName}
                                     </p>
                                   )}
                                 </div>
