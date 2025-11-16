@@ -176,6 +176,26 @@ export default function WorksOrdersPage() {
     return flatten(vendorCategories);
   }, [vendorCategories]);
 
+  // Group templates by category
+  const templatesByCategory = useMemo(() => {
+    const grouped = new Map<string, { categoryName: string; templates: WorksOrderTemplate[] }>();
+    
+    templates.forEach((template) => {
+      const category = flatCategories.find((cat) => cat.id === template.categoryId);
+      const categoryName = category?.name || 'Uncategorized';
+      const categoryId = template.categoryId || 'uncategorized';
+      
+      if (!grouped.has(categoryId)) {
+        grouped.set(categoryId, { categoryName, templates: [] });
+      }
+      grouped.get(categoryId)!.templates.push(template);
+    });
+    
+    return Array.from(grouped.entries()).sort((a, b) => 
+      a[1].categoryName.localeCompare(b[1].categoryName)
+    );
+  }, [templates, flatCategories]);
+
   // Import template mutation
   const importTemplateMutation = useMutation({
     mutationFn: async (data: typeof templateFormData) => {
@@ -920,61 +940,96 @@ export default function WorksOrdersPage() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {templates.map((template) => (
-                    <Card key={template.id} className="hover-elevate" data-testid={`card-template-${template.id}`}>
-                      <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
-                        <CardTitle className="text-base" data-testid={`text-template-name-${template.id}`}>
-                          {template.name}
-                        </CardTitle>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" data-testid={`button-template-menu-${template.id}`}>
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {template.objectPath ? (
-                              <DropdownMenuItem 
-                                onClick={() => {
-                                  try {
-                                    window.open(template.objectPath, '_blank');
-                                  } catch (error) {
-                                    toast({
-                                      title: "Error",
-                                      description: "Failed to open template file",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }}
-                                data-testid={`menu-view-template-${template.id}`}
-                              >
-                                <Eye className="w-4 h-4 mr-2" />
-                                View Template
-                              </DropdownMenuItem>
-                            ) : null}
-                            <DropdownMenuItem 
-                              onClick={() => handleDeleteClick('template', template.id)}
-                              className="text-destructive"
-                              data-testid={`menu-delete-template-${template.id}`}
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </CardHeader>
-                      <CardContent>
-                        {template.description && (
-                          <p className="text-sm text-muted-foreground mb-3" data-testid={`text-template-desc-${template.id}`}>
-                            {template.description}
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          {template.isActive ? 'Active' : 'Inactive'}
-                        </p>
-                      </CardContent>
-                    </Card>
+                <div className="space-y-6">
+                  {templatesByCategory.map(([categoryId, { categoryName, templates }]) => (
+                    <div key={categoryId}>
+                      <h3 className="text-lg font-semibold mb-3 text-foreground" data-testid={`heading-category-${categoryId}`}>
+                        {categoryName}
+                      </h3>
+                      <div className="space-y-2">
+                        {templates.map((template) => (
+                          <div 
+                            key={template.id} 
+                            className="flex items-center justify-between p-4 border rounded-md hover-elevate"
+                            data-testid={`row-template-${template.id}`}
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3">
+                                <FileText className="w-5 h-5 text-muted-foreground" />
+                                <div>
+                                  <p className="font-medium" data-testid={`text-template-name-${template.id}`}>
+                                    {template.name}
+                                  </p>
+                                  {template.description && (
+                                    <p className="text-sm text-muted-foreground" data-testid={`text-template-desc-${template.id}`}>
+                                      {template.description}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {template.objectPath && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => {
+                                    try {
+                                      window.open(template.objectPath, '_blank');
+                                    } catch (error) {
+                                      toast({
+                                        title: "Error",
+                                        description: "Failed to open template file",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                  data-testid={`button-view-template-${template.id}`}
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                              )}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" data-testid={`button-template-menu-${template.id}`}>
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {template.objectPath && (
+                                    <DropdownMenuItem 
+                                      onClick={() => {
+                                        try {
+                                          window.open(template.objectPath, '_blank');
+                                        } catch (error) {
+                                          toast({
+                                            title: "Error",
+                                            description: "Failed to open template file",
+                                            variant: "destructive",
+                                          });
+                                        }
+                                      }}
+                                      data-testid={`menu-view-template-${template.id}`}
+                                    >
+                                      <Eye className="w-4 h-4 mr-2" />
+                                      View Template
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem 
+                                    onClick={() => handleDeleteClick('template', template.id)}
+                                    className="text-destructive"
+                                    data-testid={`menu-delete-template-${template.id}`}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
