@@ -6093,7 +6093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get category to validate it exists and get its name
-      const category = await storage.getVendorCategoryById(categoryId);
+      const category = await storage.getVendorCategory(categoryId);
       if (!category) {
         return res.status(400).json({ error: "Invalid category selected" });
       }
