@@ -23,6 +23,18 @@ export const vendors = pgTable("vendors", {
   notes: text("notes"),
 });
 
+// Vendor Contacts table - supports multiple contact persons per vendor
+export const vendorContacts = pgTable("vendor_contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  vendorId: varchar("vendor_id").notNull().references(() => vendors.id, { onDelete: 'cascade' }),
+  contactPerson: text("contact_person").notNull(),
+  phone: text("phone").notNull(),
+  email: text("email"), // Optional - some contacts may not have email
+  role: text("role"), // Optional role (e.g., "Sales Manager", "Project Lead", "Accounts")
+  isPrimary: boolean("is_primary").notNull().default(false), // Mark one contact as primary
+  addedAt: timestamp("added_at").notNull().default(sql`now()`),
+});
+
 // Projects table  
 export const projects = pgTable("projects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -386,6 +398,13 @@ export const insertVendorSchema = createInsertSchema(vendors).omit({
   email: z.string().min(1, "You need to enter an email ID.").email("You need to enter an email ID."),
 });
 
+export const insertVendorContactSchema = createInsertSchema(vendorContacts).omit({
+  id: true,
+  addedAt: true,
+}).extend({
+  email: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
+});
+
 export const insertProjectSchema = createInsertSchema(projects).omit({
   id: true,
 }).extend({
@@ -534,6 +553,9 @@ export type VendorCategory = typeof vendorCategories.$inferSelect;
 
 export type InsertVendor = z.infer<typeof insertVendorSchema>;
 export type Vendor = typeof vendors.$inferSelect;
+
+export type InsertVendorContact = z.infer<typeof insertVendorContactSchema>;
+export type VendorContact = typeof vendorContacts.$inferSelect;
 
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type Project = typeof projects.$inferSelect;
