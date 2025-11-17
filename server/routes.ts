@@ -921,10 +921,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('📥 Received vendor data:', JSON.stringify(req.body, null, 2));
       console.log('📧 Email field - type:', typeof req.body.email, 'value:', JSON.stringify(req.body.email));
       
-      const parsed = insertVendorSchema.parse(req.body);
+      const { additionalContacts, ...vendorData } = req.body;
+      const parsed = insertVendorSchema.parse(vendorData);
       console.log('✅ Validation passed. Email after validation:', parsed.email);
       
       const vendor = await storage.createVendor(parsed);
+      
+      // Create additional contacts if provided
+      if (additionalContacts && Array.isArray(additionalContacts) && additionalContacts.length > 0) {
+        for (const contact of additionalContacts) {
+          if (contact.contactPerson && contact.phone) {
+            await storage.createVendorContact({
+              vendorId: vendor.id,
+              contactPerson: contact.contactPerson,
+              phone: contact.phone,
+              email: contact.email || null,
+              role: contact.role || null,
+              isPrimary: false,
+            });
+          }
+        }
+      }
       
       // Log activity
       const userId = (req.user as any).claims.sub;

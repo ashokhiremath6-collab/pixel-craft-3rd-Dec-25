@@ -64,6 +64,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   const [isContactsDialogOpen, setIsContactsDialogOpen] = useState(false);
   const [selectedVendorForContacts, setSelectedVendorForContacts] = useState<Vendor | null>(null);
   const [editingContact, setEditingContact] = useState<VendorContact | null>(null);
+  const [additionalContacts, setAdditionalContacts] = useState<Array<Omit<ContactFormData, 'isPrimary'>>>([]);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -180,7 +181,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
 
   // Create vendor mutation
   const createVendorMutation = useMutation({
-    mutationFn: async (data: VendorFormData) => {
+    mutationFn: async (data: VendorFormData & { additionalContacts?: Array<Omit<ContactFormData, 'isPrimary'>> }) => {
       // Create the vendor (no project association)
       const vendorResponse = await apiRequest('POST', '/api/vendors', {
         name: data.name,
@@ -189,6 +190,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
         phone: data.phone,
         email: data.email || null,
         notes: data.notes || null,
+        additionalContacts: data.additionalContacts || [],
       });
       
       return await vendorResponse.json();
@@ -205,6 +207,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
         email: "",
         notes: "",
       });
+      setAdditionalContacts([]);
       toast({
         title: "Success",
         description: "Vendor created successfully",
@@ -231,7 +234,21 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       });
       return;
     }
-    createVendorMutation.mutate(data);
+    createVendorMutation.mutate({ ...data, additionalContacts });
+  };
+
+  const handleAddAdditionalContact = () => {
+    setAdditionalContacts([...additionalContacts, { contactPerson: '', phone: '', email: '', role: '' }]);
+  };
+
+  const handleRemoveAdditionalContact = (index: number) => {
+    setAdditionalContacts(additionalContacts.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateAdditionalContact = (index: number, field: keyof Omit<ContactFormData, 'isPrimary'>, value: string) => {
+    const updated = [...additionalContacts];
+    updated[index] = { ...updated[index], [field]: value };
+    setAdditionalContacts(updated);
   };
 
   const handleEditClick = (vendor: Vendor) => {
@@ -725,6 +742,88 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                       </FormItem>
                     )}
                   />
+
+                  {/* Additional Contacts Section */}
+                  <div className="space-y-3 pt-4 border-t">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium">Additional Contacts (Optional)</h4>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAddAdditionalContact}
+                        data-testid="button-add-additional-contact"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Contact
+                      </Button>
+                    </div>
+                    
+                    {additionalContacts.length > 0 && (
+                      <div className="space-y-3">
+                        {additionalContacts.map((contact, index) => (
+                          <Card key={index} className="p-3">
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">Contact {index + 1}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleRemoveAdditionalContact(index)}
+                                  data-testid={`button-remove-contact-${index}`}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="text-sm font-medium">Contact Person *</label>
+                                  <Input
+                                    placeholder="e.g., Jane Smith"
+                                    value={contact.contactPerson}
+                                    onChange={(e) => handleUpdateAdditionalContact(index, 'contactPerson', e.target.value)}
+                                    data-testid={`input-additional-contact-person-${index}`}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Phone *</label>
+                                  <Input
+                                    placeholder="e.g., +91 12345 67890"
+                                    value={contact.phone}
+                                    onChange={(e) => handleUpdateAdditionalContact(index, 'phone', e.target.value)}
+                                    data-testid={`input-additional-phone-${index}`}
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="text-sm font-medium">Email</label>
+                                  <Input
+                                    type="email"
+                                    placeholder="e.g., jane@example.com"
+                                    value={contact.email || ''}
+                                    onChange={(e) => handleUpdateAdditionalContact(index, 'email', e.target.value)}
+                                    data-testid={`input-additional-email-${index}`}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Role</label>
+                                  <Input
+                                    placeholder="e.g., Project Manager"
+                                    value={contact.role || ''}
+                                    onChange={(e) => handleUpdateAdditionalContact(index, 'role', e.target.value)}
+                                    data-testid={`input-additional-role-${index}`}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex justify-end gap-2">
                     <Button
                       type="button"
