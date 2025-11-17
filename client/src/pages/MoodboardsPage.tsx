@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { format } from "date-fns";
 import type { Moodboard, Project } from "@shared/schema";
 
 export default function MoodboardsPage() {
@@ -449,7 +450,7 @@ export default function MoodboardsPage() {
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span>{labels.listMetadataText}</span>
                       <span>•</span>
-                      <span>{new Date(moodboard.uploadedAt).toLocaleDateString()}</span>
+                      <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
                     </div>
                     
                     {moodboard.canvaLink && (

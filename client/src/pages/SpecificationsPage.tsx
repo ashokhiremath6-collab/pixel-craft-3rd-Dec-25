@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
+import { format } from "date-fns";
 import type { Specification, VendorCategory } from "@shared/schema";
 
 export default function SpecificationsPage() {
@@ -304,6 +305,11 @@ export default function SpecificationsPage() {
                                 <h4 className="font-medium text-sm">{spec.title}</h4>
                                 {spec.description && (
                                   <p className="text-xs text-muted-foreground">{spec.description}</p>
+                                )}
+                                {spec.uploadedAt && (
+                                  <p className="text-xs text-muted-foreground" data-testid={`text-upload-time-${spec.id}`}>
+                                    {format(new Date(spec.uploadedAt), 'dd MMM yyyy, HH:mm')}
+                                  </p>
                                 )}
                               </div>
                             </div>

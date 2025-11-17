@@ -415,6 +415,11 @@ export default function MeetingMinutesPage() {
                                 <p><strong>Project:</strong> {getProjectName(mom.projectId)}</p>
                                 <p><strong>Attendees:</strong> {mom.attendees}</p>
                                 {mom.location && <p><strong>Location:</strong> {mom.location}</p>}
+                                {mom.uploadedAt && (
+                                  <p data-testid={`text-upload-time-${mom.id}`}>
+                                    <strong>Uploaded:</strong> {format(new Date(mom.uploadedAt), 'dd MMM yyyy, HH:mm')}
+                                  </p>
+                                )}
                                 {mom.summary && (
                                   <p className="mt-2 text-foreground"><strong>Summary:</strong> {mom.summary}</p>
                                 )}
