@@ -11,6 +11,8 @@ import {
   type InsertVendorCategory,
   type Vendor,
   type InsertVendor,
+  type VendorContact,
+  type InsertVendorContact,
   type Project,
   type InsertProject,
   type ProjectClient,
@@ -61,6 +63,7 @@ import {
   designerAllowlist,
   vendorCategories,
   vendors,
+  vendorContacts,
   projects,
   projectClients,
   projectVendors,
@@ -143,6 +146,13 @@ export interface IStorage {
   createVendor(vendor: InsertVendor): Promise<Vendor>;
   updateVendor(id: string, vendor: Partial<InsertVendor>): Promise<Vendor | undefined>;
   deleteVendor(id: string): Promise<boolean>;
+  
+  // Vendor Contacts
+  getVendorContacts(vendorId: string): Promise<VendorContact[]>;
+  getVendorContact(id: string): Promise<VendorContact | undefined>;
+  createVendorContact(contact: InsertVendorContact): Promise<VendorContact>;
+  updateVendorContact(id: string, contact: Partial<InsertVendorContact>): Promise<VendorContact | undefined>;
+  deleteVendorContact(id: string): Promise<boolean>;
   
   // Projects
   getAllProjects(): Promise<Project[]>;
@@ -1430,6 +1440,34 @@ export class DBStorage implements IStorage {
     }
     
     const result = await db.delete(vendors).where(eq(vendors.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Vendor Contacts
+  async getVendorContacts(vendorId: string): Promise<VendorContact[]> {
+    return await db.select()
+      .from(vendorContacts)
+      .where(eq(vendorContacts.vendorId, vendorId))
+      .orderBy(desc(vendorContacts.isPrimary), vendorContacts.contactPerson);
+  }
+
+  async getVendorContact(id: string): Promise<VendorContact | undefined> {
+    const result = await db.select().from(vendorContacts).where(eq(vendorContacts.id, id));
+    return result[0];
+  }
+
+  async createVendorContact(contact: InsertVendorContact): Promise<VendorContact> {
+    const result = await db.insert(vendorContacts).values(contact).returning();
+    return result[0];
+  }
+
+  async updateVendorContact(id: string, contact: Partial<InsertVendorContact>): Promise<VendorContact | undefined> {
+    const result = await db.update(vendorContacts).set(contact).where(eq(vendorContacts.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteVendorContact(id: string): Promise<boolean> {
+    const result = await db.delete(vendorContacts).where(eq(vendorContacts.id, id));
     return result.rowCount !== null && result.rowCount > 0;
   }
 

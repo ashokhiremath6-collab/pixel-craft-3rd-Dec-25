@@ -20,6 +20,7 @@ import { ObjectPermission } from "./objectAcl";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
+  insertVendorContactSchema,
   insertProjectSchema,
   insertProjectVendorSchema,
   insertQuoteTemplateSchema,
@@ -1039,6 +1040,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: error.message });
       }
       res.status(500).json({ error: "Failed to delete vendor" });
+    }
+  });
+
+  // Vendor Contacts Routes
+  app.get("/api/vendors/:vendorId/contacts", requireAuth, async (req, res) => {
+    try {
+      const contacts = await storage.getVendorContacts(req.params.vendorId);
+      res.json(contacts);
+    } catch (error) {
+      console.error('Error fetching vendor contacts:', error);
+      res.status(500).json({ error: "Failed to fetch vendor contacts" });
+    }
+  });
+
+  app.post("/api/vendors/:vendorId/contacts", requireAdmin, async (req, res) => {
+    try {
+      const parsed = insertVendorContactSchema.parse({
+        ...req.body,
+        vendorId: req.params.vendorId
+      });
+      const contact = await storage.createVendorContact(parsed);
+      res.json(contact);
+    } catch (error) {
+      console.error('Error creating vendor contact:', error);
+      res.status(400).json({ error: "Invalid contact data" });
+    }
+  });
+
+  app.patch("/api/vendors/:vendorId/contacts/:contactId", requireAdmin, async (req, res) => {
+    try {
+      const parsed = insertVendorContactSchema.partial().parse(req.body);
+      const contact = await storage.updateVendorContact(req.params.contactId, parsed);
+      if (!contact) {
+        return res.status(404).json({ error: "Contact not found" });
+      }
+      res.json(contact);
+    } catch (error) {
+      console.error('Error updating vendor contact:', error);
+      res.status(400).json({ error: "Invalid contact data" });
+    }
+  });
+
+  app.delete("/api/vendors/:vendorId/contacts/:contactId", requireAdmin, async (req, res) => {
+    try {
+      const deleted = await storage.deleteVendorContact(req.params.contactId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Contact not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting vendor contact:', error);
+      res.status(500).json({ error: "Failed to delete vendor contact" });
     }
   });
 
