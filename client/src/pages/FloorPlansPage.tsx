@@ -14,6 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { format } from "date-fns";
 import type { Project, FloorPlan } from "@shared/schema";
 
 const uploadFormSchema = z.object({
@@ -566,16 +567,23 @@ export default function FloorPlansPage() {
                           </p>
                         )}
                         
-                        <div className="flex justify-between items-center text-xs text-muted-foreground">
-                          <span data-testid={`text-file-size-${floorPlan.id}`}>
-                            {floorPlan.fileSize ? formatFileSize(floorPlan.fileSize) : 'Unknown size'}
-                          </span>
-                          <Badge 
-                            variant={floorPlan.isActive ? "default" : "secondary"}
-                            data-testid={`badge-status-${floorPlan.id}`}
-                          >
-                            {floorPlan.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center text-xs text-muted-foreground">
+                            <span data-testid={`text-file-size-${floorPlan.id}`}>
+                              {floorPlan.fileSize ? formatFileSize(floorPlan.fileSize) : 'Unknown size'}
+                            </span>
+                            <Badge 
+                              variant={floorPlan.isActive ? "default" : "secondary"}
+                              data-testid={`badge-status-${floorPlan.id}`}
+                            >
+                              {floorPlan.isActive ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </div>
+                          {floorPlan.uploadedAt && (
+                            <p className="text-xs text-muted-foreground" data-testid={`text-upload-time-${floorPlan.id}`}>
+                              {format(new Date(floorPlan.uploadedAt), 'dd MMM yyyy, HH:mm')}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </Card>
