@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
-import { Search, Plus, Filter, ChevronRight, FolderPlus, Edit, Trash2, Phone, Mail, User, Building2 } from "lucide-react";
+import { Search, Plus, Filter, ChevronRight, FolderPlus, Edit, Trash2, Phone, Mail, User, Building2, Users } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { createInsertSchema } from "drizzle-zod";
 import { vendorCategories, insertVendorSchema } from "@shared/schema";
-import type { Vendor, VendorCategory } from "@shared/schema";
+import type { Vendor, VendorCategory, VendorContact, InsertVendorContact } from "@shared/schema";
 
 interface CategoryWithChildren extends VendorCategory {
   children: CategoryWithChildren[];
@@ -33,8 +33,17 @@ const vendorFormSchema = insertVendorSchema.extend({
   categoryId: z.string().min(1, "Category is required"),
 });
 
+const contactFormSchema = z.object({
+  contactPerson: z.string().min(1, "Contact person is required"),
+  phone: z.string().min(1, "Phone is required"),
+  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  role: z.string().optional(),
+  isPrimary: z.boolean().default(false),
+});
+
 type SubcategoryFormData = z.infer<typeof subcategoryFormSchema>;
 type VendorFormData = z.infer<typeof vendorFormSchema>;
+type ContactFormData = z.infer<typeof contactFormSchema>;
 
 interface VendorListProps {
   vendors: Array<Vendor & { projects?: Array<{ projectId: string; projectName: string; clientName: string; status: string }> }>;
@@ -52,6 +61,9 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+  const [isContactsDialogOpen, setIsContactsDialogOpen] = useState(false);
+  const [selectedVendorForContacts, setSelectedVendorForContacts] = useState<Vendor | null>(null);
+  const [editingContact, setEditingContact] = useState<VendorContact | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -92,6 +104,30 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       email: "",
       notes: "",
     },
+  });
+
+  const contactForm = useForm<ContactFormData>({
+    resolver: zodResolver(contactFormSchema),
+    defaultValues: {
+      contactPerson: "",
+      phone: "",
+      email: "",
+      role: "",
+      isPrimary: false,
+    },
+  });
+
+  // Fetch contacts for a specific vendor
+  const { data: vendorContacts = [], refetch: refetchContacts } = useQuery<VendorContact[]>({
+    queryKey: ['/api/vendors', selectedVendorForContacts?.id, 'contacts'],
+    queryFn: async () => {
+      if (!selectedVendorForContacts) return [];
+      const response = await fetch(`/api/vendors/${selectedVendorForContacts.id}/contacts`, {
+        credentials: 'include',
+      });
+      return response.json();
+    },
+    enabled: !!selectedVendorForContacts,
   });
 
   const handleSearch = (value: string) => {
@@ -219,6 +255,107 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
     setIsEditDialogOpen(false);
     setEditingVendor(null);
     editVendorForm.reset();
+  };
+
+  // Contact management mutations
+  const createContactMutation = useMutation({
+    mutationFn: async (data: ContactFormData) => {
+      if (!selectedVendorForContacts) throw new Error("No vendor selected");
+      return apiRequest('POST', `/api/vendors/${selectedVendorForContacts.id}/contacts`, data);
+    },
+    onSuccess: () => {
+      refetchContacts();
+      contactForm.reset();
+      setEditingContact(null);
+      toast({
+        title: "Success",
+        description: "Contact added successfully",
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to create contact:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add contact. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateContactMutation = useMutation({
+    mutationFn: async ({ contactId, data }: { contactId: string; data: Partial<ContactFormData> }) => {
+      if (!selectedVendorForContacts) throw new Error("No vendor selected");
+      return apiRequest('PATCH', `/api/vendors/${selectedVendorForContacts.id}/contacts/${contactId}`, data);
+    },
+    onSuccess: () => {
+      refetchContacts();
+      contactForm.reset();
+      setEditingContact(null);
+      toast({
+        title: "Success",
+        description: "Contact updated successfully",
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to update contact:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update contact. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteContactMutation = useMutation({
+    mutationFn: async (contactId: string) => {
+      if (!selectedVendorForContacts) throw new Error("No vendor selected");
+      return apiRequest('DELETE', `/api/vendors/${selectedVendorForContacts.id}/contacts/${contactId}`);
+    },
+    onSuccess: () => {
+      refetchContacts();
+      toast({
+        title: "Success",
+        description: "Contact deleted successfully",
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to delete contact:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete contact. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleManageContacts = (vendor: Vendor) => {
+    setSelectedVendorForContacts(vendor);
+    setIsContactsDialogOpen(true);
+  };
+
+  const handleSaveContact = (data: ContactFormData) => {
+    if (editingContact) {
+      updateContactMutation.mutate({ contactId: editingContact.id, data });
+    } else {
+      createContactMutation.mutate(data);
+    }
+  };
+
+  const handleEditContact = (contact: VendorContact) => {
+    setEditingContact(contact);
+    contactForm.reset({
+      contactPerson: contact.contactPerson,
+      phone: contact.phone,
+      email: contact.email || "",
+      role: contact.role || "",
+      isPrimary: contact.isPrimary,
+    });
+  };
+
+  const handleDeleteContact = (contactId: string) => {
+    if (confirm('Are you sure you want to delete this contact?')) {
+      deleteContactMutation.mutate(contactId);
+    }
   };
 
   // Helper function to build category tree structure
@@ -929,6 +1066,15 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                           <Button 
                             size="icon" 
                             variant="ghost" 
+                            onClick={() => handleManageContacts(vendor)}
+                            data-testid="button-manage-contacts"
+                            title="Manage Contacts"
+                          >
+                            <Users className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
                             onClick={() => handleEditClick(vendor)}
                             data-testid="button-edit-vendor"
                           >
@@ -972,6 +1118,197 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
           </CardContent>
         </Card>
       )}
+
+      {/* Contacts Management Dialog */}
+      <Dialog open={isContactsDialogOpen} onOpenChange={(open) => {
+        setIsContactsDialogOpen(open);
+        if (!open) {
+          setSelectedVendorForContacts(null);
+          setEditingContact(null);
+          contactForm.reset();
+        }
+      }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Manage Contacts - {selectedVendorForContacts?.name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {/* Contact Form */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  {editingContact ? 'Edit Contact' : 'Add New Contact'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Form {...contactForm}>
+                  <form onSubmit={contactForm.handleSubmit(handleSaveContact)} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={contactForm.control}
+                        name="contactPerson"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Contact Person *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g., John Doe" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={contactForm.control}
+                        name="phone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Phone *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g., +91 98765 43210" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={contactForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input type="email" placeholder="e.g., john@example.com" {...field} value={field.value || ""} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={contactForm.control}
+                        name="role"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Role</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g., Sales Manager" {...field} value={field.value || ""} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <FormField
+                      control={contactForm.control}
+                      name="isPrimary"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center gap-2">
+                          <FormControl>
+                            <input 
+                              type="checkbox" 
+                              checked={field.value} 
+                              onChange={field.onChange}
+                              className="h-4 w-4"
+                            />
+                          </FormControl>
+                          <FormLabel className="!mt-0">Mark as Primary Contact</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <div className="flex justify-end gap-2">
+                      {editingContact && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingContact(null);
+                            contactForm.reset();
+                          }}
+                        >
+                          Cancel Edit
+                        </Button>
+                      )}
+                      <Button type="submit">
+                        {editingContact ? 'Update Contact' : 'Add Contact'}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+
+            {/* Contacts List */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Existing Contacts ({vendorContacts.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {vendorContacts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No additional contacts yet. Add one above.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {vendorContacts.map((contact) => (
+                      <div
+                        key={contact.id}
+                        className="flex items-center justify-between p-3 border rounded-md hover-elevate"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{contact.contactPerson}</span>
+                            {contact.isPrimary && (
+                              <Badge variant="default" className="text-xs">Primary</Badge>
+                            )}
+                            {contact.role && (
+                              <Badge variant="secondary" className="text-xs">{contact.role}</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                            <div className="flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              {contact.phone}
+                            </div>
+                            {contact.email && (
+                              <div className="flex items-center gap-1">
+                                <Mail className="h-3 w-3" />
+                                {contact.email}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleEditContact(contact)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleDeleteContact(contact.id)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
