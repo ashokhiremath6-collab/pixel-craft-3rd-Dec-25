@@ -25,6 +25,14 @@ interface CategoryWithChildren extends VendorCategory {
 }
 
 const baseInsertSchema = createInsertSchema(vendorCategories);
+
+// Main category schema (no parent required)
+const mainCategoryFormSchema = baseInsertSchema.extend({
+  name: z.string().min(1, "Category name is required"),
+  description: z.string().optional(),
+}).omit({ id: true, parentId: true });
+
+// Subcategory schema (parent required)
 const subcategoryFormSchema = baseInsertSchema.extend({
   parentId: z.string().min(1, "Parent category is required"),
 }).omit({ id: true });
@@ -41,6 +49,7 @@ const contactFormSchema = z.object({
   isPrimary: z.boolean().default(false),
 });
 
+type MainCategoryFormData = z.infer<typeof mainCategoryFormSchema>;
 type SubcategoryFormData = z.infer<typeof subcategoryFormSchema>;
 type VendorFormData = z.infer<typeof vendorFormSchema>;
 type ContactFormData = z.infer<typeof contactFormSchema>;
@@ -57,6 +66,7 @@ interface VendorListProps {
 export default function VendorList({ vendors, categories, onAddVendor, onEditVendor, onUpdateVendor, onDeleteVendor }: VendorListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [isMainCategoryDialogOpen, setIsMainCategoryDialogOpen] = useState(false);
   const [isSubcategoryDialogOpen, setIsSubcategoryDialogOpen] = useState(false);
   const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -68,6 +78,14 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  const mainCategoryForm = useForm<MainCategoryFormData>({
+    resolver: zodResolver(mainCategoryFormSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+    },
+  });
   
   const subcategoryForm = useForm<SubcategoryFormData>({
     resolver: zodResolver(subcategoryFormSchema),
@@ -144,6 +162,39 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   const handleAddVendor = () => {
     console.log('Add vendor clicked');
     setIsVendorDialogOpen(true);
+  };
+
+  // Create main category mutation
+  const createMainCategoryMutation = useMutation({
+    mutationFn: async (data: MainCategoryFormData) => {
+      return apiRequest('POST', '/api/vendor-categories', {
+        name: data.name,
+        description: data.description || null,
+        parentId: null, // No parent for main categories
+        isActive: true,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/vendor-categories/tree'] });
+      setIsMainCategoryDialogOpen(false);
+      mainCategoryForm.reset();
+      toast({
+        title: "Success",
+        description: "Main category created successfully",
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to create main category:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create main category. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCreateMainCategory = (data: MainCategoryFormData) => {
+    createMainCategoryMutation.mutate(data);
   };
 
   // Create subcategory mutation
@@ -513,6 +564,76 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
           </p>
         </div>
         <div className="flex gap-2">
+          <Dialog open={isMainCategoryDialogOpen} onOpenChange={setIsMainCategoryDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" data-testid="button-add-main-category">
+                <FolderPlus className="h-4 w-4 mr-2" />
+                Add Main Category
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create New Main Category</DialogTitle>
+              </DialogHeader>
+              <Form {...mainCategoryForm}>
+                <form onSubmit={mainCategoryForm.handleSubmit(handleCreateMainCategory)} className="space-y-4">
+                  <FormField
+                    control={mainCategoryForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Category Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., Project Manager"
+                            data-testid="input-main-category-name"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={mainCategoryForm.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description (Optional)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Brief description of the category"
+                            data-testid="textarea-main-category-description"
+                            {...field}
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsMainCategoryDialogOpen(false)}
+                      data-testid="button-cancel-main-category"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={createMainCategoryMutation.isPending}
+                      data-testid="button-submit-main-category"
+                    >
+                      {createMainCategoryMutation.isPending ? "Creating..." : "Create Main Category"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+          
           <Dialog open={isSubcategoryDialogOpen} onOpenChange={setIsSubcategoryDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" data-testid="button-add-subcategory">
