@@ -3738,8 +3738,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.createActivity({
           userId: user.id,
           userName: userName,
+          userEmail: user.email || '',
           activityType: 'floor_plan_upload' as any,
           fileName: req.file.originalname,
+          description: `uploaded floor plan: ${name}`,
           projectId: projectId,
           metadata: { floorPlanId: floorPlan.id, version: floorPlan.version }
         });
@@ -3958,8 +3960,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.createActivity({
             userId: user.id,
             userName: userName,
+            userEmail: user.email || '',
             activityType: (assetType === 'render' ? 'render_upload' : assetType === 'working_drawing' ? 'working_drawing_upload' : 'moodboard_upload') as any,
             fileName: req.file.originalname,
+            description: `uploaded ${assetType === 'render' ? 'render' : assetType === 'working_drawing' ? 'working drawing' : 'moodboard'}: ${req.file.originalname}`,
             projectId: validatedProjectId,
             metadata: { moodboardId: moodboard.id, assetType: moodboard.assetType }
           });
