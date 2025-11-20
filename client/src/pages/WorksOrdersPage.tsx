@@ -1373,26 +1373,15 @@ export default function WorksOrdersPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => window.open(file.filePath, '_blank')}
-                            data-testid={`button-view-file-${index}`}
-                            title="Open in new tab"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => window.open(`/api/download${file.filePath}`, '_blank')}
-                            data-testid={`button-download-file-${index}`}
-                            title="Download file"
-                          >
-                            <Download className="w-4 h-4" />
-                          </Button>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => window.open(file.filePath, '_blank')}
+                          data-testid={`button-view-file-${index}`}
+                          title="Open in new tab"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </Button>
                       </div>
                     ))}
                   </div>
