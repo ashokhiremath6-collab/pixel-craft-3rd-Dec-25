@@ -162,6 +162,13 @@ export default function MoodboardsPage() {
     },
   });
 
+  // Helper function to get project name
+  const getProjectName = (projectId: string | null) => {
+    if (!projectId) return "General";
+    const project = projects.find(p => p.id === projectId);
+    return project ? project.projectName : "Unknown Project";
+  };
+
   // Group moodboards by project
   const groupedMoodboards = useMemo(() => {
     const groups: Record<string, { projectName: string; items: Moodboard[] }> = {};
@@ -378,13 +385,6 @@ export default function MoodboardsPage() {
   // Delete moodboard
   const deleteMoodboard = (id: string) => {
     deleteMutation.mutate(id);
-  };
-
-  // Get project name for display
-  const getProjectName = (projectId: string | null) => {
-    if (!projectId) return "General";
-    const project = projects.find(p => p.id === projectId);
-    return project ? project.projectName : "Unknown Project";
   };
 
   // Create preview/download URL for display
