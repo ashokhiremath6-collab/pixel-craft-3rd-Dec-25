@@ -162,6 +162,26 @@ export default function MoodboardsPage() {
     },
   });
 
+  // Group moodboards by project
+  const groupedMoodboards = useMemo(() => {
+    const groups: Record<string, { projectName: string; items: Moodboard[] }> = {};
+    
+    moodboards.forEach((moodboard: Moodboard) => {
+      const projectId = moodboard.projectId || 'general';
+      const projectName = getProjectName(moodboard.projectId);
+      
+      if (!groups[projectId]) {
+        groups[projectId] = {
+          projectName,
+          items: [],
+        };
+      }
+      groups[projectId].items.push(moodboard);
+    });
+    
+    return groups;
+  }, [moodboards, projects]);
+
   // Upload moodboard mutation
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
@@ -434,82 +454,86 @@ export default function MoodboardsPage() {
         </Card>
       )}
 
-      {/* Uploaded Moodboards */}
+      {/* Uploaded Moodboards - Grouped by Project */}
       {!isLoading && moodboards.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{labels.title} ({moodboards.length})</CardTitle>
-            <CardDescription>
-              Manage your uploaded collection
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {moodboards.map((moodboard: Moodboard) => (
-                <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate">
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-bold truncate" title={getProjectName(moodboard.projectId)}>
-                      {getProjectName(moodboard.projectId)}
-                    </h3>
-                    {moodboard.description && (
-                      <p className="text-sm text-foreground/80 truncate mb-1" title={moodboard.description}>
-                        {moodboard.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span>{moodboard.fileName || labels.listMetadataText}</span>
-                      <span>•</span>
-                      <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+        <div className="space-y-6">
+          {Object.entries(groupedMoodboards).map(([projectId, group]) => (
+            <Card key={projectId}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FolderOpen className="h-5 w-5 text-primary" />
+                  {group.projectName}
+                  <Badge variant="secondary" className="ml-auto">
+                    {group.items.length}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {group.items.map((moodboard: Moodboard) => (
+                    <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate" data-testid={`drawing-item-${moodboard.id}`}>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        {moodboard.description && (
+                          <h4 className="font-semibold text-base truncate mb-1" title={moodboard.description}>
+                            {moodboard.description}
+                          </h4>
+                        )}
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <span>{moodboard.fileName || labels.listMetadataText}</span>
+                          <span>•</span>
+                          <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+                        </div>
+                        
+                        {moodboard.canvaLink && (
+                          <a
+                            href={moodboard.canvaLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
+                            data-testid={`link-canva-${moodboard.id}`}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            <span>{labels.viewLinkText}</span>
+                          </a>
+                        )}
+                      </div>
+                      
+                      {/* Actions */}
+                      <div className="flex items-center gap-2">
+                        {getPreviewUrl(moodboard) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => window.open(getPreviewUrl(moodboard)!, '_blank')}
+                            data-testid={`button-view-${moodboard.id}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-600 hover:text-red-700"
+                          onClick={() => deleteMoodboard(moodboard.id)}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-${moodboard.id}`}
+                        >
+                          {deleteMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
-                    
-                    {moodboard.canvaLink && (
-                      <a
-                        href={moodboard.canvaLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
-                        data-testid={`link-canva-${moodboard.id}`}
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        <span>{labels.viewLinkText}</span>
-                      </a>
-                    )}
-                  </div>
-                  
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
-                    {getPreviewUrl(moodboard) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => window.open(getPreviewUrl(moodboard)!, '_blank')}
-                        data-testid={`button-view-${moodboard.id}`}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-600 hover:text-red-700"
-                      onClick={() => deleteMoodboard(moodboard.id)}
-                      disabled={deleteMutation.isPending}
-                      data-testid={`button-delete-${moodboard.id}`}
-                    >
-                      {deleteMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
       
       {!isLoading && moodboards.length === 0 && (
