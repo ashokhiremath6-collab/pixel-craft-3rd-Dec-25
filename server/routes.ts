@@ -6796,109 +6796,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Import works order
-  app.post("/api/works-orders/import", requireAdmin, multer().single('file'), async (req, res) => {
+  app.post("/api/works-orders/import", requireAdmin, multer().array('files'), async (req, res) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "No files uploaded" });
       }
 
       const { projectId, categoryId, categoryName, vendorId } = req.body;
 
-      if (!projectId || !categoryId || !categoryName) {
-        return res.status(400).json({ error: "Project, category ID, and category name are required" });
+      if (!projectId || !categoryId || !categoryName || !vendorId) {
+        return res.status(400).json({ error: "Project, category, and vendor are required" });
       }
 
-      // Upload file to object storage
       const userId = (req.user as any).claims.sub;
-      const objectPath = await uploadToObjectStorage(
-        req.file.buffer,
-        req.file.originalname,
-        userId,
-        req.file.mimetype
-      );
 
+      // Get or create projectVendor for this vendor
       let projectVendorId: string;
+      const existingProjectVendors = await storage.getProjectVendors(projectId);
+      const existingVendorPV = existingProjectVendors.find(
+        pv => pv.vendorId === vendorId && pv.categoryId === categoryId
+      );
       
-      if (vendorId) {
-        // Vendor selected: Find or create projectVendor with this specific vendor
-        const existingProjectVendors = await storage.getProjectVendors(projectId);
-        const existingVendorPV = existingProjectVendors.find(
-          pv => pv.vendorId === vendorId && pv.categoryId === categoryId
-        );
-        
-        if (existingVendorPV) {
-          projectVendorId = existingVendorPV.id;
-        } else {
-          // Get vendor name for display
-          const vendor = await storage.getVendor(vendorId);
-          const vendorName = vendor?.name || 'Unknown Vendor';
-          
-          // Create projectVendor for this vendor
-          const newProjectVendor = await storage.createProjectVendor({
-            projectId,
-            vendorId,
-            categoryId,
-            category: categoryName,
-            quotationName: `${categoryName} - ${vendorName} Works Order`,
-            quotationType: 'quote',
-            quotationFile: objectPath,
-            status: 'Quoted',
-          });
-          projectVendorId = newProjectVendor.id;
-        }
+      if (existingVendorPV) {
+        projectVendorId = existingVendorPV.id;
       } else {
-        // No vendor: Find or create a placeholder projectVendor for this category
-        const existingPlaceholders = await storage.getProjectVendors(projectId);
-        const existingProjectVendor = existingPlaceholders.find(
-          pv => pv.categoryId === categoryId && pv.vendorId === null && pv.quotationType === 'category-placeholder'
-        );
+        // Get vendor name for display
+        const vendor = await storage.getVendor(vendorId);
+        const vendorName = vendor?.name || 'Unknown Vendor';
         
-        if (existingProjectVendor) {
-          projectVendorId = existingProjectVendor.id;
-        } else {
-          // Create a placeholder projectVendor for the category
-          const newProjectVendor = await storage.createProjectVendor({
-            projectId,
-            vendorId: null,
-            categoryId,
-            category: categoryName,
-            quotationName: `${categoryName} - Imported Works Order`,
-            quotationType: 'category-placeholder',
-            quotationFile: objectPath,
-            status: 'Quoted',
-          });
-          projectVendorId = newProjectVendor.id;
-        }
+        // Create projectVendor for this vendor
+        const newProjectVendor = await storage.createProjectVendor({
+          projectId,
+          vendorId,
+          categoryId,
+          category: categoryName,
+          quotationName: `${categoryName} - ${vendorName} Works Order`,
+          quotationType: 'quote',
+          quotationFile: null,
+          status: 'Quoted',
+        });
+        projectVendorId = newProjectVendor.id;
       }
 
-      // Generate unique order number: Sequential number + DDMMYY
-      // Get next sequence number atomically from PostgreSQL
+      // Generate unique order number
       const now = new Date();
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const year = String(now.getFullYear()).slice(-2);
       
-      // Get next serial number from sequence
       const serialResult = await db.execute(sql`SELECT nextval('works_order_serial_seq'::regclass) as serial`);
       const serial = (serialResult.rows[0] as any).serial;
       const orderNumber = `WO-${serial}${day}${month}${year}`;
 
-      // Create draft works order
-      const sanitizedFileName = req.file.originalname.replace(/\.[^/.]+$/, ""); // Remove extension
+      // Create draft works order with file count info
+      const firstFile = files[0];
+      const sanitizedFileName = firstFile.originalname.replace(/\.[^/.]+$/, "");
       const worksOrder = await storage.createWorksOrder({
-        serialCounter: Number(serial), // Store serial for audit trail
+        serialCounter: Number(serial),
         orderNumber,
         title: `${sanitizedFileName} - ${categoryName}`,
         status: 'draft',
         templateId: null,
-        projectVendorId, // Link to project through projectVendor
-        scope: `Imported from ${req.file.originalname}. File path: ${objectPath}`,
+        projectVendorId,
+        scope: `Imported works order with ${files.length} file(s)`,
         totalValue: null,
         startDate: null,
         completionDate: null,
         paymentTerms: null,
         createdBy: userId,
       });
+
+      // Upload all files and create file records
+      const uploadedFiles = [];
+      for (const file of files) {
+        const objectPath = await uploadToObjectStorage(
+          file.buffer,
+          file.originalname,
+          userId,
+          file.mimetype
+        );
+
+        // Create works order file record
+        const fileExtension = file.originalname.split('.').pop() || 'unknown';
+        await db.insert(worksOrderFiles).values({
+          worksOrderId: worksOrder.id,
+          fileName: file.originalname,
+          filePath: objectPath,
+          fileType: fileExtension,
+          fileSize: file.size.toString(),
+          uploadedBy: userId,
+        });
+
+        uploadedFiles.push({
+          name: file.originalname,
+          path: objectPath,
+          size: file.size,
+        });
+      }
 
       // Log activity
       try {
@@ -6907,9 +6902,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userName: (req.user as any).claims.name || 'Unknown',
           userEmail: (req.user as any).claims.email || '',
           activityType: 'works_order_create',
-          fileName: req.file.originalname,
-          filePath: objectPath,
-          description: `created works order ${worksOrder.orderNumber} from imported file`,
+          fileName: `${files.length} file(s)`,
+          filePath: uploadedFiles[0]?.path || '',
+          description: `created works order ${worksOrder.orderNumber} with ${files.length} file(s)`,
           metadata: {
             worksOrderId: worksOrder.id,
             orderNumber: worksOrder.orderNumber,
@@ -6917,6 +6912,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             categoryName,
             projectId,
             imported: true,
+            fileCount: files.length,
           },
         });
       } catch (activityError) {
@@ -6925,8 +6921,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json({ 
         success: true,
-        message: "Works order created successfully from import",
-        worksOrder
+        message: `Works order created successfully with ${files.length} file(s)`,
+        worksOrder,
+        files: uploadedFiles
       });
     } catch (error) {
       console.error('Error importing works order:', error);

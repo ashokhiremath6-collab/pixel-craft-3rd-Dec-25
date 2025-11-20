@@ -386,6 +386,20 @@ export const worksOrderItems = pgTable("works_order_items", {
   worksOrderSortIdx: index("works_order_items_order_sort_idx").on(table.worksOrderId, table.sortOrder),
 }));
 
+// Works Order Files table for storing multiple file attachments per works order
+export const worksOrderFiles = pgTable("works_order_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worksOrderId: varchar("works_order_id").notNull().references(() => worksOrders.id, { onDelete: 'cascade' }),
+  fileName: text("file_name").notNull(),
+  filePath: text("file_path").notNull(), // path in object storage
+  fileType: text("file_type").notNull(), // pdf, xlsx, doc, etc.
+  fileSize: decimal("file_size"), // in bytes
+  uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
+  uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+}, (table) => ({
+  worksOrderIdx: index("works_order_files_works_order_idx").on(table.worksOrderId),
+}));
+
 // Insert schemas
 export const insertVendorCategorySchema = createInsertSchema(vendorCategories).omit({
   id: true,
@@ -547,6 +561,11 @@ export const insertWorksOrderItemSchema = createInsertSchema(worksOrderItems).om
   id: true,
 });
 
+export const insertWorksOrderFileSchema = createInsertSchema(worksOrderFiles).omit({
+  id: true,
+  uploadedAt: true,
+});
+
 // Types
 export type InsertVendorCategory = z.infer<typeof insertVendorCategorySchema>;
 export type VendorCategory = typeof vendorCategories.$inferSelect;
@@ -622,6 +641,9 @@ export type WorksOrderSignature = typeof worksOrderSignatures.$inferSelect;
 
 export type InsertWorksOrderItem = z.infer<typeof insertWorksOrderItemSchema>;
 export type WorksOrderItem = typeof worksOrderItems.$inferSelect;
+
+export type InsertWorksOrderFile = z.infer<typeof insertWorksOrderFileSchema>;
+export type WorksOrderFile = typeof worksOrderFiles.$inferSelect;
 
 // Meeting Minutes table
 export const meetingMinutes = pgTable("meeting_minutes", {
