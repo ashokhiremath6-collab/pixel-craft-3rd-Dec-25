@@ -31,7 +31,8 @@ import {
   ExternalLink,
   Upload,
   Download,
-  Eye
+  Eye,
+  X
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -1526,31 +1527,56 @@ export default function WorksOrdersPage() {
 
             <div>
               <Label htmlFor="import-file">Upload Files <span className="text-red-500">*</span></Label>
-              <Input
-                id="import-file"
-                type="file"
-                accept="*/*"
-                multiple
-                onChange={(e) => {
-                  const filesArray = Array.from(e.target.files || []);
-                  setImportFormData(prev => ({ ...prev, files: filesArray }));
-                }}
-                data-testid="input-import-file"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="import-file"
+                  type="file"
+                  accept="*/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setImportFormData(prev => ({ 
+                        ...prev, 
+                        files: [...prev.files, file]
+                      }));
+                      e.target.value = ''; // Clear input for next file
+                    }
+                  }}
+                  data-testid="input-import-file"
+                  className="flex-1"
+                />
+              </div>
               {importFormData.files.length > 0 && (
                 <div className="mt-2 space-y-1">
-                  <p className="text-sm font-medium">Selected files ({importFormData.files.length}):</p>
+                  <p className="text-sm font-medium">Added files ({importFormData.files.length}):</p>
                   {importFormData.files.map((file, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <FileText className="w-3 h-3" />
-                      <span>{file.name}</span>
-                      <span className="text-xs">({(file.size / 1024).toFixed(1)} KB)</span>
+                    <div key={index} className="flex items-center justify-between gap-2 text-sm bg-muted/50 p-2 rounded">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <FileText className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{file.name}</span>
+                        <span className="text-xs text-muted-foreground flex-shrink-0">({(file.size / 1024).toFixed(1)} KB)</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 flex-shrink-0"
+                        onClick={() => {
+                          setImportFormData(prev => ({
+                            ...prev,
+                            files: prev.files.filter((_, i) => i !== index)
+                          }));
+                        }}
+                        data-testid={`button-remove-file-${index}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
                     </div>
                   ))}
                 </div>
               )}
               <p className="text-sm text-muted-foreground mt-1">
-                Select multiple files to upload together
+                Choose files one at a time to add them to the upload list
               </p>
             </div>
           </div>
