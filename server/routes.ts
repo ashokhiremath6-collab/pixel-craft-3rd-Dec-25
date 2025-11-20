@@ -39,7 +39,8 @@ import {
   insertCatalogueItemSchema,
   insertWorksOrderTemplateSchema,
   insertWorksOrderSchema,
-  insertWorksOrderSignatureSchema
+  insertWorksOrderSignatureSchema,
+  worksOrderFiles
 } from "@shared/schema";
 import { z } from "zod";
 
