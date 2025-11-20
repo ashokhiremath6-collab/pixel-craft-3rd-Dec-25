@@ -165,10 +165,9 @@ export default function WorksOrdersPage() {
     queryKey: ['/api/vendor-categories/tree'],
   });
 
-  // Fetch vendors for selected category in import dialog
-  const { data: categoryVendors = [] } = useQuery<any[]>({
-    queryKey: [`/api/vendors/category/${importFormData.categoryId}`],
-    enabled: !!importFormData.categoryId,
+  // Fetch all vendors for import dialog
+  const { data: allVendors = [] } = useQuery<any[]>({
+    queryKey: ['/api/vendors'],
   });
 
   // Flatten categories for dropdown
@@ -1486,8 +1485,7 @@ export default function WorksOrdersPage() {
                   setImportFormData(prev => ({
                     ...prev,
                     categoryId: value,
-                    categoryName: selectedCategory?.name || '',
-                    vendorId: '' // Reset vendor when category changes
+                    categoryName: selectedCategory?.name || ''
                   }));
                 }}
               >
@@ -1509,13 +1507,12 @@ export default function WorksOrdersPage() {
               <Select
                 value={importFormData.vendorId}
                 onValueChange={(value) => setImportFormData(prev => ({ ...prev, vendorId: value }))}
-                disabled={!importFormData.categoryId}
               >
                 <SelectTrigger id="import-vendor" data-testid="select-import-vendor">
-                  <SelectValue placeholder={importFormData.categoryId ? "Select vendor" : "Select category first"} />
+                  <SelectValue placeholder="Select vendor" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categoryVendors.map((vendor) => (
+                  {allVendors.map((vendor) => (
                     <SelectItem key={vendor.id} value={vendor.id}>
                       {vendor.name}
                     </SelectItem>
