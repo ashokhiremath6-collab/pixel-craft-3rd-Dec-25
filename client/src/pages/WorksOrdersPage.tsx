@@ -137,7 +137,7 @@ export default function WorksOrdersPage() {
     categoryId: "",
     categoryName: "",
     vendorId: "",
-    file: null as File | null,
+    files: [] as File[],
   });
 
   // Fetch templates
@@ -535,16 +535,27 @@ export default function WorksOrdersPage() {
       categoryId: "",
       categoryName: "",
       vendorId: "",
-      file: null,
+      files: [],
     });
     setImportDialogOpen(true);
   };
 
   const handleImportSubmit = async () => {
-    if (!importFormData.projectId || !importFormData.categoryId || !importFormData.file) {
+    // Validate required fields
+    if (!importFormData.projectId || !importFormData.categoryId || !importFormData.vendorId) {
       toast({
         title: "Error",
-        description: "Please fill in all fields",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate at least one file is selected
+    if (importFormData.files.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please select at least one file to upload",
         variant: "destructive",
       });
       return;
@@ -554,10 +565,12 @@ export default function WorksOrdersPage() {
     formData.append('projectId', importFormData.projectId);
     formData.append('categoryId', importFormData.categoryId);
     formData.append('categoryName', importFormData.categoryName);
-    if (importFormData.vendorId) {
-      formData.append('vendorId', importFormData.vendorId);
-    }
-    formData.append('file', importFormData.file);
+    formData.append('vendorId', importFormData.vendorId);
+    
+    // Append all files
+    importFormData.files.forEach((file) => {
+      formData.append('files', file);
+    });
 
     try {
       const response = await fetch('/api/works-orders/import', {
@@ -575,7 +588,7 @@ export default function WorksOrdersPage() {
       setImportDialogOpen(false);
       toast({
         title: "Success",
-        description: "Works order imported successfully",
+        description: `Works order imported successfully with ${importFormData.files.length} file(s)`,
       });
     } catch (error) {
       toast({
@@ -1492,7 +1505,7 @@ export default function WorksOrdersPage() {
             </div>
 
             <div>
-              <Label htmlFor="import-vendor">Vendor (Optional)</Label>
+              <Label htmlFor="import-vendor">Vendor <span className="text-red-500">*</span></Label>
               <Select
                 value={importFormData.vendorId}
                 onValueChange={(value) => setImportFormData(prev => ({ ...prev, vendorId: value }))}
@@ -1509,25 +1522,35 @@ export default function WorksOrdersPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-sm text-muted-foreground mt-1">
-                Leave empty if no specific vendor
-              </p>
             </div>
 
             <div>
-              <Label htmlFor="import-file">Upload File *</Label>
+              <Label htmlFor="import-file">Upload Files <span className="text-red-500">*</span></Label>
               <Input
                 id="import-file"
                 type="file"
                 accept="*/*"
+                multiple
                 onChange={(e) => {
-                  const file = e.target.files?.[0] || null;
-                  setImportFormData(prev => ({ ...prev, file }));
+                  const filesArray = Array.from(e.target.files || []);
+                  setImportFormData(prev => ({ ...prev, files: filesArray }));
                 }}
                 data-testid="input-import-file"
               />
+              {importFormData.files.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm font-medium">Selected files ({importFormData.files.length}):</p>
+                  {importFormData.files.map((file, index) => (
+                    <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <FileText className="w-3 h-3" />
+                      <span>{file.name}</span>
+                      <span className="text-xs">({(file.size / 1024).toFixed(1)} KB)</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <p className="text-sm text-muted-foreground mt-1">
-                Supports all file types (Excel, CSV, PDF, etc.)
+                Select multiple files to upload together
               </p>
             </div>
           </div>
