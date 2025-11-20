@@ -1629,6 +1629,14 @@ export default function WorksOrdersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* File Viewer Modal */}
+      <FileViewerModal
+        open={fileViewerOpen}
+        onClose={() => setFileViewerOpen(false)}
+        fileUrl={fileViewerUrl}
+        fileName={fileViewerName}
+      />
     </div>
   );
 }
