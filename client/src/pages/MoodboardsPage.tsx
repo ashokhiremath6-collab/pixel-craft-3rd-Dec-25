@@ -312,6 +312,16 @@ export default function MoodboardsPage() {
   const handleUpload = async () => {
     if (!selectedFile) return;
     
+    // Validate that a project is selected
+    if (!selectedProjectId || selectedProjectId === "general") {
+      toast({
+        variant: "destructive",
+        title: "Project Required",
+        description: "Please select a project before uploading.",
+      });
+      return;
+    }
+    
     const formData = new FormData();
     formData.append("moodboard", selectedFile);
     formData.append("assetType", assetType); // Add asset type
@@ -321,9 +331,7 @@ export default function MoodboardsPage() {
     if (tags.trim()) {
       formData.append("tags", tags.trim());
     }
-    if (selectedProjectId && selectedProjectId !== "general") {
-      formData.append("projectId", selectedProjectId);
-    }
+    formData.append("projectId", selectedProjectId);
     if (canvaLink.trim()) {
       formData.append("canvaLink", canvaLink.trim());
     }
@@ -370,14 +378,21 @@ export default function MoodboardsPage() {
       return;
     }
 
+    // Validate that a project is selected
+    if (!selectedProjectId || selectedProjectId === "general") {
+      toast({
+        variant: "destructive",
+        title: "Project Required",
+        description: "Please select a project before saving.",
+      });
+      return;
+    }
+
     const formData = new FormData();
     formData.append("canvaLink", canvaLink.trim());
     formData.append("linkOnly", "true");
     formData.append("assetType", assetType); // Add asset type
-    
-    if (selectedProjectId && selectedProjectId !== "general") {
-      formData.append("projectId", selectedProjectId);
-    }
+    formData.append("projectId", selectedProjectId);
     
     uploadMutation.mutate(formData);
   };
@@ -611,13 +626,12 @@ export default function MoodboardsPage() {
               {canvaLink.trim() && !selectedFile && (
                 <div className="pt-3 space-y-3 border-t">
                   <div className="space-y-2">
-                    <Label htmlFor="project-for-link">Select Project</Label>
+                    <Label htmlFor="project-for-link">Select Project <span className="text-red-500">*</span></Label>
                     <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
                       <SelectTrigger id="project-for-link" data-testid="select-project-for-link">
                         <SelectValue placeholder="Select a project..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="general">General (No Project)</SelectItem>
                         {projects.map((project) => (
                           <SelectItem key={project.id} value={project.id}>
                             {project.projectName} - {project.clientName}
@@ -688,13 +702,12 @@ export default function MoodboardsPage() {
 
               {/* Project Selection */}
               <div className="space-y-2">
-                <Label htmlFor="project">Project (Optional)</Label>
+                <Label htmlFor="project">Project <span className="text-red-500">*</span></Label>
                 <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
                   <SelectTrigger id="project" data-testid="select-project">
-                    <SelectValue placeholder="Select a project or leave general..." />
+                    <SelectValue placeholder="Select a project..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="general">General (No Project)</SelectItem>
                     {projects.map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.projectName} - {project.clientName}
