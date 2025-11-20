@@ -21,6 +21,8 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
     window.open(fileUrl, '_blank', 'noopener,noreferrer');
   };
 
+  const isPdf = fileName?.toLowerCase().endsWith('.pdf') || fileUrl.includes('.pdf');
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0">
@@ -60,12 +62,28 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
           </div>
         </DialogHeader>
         <div className="flex-1 overflow-auto" style={{ height: 'calc(95vh - 60px)' }}>
-          <iframe
-            src={fileUrl}
-            className="w-full h-full border-0"
-            title={fileName || 'File viewer'}
-            data-testid="file-viewer-iframe"
-          />
+          {isPdf ? (
+            <object
+              data={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+              type="application/pdf"
+              className="w-full h-full"
+              title={fileName || 'File viewer'}
+              data-testid="file-viewer-object"
+            >
+              <embed
+                src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+                type="application/pdf"
+                className="w-full h-full"
+              />
+            </object>
+          ) : (
+            <iframe
+              src={fileUrl}
+              className="w-full h-full border-0"
+              title={fileName || 'File viewer'}
+              data-testid="file-viewer-iframe"
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>
