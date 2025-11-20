@@ -856,16 +856,6 @@ export default function WorksOrdersPage() {
                                 <Eye className="w-4 h-4" />
                               </Button>
                               
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                onClick={() => handleExportOrder(order)}
-                                data-testid={`button-export-${order.id}`}
-                                title="Download works order file"
-                              >
-                                <Download className="w-4 h-4" />
-                              </Button>
-                              
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon" data-testid={`button-menu-${order.id}`}>
