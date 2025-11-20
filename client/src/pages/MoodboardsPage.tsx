@@ -367,12 +367,17 @@ export default function MoodboardsPage() {
     return project ? project.projectName : "Unknown Project";
   };
 
-  // Create preview URL for display
+  // Create preview/download URL for display
   const getPreviewUrl = (moodboard: Moodboard) => {
     // Return null for link-only entries (no file uploaded)
     if (!moodboard.fileName) return null;
-    // Check for PDF using MIME type stored in database
-    if (moodboard.fileType === 'pdf' || moodboard.fileType === 'application/pdf') return null;
+    
+    // If file is in object storage, use the filePath
+    if (moodboard.filePath && moodboard.filePath.startsWith('/objects/')) {
+      return moodboard.filePath;
+    }
+    
+    // Fallback to old-style uploads path
     return `/uploads/moodboards/${moodboard.fileName}`;
   };
 
@@ -447,8 +452,13 @@ export default function MoodboardsPage() {
                     <h3 className="text-lg font-bold truncate" title={getProjectName(moodboard.projectId)}>
                       {getProjectName(moodboard.projectId)}
                     </h3>
+                    {moodboard.description && (
+                      <p className="text-sm text-foreground/80 truncate mb-1" title={moodboard.description}>
+                        {moodboard.description}
+                      </p>
+                    )}
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span>{labels.listMetadataText}</span>
+                      <span>{moodboard.fileName || labels.listMetadataText}</span>
                       <span>•</span>
                       <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
                     </div>
