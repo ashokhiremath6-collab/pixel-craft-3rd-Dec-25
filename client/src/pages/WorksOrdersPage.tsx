@@ -67,7 +67,6 @@ import type {
 } from "@shared/schema";
 import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileViewerModal } from "@/components/FileViewerModal";
 
 const STATUS_COLORS = {
   draft: "bg-gray-500",
@@ -89,11 +88,6 @@ export default function WorksOrdersPage() {
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // File viewer state
-  const [fileViewerOpen, setFileViewerOpen] = useState(false);
-  const [fileViewerUrl, setFileViewerUrl] = useState("");
-  const [fileViewerName, setFileViewerName] = useState("");
   
   // Template state
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
@@ -487,18 +481,7 @@ export default function WorksOrdersPage() {
   };
 
   const handleViewOrder = (order: WorksOrder) => {
-    // Extract file path from scope and open it directly
-    if (order.scope && order.scope.includes('/objects/uploads/')) {
-      const match = order.scope.match(/\/objects\/uploads\/[a-f0-9-]+/);
-      if (match) {
-        setFileViewerUrl(match[0]);
-        setFileViewerName(`${order.orderNumber}.pdf`);
-        setFileViewerOpen(true);
-        return;
-      }
-    }
-    
-    // Fallback: open detail drawer if no file to download
+    // Open detail drawer
     setSelectedOrder(order);
     setDetailDrawerOpen(true);
   };
@@ -531,9 +514,7 @@ export default function WorksOrdersPage() {
 
   const handleOpenSigningLink = (order: WorksOrder) => {
     const signUrl = `/sign/${order.accessToken}`;
-    setFileViewerUrl(signUrl);
-    setFileViewerName(`${order.orderNumber} - Signing Page`);
-    setFileViewerOpen(true);
+    window.open(signUrl, '_blank');
   };
 
   const handleImportOrder = () => {
@@ -620,10 +601,8 @@ export default function WorksOrdersPage() {
       }
 
       const filePath = filePathMatch[1];
-      // View the original imported file using the authenticated object storage route
-      setFileViewerUrl(filePath);
-      setFileViewerName(`${order.orderNumber}.pdf`);
-      setFileViewerOpen(true);
+      // Open the original imported file in a new tab
+      window.open(filePath, '_blank');
 
       toast({
         title: "Success",
@@ -1402,15 +1381,11 @@ export default function WorksOrdersPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => {
-                              setFileViewerUrl(file.filePath);
-                              setFileViewerName(file.fileName);
-                              setFileViewerOpen(true);
-                            }}
+                            onClick={() => window.open(file.filePath, '_blank')}
                             data-testid={`button-view-file-${index}`}
-                            title="View file"
+                            title="Open in new tab"
                           >
-                            <Eye className="w-4 h-4" />
+                            <ExternalLink className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -1629,14 +1604,6 @@ export default function WorksOrdersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* File Viewer Modal */}
-      <FileViewerModal
-        isOpen={fileViewerOpen}
-        onClose={() => setFileViewerOpen(false)}
-        fileUrl={fileViewerUrl}
-        fileName={fileViewerName}
-      />
     </div>
   );
 }
