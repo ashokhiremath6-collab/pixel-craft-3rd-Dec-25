@@ -6796,6 +6796,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get files for a works order
+  app.get("/api/works-orders/:id/files", requireAuth, async (req, res) => {
+    try {
+      const worksOrderId = req.params.id;
+      const files = await db.select().from(worksOrderFiles).where(sql`${worksOrderFiles.worksOrderId} = ${worksOrderId}`);
+      res.json(files);
+    } catch (error) {
+      console.error('Error fetching works order files:', error);
+      res.status(500).json({ error: "Failed to fetch works order files" });
+    }
+  });
+
   // Import works order
   app.post("/api/works-orders/import", requireAdmin, multer().array('files'), async (req, res) => {
     try {

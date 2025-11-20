@@ -172,6 +172,12 @@ export default function WorksOrdersPage() {
     enabled: !!importFormData.categoryId,
   });
 
+  // Fetch files for selected works order
+  const { data: orderFiles = [] } = useQuery<any[]>({
+    queryKey: [`/api/works-orders/${selectedOrder?.id}/files`],
+    enabled: !!selectedOrder?.id,
+  });
+
   // Flatten categories for dropdown
   const flatCategories = useMemo(() => {
     const flatten = (categories: any[], level = 0): any[] => {
@@ -1368,24 +1374,57 @@ export default function WorksOrdersPage() {
                 <div>
                   <Label className="text-muted-foreground">Scope of Work</Label>
                   <p className="mt-1" data-testid="detail-scope">{selectedOrder.scope}</p>
-                  
-                  {selectedOrder.scope.includes('/objects/uploads/') && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-3"
-                      onClick={() => {
-                        const match = selectedOrder.scope.match(/\/objects\/uploads\/[a-f0-9-]+/);
-                        if (match) {
-                          openFile(match[0], `${selectedOrder.orderNumber}.pdf`);
-                        }
-                      }}
-                      data-testid="button-download-file"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download Imported File
-                    </Button>
-                  )}
+                </div>
+              )}
+
+              {/* Files Section - Show all files under one heading */}
+              {orderFiles.length > 0 && (
+                <div>
+                  <Label className="text-muted-foreground">Attached Files ({orderFiles.length})</Label>
+                  <div className="mt-2 space-y-2">
+                    {orderFiles.map((file: any, index: number) => (
+                      <div 
+                        key={file.id} 
+                        className="flex items-center justify-between gap-2 p-3 bg-muted/50 rounded-md hover-elevate"
+                        data-testid={`file-item-${index}`}
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <FileText className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{file.fileName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {(parseInt(file.fileSize) / 1024).toFixed(1)} KB
+                              {file.uploadedAt && ` • ${format(new Date(file.uploadedAt), 'MMM d, yyyy')}`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setFileViewerUrl(file.filePath);
+                              setFileViewerName(file.fileName);
+                              setFileViewerOpen(true);
+                            }}
+                            data-testid={`button-view-file-${index}`}
+                            title="View file"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(`/api/download${file.filePath}`, '_blank')}
+                            data-testid={`button-download-file-${index}`}
+                            title="Download file"
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
