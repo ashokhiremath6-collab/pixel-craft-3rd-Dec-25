@@ -793,8 +793,8 @@ export default function WorksOrdersPage() {
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-2">
-                                <h3 className="font-semibold" data-testid={`text-order-number-${order.id}`}>
-                                  {order.orderNumber}
+                                <h3 className="font-semibold" data-testid={`text-vendor-name-${order.id}`}>
+                                  {order.vendorName || 'Unknown Vendor'}
                                 </h3>
                                 {order.status !== 'draft' && (
                                   <Badge 
@@ -810,22 +810,18 @@ export default function WorksOrdersPage() {
                                 <p className="text-sm font-medium">
                                   {order.projectName || project?.projectName || 'Unknown Project'}
                                 </p>
-                                {order.vendorName && (
-                                  <>
-                                    <span className="text-muted-foreground">•</span>
-                                    <span className="text-sm text-muted-foreground">
-                                      {order.vendorName}
-                                    </span>
-                                  </>
-                                )}
+                                <span className="text-muted-foreground">•</span>
                                 {order.category && (
                                   <>
-                                    <span className="text-muted-foreground">•</span>
-                                    <Badge variant="outline" className="text-xs">
+                                    <span className="text-sm text-muted-foreground">
                                       {order.category}
-                                    </Badge>
+                                    </span>
+                                    <span className="text-muted-foreground">•</span>
                                   </>
                                 )}
+                                <span className="text-sm text-muted-foreground" data-testid={`text-order-number-${order.id}`}>
+                                  {order.orderNumber}
+                                </span>
                               </div>
                               
                               {order.scope && (
