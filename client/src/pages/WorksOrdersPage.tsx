@@ -1632,7 +1632,7 @@ export default function WorksOrdersPage() {
 
       {/* File Viewer Modal */}
       <FileViewerModal
-        open={fileViewerOpen}
+        isOpen={fileViewerOpen}
         onClose={() => setFileViewerOpen(false)}
         fileUrl={fileViewerUrl}
         fileName={fileViewerName}
