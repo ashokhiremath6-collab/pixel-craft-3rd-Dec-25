@@ -77,7 +77,7 @@ const STATUS_COLORS = {
 
 const STATUS_LABELS = {
   draft: "Draft",
-  sent: "sent to vendor",
+  sent: "Sent to Vendor",
   signed: "Signed",
   void: "Voided",
 };
