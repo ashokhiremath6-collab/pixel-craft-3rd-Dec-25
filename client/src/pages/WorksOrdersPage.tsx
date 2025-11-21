@@ -82,6 +82,10 @@ const STATUS_LABELS = {
   void: "Voided",
 };
 
+const openFile = (filePath: string, fileName: string) => {
+  window.open(filePath, '_blank');
+};
+
 export default function WorksOrdersPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("orders");
