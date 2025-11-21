@@ -55,7 +55,7 @@ interface ComparativeQuotesProps {
 }
 
 export default function ComparativeQuotes({ projects, categories, quotations, onStatusChange, hideValueColumns = false }: ComparativeQuotesProps) {
-  const [selectedProject, setSelectedProject] = useState<string>("all");
+  const [selectedProject, setSelectedProject] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isExporting, setIsExporting] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
@@ -340,7 +340,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
 
   // Filter quotations with hierarchical category support
   const filteredQuotations = allQuotations.filter(quotation => {
-    const matchesProject = selectedProject === "all" || quotation.projectId === selectedProject;
+    const matchesProject = !selectedProject || selectedProject === "all" || quotation.projectId === selectedProject;
     
     // For hierarchical filtering, include quotations from selected category and all its descendants
     let matchesCategory = selectedCategory === "all";
@@ -600,12 +600,12 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Projects</SelectItem>
                   {projects.map(project => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.projectName}
                     </SelectItem>
                   ))}
+                  <SelectItem value="all">All Projects</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -637,8 +637,21 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
         </CardContent>
       </Card>
 
+      {/* Empty state when no project selected */}
+      {!selectedProject && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Select a project to begin</h3>
+            <p className="text-muted-foreground">
+              Choose a project from the dropdown above to view comparative quotes
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Comparison Groups */}
-      {Object.entries(groupedData)
+      {selectedProject && Object.entries(groupedData)
         .sort((a, b) => a[1].category.localeCompare(b[1].category, undefined, { sensitivity: 'base' }))
         .map(([key, group]) => {
         const lowestQuote = getLowestQuote(group.quotations);
