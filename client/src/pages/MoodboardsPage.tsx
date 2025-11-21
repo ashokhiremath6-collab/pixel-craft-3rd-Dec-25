@@ -24,7 +24,8 @@ export default function MoodboardsPage() {
   const [tags, setTags] = useState("");
   const [canvaLink, setCanvaLink] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
-  const [filterProjectId, setFilterProjectId] = useState<string>("all"); // For filtering display
+  // For working drawings/renders, start blank. For moodboards, start with "all"
+  const [filterProjectId, setFilterProjectId] = useState<string>("");
   
   // Determine asset type based on route
   const assetType = useMemo(() => {
@@ -146,8 +147,9 @@ export default function MoodboardsPage() {
   });
 
   // Fetch moodboards from backend (with optional project and assetType filters)
-  // For working drawings/renders, require a project selection. For moodboards, load automatically.
-  const shouldFetchMoodboards = assetType === "moodboard" || !!filterProjectId;
+  // For working drawings/renders, require explicit project selection
+  // For moodboards, load automatically when filterProjectId is set (including "all")
+  const shouldFetchMoodboards = assetType === "moodboard" ? (filterProjectId !== "") : (filterProjectId !== "");
   
   const { data: moodboards = [], isLoading } = useQuery({
     queryKey: ["/api/moodboards", filterProjectId !== "all" ? { projectId: filterProjectId } : {}, assetType],
@@ -475,7 +477,7 @@ export default function MoodboardsPage() {
             <Label htmlFor="filter-project" className="text-sm whitespace-nowrap">
               Filter by:
             </Label>
-            <Select value={filterProjectId} onValueChange={setFilterProjectId}>
+            <Select value={filterProjectId === "" ? "all" : filterProjectId} onValueChange={(value) => setFilterProjectId(value === "all" ? "all" : value)}>
               <SelectTrigger id="filter-project" data-testid="select-filter-project">
                 <SelectValue placeholder="Select project..." />
               </SelectTrigger>
