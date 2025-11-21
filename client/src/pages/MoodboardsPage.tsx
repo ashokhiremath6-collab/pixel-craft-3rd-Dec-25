@@ -146,11 +146,15 @@ export default function MoodboardsPage() {
   });
 
   // Fetch moodboards from backend (with optional project and assetType filters)
+  // For working drawings/renders, require a project selection. For moodboards, load automatically.
+  const shouldFetchMoodboards = assetType === "moodboard" || filterProjectId;
+  
   const { data: moodboards = [], isLoading } = useQuery({
     queryKey: ["/api/moodboards", filterProjectId !== "all" ? { projectId: filterProjectId } : {}, assetType],
+    enabled: shouldFetchMoodboards,
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (filterProjectId !== "all") {
+      if (filterProjectId && filterProjectId !== "all") {
         params.append("projectId", filterProjectId);
       }
       params.append("assetType", assetType);
@@ -452,7 +456,8 @@ export default function MoodboardsPage() {
                     <SelectValue placeholder="Select a project" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All {assetType === "working_drawing" ? "Working Drawings" : "Renders"}</SelectItem>
+                    <SelectItem value="">Select a project</SelectItem>
+                    <SelectItem value="all">All Projects</SelectItem>
                     {projects.map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.projectName} - {project.clientName}
@@ -490,7 +495,7 @@ export default function MoodboardsPage() {
       </div>
 
       {/* Show empty state when project not selected for working drawings/renders */}
-      {(assetType === "working_drawing" || assetType === "render") && filterProjectId === "all" && (
+      {(assetType === "working_drawing" || assetType === "render") && !filterProjectId && (
         <Card>
           <CardContent className="text-center py-12">
             <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />

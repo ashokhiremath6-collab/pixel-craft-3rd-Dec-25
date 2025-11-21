@@ -51,6 +51,15 @@ export default function FloorPlansPage() {
     queryKey: ['/api/floor-plans/project', selectedProjectId],
     enabled: !!selectedProjectId,
     queryFn: async () => {
+      // Fetch all floor plans when "all" is selected
+      if (selectedProjectId === 'all') {
+        const response = await fetch(`/api/floor-plans`, {
+          credentials: 'include',
+        });
+        if (!response.ok) throw new Error('Failed to fetch floor plans');
+        return response.json();
+      }
+      // Fetch specific project's floor plans
       const response = await fetch(`/api/floor-plans/project/${selectedProjectId}`, {
         credentials: 'include',
       });
@@ -312,7 +321,23 @@ export default function FloorPlansPage() {
 
   // Get current project name
   const getCurrentProjectName = () => {
+    if (selectedProjectId === 'all') return 'All Projects';
     const project = projects.find(p => p.id === selectedProjectId);
+    return project?.projectName || 'Unknown Project';
+  };
+
+  // Group floor plans by project when showing all
+  const floorPlansByProject = floorPlans.reduce((acc, floorPlan) => {
+    const projectId = floorPlan.projectId;
+    if (!acc[projectId]) {
+      acc[projectId] = [];
+    }
+    acc[projectId].push(floorPlan);
+    return acc;
+  }, {} as Record<string, FloorPlan[]>);
+
+  const getProjectName = (projectId: string) => {
+    const project = projects.find(p => p.id === projectId);
     return project?.projectName || 'Unknown Project';
   };
 
@@ -499,6 +524,7 @@ export default function FloorPlansPage() {
                 <SelectValue placeholder="Select a project to view floor plans" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">All Projects</SelectItem>
                 {projects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
                     {project.projectName} - {project.clientName}
@@ -539,18 +565,110 @@ export default function FloorPlansPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span data-testid={`text-project-${selectedProjectId}`}>{getCurrentProjectName()}</span>
-              <Badge variant="secondary" data-testid={`badge-count-${selectedProjectId}`}>
-                {floorPlans.length} floor plan{floorPlans.length !== 1 ? 's' : ''}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4">
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {floorPlans.map((floorPlan) => (
+        <div className="space-y-6">
+          {selectedProjectId === 'all' ? (
+            // Show grouped view for all projects
+            Object.entries(floorPlansByProject).map(([projectId, projectFloorPlans]) => (
+              <Card key={projectId}>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span data-testid={`text-project-${projectId}`}>{getProjectName(projectId)}</span>
+                    <Badge variant="secondary" data-testid={`badge-count-${projectId}`}>
+                      {projectFloorPlans.length} floor plan{projectFloorPlans.length !== 1 ? 's' : ''}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                    {projectFloorPlans.map((floorPlan) => (
+                      <Card key={floorPlan.id} className="p-3" data-testid={`card-floor-plan-${floorPlan.id}`}>
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center space-x-2">
+                            {getFileIcon(floorPlan.fileType)}
+                            <div>
+                              <h4 className="font-medium text-sm" data-testid={`text-name-${floorPlan.id}`}>
+                                {floorPlan.name}
+                              </h4>
+                              <p className="text-xs text-muted-foreground">
+                                v{floorPlan.version}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex space-x-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleView(floorPlan)}
+                              data-testid={`button-view-${floorPlan.id}`}
+                              title="View in new tab"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleEdit(floorPlan)}
+                              data-testid={`button-edit-${floorPlan.id}`}
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleDelete(floorPlan.id)}
+                              data-testid={`button-delete-${floorPlan.id}`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        {floorPlan.description && (
+                          <p className="text-xs text-muted-foreground" data-testid={`text-description-${floorPlan.id}`}>
+                            {floorPlan.description}
+                          </p>
+                        )}
+                        
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center text-xs text-muted-foreground">
+                            <span data-testid={`text-file-size-${floorPlan.id}`}>
+                              {floorPlan.fileSize ? formatFileSize(floorPlan.fileSize) : 'Unknown size'}
+                            </span>
+                            <Badge 
+                              variant={floorPlan.isActive ? "default" : "secondary"}
+                              data-testid={`badge-status-${floorPlan.id}`}
+                            >
+                              {floorPlan.isActive ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </div>
+                          {floorPlan.uploadedAt && (
+                            <p className="text-xs text-muted-foreground" data-testid={`text-upload-time-${floorPlan.id}`}>
+                              {format(new Date(floorPlan.uploadedAt), 'dd MMM yyyy, HH:mm')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            // Show single project view
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span data-testid={`text-project-${selectedProjectId}`}>{getCurrentProjectName()}</span>
+                  <Badge variant="secondary" data-testid={`badge-count-${selectedProjectId}`}>
+                    {floorPlans.length} floor plan{floorPlans.length !== 1 ? 's' : ''}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {floorPlans.map((floorPlan) => (
                     <Card key={floorPlan.id} className="p-3" data-testid={`card-floor-plan-${floorPlan.id}`}>
                       <div className="space-y-2">
                         <div className="flex items-start justify-between">
@@ -624,6 +742,8 @@ export default function FloorPlansPage() {
                 </div>
               </CardContent>
             </Card>
+          )}
+        </div>
       )}
 
       {/* Edit Dialog */}
