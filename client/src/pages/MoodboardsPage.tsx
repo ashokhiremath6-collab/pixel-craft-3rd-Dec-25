@@ -147,7 +147,7 @@ export default function MoodboardsPage() {
 
   // Fetch moodboards from backend (with optional project and assetType filters)
   // For working drawings/renders, require a project selection. For moodboards, load automatically.
-  const shouldFetchMoodboards = assetType === "moodboard" || filterProjectId;
+  const shouldFetchMoodboards = assetType === "moodboard" || !!filterProjectId;
   
   const { data: moodboards = [], isLoading } = useQuery({
     queryKey: ["/api/moodboards", filterProjectId !== "all" ? { projectId: filterProjectId } : {}, assetType],
