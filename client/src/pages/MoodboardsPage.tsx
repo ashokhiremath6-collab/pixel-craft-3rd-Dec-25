@@ -25,7 +25,12 @@ export default function MoodboardsPage() {
   const [canvaLink, setCanvaLink] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
   // For working drawings/renders, start blank. For moodboards, start with "all"
-  const [filterProjectId, setFilterProjectId] = useState<string>("");
+  const [filterProjectId, setFilterProjectId] = useState<string>(() => {
+    if (location === "/working-drawings" || location === "/renders") {
+      return "";
+    }
+    return "all";
+  });
   
   // Determine asset type based on route
   const assetType = useMemo(() => {
@@ -477,7 +482,7 @@ export default function MoodboardsPage() {
             <Label htmlFor="filter-project" className="text-sm whitespace-nowrap">
               Filter by:
             </Label>
-            <Select value={filterProjectId === "" ? "all" : filterProjectId} onValueChange={(value) => setFilterProjectId(value === "all" ? "all" : value)}>
+            <Select value={filterProjectId} onValueChange={setFilterProjectId}>
               <SelectTrigger id="filter-project" data-testid="select-filter-project">
                 <SelectValue placeholder="Select project..." />
               </SelectTrigger>
