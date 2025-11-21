@@ -513,7 +513,7 @@ export default function FloorPlansPage() {
       {/* Project Selector */}
       <Card>
         <CardHeader>
-          <CardTitle>Select Project</CardTitle>
+          <CardTitle className="font-bold">Select Project</CardTitle>
           <CardDescription>Choose a project to view its floor plans</CardDescription>
         </CardHeader>
         <CardContent>
@@ -571,7 +571,7 @@ export default function FloorPlansPage() {
             Object.entries(floorPlansByProject).map(([projectId, projectFloorPlans]) => (
               <Card key={projectId}>
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
+                  <CardTitle className="flex items-center justify-between font-bold">
                     <span data-testid={`text-project-${projectId}`}>{getProjectName(projectId)}</span>
                     <Badge variant="secondary" data-testid={`badge-count-${projectId}`}>
                       {projectFloorPlans.length} floor plan{projectFloorPlans.length !== 1 ? 's' : ''}
@@ -659,7 +659,7 @@ export default function FloorPlansPage() {
             // Show single project view
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
+                <CardTitle className="flex items-center justify-between font-bold">
                   <span data-testid={`text-project-${selectedProjectId}`}>{getCurrentProjectName()}</span>
                   <Badge variant="secondary" data-testid={`badge-count-${selectedProjectId}`}>
                     {floorPlans.length} floor plan{floorPlans.length !== 1 ? 's' : ''}

@@ -452,7 +452,7 @@ export default function MoodboardsPage() {
         {(assetType === "working_drawing" || assetType === "render") && (
           <Card>
             <CardHeader>
-              <CardTitle>Select Project</CardTitle>
+              <CardTitle className="font-bold">Select Project</CardTitle>
               <CardDescription>Choose a project to view and manage its {assetType === "working_drawing" ? "working drawings" : "renders"}</CardDescription>
             </CardHeader>
             <CardContent>
@@ -529,7 +529,7 @@ export default function MoodboardsPage() {
           {Object.entries(groupedMoodboards).map(([projectId, group]) => (
             <Card key={projectId}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 font-bold">
                   <FolderOpen className="h-5 w-5 text-primary" />
                   {group.projectName}
                   <Badge variant="secondary" className="ml-auto">
@@ -620,7 +620,7 @@ export default function MoodboardsPage() {
       {/* Upload Section */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 font-bold">
             <Upload className="h-5 w-5" />
             {labels.uploadButton}
           </CardTitle>
