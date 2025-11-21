@@ -458,12 +458,12 @@ export default function MoodboardsPage() {
                     <SelectValue placeholder="Select a project" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Projects</SelectItem>
                     {projects.map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.projectName} - {project.clientName}
                       </SelectItem>
                     ))}
+                    <SelectItem value="all">All Projects</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -524,12 +524,12 @@ export default function FloorPlansPage() {
                 <SelectValue placeholder="Select a project to view floor plans" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Projects</SelectItem>
                 {projects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
                     {project.projectName} - {project.clientName}
                   </SelectItem>
                 ))}
+                <SelectItem value="all">All Projects</SelectItem>
               </SelectContent>
             </Select>
           </div>
