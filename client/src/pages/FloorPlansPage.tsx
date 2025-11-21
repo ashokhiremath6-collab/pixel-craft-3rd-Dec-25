@@ -41,13 +41,22 @@ export default function FloorPlansPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingFloorPlan, setEditingFloorPlan] = useState<FloorPlan | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch floor plans
+  // Fetch floor plans only when a project is selected
   const { data: floorPlans = [], isLoading: floorPlansLoading } = useQuery<FloorPlan[]>({
-    queryKey: ['/api/floor-plans'],
+    queryKey: ['/api/floor-plans', selectedProjectId],
+    enabled: !!selectedProjectId,
+    queryFn: async () => {
+      const response = await fetch(`/api/floor-plans?projectId=${selectedProjectId}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch floor plans');
+      return response.json();
+    },
   });
 
   // Fetch projects for dropdown
@@ -485,11 +494,46 @@ export default function FloorPlansPage() {
         </Dialog>
       </div>
 
-      {floorPlansLoading ? (
+      {/* Project Selector */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Select Project</CardTitle>
+          <CardDescription>Choose a project to view its floor plans</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="max-w-sm">
+            <Label className="mb-2 block">Project</Label>
+            <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+              <SelectTrigger data-testid="select-project-filter">
+                <SelectValue placeholder="Select a project to view floor plans" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.projectName} - {project.clientName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {!selectedProjectId ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <FileImage className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Select a project to begin</h3>
+            <p className="text-muted-foreground">
+              Choose a project from the dropdown above to view and manage its floor plans
+            </p>
+          </CardContent>
+        </Card>
+      ) : floorPlansLoading ? (
         <div className="text-center py-8">
           <p>Loading floor plans...</p>
         </div>
-      ) : Object.keys(floorPlansByProject).length === 0 ? (
+      ) : floorPlans.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <FileImage className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
