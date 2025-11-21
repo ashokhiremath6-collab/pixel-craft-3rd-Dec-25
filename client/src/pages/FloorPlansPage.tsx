@@ -48,10 +48,10 @@ export default function FloorPlansPage() {
 
   // Fetch floor plans only when a project is selected
   const { data: floorPlans = [], isLoading: floorPlansLoading } = useQuery<FloorPlan[]>({
-    queryKey: ['/api/floor-plans', selectedProjectId],
+    queryKey: ['/api/floor-plans/project', selectedProjectId],
     enabled: !!selectedProjectId,
     queryFn: async () => {
-      const response = await fetch(`/api/floor-plans?projectId=${selectedProjectId}`, {
+      const response = await fetch(`/api/floor-plans/project/${selectedProjectId}`, {
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to fetch floor plans');
@@ -310,18 +310,9 @@ export default function FloorPlansPage() {
     document.body.removeChild(link);
   };
 
-  // Group floor plans by project
-  const floorPlansByProject = floorPlans.reduce((acc, floorPlan) => {
-    const projectId = floorPlan.projectId;
-    if (!acc[projectId]) {
-      acc[projectId] = [];
-    }
-    acc[projectId].push(floorPlan);
-    return acc;
-  }, {} as Record<string, FloorPlan[]>);
-
-  const getProjectName = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId);
+  // Get current project name
+  const getCurrentProjectName = () => {
+    const project = projects.find(p => p.id === selectedProjectId);
     return project?.projectName || 'Unknown Project';
   };
 
