@@ -539,20 +539,18 @@ export default function FloorPlansPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
-          {Object.entries(floorPlansByProject).map(([projectId, projectFloorPlans]) => (
-            <Card key={projectId}>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span data-testid={`text-project-${projectId}`}>{getProjectName(projectId)}</span>
-                  <Badge variant="secondary" data-testid={`badge-count-${projectId}`}>
-                    {projectFloorPlans.length} floor plan{projectFloorPlans.length !== 1 ? 's' : ''}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4">
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {projectFloorPlans.map((floorPlan) => (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span data-testid={`text-project-${selectedProjectId}`}>{getCurrentProjectName()}</span>
+              <Badge variant="secondary" data-testid={`badge-count-${selectedProjectId}`}>
+                {floorPlans.length} floor plan{floorPlans.length !== 1 ? 's' : ''}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {floorPlans.map((floorPlan) => (
                     <Card key={floorPlan.id} className="p-3" data-testid={`card-floor-plan-${floorPlan.id}`}>
                       <div className="space-y-2">
                         <div className="flex items-start justify-between">
@@ -626,8 +624,6 @@ export default function FloorPlansPage() {
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
       )}
 
       {/* Edit Dialog */}

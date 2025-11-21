@@ -427,7 +427,7 @@ export default function MoodboardsPage() {
   return (
     <div className="space-y-3 p-4">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3">
         <div>
           <h1 className="text-2xl font-bold" data-testid="heading-moodboards">
             {labels.title}
@@ -437,27 +437,70 @@ export default function MoodboardsPage() {
           </p>
         </div>
         
-        {/* Project Filter */}
-        <div className="flex items-center gap-2 min-w-[240px]">
-          <Label htmlFor="filter-project" className="text-sm whitespace-nowrap">
-            Filter by:
-          </Label>
-          <Select value={filterProjectId} onValueChange={setFilterProjectId}>
-            <SelectTrigger id="filter-project" data-testid="select-filter-project">
-              <SelectValue placeholder="Select project..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Assets</SelectItem>
-              <SelectItem value="general">General (No Project)</SelectItem>
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.projectName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Project Selector Card - Show first for working drawings and renders */}
+        {(assetType === "working_drawing" || assetType === "render") && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Select Project</CardTitle>
+              <CardDescription>Choose a project to view and manage its {assetType === "working_drawing" ? "working drawings" : "renders"}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="max-w-sm">
+                <Label className="mb-2 block">Project</Label>
+                <Select value={filterProjectId} onValueChange={setFilterProjectId}>
+                  <SelectTrigger data-testid="select-project-filter">
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All {assetType === "working_drawing" ? "Working Drawings" : "Renders"}</SelectItem>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.projectName} - {project.clientName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Moodboards filter (for moodboards only) */}
+        {assetType === "moodboard" && (
+          <div className="flex items-center gap-2 min-w-[240px]">
+            <Label htmlFor="filter-project" className="text-sm whitespace-nowrap">
+              Filter by:
+            </Label>
+            <Select value={filterProjectId} onValueChange={setFilterProjectId}>
+              <SelectTrigger id="filter-project" data-testid="select-filter-project">
+                <SelectValue placeholder="Select project..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Assets</SelectItem>
+                <SelectItem value="general">General (No Project)</SelectItem>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.projectName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
+
+      {/* Show empty state when project not selected for working drawings/renders */}
+      {(assetType === "working_drawing" || assetType === "render") && filterProjectId === "all" && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Select a project to begin</h3>
+            <p className="text-muted-foreground">
+              Choose a project from the dropdown above to view and manage its {assetType === "working_drawing" ? "working drawings" : "renders"}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Loading State */}
       {isLoading && (
