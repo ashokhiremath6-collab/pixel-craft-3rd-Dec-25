@@ -6143,11 +6143,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { categoryId, categoryName, description } = req.body;
       const userId = (req.user as any).claims.sub;
 
-      // Validate category selection is required
-      if (!categoryId) {
-        return res.status(400).json({ error: "Category selection is required" });
-      }
-
       // Validate file type - only allow specific document types
       const allowedMimeTypes = [
         'application/pdf',
@@ -6167,10 +6162,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "File size exceeds 50MB limit" });
       }
 
-      // Get category to validate it exists and get its name
-      const category = await storage.getVendorCategory(categoryId);
-      if (!category) {
-        return res.status(400).json({ error: "Invalid category selected" });
+      // Get category only if categoryId is provided (optional for Terms of Contract templates)
+      let category = null;
+      if (categoryId) {
+        category = await storage.getVendorCategory(categoryId);
+        if (!category) {
+          return res.status(400).json({ error: "Invalid category selected" });
+        }
       }
 
       // Upload file to object storage
@@ -6183,8 +6181,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create template with file metadata
       const template = await storage.createWorksOrderTemplate({
-        name: categoryName || category.name, // Use provided name or category name
-        categoryId: categoryId,
+        name: categoryName || (category?.name) || "Terms of Contract Template", // Use provided name, category name, or default
+        categoryId: categoryId || null,
         description: description || null,
         objectPath,
         originalFileName: req.file.originalname,
@@ -6212,7 +6210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             metadata: {
               templateId: template.id,
               templateName: template.name,
-              categoryName: category.name,
+              categoryName: category?.name || 'Terms of Contract',
             },
           });
         } catch (activityError) {
