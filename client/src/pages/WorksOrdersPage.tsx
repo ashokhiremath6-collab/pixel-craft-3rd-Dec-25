@@ -77,7 +77,7 @@ const STATUS_COLORS = {
 
 const STATUS_LABELS = {
   draft: "Draft",
-  sent: "Sent",
+  sent: "Sent to Vendor",
   signed: "Signed",
   void: "Voided",
 };
@@ -887,7 +887,7 @@ export default function WorksOrdersPage() {
                                       </DropdownMenuItem>
                                       <DropdownMenuItem onClick={() => handleSendOrder(order)} data-testid={`menu-send-${order.id}`}>
                                         <Send className="w-4 h-4 mr-2" />
-                                        Send to Vendor
+                                        Send to Client
                                       </DropdownMenuItem>
                                     </>
                                   )}
