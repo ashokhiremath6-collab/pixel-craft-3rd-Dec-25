@@ -192,9 +192,18 @@ export default function WorksOrdersPage() {
     const grouped = new Map<string, { categoryName: string; templates: WorksOrderTemplate[] }>();
     
     templates.forEach((template) => {
-      const category = flatCategories.find((cat) => cat.id === template.categoryId);
-      const categoryName = category?.name || 'Uncategorized';
-      const categoryId = template.categoryId || 'uncategorized';
+      let categoryId: string;
+      let categoryName: string;
+      
+      // Templates with no categoryId go under "Terms of Contract Templates"
+      if (!template.categoryId) {
+        categoryId = '__terms_of_contract__';
+        categoryName = 'Terms of Contract Templates';
+      } else {
+        const category = flatCategories.find((cat) => cat.id === template.categoryId);
+        categoryName = category?.name || 'Uncategorized';
+        categoryId = template.categoryId;
+      }
       
       if (!grouped.has(categoryId)) {
         grouped.set(categoryId, { categoryName, templates: [] });
@@ -202,9 +211,12 @@ export default function WorksOrdersPage() {
       grouped.get(categoryId)!.templates.push(template);
     });
     
-    return Array.from(grouped.entries()).sort((a, b) => 
-      a[1].categoryName.localeCompare(b[1].categoryName)
-    );
+    // Sort: Terms of Contract first, then others alphabetically
+    return Array.from(grouped.entries()).sort((a, b) => {
+      if (a[0] === '__terms_of_contract__') return -1;
+      if (b[0] === '__terms_of_contract__') return 1;
+      return a[1].categoryName.localeCompare(b[1].categoryName);
+    });
   }, [templates, flatCategories]);
 
   // Import template mutation
@@ -640,25 +652,25 @@ export default function WorksOrdersPage() {
   };
 
   const handleCategoryChange = (value: string) => {
-    const category = flatCategories.find((cat: any) => cat.id === value);
-    setTemplateFormData({
-      ...templateFormData,
-      categoryId: value,
-      categoryName: category?.name || "",
-    });
+    // Handle special case for Terms of Contract (no category)
+    if (value === '__terms_of_contract__') {
+      setTemplateFormData({
+        ...templateFormData,
+        categoryId: "",
+        categoryName: "Terms of Contract",
+      });
+    } else {
+      const category = flatCategories.find((cat: any) => cat.id === value);
+      setTemplateFormData({
+        ...templateFormData,
+        categoryId: value,
+        categoryName: category?.name || "",
+      });
+    }
   };
 
   const handleSubmitTemplate = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!templateFormData.categoryId) {
-      toast({
-        title: "Error",
-        description: "Please select a category",
-        variant: "destructive",
-      });
-      return;
-    }
     
     if (!templateFormData.file) {
       toast({
@@ -1056,21 +1068,30 @@ export default function WorksOrdersPage() {
           <form onSubmit={handleSubmitTemplate}>
             <div className="grid gap-4 py-4">
               <div>
-                <Label htmlFor="template-category">Category *</Label>
+                <Label htmlFor="template-category">Category</Label>
                 <Select
-                  value={templateFormData.categoryId}
+                  value={templateFormData.categoryId ? templateFormData.categoryId : (templateFormData.categoryName === "Terms of Contract" ? '__terms_of_contract__' : '')}
                   onValueChange={handleCategoryChange}
-                  required
                 >
                   <SelectTrigger id="template-category" data-testid="select-template-category">
-                    <SelectValue placeholder="Select category" />
+                    <SelectValue placeholder="Select category or template type (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {flatCategories.map((cat: any) => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {'\u00A0'.repeat(cat.level * 4)}{cat.name}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="__terms_of_contract__">
+                      Terms of Contract Templates
+                    </SelectItem>
+                    {flatCategories.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground border-t">
+                          Category Templates
+                        </div>
+                        {flatCategories.map((cat: any) => (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            {'\u00A0'.repeat(cat.level * 4)}{cat.name}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
