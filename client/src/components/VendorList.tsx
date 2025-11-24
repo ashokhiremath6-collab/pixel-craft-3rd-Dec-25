@@ -1200,8 +1200,8 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
           </div>
           
           <Card>
-            <CardContent className="p-0">
-              <Table className="table-fixed">
+            <CardContent className="p-0 overflow-x-auto">
+              <Table className="table-fixed w-full">
                 <colgroup>
                   <col className="w-[18%]" />
                   <col className="w-[16%]" />
@@ -1212,76 +1212,65 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                 </colgroup>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Vendor Name</TableHead>
-                    <TableHead>Contact Person</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Projects</TableHead>
+                    <TableHead className="truncate">Vendor Name</TableHead>
+                    <TableHead className="truncate">Contact Person</TableHead>
+                    <TableHead className="truncate">Phone</TableHead>
+                    <TableHead className="truncate">Email</TableHead>
+                    <TableHead className="truncate">Projects</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {categoryVendors.map((vendor: VendorListProps['vendors'][0]) => (
                     <TableRow key={vendor.id} data-testid={`vendor-row-${vendor.id}`} className="h-12">
-                      <TableCell className="font-medium py-2">
-                        <div>
-                          <span data-testid="text-vendor-name">{vendor.name}</span>
-                          <div className="text-xs text-muted-foreground">
+                      <TableCell className="font-medium py-2 truncate">
+                        <div className="truncate">
+                          <span data-testid="text-vendor-name" className="truncate block">{vendor.name}</span>
+                          <div className="text-xs text-muted-foreground truncate">
                             {categoryMap[vendor.categoryId]?.name || 'Unknown Category'}
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="py-2">
-                        <div className="flex items-center gap-2">
-                          <User className="h-3 w-3 text-muted-foreground" />
-                          <span data-testid="text-contact-person">{vendor.contactPerson}</span>
+                      <TableCell className="py-2 truncate">
+                        <div className="flex items-center gap-1 truncate min-w-0">
+                          <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                          <span data-testid="text-contact-person" className="truncate">{vendor.contactPerson}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="py-2">
-                        <div className="flex items-center gap-2">
-                          <Phone className="h-3 w-3 text-muted-foreground" />
-                          <span data-testid="text-phone">{vendor.phone}</span>
+                      <TableCell className="py-2 truncate">
+                        <div className="flex items-center gap-1 truncate min-w-0">
+                          <Phone className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                          <span data-testid="text-phone" className="truncate">{vendor.phone}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="py-2">
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-3 w-3 text-muted-foreground" />
-                          <span data-testid="text-email" className="text-sm">{vendor.email}</span>
+                      <TableCell className="py-2 truncate">
+                        <div className="flex items-center gap-1 truncate min-w-0">
+                          <Mail className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                          <span data-testid="text-email" className="text-sm truncate">{vendor.email || '-'}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="py-2">
+                      <TableCell className="py-2 max-h-12 overflow-hidden">
                         {vendor.projects && vendor.projects.length > 0 ? (
-                          <div className="space-y-1">
-                            {vendor.projects.slice(0, 2).map((project: any, index: number) => (
-                              <div key={`${vendor.id}-${project.projectId}-${index}`} className="text-sm">
-                                <div className="flex items-center gap-2">
-                                  <Building2 className="h-3 w-3 text-muted-foreground" />
-                                  <span className="font-medium" data-testid={`text-project-name-${index}`}>
+                          <div className="space-y-1 max-h-10 overflow-hidden">
+                            {vendor.projects.slice(0, 1).map((project: any, index: number) => (
+                              <div key={`${vendor.id}-${project.projectId}-${index}`} className="text-sm truncate">
+                                <div className="flex items-center gap-1 truncate min-w-0">
+                                  <Building2 className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                  <span className="font-medium truncate" data-testid={`text-project-name-${index}`}>
                                     {project.projectName}
                                   </span>
-                                  <Badge 
-                                    variant={project.status === 'Selected' ? 'default' : 'secondary'} 
-                                    className="text-xs"
-                                  >
-                                    {project.status}
-                                  </Badge>
-                                </div>
-                                <div className="text-xs text-muted-foreground ml-5" data-testid={`text-client-name-${index}`}>
-                                  {project.clientName}
+                                  {vendor.projects.length > 1 && (
+                                    <span className="text-xs text-muted-foreground flex-shrink-0">+{vendor.projects.length - 1}</span>
+                                  )}
                                 </div>
                               </div>
                             ))}
-                            {vendor.projects && vendor.projects.length > 2 && (
-                              <div className="text-xs text-muted-foreground ml-5">
-                                +{vendor.projects.length - 2} more project{vendor.projects.length - 2 > 1 ? 's' : ''}
-                              </div>
-                            )}
                           </div>
                         ) : (
                           <span className="text-sm text-muted-foreground">No projects</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right py-2">
+                      <TableCell className="text-right py-2 flex-shrink-0">
                         <div className="flex gap-1 justify-end">
                           <Button 
                             size="icon" 
