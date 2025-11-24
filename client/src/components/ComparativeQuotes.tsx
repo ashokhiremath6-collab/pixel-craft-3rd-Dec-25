@@ -816,9 +816,12 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         
                         <TableCell className="py-2 text-xs" data-testid="text-uploaded-at">
                           {quotation.uploadedAt ? (
-                            <div className="flex flex-col">
+                            <div className="flex flex-col gap-0.5">
                               <span className="text-xs">{format(new Date(quotation.uploadedAt), "MMM d, yyyy")}</span>
                               <span className="text-xs text-muted-foreground">{format(new Date(quotation.uploadedAt), "h:mm a")}</span>
+                              {quotation.uploaderName && (
+                                <span className="text-xs text-muted-foreground">By {quotation.uploaderName}</span>
+                              )}
                             </div>
                           ) : (
                             <span className="text-muted-foreground">-</span>
@@ -1151,9 +1154,12 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                             
                             <TableCell className="py-2 text-xs" data-testid="text-uploaded-at">
                               {quotation.uploadedAt ? (
-                                <div className="flex flex-col">
+                                <div className="flex flex-col gap-0.5">
                                   <span className="text-xs">{format(new Date(quotation.uploadedAt), "MMM d, yyyy")}</span>
                                   <span className="text-xs text-muted-foreground">{format(new Date(quotation.uploadedAt), "h:mm a")}</span>
+                                  {quotation.uploaderName && (
+                                    <span className="text-xs text-muted-foreground">By {quotation.uploaderName}</span>
+                                  )}
                                 </div>
                               ) : (
                                 <span className="text-muted-foreground">-</span>

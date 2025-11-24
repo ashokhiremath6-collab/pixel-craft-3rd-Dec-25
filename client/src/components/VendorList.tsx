@@ -1252,19 +1252,22 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                       <TableCell className="py-2 max-h-12 overflow-hidden">
                         {vendor.projects && vendor.projects.length > 0 ? (
                           <div className="space-y-1 max-h-10 overflow-hidden">
-                            {vendor.projects.slice(0, 1).map((project: any, index: number) => (
-                              <div key={`${vendor.id}-${project.projectId}-${index}`} className="text-sm truncate">
-                                <div className="flex items-center gap-1 truncate min-w-0">
-                                  <Building2 className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                  <span className="font-medium truncate" data-testid={`text-project-name-${index}`}>
-                                    {project.projectName}
-                                  </span>
-                                  {vendor.projects.length > 1 && (
-                                    <span className="text-xs text-muted-foreground flex-shrink-0">+{vendor.projects.length - 1}</span>
-                                  )}
+                            {vendor.projects.slice(0, 1).map((project: any, index: number) => {
+                              const projectCount = vendor.projects?.length ?? 0;
+                              return (
+                                <div key={`${vendor.id}-${project.projectId}-${index}`} className="text-sm truncate">
+                                  <div className="flex items-center gap-1 truncate min-w-0">
+                                    <Building2 className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                    <span className="font-medium truncate" data-testid={`text-project-name-${index}`}>
+                                      {project.projectName}
+                                    </span>
+                                    {projectCount > 1 && (
+                                      <span className="text-xs text-muted-foreground flex-shrink-0">+{projectCount - 1}</span>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         ) : (
                           <span className="text-sm text-muted-foreground">No projects</span>
