@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import VendorCard from "./VendorCard";
 import ProjectCard from "./ProjectCard";
-import { Users, Building2, FileText, TrendingUp, Plus, ArrowRight, Clock } from "lucide-react";
+import { Users, Building2, FileText, TrendingUp, Plus, ArrowRight, Clock, X } from "lucide-react";
 import type { Vendor, Project } from "@shared/schema";
 import { formatCurrencyCompact, formatVendorNameWithProjectAndCategory } from "@/lib/currencyUtils";
 import { format } from "date-fns";
@@ -47,6 +49,7 @@ interface DashboardProps {
 
 export default function Dashboard({ vendors, projects, recentQuotations, allQuotations, onNavigate }: DashboardProps) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [isQuotationDetailModalOpen, setIsQuotationDetailModalOpen] = useState(false);
 
   const handleNavigate = (path: string) => {
     console.log('Navigate to:', path);
@@ -68,14 +71,16 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
     !project.endDate || new Date(project.endDate) > new Date()
   ).length;
 
-  const totalQuotationValue = (allQuotations || recentQuotations)
-    .filter(quote => quote.status === "Selected") // Only include approved quotations
+  const selectedQuotations = (allQuotations || recentQuotations)
+    .filter(quote => quote.status === "Selected"); // Only include approved quotations
+
+  const totalQuotationValue = selectedQuotations
     .reduce(
       (sum, quote) => sum + parseFloat(quote.quotationValue || '0'),
       0
     );
 
-  const selectedVendors = recentQuotations.filter(q => q.status === "Selected").length;
+  const selectedVendors = selectedQuotations.length;
 
   const recentVendors = vendors.slice(0, 3);
   const recentProjects = projects.slice(0, 3);
@@ -128,7 +133,7 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
           </CardContent>
         </Card>
 
-        <Card className="hover-elevate cursor-pointer" onClick={() => handleNavigate('/quotes')}>
+        <Card className="hover-elevate cursor-pointer" onClick={() => setIsQuotationDetailModalOpen(true)} data-testid="card-total-quotations">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Quotations</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
@@ -230,6 +235,62 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
           </CardContent>
         </Card>
       )}
+
+      {/* Quotation Breakdown Modal */}
+      <Dialog open={isQuotationDetailModalOpen} onOpenChange={setIsQuotationDetailModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Quotation Breakdown</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedQuotations.length > 0 ? (
+              <>
+                <div className="overflow-x-auto">
+                  <Table className="w-full text-sm">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Vendor</TableHead>
+                        <TableHead>Project</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead className="text-right">Value</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedQuotations.map((quotation) => (
+                        <TableRow key={quotation.id} data-testid={`quotation-line-${quotation.id}`}>
+                          <TableCell className="font-medium">{quotation.vendorName}</TableCell>
+                          <TableCell>{quotation.projectName}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{quotation.category || '-'}</TableCell>
+                          <TableCell className="text-right font-mono font-semibold">
+                            {formatCurrency(parseFloat(quotation.quotationValue || '0'))}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                
+                {/* Total Row */}
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between font-semibold text-lg">
+                    <span>Total Quotations</span>
+                    <span className="font-mono text-xl" data-testid="modal-total-quotations">
+                      {formatCurrency(totalQuotationValue)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {selectedQuotations.length} vendor{selectedQuotations.length !== 1 ? 's' : ''} selected
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No selected quotations to display</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
