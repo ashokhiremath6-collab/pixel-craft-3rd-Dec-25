@@ -546,8 +546,8 @@ export default function GanttChartPage() {
                 </Dialog>
                 <Dialog open={isImportOpen} onOpenChange={(open) => {
                   setIsImportOpen(open);
-                  if (open && selectedProjectId) {
-                    setImportProjectId(selectedProjectId);
+                  if (!open) {
+                    setSelectedFile(null);
                   }
                 }}>
                   <DialogTrigger asChild>
@@ -558,39 +558,25 @@ export default function GanttChartPage() {
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Import Project Schedule</DialogTitle>
+                      <DialogTitle>Import Schedule for {selectedProject?.projectName}</DialogTitle>
                       <DialogDescription>
                         Upload a filled Gantt chart (XLSX or CSV) with your project tasks
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">Select Project</label>
-                        <Select value={importProjectId} onValueChange={setImportProjectId}>
-                          <SelectTrigger data-testid="select-import-project-header">
-                            <SelectValue placeholder="Choose project" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {projects.map((project) => (
-                              <SelectItem key={project.id} value={project.id}>
-                                {project.projectName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">Upload File</label>
-                        <Input
-                          type="file"
-                          accept=".xlsx,.xls,.csv"
-                          onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                          data-testid="input-import-file-header"
-                        />
-                      </div>
+                      <Input
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                        data-testid="input-import-file-header"
+                      />
                       <Button
-                        onClick={handleImport}
-                        disabled={!selectedFile || !importProjectId || importScheduleMutation.isPending}
+                        onClick={() => {
+                          if (selectedFile && selectedProjectId) {
+                            importScheduleMutation.mutate({ file: selectedFile, projectId: selectedProjectId });
+                          }
+                        }}
+                        disabled={!selectedFile || importScheduleMutation.isPending}
                         className="w-full"
                         data-testid="button-confirm-import-header"
                       >
