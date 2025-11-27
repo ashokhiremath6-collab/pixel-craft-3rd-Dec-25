@@ -999,6 +999,122 @@ export default function GanttChartPage() {
         </CardContent>
       </Card>
 
+      {/* Task List Table - Designer View */}
+      {selectedProjectId && tasks.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">Task List</CardTitle>
+              <Badge variant="secondary">{tasks.length} tasks</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left py-3 px-3 font-medium">Task</th>
+                    <th className="text-left py-3 px-2 font-medium">Status</th>
+                    <th className="text-left py-3 px-2 font-medium">Start</th>
+                    <th className="text-left py-3 px-2 font-medium">End</th>
+                    <th className="text-left py-3 px-2 font-medium">Owner</th>
+                    <th className="text-left py-3 px-2 font-medium">Priority</th>
+                    <th className="text-center py-3 px-2 font-medium">Progress</th>
+                    <th className="text-center py-3 px-2 font-medium">Approval</th>
+                    <th className="text-center py-3 px-2 font-medium w-16"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tasks.map((task, index) => {
+                    const isPhaseHeader = task.outlineLevel === 1;
+                    const indentLevel = task.outlineLevel ? Math.max(0, task.outlineLevel - 1) : 0;
+                    return (
+                      <tr 
+                        key={task.id} 
+                        className={`border-b hover-elevate ${isPhaseHeader ? 'bg-muted/30 font-medium' : index % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}
+                        data-testid={`row-task-${task.id}`}
+                      >
+                        <td className="py-2 px-3">
+                          <div className={`${isPhaseHeader ? 'font-semibold text-primary' : ''} truncate max-w-[300px]`} title={task.name}>
+                            {indentLevel > 0 && (
+                              <span className="text-muted-foreground mr-1" style={{ marginLeft: `${indentLevel * 12}px` }}>•</span>
+                            )}
+                            {task.name}
+                          </div>
+                        </td>
+                        <td className="py-2 px-2">
+                          <Badge 
+                            variant={task.status === 'completed' ? 'default' : task.status === 'in_progress' ? 'secondary' : task.status === 'blocked' ? 'destructive' : 'outline'}
+                            className="text-xs whitespace-nowrap"
+                          >
+                            {task.status?.replace('_', ' ')}
+                          </Badge>
+                        </td>
+                        <td className="py-2 px-2 text-muted-foreground whitespace-nowrap">
+                          {task.startDate ? new Date(task.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '-'}
+                        </td>
+                        <td className="py-2 px-2 text-muted-foreground whitespace-nowrap">
+                          {task.endDate ? new Date(task.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '-'}
+                        </td>
+                        <td className="py-2 px-2 text-muted-foreground truncate max-w-[100px]" title={task.owner || ''}>
+                          {task.owner || '-'}
+                        </td>
+                        <td className="py-2 px-2">
+                          <Badge 
+                            variant="outline"
+                            className={`text-xs ${
+                              task.priority === 'critical' ? 'border-red-500 text-red-600 bg-red-50 dark:bg-red-950' :
+                              task.priority === 'high' ? 'border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950' :
+                              task.priority === 'medium' ? 'border-yellow-500 text-yellow-600 bg-yellow-50 dark:bg-yellow-950' :
+                              'border-green-500 text-green-600 bg-green-50 dark:bg-green-950'
+                            }`}
+                          >
+                            {task.priority}
+                          </Badge>
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          <div className="flex items-center gap-1">
+                            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-primary rounded-full transition-all"
+                                style={{ width: `${task.progressPercentage || 0}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-muted-foreground w-8">{task.progressPercentage || 0}%</span>
+                          </div>
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          {task.approvalRequired ? (
+                            <Badge variant="outline" className="text-xs border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-950">Yes</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-6 w-6"
+                            onClick={() => {
+                              if (confirm(`Delete task "${task.name}"?`)) {
+                                deleteTaskMutation.mutate(task.id);
+                              }
+                            }}
+                            data-testid={`button-delete-task-row-${task.id}`}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Legend */}
       <Card>
         <CardContent className="pt-6">
