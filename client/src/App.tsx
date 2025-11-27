@@ -37,6 +37,7 @@ function Router() {
       <Route path="/" component={DashboardPage} />
       <Route path="/projects" component={ProjectsPage} />
       <Route path="/gantt-chart" component={GanttChartPage} />
+      <Route path="/gantt" component={GanttChartPage} />
       <Route path="/floor-plans" component={FloorPlansPage} />
       <Route path="/vendors" component={VendorsPage} />
       <Route path="/quotes" component={QuotesPage} />
