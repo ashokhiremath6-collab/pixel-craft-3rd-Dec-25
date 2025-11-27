@@ -8,7 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
 import { useForm } from "react-hook-form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -71,6 +73,10 @@ export default function GanttChartPage() {
   // Inline editing for progress
   const [editingProgressTaskId, setEditingProgressTaskId] = useState<string | null>(null);
   const [editingProgressValue, setEditingProgressValue] = useState<number>(0);
+  
+  // Inline editing for dates
+  const [editingEndDateTaskId, setEditingEndDateTaskId] = useState<string | null>(null);
+  const [editingStartDateTaskId, setEditingStartDateTaskId] = useState<string | null>(null);
   const [visibleColumns, setVisibleColumns] = useState({
     status: true,
     startDate: true,
@@ -201,6 +207,44 @@ export default function GanttChartPage() {
       toast({ 
         title: "Error", 
         description: error.message || "Failed to update progress",
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Update task end date mutation
+  const updateEndDateMutation = useMutation({
+    mutationFn: async ({ taskId, endDate }: { taskId: string; endDate: string }) => {
+      return await apiRequest('PUT', `/api/tasks/${taskId}`, { endDate });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
+      setEditingEndDateTaskId(null);
+      toast({ title: "Success", description: "End date updated" });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to update end date",
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Update task start date mutation
+  const updateStartDateMutation = useMutation({
+    mutationFn: async ({ taskId, startDate }: { taskId: string; startDate: string }) => {
+      return await apiRequest('PUT', `/api/tasks/${taskId}`, { startDate });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
+      setEditingStartDateTaskId(null);
+      toast({ title: "Success", description: "Start date updated" });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to update start date",
         variant: "destructive" 
       });
     },
@@ -1363,12 +1407,70 @@ export default function GanttChartPage() {
                                     )}
                                     {visibleColumns.startDate && (
                                       <td className="py-2.5 px-2 text-muted-foreground whitespace-nowrap">
-                                        {task.startDate ? parseLocalDate(task.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '-'}
+                                        <Popover 
+                                          open={editingStartDateTaskId === task.id} 
+                                          onOpenChange={(open) => setEditingStartDateTaskId(open ? task.id : null)}
+                                        >
+                                          <PopoverTrigger asChild>
+                                            <button 
+                                              className="flex items-center gap-1 hover:bg-muted/50 rounded px-1.5 py-0.5 transition-colors cursor-pointer group"
+                                              title="Click to change start date"
+                                              data-testid={`button-edit-startdate-${task.id}`}
+                                            >
+                                              <span>
+                                                {task.startDate ? parseLocalDate(task.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '-'}
+                                              </span>
+                                              <CalendarIcon className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            </button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-auto p-0" align="start">
+                                            <Calendar
+                                              mode="single"
+                                              selected={task.startDate ? parseLocalDate(task.startDate) || undefined : undefined}
+                                              onSelect={(date) => {
+                                                if (date) {
+                                                  const formattedDate = format(date, 'yyyy-MM-dd');
+                                                  updateStartDateMutation.mutate({ taskId: task.id, startDate: formattedDate });
+                                                }
+                                              }}
+                                              initialFocus
+                                            />
+                                          </PopoverContent>
+                                        </Popover>
                                       </td>
                                     )}
                                     {visibleColumns.endDate && (
                                       <td className={`py-2.5 px-2 whitespace-nowrap ${overdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>
-                                        {task.endDate ? parseLocalDate(task.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '-'}
+                                        <Popover 
+                                          open={editingEndDateTaskId === task.id} 
+                                          onOpenChange={(open) => setEditingEndDateTaskId(open ? task.id : null)}
+                                        >
+                                          <PopoverTrigger asChild>
+                                            <button 
+                                              className="flex items-center gap-1 hover:bg-muted/50 rounded px-1.5 py-0.5 transition-colors cursor-pointer group"
+                                              title="Click to change end date"
+                                              data-testid={`button-edit-enddate-${task.id}`}
+                                            >
+                                              <span>
+                                                {task.endDate ? parseLocalDate(task.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '-'}
+                                              </span>
+                                              <CalendarIcon className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            </button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-auto p-0" align="start">
+                                            <Calendar
+                                              mode="single"
+                                              selected={task.endDate ? parseLocalDate(task.endDate) || undefined : undefined}
+                                              onSelect={(date) => {
+                                                if (date) {
+                                                  const formattedDate = format(date, 'yyyy-MM-dd');
+                                                  updateEndDateMutation.mutate({ taskId: task.id, endDate: formattedDate });
+                                                }
+                                              }}
+                                              initialFocus
+                                            />
+                                          </PopoverContent>
+                                        </Popover>
                                       </td>
                                     )}
                                     {visibleColumns.assigned && (
