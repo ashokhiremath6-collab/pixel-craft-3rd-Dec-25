@@ -14,6 +14,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
 
   // Real Replit Auth - redirect to /api/login
   const handleReplitLogin = () => {
+    console.log('Login button clicked, redirecting to /api/login');
     login(); // This redirects to /api/login for real authentication
   };
 

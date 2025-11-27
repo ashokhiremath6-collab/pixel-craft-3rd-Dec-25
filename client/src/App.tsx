@@ -121,7 +121,9 @@ function AuthenticatedApp() {
 }
 
 function AppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  console.log('AppContent render:', { isAuthenticated, isLoading, user });
 
   if (isLoading) {
     return (
