@@ -209,9 +209,16 @@ export default function DashboardPage() {
     allTasksData.forEach(task => {
       if (!task.endDate) return;
       
-      // Skip PHASE and PACKAGE header rows - these are grouping headers, not actual tasks
+      // Skip PHASE, PACKAGE, and EXECUTE header rows - these are grouping headers, not actual tasks
       const taskName = task.name?.toUpperCase() || '';
-      if (taskName.startsWith('PHASE') || taskName.startsWith('PACKAGE')) return;
+      if (taskName.startsWith('PHASE') || taskName.startsWith('PACKAGE') || taskName.startsWith('EXECUTE')) return;
+      
+      // Skip rows where startDate = endDate and duration is null (likely header rows without real dates)
+      if (task.startDate && task.endDate && !task.duration) {
+        const startDate = startOfDay(new Date(task.startDate));
+        const endDate = startOfDay(new Date(task.endDate));
+        if (differenceInDays(endDate, startDate) === 0) return;
+      }
       
       const endDate = startOfDay(new Date(task.endDate));
       const daysUntil = differenceInDays(endDate, today);
@@ -219,8 +226,9 @@ export default function DashboardPage() {
       const project = quotationsData.projects.find(p => p.id === task.projectId);
       const projectName = project?.projectName || 'Unknown Project';
       
-      // Only show tasks that are not completed
-      if (task.status !== 'completed') {
+      // Only show tasks that are not completed (based on progress, not status)
+      const progressPercent = Number(task.progressPercentage) || 0;
+      if (progressPercent < 100) {
         if (daysUntil === 0) {
           dueToday.push({ ...task, projectName });
         } else if (daysUntil === 5) {

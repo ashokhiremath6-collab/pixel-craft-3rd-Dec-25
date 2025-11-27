@@ -4635,8 +4635,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Helper function to parse and normalize dates
-      const parseDate = (dateValue: any): string => {
-        if (!dateValue) return new Date().toISOString().split('T')[0];
+      const parseDate = (dateValue: any): string | null => {
+        // Return null for empty/missing dates - don't default to today
+        if (!dateValue) return null;
         
         // If it's already a valid date string (YYYY-MM-DD), return it
         if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
@@ -4650,15 +4651,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return date.toISOString().split('T')[0];
           }
         } catch (e) {
-          // Fall through to default
+          // Fall through to null
         }
         
-        return new Date().toISOString().split('T')[0];
+        return null;
       };
 
       const createdTasks = [];
       const errors: Array<{ row: number; error: string; data: any }> = [];
 
+      // Helper to check if task name is a header row (PHASE, PACKAGE, or EXECUTE sections)
+      const isHeaderRow = (name: string): boolean => {
+        if (!name) return false;
+        const upper = name.toUpperCase();
+        return upper.startsWith('PHASE') || upper.startsWith('PACKAGE') || upper.startsWith('EXECUTE');
+      };
+      
+      // Placeholder date for header rows (far in future to avoid alerts)
+      const HEADER_PLACEHOLDER_DATE = '2099-12-31';
+      
       for (let i = 0; i < taskData.length; i++) {
         const row: any = taskData[i];
         
@@ -4672,6 +4683,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           const progressValue = row['% Complete'] || row.progress || 0;
           const progressString = String(progressValue || 0);
+          
+          // Parse dates
+          let startDate = parseDate(row.Start || row.start);
+          let endDate = parseDate(row.Finish || row.finish || row.End);
+          
+          // For any row without dates, use placeholder
+          // This satisfies NOT NULL constraint but won't trigger false "due today" alerts
+          // Tasks with missing dates are essentially "unscheduled" and need manual date entry
+          startDate = startDate || HEADER_PLACEHOLDER_DATE;
+          endDate = endDate || HEADER_PLACEHOLDER_DATE;
 
           const taskRecord = {
             projectId,
@@ -4679,8 +4700,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             taskId,
             name,
             description: row.Remarks || row.remarks || row.Notes || '',
-            startDate: parseDate(row.Start || row.start),
-            endDate: parseDate(row.Finish || row.finish || row.End),
+            startDate,
+            endDate,
             duration: durationString,
             assignedTo: null, // Don't import resource names as user IDs - set manually later
             status: 'not_started',
@@ -4769,15 +4790,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         views: [{ state: 'frozen', ySplit: 1 }]
       });
       
-      // Define columns - Designer-friendly view (technical columns hidden)
+      // Define columns - Designer-friendly view (Status column removed per user request)
       worksheet.columns = [
         { header: '#', key: 'seq', width: 5 },
-        { header: 'Task Name', key: 'name', width: 40 },
-        { header: 'Status', key: 'status', width: 14 },
+        { header: 'Task Name', key: 'name', width: 45 },
         { header: 'Priority', key: 'priority', width: 12 },
         { header: 'Start Date', key: 'startDate', width: 14 },
         { header: 'End Date', key: 'endDate', width: 14 },
-        { header: 'Progress', key: 'progress', width: 12 },
+        { header: '% Complete', key: 'progress', width: 12 },
         { header: 'Remarks', key: 'remarks', width: 35 },
         // Hidden columns (still in export for reference)
         { header: 'Duration', key: 'duration', width: 10, hidden: true },
@@ -4795,14 +4815,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
       headerRow.height = 28;
-      
-      // Color mapping for status
-      const statusColors: Record<string, { bg: string; text: string }> = {
-        'completed': { bg: 'FFD4EDDA', text: 'FF155724' },      // Green
-        'in_progress': { bg: 'FFCCE5FF', text: 'FF004085' },    // Blue
-        'blocked': { bg: 'FFF8D7DA', text: 'FF721C24' },        // Red
-        'not_started': { bg: 'FFF5F5F5', text: 'FF6C757D' },    // Gray
-      };
       
       // Color mapping for priority
       const priorityColors: Record<string, { bg: string; text: string }> = {
@@ -4825,16 +4837,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return new Date(task.endDate) < new Date();
       };
       
+      // Sort tasks by task_id to preserve original Excel order
+      const sortedTasks = [...tasks].sort((a, b) => {
+        const idA = parseInt(a.taskId || '0', 10);
+        const idB = parseInt(b.taskId || '0', 10);
+        return idA - idB;
+      });
+      
+      // Track row numbers for blank row insertion
+      const blankRowsAfter = [7, 130]; // Insert 2 blank rows after these task numbers
+      
       // Add data rows
       let seq = 1;
-      for (const task of tasks) {
+      for (const task of sortedTasks) {
         const isPhase = isPhaseHeader(task.name || '');
         const taskOverdue = isOverdue(task);
         
         const row = worksheet.addRow({
-          seq: seq++,
+          seq: seq,
           name: task.name || 'Untitled',
-          status: (task.status || 'not_started').replace('_', ' ').toUpperCase(),
           priority: (task.priority || 'medium').toUpperCase(),
           startDate: task.startDate ? new Date(task.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-',
           endDate: task.endDate ? new Date(task.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-',
@@ -4844,6 +4865,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           taskId: task.taskId || '',
           assignedTo: task.assignedTo || '',
         });
+        
+        // Insert blank rows after specified task numbers
+        if (blankRowsAfter.includes(seq)) {
+          worksheet.addRow({});
+          worksheet.addRow({});
+        }
+        
+        seq++;
         
         // Style phase header rows
         if (isPhase) {
@@ -4857,17 +4886,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           row.height = 20;
         }
-        
-        // Style status cell
-        const statusCell = row.getCell('status');
-        const statusStyle = statusColors[task.status || 'not_started'] || statusColors['not_started'];
-        statusCell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: statusStyle.bg }
-        };
-        statusCell.font = { color: { argb: statusStyle.text }, bold: true };
-        statusCell.alignment = { horizontal: 'center' };
         
         // Style priority cell
         const priorityCell = row.getCell('priority');
@@ -4917,7 +4935,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const summaryRow = worksheet.addRow({
         seq: '',
         name: 'SUMMARY',
-        status: '',
         priority: '',
         startDate: '',
         endDate: '',
@@ -4932,22 +4949,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       summaryRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       
-      const completedCount = tasks.filter(t => t.status === 'completed').length;
-      const inProgressCount = tasks.filter(t => t.status === 'in_progress').length;
-      const overdueCount = tasks.filter(isOverdue).length;
+      const totalTasks = sortedTasks.length;
+      const completedCount = sortedTasks.filter(t => Number(t.progressPercentage) >= 100).length;
+      const inProgressCount = sortedTasks.filter(t => Number(t.progressPercentage) > 0 && Number(t.progressPercentage) < 100).length;
+      const overdueCount = sortedTasks.filter(isOverdue).length;
       
-      worksheet.addRow({ seq: '', name: `Total Tasks: ${tasks.length}` });
-      worksheet.addRow({ seq: '', name: `Completed: ${completedCount} (${tasks.length > 0 ? Math.round(completedCount/tasks.length*100) : 0}%)` });
+      worksheet.addRow({ seq: '', name: `Total Tasks: ${totalTasks}` });
+      worksheet.addRow({ seq: '', name: `Completed (100%): ${completedCount} (${totalTasks > 0 ? Math.round(completedCount/totalTasks*100) : 0}%)` });
       worksheet.addRow({ seq: '', name: `In Progress: ${inProgressCount}` });
       if (overdueCount > 0) {
         const overdueRow = worksheet.addRow({ seq: '', name: `Overdue: ${overdueCount}` });
         overdueRow.font = { color: { argb: 'FFDC3545' }, bold: true };
       }
       
-      // Auto-filter for the data
+      // Auto-filter for the data (7 visible columns now)
       worksheet.autoFilter = {
         from: { row: 1, column: 1 },
-        to: { row: tasks.length + 1, column: 8 }
+        to: { row: sortedTasks.length + 1, column: 7 }
       };
       
       // Generate filename
