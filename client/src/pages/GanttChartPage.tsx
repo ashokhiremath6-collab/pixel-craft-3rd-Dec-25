@@ -118,6 +118,7 @@ export default function GanttChartPage() {
       const response = await fetch('/api/schedules/import', {
         method: 'POST',
         body: formData,
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -543,7 +544,12 @@ export default function GanttChartPage() {
                     )}
                   </DialogContent>
                 </Dialog>
-                <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+                <Dialog open={isImportOpen} onOpenChange={(open) => {
+                  setIsImportOpen(open);
+                  if (open && selectedProjectId) {
+                    setImportProjectId(selectedProjectId);
+                  }
+                }}>
                   <DialogTrigger asChild>
                     <Button size="sm" variant="outline" data-testid="button-import-schedule-header">
                       <Upload className="h-4 w-4 mr-2" />
