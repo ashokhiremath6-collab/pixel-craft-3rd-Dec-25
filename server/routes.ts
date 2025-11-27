@@ -17,6 +17,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
+import { validateDependencies, formatValidationErrors, validateSingleDependency } from "./dependencyValidator";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
@@ -4682,61 +4683,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Create dependencies after all tasks are created
-      for (const { taskId, predecessorStr } of dependenciesToCreate) {
-        try {
-          // Parse predecessor format: "2(FS)+0" or "2FS+0" or "3,4FS" etc
-          const predecessors = String(predecessorStr).split(/[,;]/).map(p => p.trim()).filter(Boolean);
-          
-          for (const pred of predecessors) {
-            // Support both formats: "2(FS)+0" and "2FS+0", allowing alphanumeric IDs like "2.1" or "A1" and decimal lags
-            const match = pred.match(/^([\w.-]+)\(?([A-Z]{2})\)?([+-]?\d+(?:\.\d+)?)?$/) || pred.match(/^([\w.-]+)([A-Z]{2})([+-]?\d+(?:\.\d+)?)?$/);
-            if (match) {
-              const [, predTaskId, depType, lagStr] = match;
-              
-              // Validate dependency type
-              const typeMap: Record<string, 'finish_to_start' | 'start_to_start' | 'finish_to_finish' | 'start_to_finish'> = {
-                'FS': 'finish_to_start',
-                'SS': 'start_to_start',
-                'FF': 'finish_to_finish',
-                'SF': 'start_to_finish',
-              };
-              
-              const normalizedType = typeMap[depType];
-              if (!normalizedType) {
-                console.warn(`Invalid dependency type "${depType}" in predecessor "${pred}", skipping`);
-                continue;
-              }
-              
-              // Find predecessor task in the same schedule
-              const task = createdTasks.find(t => t.taskId === predTaskId);
-              if (!task) {
-                console.warn(`Predecessor task ID "${predTaskId}" not found in this schedule, skipping dependency`);
-                continue;
-              }
-              
+      // Validate dependencies BEFORE saving (bulletproof validation)
+      // Build task data for validation: map spreadsheet task IDs to names and predecessors
+      const taskIdToDbId = new Map<string, string>();
+      const taskIdToName = new Map<string, string>();
+      
+      for (const task of createdTasks) {
+        taskIdToDbId.set(task.taskId!, task.id!);
+        taskIdToName.set(task.taskId!, task.name);
+      }
+      
+      // Build validation input: use spreadsheet taskId (not database UUID)
+      const validationInput = dependenciesToCreate.map(dep => {
+        const dbTask = createdTasks.find(t => t.id === dep.taskId);
+        return {
+          taskId: dbTask?.taskId || '',
+          taskName: dbTask?.name || '',
+          predecessorStr: dep.predecessorStr
+        };
+      });
+      
+      // Run validation
+      const validationResult = validateDependencies(validationInput);
+      
+      let dependenciesCreated = 0;
+      let dependencyErrors: string[] = [];
+      
+      if (!validationResult.isValid) {
+        // Validation failed - DO NOT save any dependencies
+        console.warn('Dependency validation failed:', validationResult.summary);
+        dependencyErrors = validationResult.errors.map(e => 
+          `Task ${e.taskId} "${e.taskName}": ${e.message}`
+        );
+        
+        // Log the formatted errors for debugging
+        console.warn(formatValidationErrors(validationResult));
+      } else {
+        // Validation passed - save all valid dependencies
+        for (const dep of validationResult.validDependencies) {
+          try {
+            const fromDbId = taskIdToDbId.get(dep.fromTaskId);
+            const toDbId = taskIdToDbId.get(dep.toTaskId);
+            
+            if (fromDbId && toDbId) {
               await storage.createTaskDependency({
-                fromTaskId: task.id!,
-                toTaskId: taskId,
-                dependencyType: normalizedType,
-                lag: lagStr ? String(parseFloat(lagStr)) : '0',
+                fromTaskId: fromDbId,
+                toTaskId: toDbId,
+                dependencyType: dep.dependencyType,
+                lag: String(dep.lag),
               });
-            } else {
-              console.warn(`Malformed predecessor format "${pred}", expected format: "TaskID(FS|SS|FF|SF)[+/-lag]"`);
+              dependenciesCreated++;
             }
+          } catch (error) {
+            console.error('Error creating dependency:', error);
           }
-        } catch (error) {
-          console.error('Error creating dependency:', error);
         }
       }
 
-      res.status(201).json({
+      // Build response
+      const response: any = {
         message: `Imported schedule with ${createdTasks.length} tasks`,
         schedule,
         tasksCreated: createdTasks.length,
         tasksFailed: errors.length,
-        errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
-      });
+        dependenciesCreated,
+      };
+      
+      if (errors.length > 0) {
+        response.taskErrors = errors.slice(0, 10);
+      }
+      
+      if (!validationResult.isValid) {
+        response.dependencyValidation = {
+          status: 'failed',
+          summary: validationResult.summary,
+          errors: validationResult.errors.slice(0, 20),
+          message: 'Dependencies were NOT imported due to validation errors. Please fix the issues in your spreadsheet and re-import.'
+        };
+      } else if (dependenciesCreated > 0) {
+        response.dependencyValidation = {
+          status: 'success',
+          summary: validationResult.summary,
+          message: `All ${dependenciesCreated} dependencies validated and imported successfully.`
+        };
+      }
+
+      res.status(201).json(response);
     } catch (error) {
       console.error('Error importing schedule:', error);
       res.status(500).json({ error: "Failed to import schedule" });
@@ -4758,6 +4790,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/task-dependencies", requireAuth, async (req, res) => {
     try {
       const validatedData = insertTaskDependencySchema.parse(req.body);
+      
+      // Check for self-reference
+      if (validatedData.fromTaskId === validatedData.toTaskId) {
+        return res.status(400).json({ 
+          error: "Invalid dependency: A task cannot depend on itself" 
+        });
+      }
+      
+      // Get the task to find its schedule
+      const toTask = await storage.getTask(validatedData.toTaskId);
+      if (!toTask || !toTask.scheduleId) {
+        return res.status(400).json({ error: "Task not found or not associated with a schedule" });
+      }
+      
+      // Get all tasks in the schedule for cycle detection
+      const scheduleTasks = await storage.getTasksBySchedule(toTask.scheduleId);
+      const allTaskIds = scheduleTasks.map(t => t.id);
+      
+      // Get existing dependencies for cycle check
+      const existingDeps: Array<{ fromTaskId: string; toTaskId: string }> = [];
+      for (const task of scheduleTasks) {
+        const deps = await storage.getTaskDependencies(task.id);
+        existingDeps.push(...deps.map(d => ({ fromTaskId: d.fromTaskId, toTaskId: d.toTaskId })));
+      }
+      
+      // Validate that this new dependency won't create a cycle
+      const validation = validateSingleDependency(
+        validatedData.fromTaskId,
+        validatedData.toTaskId,
+        existingDeps,
+        allTaskIds
+      );
+      
+      if (!validation.isValid) {
+        return res.status(400).json({ 
+          error: validation.error || "Invalid dependency: would create a circular reference"
+        });
+      }
+      
       const dependency = await storage.createTaskDependency(validatedData);
       res.status(201).json(dependency);
     } catch (error) {
