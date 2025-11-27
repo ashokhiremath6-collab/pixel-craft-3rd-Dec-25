@@ -4593,10 +4593,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (fileExtension === 'xlsx' || fileExtension === 'xls') {
         const workbook = XLSX.read(req.file.buffer);
-        const ganttSheet = workbook.Sheets['Gantt'];
-        if (ganttSheet) {
+        // Try multiple common sheet names, then fall back to first sheet (excluding Instructions)
+        const sheetNames = ['Gantt', 'Schedule', 'Tasks', 'Project Schedule', 'Timeline'];
+        let targetSheet = null;
+        let usedSheetName = '';
+        
+        // First try common sheet names
+        for (const name of sheetNames) {
+          if (workbook.Sheets[name]) {
+            targetSheet = workbook.Sheets[name];
+            usedSheetName = name;
+            break;
+          }
+        }
+        
+        // If no common name found, use the first sheet that's not "Instructions"
+        if (!targetSheet && workbook.SheetNames.length > 0) {
+          for (const name of workbook.SheetNames) {
+            if (name.toLowerCase() !== 'instructions') {
+              targetSheet = workbook.Sheets[name];
+              usedSheetName = name;
+              break;
+            }
+          }
+        }
+        
+        if (targetSheet) {
+          console.log(`Using sheet: "${usedSheetName}" from Excel file`);
           // Use raw: false to convert Excel date serial numbers to date strings
-          taskData = XLSX.utils.sheet_to_json(ganttSheet, { defval: null, raw: false });
+          taskData = XLSX.utils.sheet_to_json(targetSheet, { defval: null, raw: false });
+        } else {
+          console.log('No suitable sheet found in Excel file. Available sheets:', workbook.SheetNames);
         }
       } else if (fileExtension === 'csv') {
         const csvContent = req.file.buffer.toString('utf-8');
