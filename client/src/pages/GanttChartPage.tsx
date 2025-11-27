@@ -1059,11 +1059,12 @@ export default function GanttChartPage() {
         let currentGroup: Task[] = [];
 
         filteredTasks.forEach(task => {
-          if (isPhaseHeader(task.name)) {
+          const taskName = task.name || 'Untitled Task';
+          if (isPhaseHeader(taskName)) {
             if (currentGroup.length > 0) {
               groupedTasks.push({ phase: currentPhase, tasks: currentGroup });
             }
-            currentPhase = task.name;
+            currentPhase = taskName;
             currentGroup = [task];
           } else {
             currentGroup.push(task);
