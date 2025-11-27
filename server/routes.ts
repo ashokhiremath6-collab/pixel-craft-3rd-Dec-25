@@ -4786,51 +4786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       workbook.creator = 'PixelCraft Designer';
       workbook.created = new Date();
       
-      // Add Instructions sheet first
-      const instructionsSheet = workbook.addWorksheet('Instructions');
-      instructionsSheet.columns = [
-        { header: 'Topic', key: 'topic', width: 25 },
-        { header: 'Description', key: 'description', width: 80 },
-      ];
-      
-      // Style Instructions header
-      const instrHeader = instructionsSheet.getRow(1);
-      instrHeader.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      instrHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A365D' } };
-      instrHeader.alignment = { vertical: 'middle', horizontal: 'left' };
-      instrHeader.height = 24;
-      
-      // Add instruction rows
-      const instructions = [
-        { topic: 'Purpose', description: 'This is your Designer Export file. Edit dates and progress here, then re-import to sync changes back to the system.' },
-        { topic: '', description: '' },
-        { topic: 'DATE FORMAT', description: 'Enter dates in any of these formats:' },
-        { topic: '', description: '   • 15 Nov 2025 (recommended)' },
-        { topic: '', description: '   • 2025-11-15' },
-        { topic: '', description: '   • 15/11/2025' },
-        { topic: '', description: '   • Nov 15, 2025' },
-        { topic: '', description: '' },
-        { topic: 'PROGRESS', description: 'Enter progress as a percentage (0% to 100%)' },
-        { topic: '', description: '   • Type 50% or just 50' },
-        { topic: '', description: '   • Leave blank for section headers' },
-        { topic: '', description: '' },
-        { topic: 'SECTION HEADERS', description: 'Rows containing PHASE, PACKAGE, or EXECUTE are section headers.' },
-        { topic: '', description: 'Leave dates and progress blank for these rows.' },
-        { topic: '', description: '' },
-        { topic: 'RE-IMPORT', description: 'After editing, use the "Re-import" button in the app to sync your changes.' },
-        { topic: '', description: 'The system will update dates, progress, and remarks for each task.' },
-        { topic: '', description: '' },
-        { topic: 'HIDDEN COLUMNS', description: 'Columns G onwards contain system IDs. Do NOT modify or delete these.' },
-        { topic: '', description: 'They are used to match tasks during re-import.' },
-      ];
-      
-      instructions.forEach(instr => {
-        const row = instructionsSheet.addRow(instr);
-        if (instr.topic && instr.topic.toUpperCase() === instr.topic && instr.topic !== '') {
-          row.font = { bold: true };
-        }
-      });
-      
+      // Add Designer Schedule sheet FIRST (so it's the active sheet when opened)
       const worksheet = workbook.addWorksheet('Designer Schedule', {
         views: [{ state: 'frozen', ySplit: 1 }]
       });
@@ -5039,6 +4995,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         from: { row: 1, column: 1 },
         to: { row: sortedTasks.length + 1, column: 6 }
       };
+      
+      // Add Instructions sheet SECOND (so it's the 2nd tab)
+      const instructionsSheet = workbook.addWorksheet('Instructions');
+      instructionsSheet.columns = [
+        { header: 'Topic', key: 'topic', width: 25 },
+        { header: 'Description', key: 'description', width: 80 },
+      ];
+      
+      // Style Instructions header
+      const instrHeader = instructionsSheet.getRow(1);
+      instrHeader.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      instrHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A365D' } };
+      instrHeader.alignment = { vertical: 'middle', horizontal: 'left' };
+      instrHeader.height = 24;
+      
+      // Add instruction rows
+      const instructions = [
+        { topic: 'Purpose', description: 'This is your Designer Export file. Edit dates and progress here, then re-import to sync changes back to the system.' },
+        { topic: '', description: '' },
+        { topic: 'DATE FORMAT', description: 'Enter dates in any of these formats:' },
+        { topic: '', description: '   • 15 Nov 2025 (recommended)' },
+        { topic: '', description: '   • 2025-11-15' },
+        { topic: '', description: '   • 15/11/2025' },
+        { topic: '', description: '   • Nov 15, 2025' },
+        { topic: '', description: '' },
+        { topic: 'PROGRESS', description: 'Enter progress as a percentage (0% to 100%)' },
+        { topic: '', description: '   • Type 50% or just 50' },
+        { topic: '', description: '   • Leave blank for section headers' },
+        { topic: '', description: '' },
+        { topic: 'SECTION HEADERS', description: 'Rows containing PHASE, PACKAGE, or EXECUTE are section headers.' },
+        { topic: '', description: 'Leave dates and progress blank for these rows.' },
+        { topic: '', description: '' },
+        { topic: 'RE-IMPORT', description: 'After editing, use the "Re-import" button in the app to sync your changes.' },
+        { topic: '', description: 'The system will update dates, progress, and remarks for each task.' },
+        { topic: '', description: '' },
+        { topic: 'HIDDEN COLUMNS', description: 'Columns G onwards contain system IDs. Do NOT modify or delete these.' },
+        { topic: '', description: 'They are used to match tasks during re-import.' },
+      ];
+      
+      instructions.forEach(instr => {
+        const row = instructionsSheet.addRow(instr);
+        if (instr.topic && instr.topic.toUpperCase() === instr.topic && instr.topic !== '') {
+          row.font = { bold: true };
+        }
+      });
       
       // Generate filename
       const projectName = project?.projectName || 'Project';
