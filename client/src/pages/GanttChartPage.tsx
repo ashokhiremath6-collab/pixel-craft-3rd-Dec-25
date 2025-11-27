@@ -911,11 +911,11 @@ export default function GanttChartPage() {
                               onClick={() => {
                                 window.open(`/api/schedules/${schedule.id}/designer-export`, '_blank');
                               }}
-                              title="Download Designer-Formatted Excel (editable)"
+                              title="Open Designer-Formatted Excel (editable)"
                               data-testid={`button-designer-export-${schedule.id}`}
                             >
                               <Palette className="h-4 w-4 mr-1" />
-                              Export
+                              Open
                             </Button>
                             <Button 
                               size="sm" 
