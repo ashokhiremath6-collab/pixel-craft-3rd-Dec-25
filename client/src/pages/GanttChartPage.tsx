@@ -67,6 +67,10 @@ export default function GanttChartPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  
+  // Inline editing for progress
+  const [editingProgressTaskId, setEditingProgressTaskId] = useState<string | null>(null);
+  const [editingProgressValue, setEditingProgressValue] = useState<number>(0);
   const [visibleColumns, setVisibleColumns] = useState({
     status: true,
     startDate: true,
@@ -178,6 +182,25 @@ export default function GanttChartPage() {
       toast({ 
         title: "Error", 
         description: error.message || "Failed to delete task",
+        variant: "destructive" 
+      });
+    },
+  });
+  
+  // Update task progress mutation
+  const updateProgressMutation = useMutation({
+    mutationFn: async ({ taskId, progressPercentage }: { taskId: string; progressPercentage: number }) => {
+      return await apiRequest('PUT', `/api/tasks/${taskId}`, { progressPercentage });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
+      setEditingProgressTaskId(null);
+      toast({ title: "Success", description: "Progress updated" });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to update progress",
         variant: "destructive" 
       });
     },
@@ -1369,25 +1392,66 @@ export default function GanttChartPage() {
                                     )}
                                     {visibleColumns.progress && (
                                       <td className="py-2.5 px-2 text-center">
-                                        <div className="flex items-center gap-2">
-                                          <div className="flex-1 h-2.5 bg-muted rounded-full overflow-hidden min-w-[60px]">
-                                            <div 
-                                              className={`h-full rounded-full transition-all ${
-                                                Number(task.progressPercentage || 0) >= 100 
-                                                  ? 'bg-green-500' 
-                                                  : Number(task.progressPercentage || 0) >= 50 
-                                                    ? 'bg-blue-500' 
-                                                    : 'bg-amber-500'
-                                              }`}
-                                              style={{ width: `${task.progressPercentage || 0}%` }}
+                                        {editingProgressTaskId === task.id ? (
+                                          <div className="flex items-center gap-1">
+                                            <Input
+                                              type="number"
+                                              min={0}
+                                              max={100}
+                                              value={editingProgressValue}
+                                              onChange={(e) => setEditingProgressValue(Math.min(100, Math.max(0, Number(e.target.value))))}
+                                              className="w-16 h-7 text-center text-xs"
+                                              autoFocus
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                  updateProgressMutation.mutate({ taskId: task.id, progressPercentage: editingProgressValue });
+                                                } else if (e.key === 'Escape') {
+                                                  setEditingProgressTaskId(null);
+                                                }
+                                              }}
+                                              data-testid={`input-progress-${task.id}`}
                                             />
+                                            <Button
+                                              size="icon"
+                                              variant="ghost"
+                                              className="h-6 w-6"
+                                              onClick={() => updateProgressMutation.mutate({ taskId: task.id, progressPercentage: editingProgressValue })}
+                                              disabled={updateProgressMutation.isPending}
+                                              data-testid={`button-save-progress-${task.id}`}
+                                            >
+                                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                                            </Button>
                                           </div>
-                                          <span className={`text-xs font-medium w-10 ${
-                                            Number(task.progressPercentage || 0) >= 100 ? 'text-green-600' : 'text-muted-foreground'
-                                          }`}>
-                                            {task.progressPercentage || 0}%
-                                          </span>
-                                        </div>
+                                        ) : (
+                                          <div 
+                                            className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 transition-colors"
+                                            onClick={() => {
+                                              setEditingProgressTaskId(task.id);
+                                              setEditingProgressValue(Number(task.progressPercentage || 0));
+                                            }}
+                                            title="Click to edit progress"
+                                            data-testid={`progress-cell-${task.id}`}
+                                          >
+                                            <div className="flex-1 h-2.5 bg-muted rounded-full overflow-hidden min-w-[60px]">
+                                              <div 
+                                                className={`h-full rounded-full transition-all ${
+                                                  Number(task.progressPercentage || 0) >= 100 
+                                                    ? 'bg-green-500' 
+                                                    : Number(task.progressPercentage || 0) >= 50 
+                                                      ? 'bg-blue-500' 
+                                                      : 'bg-amber-500'
+                                                }`}
+                                                style={{ width: `${task.progressPercentage || 0}%` }}
+                                              />
+                                            </div>
+                                            <span className={`text-xs font-medium w-10 ${
+                                              Number(task.progressPercentage || 0) >= 100 ? 'text-green-600' : 'text-muted-foreground'
+                                            }`}>
+                                              {task.progressPercentage || 0}%
+                                            </span>
+                                            <Edit className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-50" />
+                                          </div>
+                                        )}
                                       </td>
                                     )}
                                     {visibleColumns.approval && (
