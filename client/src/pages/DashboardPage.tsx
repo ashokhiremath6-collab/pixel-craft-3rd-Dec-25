@@ -209,6 +209,10 @@ export default function DashboardPage() {
     allTasksData.forEach(task => {
       if (!task.endDate) return;
       
+      // Skip PHASE and PACKAGE header rows - these are grouping headers, not actual tasks
+      const taskName = task.name?.toUpperCase() || '';
+      if (taskName.startsWith('PHASE') || taskName.startsWith('PACKAGE')) return;
+      
       const endDate = startOfDay(new Date(task.endDate));
       const daysUntil = differenceInDays(endDate, today);
       
