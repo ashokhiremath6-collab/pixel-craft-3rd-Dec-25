@@ -4578,6 +4578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.createActivity({
           userId: user.id,
           userName: userName,
+          userEmail: user.email || '',
           activityType: 'schedule_upload' as any,
           fileName: req.file.originalname,
           projectId: projectId,
