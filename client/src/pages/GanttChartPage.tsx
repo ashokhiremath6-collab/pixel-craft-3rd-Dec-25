@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,8 +8,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp } from "lucide-react";
+import { Calendar, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertTaskSchema } from "@shared/schema";
 import type { Project, Task, ProjectSchedule } from "@shared/schema";
@@ -59,6 +61,22 @@ export default function GanttChartPage() {
   const [isEditingGanttLink, setIsEditingGanttLink] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [editingLinkProjectId, setEditingLinkProjectId] = useState<string | null>(null);
+  
+  // Task table filters and settings
+  const [taskSearchQuery, setTaskSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState({
+    status: true,
+    startDate: true,
+    endDate: true,
+    assigned: false, // Hidden by default - designers may not need
+    priority: true,
+    progress: true,
+    approval: true,
+  });
+  const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
 
   const { data: quotationsData, isLoading: isLoadingProjects } = useQuery<QuotationsResponse>({
     queryKey: ['/api/quotations'],
@@ -999,116 +1017,406 @@ export default function GanttChartPage() {
         </CardContent>
       </Card>
 
-      {/* Task List Table - Designer View */}
-      {selectedProjectId && tasks.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Task List</CardTitle>
-              <Badge variant="secondary">{tasks.length} tasks</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="text-left py-3 px-3 font-medium">Task</th>
-                    <th className="text-left py-3 px-2 font-medium">Status</th>
-                    <th className="text-left py-3 px-2 font-medium">Start</th>
-                    <th className="text-left py-3 px-2 font-medium">End</th>
-                    <th className="text-left py-3 px-2 font-medium">Assigned</th>
-                    <th className="text-left py-3 px-2 font-medium">Priority</th>
-                    <th className="text-center py-3 px-2 font-medium">Progress</th>
-                    <th className="text-center py-3 px-2 font-medium">Approval</th>
-                    <th className="text-center py-3 px-2 font-medium w-16"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tasks.map((task, index) => {
-                    return (
-                      <tr 
-                        key={task.id} 
-                        className={`border-b hover-elevate ${index % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}
-                        data-testid={`row-task-${task.id}`}
-                      >
-                        <td className="py-2 px-3">
-                          <div className="truncate max-w-[300px]" title={task.name}>
-                            {task.name}
+      {/* Enhanced Task List Table - Designer View */}
+      {selectedProjectId && tasks.length > 0 && (() => {
+        // Helper functions for task table
+        const isTaskOverdue = (task: Task) => {
+          if (task.status === 'completed') return false;
+          if (!task.endDate) return false;
+          const endDate = parseLocalDate(task.endDate);
+          return endDate && endDate < new Date();
+        };
+
+        const isPhaseHeader = (name: string | null | undefined) => {
+          if (!name) return false;
+          return name.toUpperCase().includes('PHASE') || name.toUpperCase().includes('PACKAGE');
+        };
+
+        // Filter and group tasks
+        const filteredTasks = tasks.filter(task => {
+          // Search filter
+          if (taskSearchQuery && !(task.name || '').toLowerCase().includes(taskSearchQuery.toLowerCase())) {
+            return false;
+          }
+          // Status filter
+          if (statusFilter !== 'all' && task.status !== statusFilter) {
+            return false;
+          }
+          // Priority filter
+          if (priorityFilter !== 'all' && task.priority !== priorityFilter) {
+            return false;
+          }
+          // Overdue filter
+          if (showOverdueOnly && !isTaskOverdue(task)) {
+            return false;
+          }
+          return true;
+        });
+
+        // Group tasks by phase
+        const groupedTasks: { phase: string; tasks: Task[] }[] = [];
+        let currentPhase = 'General Tasks';
+        let currentGroup: Task[] = [];
+
+        filteredTasks.forEach(task => {
+          if (isPhaseHeader(task.name)) {
+            if (currentGroup.length > 0) {
+              groupedTasks.push({ phase: currentPhase, tasks: currentGroup });
+            }
+            currentPhase = task.name;
+            currentGroup = [task];
+          } else {
+            currentGroup.push(task);
+          }
+        });
+        if (currentGroup.length > 0) {
+          groupedTasks.push({ phase: currentPhase, tasks: currentGroup });
+        }
+
+        // Count stats
+        const overdueCount = tasks.filter(isTaskOverdue).length;
+        const completedCount = tasks.filter(t => t.status === 'completed').length;
+        const inProgressCount = tasks.filter(t => t.status === 'in_progress').length;
+
+        const togglePhase = (phase: string) => {
+          const newExpanded = new Set(expandedPhases);
+          if (newExpanded.has(phase)) {
+            newExpanded.delete(phase);
+          } else {
+            newExpanded.add(phase);
+          }
+          setExpandedPhases(newExpanded);
+        };
+
+        const toggleColumn = (column: keyof typeof visibleColumns) => {
+          setVisibleColumns(prev => ({ ...prev, [column]: !prev[column] }));
+        };
+
+        return (
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <CardTitle className="text-lg">Task List</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                        {filteredTasks.length} of {tasks.length}
+                      </Badge>
+                      {overdueCount > 0 && (
+                        <Badge variant="destructive" className="flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          {overdueCount} overdue
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Column Visibility Toggle */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        <Eye className="h-4 w-4" />
+                        Columns
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-48" align="end">
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium mb-2">Show/Hide Columns</p>
+                        {Object.entries(visibleColumns).map(([key, value]) => (
+                          <div key={key} className="flex items-center gap-2">
+                            <Checkbox 
+                              id={`col-${key}`}
+                              checked={value}
+                              onCheckedChange={() => toggleColumn(key as keyof typeof visibleColumns)}
+                            />
+                            <label htmlFor={`col-${key}`} className="text-sm capitalize cursor-pointer">
+                              {key.replace(/([A-Z])/g, ' $1').trim()}
+                            </label>
                           </div>
-                        </td>
-                        <td className="py-2 px-2">
-                          <Badge 
-                            variant={task.status === 'completed' ? 'default' : task.status === 'in_progress' ? 'secondary' : task.status === 'blocked' ? 'destructive' : 'outline'}
-                            className="text-xs whitespace-nowrap"
-                          >
-                            {task.status?.replace('_', ' ')}
-                          </Badge>
-                        </td>
-                        <td className="py-2 px-2 text-muted-foreground whitespace-nowrap">
-                          {task.startDate ? new Date(task.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '-'}
-                        </td>
-                        <td className="py-2 px-2 text-muted-foreground whitespace-nowrap">
-                          {task.endDate ? new Date(task.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '-'}
-                        </td>
-                        <td className="py-2 px-2 text-muted-foreground truncate max-w-[100px]">
-                          {task.assignedTo || '-'}
-                        </td>
-                        <td className="py-2 px-2">
-                          <Badge 
-                            variant="outline"
-                            className={`text-xs ${
-                              task.priority === 'critical' ? 'border-red-500 text-red-600 bg-red-50 dark:bg-red-950' :
-                              task.priority === 'high' ? 'border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950' :
-                              task.priority === 'medium' ? 'border-yellow-500 text-yellow-600 bg-yellow-50 dark:bg-yellow-950' :
-                              'border-green-500 text-green-600 bg-green-50 dark:bg-green-950'
-                            }`}
-                          >
-                            {task.priority}
-                          </Badge>
-                        </td>
-                        <td className="py-2 px-2 text-center">
-                          <div className="flex items-center gap-1">
-                            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-primary rounded-full transition-all"
-                                style={{ width: `${task.progressPercentage || 0}%` }}
-                              />
-                            </div>
-                            <span className="text-xs text-muted-foreground w-8">{task.progressPercentage || 0}%</span>
-                          </div>
-                        </td>
-                        <td className="py-2 px-2 text-center">
-                          {task.approvalRequired ? (
-                            <Badge variant="outline" className="text-xs border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-950">Yes</Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-2 text-center">
-                          <Button 
-                            size="icon" 
-                            variant="ghost" 
-                            className="h-6 w-6"
-                            onClick={() => {
-                              if (confirm(`Delete task "${task.name}"?`)) {
-                                deleteTaskMutation.mutate(task.id);
-                              }
-                            }}
-                            data-testid={`button-delete-task-row-${task.id}`}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </td>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Summary Stats Bar */}
+                <div className="flex items-center gap-4 p-3 bg-muted/30 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <span className="text-sm"><strong>{completedCount}</strong> completed</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-blue-500" />
+                    <span className="text-sm"><strong>{inProgressCount}</strong> in progress</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                    <span className="text-sm"><strong>{overdueCount}</strong> overdue</span>
+                  </div>
+                  <div className="flex-1" />
+                  <div className="text-sm text-muted-foreground">
+                    {Math.round((completedCount / tasks.length) * 100)}% complete
+                  </div>
+                </div>
+
+                {/* Search and Filter Bar */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search tasks..."
+                      value={taskSearchQuery}
+                      onChange={(e) => setTaskSearchQuery(e.target.value)}
+                      className="pl-9"
+                      data-testid="input-task-search"
+                    />
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[140px]" data-testid="select-status-filter">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="not_started">Not Started</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="blocked">Blocked</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                    <SelectTrigger className="w-[140px]" data-testid="select-priority-filter">
+                      <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Priority</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant={showOverdueOnly ? "destructive" : "outline"}
+                    size="sm"
+                    onClick={() => setShowOverdueOnly(!showOverdueOnly)}
+                    className="gap-2"
+                    data-testid="button-overdue-filter"
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    {showOverdueOnly ? "Showing Overdue" : "Show Overdue"}
+                  </Button>
+                  {(taskSearchQuery || statusFilter !== 'all' || priorityFilter !== 'all' || showOverdueOnly) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setTaskSearchQuery("");
+                        setStatusFilter("all");
+                        setPriorityFilter("all");
+                        setShowOverdueOnly(false);
+                      }}
+                      data-testid="button-clear-filters"
+                    >
+                      Clear filters
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                {filteredTasks.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Filter className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No tasks match your filters</p>
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="text-left py-3 px-3 font-medium">Task</th>
+                        {visibleColumns.status && <th className="text-left py-3 px-2 font-medium">Status</th>}
+                        {visibleColumns.startDate && <th className="text-left py-3 px-2 font-medium">Start</th>}
+                        {visibleColumns.endDate && <th className="text-left py-3 px-2 font-medium">End</th>}
+                        {visibleColumns.assigned && <th className="text-left py-3 px-2 font-medium">Assigned</th>}
+                        {visibleColumns.priority && <th className="text-left py-3 px-2 font-medium">Priority</th>}
+                        {visibleColumns.progress && <th className="text-center py-3 px-2 font-medium">Progress</th>}
+                        {visibleColumns.approval && <th className="text-center py-3 px-2 font-medium">Approval</th>}
+                        <th className="text-center py-3 px-2 font-medium w-16"></th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                    </thead>
+                    <tbody>
+                      {groupedTasks.map((group, groupIndex) => (
+                        <>
+                          {/* Phase Header Row */}
+                          {group.phase !== 'General Tasks' && isPhaseHeader(group.tasks[0]?.name || '') && (
+                            <tr 
+                              key={`phase-${groupIndex}`}
+                              className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 border-b-2 border-blue-200 dark:border-blue-800 cursor-pointer"
+                              onClick={() => togglePhase(group.phase)}
+                            >
+                              <td 
+                                colSpan={Object.values(visibleColumns).filter(Boolean).length + 2} 
+                                className="py-3 px-3"
+                              >
+                                <div className="flex items-center gap-2 font-semibold text-blue-700 dark:text-blue-300">
+                                  {expandedPhases.has(group.phase) ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                  <span>{group.tasks[0]?.name}</span>
+                                  <Badge variant="outline" className="ml-2 text-xs">
+                                    {group.tasks.length - 1} tasks
+                                  </Badge>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          {/* Task Rows */}
+                          {(group.phase === 'General Tasks' || expandedPhases.has(group.phase) || !isPhaseHeader(group.tasks[0]?.name || '')) && 
+                            group.tasks
+                              .filter((task, idx) => !(isPhaseHeader(task.name) && idx === 0 && group.phase !== 'General Tasks'))
+                              .map((task, index) => {
+                                const overdue = isTaskOverdue(task);
+                                const isPhase = isPhaseHeader(task.name);
+                                
+                                return (
+                                  <tr 
+                                    key={task.id} 
+                                    className={`border-b transition-colors ${
+                                      overdue 
+                                        ? 'bg-red-50/50 dark:bg-red-950/30 hover:bg-red-100/50 dark:hover:bg-red-900/30' 
+                                        : isPhase
+                                          ? 'bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/50 dark:to-gray-900/50'
+                                          : index % 2 === 0 
+                                            ? 'bg-background hover:bg-muted/20' 
+                                            : 'bg-muted/10 hover:bg-muted/30'
+                                    }`}
+                                    data-testid={`row-task-${task.id}`}
+                                  >
+                                    <td className="py-2.5 px-3">
+                                      <div className="flex items-center gap-2">
+                                        {overdue && <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />}
+                                        <div className={`truncate max-w-[350px] ${isPhase ? 'font-semibold text-slate-700 dark:text-slate-300' : ''}`} title={task.name}>
+                                          {task.name}
+                                        </div>
+                                      </div>
+                                    </td>
+                                    {visibleColumns.status && (
+                                      <td className="py-2.5 px-2">
+                                        <Badge 
+                                          className={`text-xs whitespace-nowrap ${
+                                            task.status === 'completed' 
+                                              ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900 dark:text-green-300 dark:border-green-700' 
+                                              : task.status === 'in_progress' 
+                                                ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700' 
+                                                : task.status === 'blocked' 
+                                                  ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900 dark:text-red-300 dark:border-red-700' 
+                                                  : 'bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600'
+                                          }`}
+                                        >
+                                          {task.status === 'completed' && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                                          {task.status === 'in_progress' && <Clock className="h-3 w-3 mr-1" />}
+                                          {task.status === 'blocked' && <XCircle className="h-3 w-3 mr-1" />}
+                                          {task.status?.replace('_', ' ')}
+                                        </Badge>
+                                      </td>
+                                    )}
+                                    {visibleColumns.startDate && (
+                                      <td className="py-2.5 px-2 text-muted-foreground whitespace-nowrap">
+                                        {task.startDate ? parseLocalDate(task.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '-'}
+                                      </td>
+                                    )}
+                                    {visibleColumns.endDate && (
+                                      <td className={`py-2.5 px-2 whitespace-nowrap ${overdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>
+                                        {task.endDate ? parseLocalDate(task.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '-'}
+                                      </td>
+                                    )}
+                                    {visibleColumns.assigned && (
+                                      <td className="py-2.5 px-2 text-muted-foreground truncate max-w-[100px]">
+                                        {task.assignedTo || '-'}
+                                      </td>
+                                    )}
+                                    {visibleColumns.priority && (
+                                      <td className="py-2.5 px-2">
+                                        <Badge 
+                                          variant="outline"
+                                          className={`text-xs ${
+                                            task.priority === 'critical' ? 'border-red-500 text-red-600 bg-red-50 dark:bg-red-950' :
+                                            task.priority === 'high' ? 'border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950' :
+                                            task.priority === 'medium' ? 'border-yellow-500 text-yellow-600 bg-yellow-50 dark:bg-yellow-950' :
+                                            'border-green-500 text-green-600 bg-green-50 dark:bg-green-950'
+                                          }`}
+                                        >
+                                          {task.priority}
+                                        </Badge>
+                                      </td>
+                                    )}
+                                    {visibleColumns.progress && (
+                                      <td className="py-2.5 px-2 text-center">
+                                        <div className="flex items-center gap-2">
+                                          <div className="flex-1 h-2.5 bg-muted rounded-full overflow-hidden min-w-[60px]">
+                                            <div 
+                                              className={`h-full rounded-full transition-all ${
+                                                Number(task.progressPercentage || 0) >= 100 
+                                                  ? 'bg-green-500' 
+                                                  : Number(task.progressPercentage || 0) >= 50 
+                                                    ? 'bg-blue-500' 
+                                                    : 'bg-amber-500'
+                                              }`}
+                                              style={{ width: `${task.progressPercentage || 0}%` }}
+                                            />
+                                          </div>
+                                          <span className={`text-xs font-medium w-10 ${
+                                            Number(task.progressPercentage || 0) >= 100 ? 'text-green-600' : 'text-muted-foreground'
+                                          }`}>
+                                            {task.progressPercentage || 0}%
+                                          </span>
+                                        </div>
+                                      </td>
+                                    )}
+                                    {visibleColumns.approval && (
+                                      <td className="py-2.5 px-2 text-center">
+                                        {task.approvalRequired ? (
+                                          <Badge className="text-xs bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900 dark:text-purple-300">
+                                            Required
+                                          </Badge>
+                                        ) : (
+                                          <span className="text-muted-foreground text-xs">-</span>
+                                        )}
+                                      </td>
+                                    )}
+                                    <td className="py-2.5 px-2 text-center">
+                                      <Button 
+                                        size="icon" 
+                                        variant="ghost" 
+                                        className="h-7 w-7 opacity-50 hover:opacity-100"
+                                        onClick={() => {
+                                          if (confirm(`Delete task "${task.name}"?`)) {
+                                            deleteTaskMutation.mutate(task.id);
+                                          }
+                                        }}
+                                        data-testid={`button-delete-task-row-${task.id}`}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                          }
+                        </>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Legend */}
       <Card>
