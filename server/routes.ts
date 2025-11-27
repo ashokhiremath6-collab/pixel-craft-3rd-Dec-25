@@ -9,6 +9,7 @@ import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import pdfParse from "pdf-parse";
 import PDFDocument from "pdfkit";
+import ExcelJS from "exceljs";
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
@@ -4716,6 +4717,255 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error importing schedule:', error);
       res.status(500).json({ error: "Failed to import schedule" });
+    }
+  });
+
+  // Designer Excel Export - Formatted schedule with colors and styling
+  app.get("/api/schedules/:scheduleId/designer-export", requireAuth, async (req, res) => {
+    try {
+      const { scheduleId } = req.params;
+      const userId = (req.user as any).claims.sub;
+      
+      // Get the schedule and its tasks
+      const schedule = await storage.getProjectSchedule(scheduleId);
+      if (!schedule) {
+        return res.status(404).json({ error: "Schedule not found" });
+      }
+      
+      // Require schedule to have a valid project association
+      if (!schedule.projectId) {
+        return res.status(404).json({ error: "Schedule is not associated with a project" });
+      }
+      
+      const project = await storage.getProject(schedule.projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Associated project not found" });
+      }
+      
+      // Authorization check - verify user can access this project
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role;
+      
+      // Admin and designer can export any schedule without project assignment check
+      const isPrivilegedRole = role === 'admin' || role === 'designer';
+      
+      if (!isPrivilegedRole) {
+        // All other users (including undefined roles) must have explicit project assignment
+        const assignments = await storage.getUserProjectAssignments(userId);
+        const hasAccess = assignments.some(a => a.projectId === schedule.projectId);
+        if (!hasAccess) {
+          return res.status(403).json({ error: "Not authorized to access this schedule" });
+        }
+      }
+      
+      const tasks = await storage.getTasksBySchedule(scheduleId);
+      
+      // Create a new workbook with ExcelJS
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'PixelCraft Designer';
+      workbook.created = new Date();
+      
+      const worksheet = workbook.addWorksheet('Designer Schedule', {
+        views: [{ state: 'frozen', ySplit: 1 }]
+      });
+      
+      // Define columns - Designer-friendly view (technical columns hidden)
+      worksheet.columns = [
+        { header: '#', key: 'seq', width: 5 },
+        { header: 'Task Name', key: 'name', width: 40 },
+        { header: 'Status', key: 'status', width: 14 },
+        { header: 'Priority', key: 'priority', width: 12 },
+        { header: 'Start Date', key: 'startDate', width: 14 },
+        { header: 'End Date', key: 'endDate', width: 14 },
+        { header: 'Progress', key: 'progress', width: 12 },
+        { header: 'Remarks', key: 'remarks', width: 35 },
+        // Hidden columns (still in export for reference)
+        { header: 'Duration', key: 'duration', width: 10, hidden: true },
+        { header: 'Task ID', key: 'taskId', width: 12, hidden: true },
+        { header: 'Assigned To', key: 'assignedTo', width: 18, hidden: true },
+      ];
+      
+      // Style the header row
+      const headerRow = worksheet.getRow(1);
+      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF1A365D' } // Dark blue header
+      };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+      headerRow.height = 28;
+      
+      // Color mapping for status
+      const statusColors: Record<string, { bg: string; text: string }> = {
+        'completed': { bg: 'FFD4EDDA', text: 'FF155724' },      // Green
+        'in_progress': { bg: 'FFCCE5FF', text: 'FF004085' },    // Blue
+        'blocked': { bg: 'FFF8D7DA', text: 'FF721C24' },        // Red
+        'not_started': { bg: 'FFF5F5F5', text: 'FF6C757D' },    // Gray
+      };
+      
+      // Color mapping for priority
+      const priorityColors: Record<string, { bg: string; text: string }> = {
+        'critical': { bg: 'FFF8D7DA', text: 'FF721C24' },       // Red
+        'high': { bg: 'FFFFF3CD', text: 'FF856404' },           // Orange/Yellow
+        'medium': { bg: 'FFFEF9E7', text: 'FF856404' },         // Light yellow
+        'low': { bg: 'FFD4EDDA', text: 'FF155724' },            // Green
+      };
+      
+      // Helper to check if task is a phase header
+      const isPhaseHeader = (name: string) => {
+        if (!name) return false;
+        return name.toUpperCase().includes('PHASE') || name.toUpperCase().includes('PACKAGE');
+      };
+      
+      // Helper to check if task is overdue
+      const isOverdue = (task: any) => {
+        if (task.status === 'completed') return false;
+        if (!task.endDate) return false;
+        return new Date(task.endDate) < new Date();
+      };
+      
+      // Add data rows
+      let seq = 1;
+      for (const task of tasks) {
+        const isPhase = isPhaseHeader(task.name || '');
+        const taskOverdue = isOverdue(task);
+        
+        const row = worksheet.addRow({
+          seq: seq++,
+          name: task.name || 'Untitled',
+          status: (task.status || 'not_started').replace('_', ' ').toUpperCase(),
+          priority: (task.priority || 'medium').toUpperCase(),
+          startDate: task.startDate ? new Date(task.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-',
+          endDate: task.endDate ? new Date(task.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-',
+          progress: `${task.progressPercentage || 0}%`,
+          remarks: task.remarks || task.description || '',
+          duration: task.duration || '',
+          taskId: task.taskId || '',
+          assignedTo: task.assignedTo || '',
+        });
+        
+        // Style phase header rows
+        if (isPhase) {
+          row.font = { bold: true, size: 11 };
+          row.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFE8E8E8' } // Light gray for phases
+          };
+          row.height = 24;
+        } else {
+          row.height = 20;
+        }
+        
+        // Style status cell
+        const statusCell = row.getCell('status');
+        const statusStyle = statusColors[task.status || 'not_started'] || statusColors['not_started'];
+        statusCell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: statusStyle.bg }
+        };
+        statusCell.font = { color: { argb: statusStyle.text }, bold: true };
+        statusCell.alignment = { horizontal: 'center' };
+        
+        // Style priority cell
+        const priorityCell = row.getCell('priority');
+        const priorityStyle = priorityColors[task.priority || 'medium'] || priorityColors['medium'];
+        priorityCell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: priorityStyle.bg }
+        };
+        priorityCell.font = { color: { argb: priorityStyle.text } };
+        priorityCell.alignment = { horizontal: 'center' };
+        
+        // Highlight overdue tasks
+        if (taskOverdue) {
+          row.getCell('endDate').font = { color: { argb: 'FFDC3545' }, bold: true };
+          row.getCell('name').font = { ...row.getCell('name').font, color: { argb: 'FFDC3545' } };
+        }
+        
+        // Style progress cell with gradient background
+        const progressCell = row.getCell('progress');
+        const progressNum = Number(task.progressPercentage) || 0;
+        if (progressNum >= 100) {
+          progressCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF28A745' } };
+          progressCell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+        } else if (progressNum >= 50) {
+          progressCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF17A2B8' } };
+          progressCell.font = { color: { argb: 'FFFFFFFF' } };
+        } else if (progressNum > 0) {
+          progressCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC107' } };
+          progressCell.font = { color: { argb: 'FF212529' } };
+        }
+        progressCell.alignment = { horizontal: 'center' };
+        
+        // Add borders to all cells
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+            left: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+            bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+            right: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+          };
+        });
+      }
+      
+      // Add summary section at the bottom
+      worksheet.addRow([]); // Empty row
+      const summaryRow = worksheet.addRow({
+        seq: '',
+        name: 'SUMMARY',
+        status: '',
+        priority: '',
+        startDate: '',
+        endDate: '',
+        progress: '',
+        remarks: ''
+      });
+      summaryRow.font = { bold: true };
+      summaryRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF1A365D' }
+      };
+      summaryRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      
+      const completedCount = tasks.filter(t => t.status === 'completed').length;
+      const inProgressCount = tasks.filter(t => t.status === 'in_progress').length;
+      const overdueCount = tasks.filter(isOverdue).length;
+      
+      worksheet.addRow({ seq: '', name: `Total Tasks: ${tasks.length}` });
+      worksheet.addRow({ seq: '', name: `Completed: ${completedCount} (${tasks.length > 0 ? Math.round(completedCount/tasks.length*100) : 0}%)` });
+      worksheet.addRow({ seq: '', name: `In Progress: ${inProgressCount}` });
+      if (overdueCount > 0) {
+        const overdueRow = worksheet.addRow({ seq: '', name: `Overdue: ${overdueCount}` });
+        overdueRow.font = { color: { argb: 'FFDC3545' }, bold: true };
+      }
+      
+      // Auto-filter for the data
+      worksheet.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: tasks.length + 1, column: 8 }
+      };
+      
+      // Generate filename
+      const projectName = project?.projectName || 'Project';
+      const date = new Date().toISOString().split('T')[0];
+      const filename = `${projectName.replace(/[^a-zA-Z0-9]/g, '_')}_Designer_Schedule_${date}.xlsx`;
+      
+      // Set response headers
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      // Write to response
+      await workbook.xlsx.write(res);
+      res.end();
+      
+    } catch (error) {
+      console.error('Error generating designer export:', error);
+      res.status(500).json({ error: "Failed to generate designer export" });
     }
   });
 
