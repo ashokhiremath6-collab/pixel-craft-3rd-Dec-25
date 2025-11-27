@@ -17,7 +17,6 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
-import { validateDependencies, formatValidationErrors, validateSingleDependency } from "./dependencyValidator";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
@@ -4629,7 +4628,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const createdTasks = [];
       const errors: Array<{ row: number; error: string; data: any }> = [];
-      const dependenciesToCreate: Array<{ taskId: string; predecessorStr: string }> = [];
 
       for (let i = 0; i < taskData.length; i++) {
         const row: any = taskData[i];
@@ -4671,104 +4669,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const validatedData = insertTaskSchema.parse(taskRecord);
           const task = await storage.createTask(validatedData);
           createdTasks.push(task);
-
-          // Store predecessor info for later processing
-          const predecessorStr = row.Predecessor || row.Predecessors || row.predecessor || row.predecessors || '';
-          if (predecessorStr && String(predecessorStr).trim()) {
-            dependenciesToCreate.push({ taskId: task.id!, predecessorStr: String(predecessorStr) });
-          }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Invalid data';
           errors.push({ row: i + 2, error: errorMessage, data: row });
         }
       }
 
-      // Validate dependencies BEFORE saving (bulletproof validation)
-      // Build task data for validation: map spreadsheet task IDs to names and predecessors
-      const taskIdToDbId = new Map<string, string>();
-      const taskIdToName = new Map<string, string>();
+      // Note: Dependencies/predecessors are not imported - focusing on task alerts instead
       
-      for (const task of createdTasks) {
-        taskIdToDbId.set(task.taskId!, task.id!);
-        taskIdToName.set(task.taskId!, task.name);
-      }
-      
-      // Build validation input: use spreadsheet taskId (not database UUID)
-      const validationInput = dependenciesToCreate.map(dep => {
-        const dbTask = createdTasks.find(t => t.id === dep.taskId);
-        return {
-          taskId: dbTask?.taskId || '',
-          taskName: dbTask?.name || '',
-          predecessorStr: dep.predecessorStr
-        };
-      });
-      
-      // Run validation
-      const validationResult = validateDependencies(validationInput);
-      
-      let dependenciesCreated = 0;
-      let dependencyErrors: string[] = [];
-      
-      if (!validationResult.isValid) {
-        // Validation failed - DO NOT save any dependencies
-        console.warn('Dependency validation failed:', validationResult.summary);
-        dependencyErrors = validationResult.errors.map(e => 
-          `Task ${e.taskId} "${e.taskName}": ${e.message}`
-        );
-        
-        // Log the formatted errors for debugging
-        console.warn(formatValidationErrors(validationResult));
-      } else {
-        // Validation passed - save all valid dependencies
-        for (const dep of validationResult.validDependencies) {
-          try {
-            const fromDbId = taskIdToDbId.get(dep.fromTaskId);
-            const toDbId = taskIdToDbId.get(dep.toTaskId);
-            
-            if (fromDbId && toDbId) {
-              await storage.createTaskDependency({
-                fromTaskId: fromDbId,
-                toTaskId: toDbId,
-                dependencyType: dep.dependencyType,
-                lag: String(dep.lag),
-              });
-              dependenciesCreated++;
-            }
-          } catch (error) {
-            console.error('Error creating dependency:', error);
-          }
-        }
-      }
-
-      // Build response
-      const response: any = {
+      res.status(201).json({
         message: `Imported schedule with ${createdTasks.length} tasks`,
         schedule,
         tasksCreated: createdTasks.length,
         tasksFailed: errors.length,
-        dependenciesCreated,
-      };
-      
-      if (errors.length > 0) {
-        response.taskErrors = errors.slice(0, 10);
-      }
-      
-      if (!validationResult.isValid) {
-        response.dependencyValidation = {
-          status: 'failed',
-          summary: validationResult.summary,
-          errors: validationResult.errors.slice(0, 20),
-          message: 'Dependencies were NOT imported due to validation errors. Please fix the issues in your spreadsheet and re-import.'
-        };
-      } else if (dependenciesCreated > 0) {
-        response.dependencyValidation = {
-          status: 'success',
-          summary: validationResult.summary,
-          message: `All ${dependenciesCreated} dependencies validated and imported successfully.`
-        };
-      }
-
-      res.status(201).json(response);
+        errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
+      });
     } catch (error) {
       console.error('Error importing schedule:', error);
       res.status(500).json({ error: "Failed to import schedule" });
@@ -4787,45 +4702,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Note: Dependencies feature is currently disabled - focusing on task alerts instead
+  // Keeping basic endpoint for future use
   app.post("/api/task-dependencies", requireAuth, async (req, res) => {
     try {
       const validatedData = insertTaskDependencySchema.parse(req.body);
       
-      // Check for self-reference
+      // Basic validation: no self-reference
       if (validatedData.fromTaskId === validatedData.toTaskId) {
         return res.status(400).json({ 
           error: "Invalid dependency: A task cannot depend on itself" 
-        });
-      }
-      
-      // Get the task to find its schedule
-      const toTask = await storage.getTask(validatedData.toTaskId);
-      if (!toTask || !toTask.scheduleId) {
-        return res.status(400).json({ error: "Task not found or not associated with a schedule" });
-      }
-      
-      // Get all tasks in the schedule for cycle detection
-      const scheduleTasks = await storage.getTasksBySchedule(toTask.scheduleId);
-      const allTaskIds = scheduleTasks.map(t => t.id);
-      
-      // Get existing dependencies for cycle check
-      const existingDeps: Array<{ fromTaskId: string; toTaskId: string }> = [];
-      for (const task of scheduleTasks) {
-        const deps = await storage.getTaskDependencies(task.id);
-        existingDeps.push(...deps.map(d => ({ fromTaskId: d.fromTaskId, toTaskId: d.toTaskId })));
-      }
-      
-      // Validate that this new dependency won't create a cycle
-      const validation = validateSingleDependency(
-        validatedData.fromTaskId,
-        validatedData.toTaskId,
-        existingDeps,
-        allTaskIds
-      );
-      
-      if (!validation.isValid) {
-        return res.status(400).json({ 
-          error: validation.error || "Invalid dependency: would create a circular reference"
         });
       }
       
