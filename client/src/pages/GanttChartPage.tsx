@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1064,7 +1064,8 @@ export default function GanttChartPage() {
 
         const isPhaseHeader = (name: string | null | undefined) => {
           if (!name) return false;
-          return name.toUpperCase().includes('PHASE') || name.toUpperCase().includes('PACKAGE');
+          const upperName = name.toUpperCase();
+          return upperName.includes('PHASE') || upperName.includes('PACKAGE') || upperName.includes('EXECUTE');
         };
 
         // Filter and group tasks
@@ -1284,7 +1285,7 @@ export default function GanttChartPage() {
                     </thead>
                     <tbody>
                       {groupedTasks.map((group, groupIndex) => (
-                        <>
+                        <Fragment key={`group-${groupIndex}`}>
                           {/* Phase Header Row */}
                           {group.phase !== 'General Tasks' && isPhaseHeader(group.tasks[0]?.name || '') && (
                             <tr 
@@ -1484,7 +1485,7 @@ export default function GanttChartPage() {
                                 );
                               })
                           }
-                        </>
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
