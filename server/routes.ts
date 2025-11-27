@@ -5259,12 +5259,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Log the activity
+      const user = req.user as any;
+      const userName = user?.claims?.first_name && user?.claims?.last_name 
+        ? `${user.claims.first_name} ${user.claims.last_name}` 
+        : user?.claims?.email || 'Unknown';
+      
       await storage.createActivity({
-        action: 'reimport_schedule',
-        entityType: 'schedule',
-        entityId: scheduleId,
         userId,
-        details: `Re-imported Designer Export: ${successCount} tasks updated, ${failCount} failed`,
+        userName: userName,
+        userEmail: user?.claims?.email || '',
+        activityType: 'schedule_reimport' as any,
+        fileName: schedule.originalFilename || 'schedule',
+        description: `re-imported Designer Export: ${successCount} tasks updated, ${failCount} failed`,
+        metadata: { scheduleId, successCount, failCount },
       });
       
       res.json({
