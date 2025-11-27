@@ -4790,16 +4790,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         views: [{ state: 'frozen', ySplit: 1 }]
       });
       
-      // Define columns - Designer-friendly view (Status column removed per user request)
+      // Define columns - Designer-friendly view (Status and Priority columns removed per user request)
       worksheet.columns = [
         { header: '#', key: 'seq', width: 5 },
         { header: 'Task Name', key: 'name', width: 45 },
-        { header: 'Priority', key: 'priority', width: 12 },
         { header: 'Start Date', key: 'startDate', width: 14 },
         { header: 'End Date', key: 'endDate', width: 14 },
         { header: '% Complete', key: 'progress', width: 12 },
         { header: 'Remarks', key: 'remarks', width: 35 },
         // Hidden columns (still in export for reference)
+        { header: 'Priority', key: 'priority', width: 12, hidden: true },
         { header: 'Duration', key: 'duration', width: 10, hidden: true },
         { header: 'Task ID', key: 'taskId', width: 12, hidden: true },
         { header: 'Assigned To', key: 'assignedTo', width: 18, hidden: true },
@@ -4824,11 +4824,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'low': { bg: 'FFD4EDDA', text: 'FF155724' },            // Green
       };
       
-      // Helper to check if task is a phase header
+      // Helper to check if task is a phase/package/execute header
       const isPhaseHeader = (name: string) => {
         if (!name) return false;
-        return name.toUpperCase().includes('PHASE') || name.toUpperCase().includes('PACKAGE');
+        const upper = name.toUpperCase();
+        return upper.includes('PHASE') || upper.includes('PACKAGE') || upper.includes('EXECUTE');
       };
+      
+      // Placeholder date used for headers/unscheduled tasks
+      const PLACEHOLDER_DATE = '2099-12-31';
       
       // Helper to check if task is overdue
       const isOverdue = (task: any) => {
@@ -4853,13 +4857,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const isPhase = isPhaseHeader(task.name || '');
         const taskOverdue = isOverdue(task);
         
+        // Check if dates are placeholder dates (headers/unscheduled)
+        const isPlaceholderStart = task.startDate === PLACEHOLDER_DATE;
+        const isPlaceholderEnd = task.endDate === PLACEHOLDER_DATE;
+        
+        // For headers and placeholder dates, show blank instead of 2099
+        const formatDate = (date: string | null, isPlaceholder: boolean) => {
+          if (!date || isPlaceholder) return '';
+          return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        };
+        
         const row = worksheet.addRow({
           seq: seq,
           name: task.name || 'Untitled',
           priority: (task.priority || 'medium').toUpperCase(),
-          startDate: task.startDate ? new Date(task.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-',
-          endDate: task.endDate ? new Date(task.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-',
-          progress: `${task.progressPercentage || 0}%`,
+          startDate: formatDate(task.startDate, isPlaceholderStart || isPhase),
+          endDate: formatDate(task.endDate, isPlaceholderEnd || isPhase),
+          progress: isPhase ? '' : `${task.progressPercentage || 0}%`,
           remarks: task.remarks || task.description || '',
           duration: task.duration || '',
           taskId: task.taskId || '',
@@ -4886,17 +4900,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           row.height = 20;
         }
-        
-        // Style priority cell
-        const priorityCell = row.getCell('priority');
-        const priorityStyle = priorityColors[task.priority || 'medium'] || priorityColors['medium'];
-        priorityCell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: priorityStyle.bg }
-        };
-        priorityCell.font = { color: { argb: priorityStyle.text } };
-        priorityCell.alignment = { horizontal: 'center' };
         
         // Highlight overdue tasks
         if (taskOverdue) {
@@ -4962,10 +4965,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         overdueRow.font = { color: { argb: 'FFDC3545' }, bold: true };
       }
       
-      // Auto-filter for the data (7 visible columns now)
+      // Auto-filter for the data (6 visible columns now - Priority moved to hidden)
       worksheet.autoFilter = {
         from: { row: 1, column: 1 },
-        to: { row: sortedTasks.length + 1, column: 7 }
+        to: { row: sortedTasks.length + 1, column: 6 }
       };
       
       // Generate filename
