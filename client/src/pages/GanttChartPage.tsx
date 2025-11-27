@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +77,10 @@ export default function GanttChartPage() {
   // Inline editing for dates
   const [editingEndDateTaskId, setEditingEndDateTaskId] = useState<string | null>(null);
   const [editingStartDateTaskId, setEditingStartDateTaskId] = useState<string | null>(null);
+  
+  // Re-import Designer Export
+  const [reimportScheduleId, setReimportScheduleId] = useState<string | null>(null);
+  const reimportInputRef = useRef<HTMLInputElement>(null);
   const [visibleColumns, setVisibleColumns] = useState({
     status: true,
     startDate: true,
@@ -245,6 +249,39 @@ export default function GanttChartPage() {
       toast({ 
         title: "Error", 
         description: error.message || "Failed to update start date",
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Re-import Designer Export mutation
+  const reimportMutation = useMutation({
+    mutationFn: async ({ scheduleId, file }: { scheduleId: string; file: File }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch(`/api/schedules/${scheduleId}/designer-reimport`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to re-import');
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
+      setReimportScheduleId(null);
+      toast({ 
+        title: "Success", 
+        description: `${data.message}${data.failed > 0 ? ` (${data.failed} failed)` : ''}` 
+      });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Re-import Failed", 
+        description: error.message || "Failed to re-import schedule",
         variant: "destructive" 
       });
     },
@@ -503,6 +540,22 @@ export default function GanttChartPage() {
 
   return (
     <div className="space-y-6">
+      {/* Hidden file input for re-import */}
+      <input
+        type="file"
+        ref={reimportInputRef}
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file && reimportScheduleId) {
+            reimportMutation.mutate({ scheduleId: reimportScheduleId, file });
+          }
+          e.target.value = ''; // Reset input
+        }}
+        data-testid="input-reimport-file"
+      />
+      
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="space-y-2">
@@ -858,11 +911,25 @@ export default function GanttChartPage() {
                               onClick={() => {
                                 window.open(`/api/schedules/${schedule.id}/designer-export`, '_blank');
                               }}
-                              title="Download Designer-Formatted Excel"
+                              title="Download Designer-Formatted Excel (editable)"
                               data-testid={`button-designer-export-${schedule.id}`}
                             >
                               <Palette className="h-4 w-4 mr-1" />
-                              Designer
+                              Export
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                setReimportScheduleId(schedule.id);
+                                reimportInputRef.current?.click();
+                              }}
+                              disabled={reimportMutation.isPending}
+                              title="Re-import edited Designer Export to update tasks"
+                              data-testid={`button-reimport-${schedule.id}`}
+                            >
+                              <Upload className="h-4 w-4 mr-1" />
+                              {reimportMutation.isPending && reimportScheduleId === schedule.id ? 'Updating...' : 'Re-import'}
                             </Button>
                             <Button 
                               size="sm" 

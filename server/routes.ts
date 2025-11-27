@@ -4791,6 +4791,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Define columns - Designer-friendly view (Status and Priority columns removed per user request)
+      // Dates stored as Excel dates for calendar picker functionality
       worksheet.columns = [
         { header: '#', key: 'seq', width: 5 },
         { header: 'Task Name', key: 'name', width: 45 },
@@ -4798,7 +4799,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { header: 'End Date', key: 'endDate', width: 14 },
         { header: '% Complete', key: 'progress', width: 12 },
         { header: 'Remarks', key: 'remarks', width: 35 },
-        // Hidden columns (still in export for reference)
+        // Hidden columns for re-import functionality
+        { header: 'DB_ID', key: 'dbId', width: 40, hidden: true }, // Database ID for re-import
+        { header: 'Schedule_ID', key: 'scheduleId', width: 40, hidden: true }, // Schedule ID for validation
         { header: 'Priority', key: 'priority', width: 12, hidden: true },
         { header: 'Duration', key: 'duration', width: 10, hidden: true },
         { header: 'Task ID', key: 'taskId', width: 12, hidden: true },
@@ -4861,24 +4864,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const isPlaceholderStart = task.startDate === PLACEHOLDER_DATE;
         const isPlaceholderEnd = task.endDate === PLACEHOLDER_DATE;
         
-        // For headers and placeholder dates, show blank instead of 2099
-        const formatDate = (date: string | null, isPlaceholder: boolean) => {
-          if (!date || isPlaceholder) return '';
-          return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        // For dates, use actual Date objects so Excel can show calendar picker
+        // For headers and placeholder dates, leave blank
+        const getDateValue = (date: string | null, isPlaceholder: boolean) => {
+          if (!date || isPlaceholder) return null;
+          return new Date(date);
         };
+        
+        // Calculate progress value - headers get null, tasks get decimal (0-1 for Excel)
+        const progressValue = isPhase ? null : (task.progressPercentage || 0) / 100;
         
         const row = worksheet.addRow({
           seq: seq,
           name: task.name || 'Untitled',
           priority: (task.priority || 'medium').toUpperCase(),
-          startDate: formatDate(task.startDate, isPlaceholderStart || isPhase),
-          endDate: formatDate(task.endDate, isPlaceholderEnd || isPhase),
-          progress: isPhase ? '' : `${task.progressPercentage || 0}%`,
+          startDate: getDateValue(task.startDate, isPlaceholderStart || isPhase),
+          endDate: getDateValue(task.endDate, isPlaceholderEnd || isPhase),
+          progress: progressValue,
           remarks: task.remarks || task.description || '',
+          dbId: task.id, // Database ID for re-import
+          scheduleId: scheduleId, // Schedule ID for validation
           duration: task.duration || '',
           taskId: task.taskId || '',
           assignedTo: task.assignedTo || '',
         });
+        
+        // Apply date format to date cells so Excel shows calendar picker
+        const startDateCell = row.getCell('startDate');
+        const endDateCell = row.getCell('endDate');
+        if (startDateCell.value) {
+          startDateCell.numFmt = 'DD MMM YYYY';
+        }
+        if (endDateCell.value) {
+          endDateCell.numFmt = 'DD MMM YYYY';
+        }
+        
+        // Apply percentage format to progress cell (only for non-header rows with values)
+        const progressCell = row.getCell('progress');
+        if (!isPhase && progressValue !== null) {
+          progressCell.numFmt = '0%';
+        }
         
         // Insert blank rows after specified task numbers
         if (blankRowsAfter.includes(seq)) {
@@ -4907,8 +4932,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           row.getCell('name').font = { ...row.getCell('name').font, color: { argb: 'FFDC3545' } };
         }
         
-        // Style progress cell with gradient background
-        const progressCell = row.getCell('progress');
+        // Style progress cell with gradient background (reference the already-defined progressCell)
         const progressNum = Number(task.progressPercentage) || 0;
         if (progressNum >= 100) {
           progressCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF28A745' } };
@@ -4987,6 +5011,228 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error generating designer export:', error);
       res.status(500).json({ error: "Failed to generate designer export" });
+    }
+  });
+
+  // Re-import Designer Export - Update tasks from edited Excel file
+  app.post("/api/schedules/:scheduleId/designer-reimport", requireAuth, upload.single('file'), async (req, res) => {
+    try {
+      const { scheduleId } = req.params;
+      const userId = (req.user as any).claims.sub;
+      
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      
+      // Verify schedule exists and user has access
+      const schedule = await storage.getProjectSchedule(scheduleId);
+      if (!schedule) {
+        return res.status(404).json({ error: "Schedule not found" });
+      }
+      
+      // Authorization check
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role;
+      const isPrivilegedRole = role === 'admin' || role === 'designer';
+      
+      if (!isPrivilegedRole) {
+        return res.status(403).json({ error: "Only admins and designers can re-import schedules" });
+      }
+      
+      // Parse the Excel file
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(req.file.buffer);
+      
+      const worksheet = workbook.getWorksheet('Designer Schedule');
+      if (!worksheet) {
+        return res.status(400).json({ error: "Invalid Designer Export file - missing 'Designer Schedule' sheet" });
+      }
+      
+      // Find column indices
+      const headerRow = worksheet.getRow(1);
+      const columnMap: Record<string, number> = {};
+      headerRow.eachCell((cell, colNumber) => {
+        const value = cell.value?.toString().toLowerCase().trim();
+        if (value === '#') columnMap.seq = colNumber;
+        if (value === 'task name') columnMap.name = colNumber;
+        if (value === 'start date') columnMap.startDate = colNumber;
+        if (value === 'end date') columnMap.endDate = colNumber;
+        if (value === '% complete') columnMap.progress = colNumber;
+        if (value === 'remarks') columnMap.remarks = colNumber;
+        if (value === 'db_id') columnMap.dbId = colNumber;
+        if (value === 'schedule_id') columnMap.scheduleId = colNumber;
+      });
+      
+      if (!columnMap.dbId) {
+        return res.status(400).json({ 
+          error: "This file cannot be re-imported. Please use a Designer Export file that was generated after today's update." 
+        });
+      }
+      
+      // Process rows and update tasks
+      const updates: { id: string; changes: any }[] = [];
+      const errors: string[] = [];
+      
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // Skip header
+        
+        const dbId = row.getCell(columnMap.dbId).value?.toString();
+        const rowScheduleId = row.getCell(columnMap.scheduleId).value?.toString();
+        
+        // Skip rows without DB ID (summary rows, blank rows)
+        if (!dbId || dbId === '') return;
+        
+        // Validate schedule ID matches
+        if (rowScheduleId && rowScheduleId !== scheduleId) {
+          errors.push(`Row ${rowNumber}: Task belongs to a different schedule`);
+          return;
+        }
+        
+        // Extract values
+        const startDateCell = row.getCell(columnMap.startDate);
+        const endDateCell = row.getCell(columnMap.endDate);
+        const progressCell = row.getCell(columnMap.progress);
+        const remarksCell = row.getCell(columnMap.remarks);
+        
+        // Parse dates - handle Date objects, Excel serial numbers, and formatted strings
+        const parseExcelDate = (cell: any): string | null => {
+          const value = cell.value;
+          if (!value) return null;
+          
+          // Handle Date object
+          if (value instanceof Date) {
+            if (isNaN(value.getTime())) return null;
+            return value.toISOString().split('T')[0];
+          }
+          
+          // Handle Excel serial date number
+          if (typeof value === 'number') {
+            // Excel serial date: days since 1900-01-01 (with a bug for 1900 leap year)
+            // Convert to JavaScript timestamp
+            const excelEpoch = new Date(1899, 11, 30); // Excel epoch is Dec 30, 1899
+            const date = new Date(excelEpoch.getTime() + value * 86400 * 1000);
+            if (isNaN(date.getTime())) return null;
+            return date.toISOString().split('T')[0];
+          }
+          
+          // Handle string dates
+          if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (!trimmed) return null;
+            
+            // Try parsing various date formats
+            const parsed = new Date(trimmed);
+            if (!isNaN(parsed.getTime())) {
+              return parsed.toISOString().split('T')[0];
+            }
+            
+            // Try DD MMM YYYY format (e.g., "15 Nov 2025")
+            const ddMmmYyyy = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/);
+            if (ddMmmYyyy) {
+              const months: Record<string, number> = {
+                jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+                jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+              };
+              const month = months[ddMmmYyyy[2].toLowerCase()];
+              if (month !== undefined) {
+                const date = new Date(parseInt(ddMmmYyyy[3]), month, parseInt(ddMmmYyyy[1]));
+                if (!isNaN(date.getTime())) {
+                  return date.toISOString().split('T')[0];
+                }
+              }
+            }
+          }
+          
+          return null;
+        };
+        
+        // Parse progress - handle Excel percentage format (0-1) and string format
+        const parseProgress = (cell: any): number | null => {
+          const value = cell.value;
+          
+          // Null/undefined/empty = leave unchanged (for headers)
+          if (value === null || value === undefined || value === '') return null;
+          
+          if (typeof value === 'number') {
+            // Excel stores percentages as decimals (0.75 = 75%)
+            // If value is <= 1, it's likely a decimal percentage
+            if (value >= 0 && value <= 1) {
+              return Math.round(value * 100);
+            }
+            // If value is > 1, it's already in 0-100 format
+            return Math.min(100, Math.max(0, Math.round(value)));
+          }
+          
+          if (typeof value === 'string') {
+            const trimmed = value.trim().replace('%', '');
+            const num = parseFloat(trimmed);
+            if (isNaN(num)) return null;
+            // If parsed value is <= 1, treat as decimal
+            if (num >= 0 && num <= 1) {
+              return Math.round(num * 100);
+            }
+            return Math.min(100, Math.max(0, Math.round(num)));
+          }
+          
+          return null;
+        };
+        
+        const startDate = parseExcelDate(startDateCell);
+        const endDate = parseExcelDate(endDateCell);
+        const progressPercentage = parseProgress(progressCell);
+        const remarks = remarksCell.value?.toString() || null;
+        
+        // Build changes object - only include fields that have valid values
+        const changes: any = {};
+        if (startDate) changes.startDate = startDate;
+        if (endDate) changes.endDate = endDate;
+        if (progressPercentage !== null) changes.progressPercentage = progressPercentage;
+        if (remarks !== null) changes.remarks = remarks;
+        
+        // Only add update if there are actual changes
+        if (Object.keys(changes).length > 0) {
+          updates.push({ id: dbId, changes });
+        }
+      });
+      
+      if (errors.length > 0 && updates.length === 0) {
+        return res.status(400).json({ error: "Re-import failed", details: errors });
+      }
+      
+      // Apply updates
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (const update of updates) {
+        try {
+          await storage.updateTask(update.id, update.changes);
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to update task ${update.id}:`, err);
+          failCount++;
+        }
+      }
+      
+      // Log the activity
+      await storage.createActivityLog({
+        action: 'reimport_schedule',
+        entityType: 'schedule',
+        entityId: scheduleId,
+        userId,
+        details: `Re-imported Designer Export: ${successCount} tasks updated, ${failCount} failed`,
+      });
+      
+      res.json({
+        success: true,
+        message: `Successfully updated ${successCount} tasks`,
+        updated: successCount,
+        failed: failCount,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+      
+    } catch (error) {
+      console.error('Error re-importing designer export:', error);
+      res.status(500).json({ error: "Failed to re-import designer export" });
     }
   });
 
