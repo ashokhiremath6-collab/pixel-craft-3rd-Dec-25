@@ -4580,6 +4580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userName: userName,
           userEmail: user.email || '',
           activityType: 'schedule_upload' as any,
+          description: `Uploaded project schedule: ${req.file.originalname}`,
           fileName: req.file.originalname,
           projectId: projectId,
           metadata: { scheduleId: schedule.id, version: schedule.version }
