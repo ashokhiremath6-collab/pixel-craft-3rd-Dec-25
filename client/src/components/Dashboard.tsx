@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import VendorCard from "./VendorCard";
 import ProjectCard from "./ProjectCard";
-import { Users, Building2, FileText, TrendingUp, Plus, ArrowRight, Clock, X } from "lucide-react";
+import { Users, Building2, FileText, TrendingUp, Plus, ArrowRight, Clock, X, Download } from "lucide-react";
 import type { Vendor, Project } from "@shared/schema";
 import { formatCurrencyCompact, formatVendorNameWithProjectAndCategory } from "@/lib/currencyUtils";
 import { format } from "date-fns";
@@ -238,30 +238,64 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
 
       {/* Quotation Breakdown Modal */}
       <Dialog open={isQuotationDetailModalOpen} onOpenChange={setIsQuotationDetailModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Quotation Breakdown</DialogTitle>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader className="flex flex-row items-center justify-between gap-4">
+            <DialogTitle>Project Cost Breakdown</DialogTitle>
+            {selectedQuotations.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Export to CSV
+                  const headers = ['Vendor', 'Project', 'Category', 'Value (Lacs)'];
+                  const rows = selectedQuotations.map(q => [
+                    q.vendorName,
+                    q.projectName,
+                    q.category || '-',
+                    (parseFloat(q.quotationValue || '0') / 100000).toFixed(2)
+                  ]);
+                  
+                  // Add total row
+                  rows.push(['', '', 'TOTAL', (totalQuotationValue / 100000).toFixed(2)]);
+                  
+                  const csvContent = [
+                    headers.join(','),
+                    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+                  ].join('\n');
+                  
+                  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                  const link = document.createElement('a');
+                  link.href = URL.createObjectURL(blob);
+                  link.download = `Project_Cost_Breakdown_${new Date().toISOString().split('T')[0]}.csv`;
+                  link.click();
+                }}
+                data-testid="button-export-project-cost"
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Export
+              </Button>
+            )}
           </DialogHeader>
           <div className="space-y-4">
             {selectedQuotations.length > 0 ? (
               <>
                 <div className="overflow-x-auto">
-                  <Table className="w-full text-sm">
+                  <Table className="w-full">
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Vendor</TableHead>
-                        <TableHead>Project</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead className="text-right">Value</TableHead>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="w-[200px] font-semibold">Vendor</TableHead>
+                        <TableHead className="w-[140px] font-semibold">Project</TableHead>
+                        <TableHead className="w-[140px] font-semibold">Category</TableHead>
+                        <TableHead className="w-[120px] text-right font-semibold">Value</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {selectedQuotations.map((quotation) => (
-                        <TableRow key={quotation.id} data-testid={`quotation-line-${quotation.id}`}>
-                          <TableCell className="font-medium">{quotation.vendorName}</TableCell>
-                          <TableCell>{quotation.projectName}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{quotation.category || '-'}</TableCell>
-                          <TableCell className="text-right font-mono font-semibold">
+                        <TableRow key={quotation.id} data-testid={`quotation-line-${quotation.id}`} className="hover:bg-muted/30">
+                          <TableCell className="font-medium py-3">{quotation.vendorName}</TableCell>
+                          <TableCell className="py-3">{quotation.projectName}</TableCell>
+                          <TableCell className="py-3 text-muted-foreground">{quotation.category || '-'}</TableCell>
+                          <TableCell className="text-right py-3 font-mono font-semibold tabular-nums">
                             {formatCurrency(parseFloat(quotation.quotationValue || '0'))}
                           </TableCell>
                         </TableRow>
@@ -271,10 +305,10 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
                 </div>
                 
                 {/* Total Row */}
-                <div className="border-t pt-4">
+                <div className="border-t-2 border-primary/20 pt-4 bg-muted/30 -mx-6 px-6 pb-2 rounded-b-lg">
                   <div className="flex items-center justify-between font-semibold text-lg">
-                    <span>Total Quotations</span>
-                    <span className="font-mono text-xl" data-testid="modal-total-quotations">
+                    <span>Total Project Cost</span>
+                    <span className="font-mono text-xl tabular-nums" data-testid="modal-total-quotations">
                       {formatCurrency(totalQuotationValue)}
                     </span>
                   </div>
