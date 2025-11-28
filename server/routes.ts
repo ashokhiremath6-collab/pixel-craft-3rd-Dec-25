@@ -4820,6 +4820,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
       headerRow.height = 28;
       
+      // Apply date format to entire date columns (C and D) so manually entered dates use correct format
+      // This ensures new dates typed by users will display as "DD MMM YYYY" (e.g., "01 Dec 2025")
+      const startDateColumn = worksheet.getColumn('startDate');
+      const endDateColumn = worksheet.getColumn('endDate');
+      startDateColumn.numFmt = 'DD MMM YYYY';
+      endDateColumn.numFmt = 'DD MMM YYYY';
+      
+      // Apply percentage format to entire progress column (E)
+      const progressColumn = worksheet.getColumn('progress');
+      progressColumn.numFmt = '0%';
+      
       // Color mapping for priority
       const priorityColors: Record<string, { bg: string; text: string }> = {
         'critical': { bg: 'FFF8D7DA', text: 'FF721C24' },       // Red
