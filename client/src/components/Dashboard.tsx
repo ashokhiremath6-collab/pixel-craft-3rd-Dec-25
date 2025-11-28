@@ -72,7 +72,16 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
   ).length;
 
   const selectedQuotations = (allQuotations || recentQuotations)
-    .filter(quote => quote.status === "Selected"); // Only include approved quotations
+    .filter(quote => quote.status === "Selected") // Only include approved quotations
+    .sort((a, b) => {
+      // Sort by category alphabetically, then by vendor name
+      const categoryA = (a.category || '').toLowerCase();
+      const categoryB = (b.category || '').toLowerCase();
+      if (categoryA !== categoryB) {
+        return categoryA.localeCompare(categoryB);
+      }
+      return a.vendorName.toLowerCase().localeCompare(b.vendorName.toLowerCase());
+    });
 
   const totalQuotationValue = selectedQuotations
     .reduce(
