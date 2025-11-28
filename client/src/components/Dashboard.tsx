@@ -286,7 +286,7 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
                         <TableHead className="w-[200px] font-semibold">Vendor</TableHead>
                         <TableHead className="w-[140px] font-semibold">Project</TableHead>
                         <TableHead className="w-[140px] font-semibold">Category</TableHead>
-                        <TableHead className="w-[120px] text-right font-semibold">Value</TableHead>
+                        <TableHead className="w-[100px] text-right font-semibold">Rs lacs</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -296,7 +296,7 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
                           <TableCell className="py-3">{quotation.projectName}</TableCell>
                           <TableCell className="py-3 text-muted-foreground">{quotation.category || '-'}</TableCell>
                           <TableCell className="text-right py-3 font-mono font-semibold tabular-nums">
-                            {formatCurrency(parseFloat(quotation.quotationValue || '0'))}
+                            {(parseFloat(quotation.quotationValue || '0') / 100000).toFixed(2)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -309,7 +309,7 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
                   <div className="flex items-center justify-between font-semibold text-lg">
                     <span>Total Project Cost</span>
                     <span className="font-mono text-xl tabular-nums" data-testid="modal-total-quotations">
-                      {formatCurrency(totalQuotationValue)}
+                      {(totalQuotationValue / 100000).toFixed(2)} lacs
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
