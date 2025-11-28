@@ -254,29 +254,33 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  // Export to CSV
-                  const headers = ['Vendor', 'Project', 'Category', 'Value (Lacs)'];
-                  const rows = selectedQuotations.map(q => [
-                    q.vendorName,
-                    q.projectName,
-                    q.category || '-',
-                    (parseFloat(q.quotationValue || '0') / 100000).toFixed(2)
-                  ]);
-                  
-                  // Add total row
-                  rows.push(['', '', 'TOTAL', (totalQuotationValue / 100000).toFixed(2)]);
-                  
-                  const csvContent = [
-                    headers.join(','),
-                    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-                  ].join('\n');
-                  
-                  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                  const link = document.createElement('a');
-                  link.href = URL.createObjectURL(blob);
-                  link.download = `Project_Cost_Breakdown_${new Date().toISOString().split('T')[0]}.csv`;
-                  link.click();
+                onClick={async () => {
+                  try {
+                    const response = await fetch('/api/quotations/export-cost-breakdown', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      credentials: 'include',
+                      body: JSON.stringify({ quotations: selectedQuotations }),
+                    });
+                    
+                    if (!response.ok) {
+                      throw new Error('Export failed');
+                    }
+                    
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `Project_Cost_Breakdown_${new Date().toISOString().split('T')[0]}.xlsx`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(url);
+                  } catch (error) {
+                    console.error('Export error:', error);
+                  }
                 }}
                 data-testid="button-export-project-cost"
               >

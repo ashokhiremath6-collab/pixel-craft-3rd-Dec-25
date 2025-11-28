@@ -1621,6 +1621,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Export Project Cost Breakdown as Excel
+  app.post("/api/quotations/export-cost-breakdown", requireAuth, async (req, res) => {
+    try {
+      const { quotations } = req.body;
+      
+      if (!quotations || !Array.isArray(quotations)) {
+        return res.status(400).json({ error: "Invalid quotations data" });
+      }
+
+      // Create Excel workbook
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'PixelCraft Designer';
+      workbook.created = new Date();
+
+      const worksheet = workbook.addWorksheet('Project Cost Breakdown');
+
+      // Define columns
+      worksheet.columns = [
+        { header: 'Vendor', key: 'vendor', width: 30 },
+        { header: 'Project', key: 'project', width: 20 },
+        { header: 'Category', key: 'category', width: 20 },
+        { header: 'Rs lacs', key: 'value', width: 12 }
+      ];
+
+      // Style header row
+      const headerRow = worksheet.getRow(1);
+      headerRow.font = { bold: true, size: 11 };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+      headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+      headerRow.height = 20;
+
+      // Add data rows
+      let totalValue = 0;
+      quotations.forEach((q: any) => {
+        const valueInLacs = parseFloat(q.quotationValue || '0') / 100000;
+        totalValue += valueInLacs;
+        
+        const row = worksheet.addRow({
+          vendor: q.vendorName,
+          project: q.projectName,
+          category: q.category || '-',
+          value: valueInLacs
+        });
+        
+        // Right-align the value column
+        row.getCell('value').alignment = { horizontal: 'right' };
+        row.getCell('value').numFmt = '0.00';
+      });
+
+      // Add empty row before total
+      worksheet.addRow({});
+
+      // Add total row
+      const totalRow = worksheet.addRow({
+        vendor: '',
+        project: '',
+        category: 'TOTAL',
+        value: totalValue
+      });
+      totalRow.font = { bold: true, size: 12 };
+      totalRow.getCell('category').alignment = { horizontal: 'right' };
+      totalRow.getCell('value').alignment = { horizontal: 'right' };
+      totalRow.getCell('value').numFmt = '0.00';
+      totalRow.getCell('value').fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFF2CC' }
+      };
+
+      // Add borders to all data cells
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber > 0 && rowNumber <= quotations.length + 1) {
+          row.eachCell((cell) => {
+            cell.border = {
+              top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+              left: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+              bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+              right: { style: 'thin', color: { argb: 'FFD0D0D0' } }
+            };
+          });
+        }
+      });
+
+      // Generate Excel buffer
+      const buffer = await workbook.xlsx.writeBuffer();
+
+      // Set headers for download
+      const filename = `Project_Cost_Breakdown_${new Date().toISOString().split('T')[0]}.xlsx`;
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', buffer.length);
+
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error('Error exporting project cost breakdown:', error);
+      res.status(500).json({ error: "Failed to export project cost breakdown" });
+    }
+  });
+
   // Quote Templates Routes
   app.get("/api/quote-templates", requireAuth, async (req, res) => {
     try {
