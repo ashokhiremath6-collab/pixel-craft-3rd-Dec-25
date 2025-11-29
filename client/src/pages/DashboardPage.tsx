@@ -221,6 +221,10 @@ export default function DashboardPage() {
       const project = quotationsData.projects.find(p => p.id === task.projectId);
       const projectName = project?.projectName || 'Unknown Project';
       
+      // Skip tasks that have been manually marked as complete
+      const progress = Number(task.progressPercentage) || 0;
+      if (progress >= 100) return;
+      
       // Check for tasks starting today
       if (task.startDate) {
         const startDate = startOfDay(new Date(task.startDate));

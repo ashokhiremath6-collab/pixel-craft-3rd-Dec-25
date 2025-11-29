@@ -4983,21 +4983,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return new Date(date);
         };
         
-        // Calculate progress state - "Incomplete" or "Completed" (auto-completes when end date has passed)
+        // Calculate progress state - "Incomplete" or "Completed" (based on stored progressPercentage only)
+        // Tasks must be explicitly marked as complete - no auto-completion
         const getProgressState = () => {
           if (isPhase) return null; // Headers don't have progress
           const progressNum = Number(task.progressPercentage) || 0;
-          // Manually marked as complete
-          if (progressNum >= 100) return 'Completed';
-          // Auto-complete if end date has passed
-          if (task.endDate && task.endDate !== PLACEHOLDER_DATE) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const endDate = new Date(task.endDate);
-            endDate.setHours(0, 0, 0, 0);
-            if (today >= endDate) return 'Completed';
-          }
-          return 'Incomplete';
+          return progressNum >= 100 ? 'Completed' : 'Incomplete';
         };
         const progressValue = getProgressState();
         
@@ -5097,17 +5088,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       summaryRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       
-      // Count completed tasks (manually marked or auto-completed based on end date)
+      // Count completed tasks (based on stored progressPercentage only)
       const isTaskCompleted = (t: any) => {
-        if (Number(t.progressPercentage) >= 100) return true;
-        if (t.endDate && t.endDate !== PLACEHOLDER_DATE) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const endDate = new Date(t.endDate);
-          endDate.setHours(0, 0, 0, 0);
-          if (today >= endDate) return true;
-        }
-        return false;
+        return Number(t.progressPercentage) >= 100;
       };
       
       // Filter out phase headers for counting
@@ -5153,8 +5136,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { topic: '', description: '' },
         { topic: 'STATUS', description: 'The Status column shows:' },
         { topic: '', description: '   • "Incomplete" - Task is not yet done' },
-        { topic: '', description: '   • "Completed" - Task is done (auto-completed when end date passes)' },
-        { topic: '', description: '   • To mark a task as Completed early, type "Completed" in the Status cell' },
+        { topic: '', description: '   • "Completed" - Task is finished' },
+        { topic: '', description: '   • To mark a task as Completed, type "Completed" in the Status cell' },
+        { topic: '', description: '   • To mark a task as Incomplete, type "Incomplete" in the Status cell' },
         { topic: '', description: '' },
         { topic: 'SECTION HEADERS', description: 'Rows containing PHASE, PACKAGE, or EXECUTE are section headers.' },
         { topic: '', description: 'Leave dates and status blank for these rows.' },
