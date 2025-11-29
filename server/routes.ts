@@ -4896,12 +4896,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Define columns - Designer-friendly view (Status and Priority columns removed per user request)
       // Dates stored as Excel dates for calendar picker functionality
+      // Progress column uses "Incomplete" / "Completed" text (not percentages) to reduce designer workload
       worksheet.columns = [
         { header: '#', key: 'seq', width: 5 },
         { header: 'Task Name', key: 'name', width: 45 },
         { header: 'Start Date', key: 'startDate', width: 14 },
         { header: 'End Date', key: 'endDate', width: 14 },
-        { header: '% Complete', key: 'progress', width: 12 },
+        { header: 'Status', key: 'progress', width: 14 },
         { header: 'Remarks', key: 'remarks', width: 35 },
         // Hidden columns for re-import functionality
         { header: 'DB_ID', key: 'dbId', width: 40, hidden: true }, // Database ID for re-import
@@ -4929,10 +4930,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const endDateColumn = worksheet.getColumn('endDate');
       startDateColumn.numFmt = 'DD MMM YYYY';
       endDateColumn.numFmt = 'DD MMM YYYY';
-      
-      // Apply percentage format to entire progress column (E)
-      const progressColumn = worksheet.getColumn('progress');
-      progressColumn.numFmt = '0%';
       
       // Color mapping for priority
       const priorityColors: Record<string, { bg: string; text: string }> = {
@@ -4986,8 +4983,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return new Date(date);
         };
         
-        // Calculate progress value - headers get null, tasks get decimal (0-1 for Excel)
-        const progressValue = isPhase ? null : (task.progressPercentage || 0) / 100;
+        // Calculate progress state - "Incomplete" or "Completed" (auto-completes when end date has passed)
+        const getProgressState = () => {
+          if (isPhase) return null; // Headers don't have progress
+          const progressNum = Number(task.progressPercentage) || 0;
+          // Manually marked as complete
+          if (progressNum >= 100) return 'Completed';
+          // Auto-complete if end date has passed
+          if (task.endDate && task.endDate !== PLACEHOLDER_DATE) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const endDate = new Date(task.endDate);
+            endDate.setHours(0, 0, 0, 0);
+            if (today >= endDate) return 'Completed';
+          }
+          return 'Incomplete';
+        };
+        const progressValue = getProgressState();
         
         const row = worksheet.addRow({
           seq: seq,
@@ -5014,11 +5026,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           endDateCell.numFmt = 'DD MMM YYYY';
         }
         
-        // Apply percentage format to progress cell (only for non-header rows with values)
+        // Get reference to progress cell for styling
         const progressCell = row.getCell('progress');
-        if (!isPhase && progressValue !== null) {
-          progressCell.numFmt = '0%';
-        }
         
         // Insert blank rows after specified task numbers
         if (blankRowsAfter.includes(seq)) {
@@ -5047,17 +5056,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           row.getCell('name').font = { ...row.getCell('name').font, color: { argb: 'FFDC3545' } };
         }
         
-        // Style progress cell with gradient background (reference the already-defined progressCell)
-        const progressNum = Number(task.progressPercentage) || 0;
-        if (progressNum >= 100) {
+        // Style progress cell based on Incomplete/Completed status
+        if (progressValue === 'Completed') {
           progressCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF28A745' } };
           progressCell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
-        } else if (progressNum >= 50) {
-          progressCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF17A2B8' } };
-          progressCell.font = { color: { argb: 'FFFFFFFF' } };
-        } else if (progressNum > 0) {
-          progressCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC107' } };
-          progressCell.font = { color: { argb: 'FF212529' } };
+        } else if (progressValue === 'Incomplete') {
+          // Light gray background for incomplete tasks
+          progressCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+          progressCell.font = { color: { argb: 'FF666666' } };
         }
         progressCell.alignment = { horizontal: 'center' };
         
@@ -5091,18 +5097,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       summaryRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       
-      const totalTasks = sortedTasks.length;
-      const completedCount = sortedTasks.filter(t => Number(t.progressPercentage) >= 100).length;
-      const inProgressCount = sortedTasks.filter(t => Number(t.progressPercentage) > 0 && Number(t.progressPercentage) < 100).length;
-      const overdueCount = sortedTasks.filter(isOverdue).length;
+      // Count completed tasks (manually marked or auto-completed based on end date)
+      const isTaskCompleted = (t: any) => {
+        if (Number(t.progressPercentage) >= 100) return true;
+        if (t.endDate && t.endDate !== PLACEHOLDER_DATE) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const endDate = new Date(t.endDate);
+          endDate.setHours(0, 0, 0, 0);
+          if (today >= endDate) return true;
+        }
+        return false;
+      };
+      
+      // Filter out phase headers for counting
+      const actualTasks = sortedTasks.filter(t => !isPhaseHeader(t.name || ''));
+      const totalTasks = actualTasks.length;
+      const completedCount = actualTasks.filter(isTaskCompleted).length;
+      const incompleteCount = totalTasks - completedCount;
       
       worksheet.addRow({ seq: '', name: `Total Tasks: ${totalTasks}` });
-      worksheet.addRow({ seq: '', name: `Completed (100%): ${completedCount} (${totalTasks > 0 ? Math.round(completedCount/totalTasks*100) : 0}%)` });
-      worksheet.addRow({ seq: '', name: `In Progress: ${inProgressCount}` });
-      if (overdueCount > 0) {
-        const overdueRow = worksheet.addRow({ seq: '', name: `Overdue: ${overdueCount}` });
-        overdueRow.font = { color: { argb: 'FFDC3545' }, bold: true };
-      }
+      const completedRow = worksheet.addRow({ seq: '', name: `Completed: ${completedCount} (${totalTasks > 0 ? Math.round(completedCount/totalTasks*100) : 0}%)` });
+      completedRow.getCell('name').font = { color: { argb: 'FF28A745' }, bold: true };
+      worksheet.addRow({ seq: '', name: `Incomplete: ${incompleteCount}` });
       
       // Auto-filter for the data (6 visible columns now - Priority moved to hidden)
       worksheet.autoFilter = {
@@ -5126,7 +5143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Add instruction rows
       const instructions = [
-        { topic: 'Purpose', description: 'This is your Designer Export file. Edit dates and progress here, then re-import to sync changes back to the system.' },
+        { topic: 'Purpose', description: 'This is your Designer Export file. Edit dates here, then re-import to sync changes back to the system.' },
         { topic: '', description: '' },
         { topic: 'DATE FORMAT', description: 'Enter dates in any of these formats:' },
         { topic: '', description: '   • 15 Nov 2025 (recommended)' },
@@ -5134,12 +5151,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { topic: '', description: '   • 15/11/2025' },
         { topic: '', description: '   • Nov 15, 2025' },
         { topic: '', description: '' },
-        { topic: 'PROGRESS', description: 'Enter progress as a percentage (0% to 100%)' },
-        { topic: '', description: '   • Type 50% or just 50' },
-        { topic: '', description: '   • Leave blank for section headers' },
+        { topic: 'STATUS', description: 'The Status column shows:' },
+        { topic: '', description: '   • "Incomplete" - Task is not yet done' },
+        { topic: '', description: '   • "Completed" - Task is done (auto-completed when end date passes)' },
+        { topic: '', description: '   • To mark a task as Completed early, type "Completed" in the Status cell' },
         { topic: '', description: '' },
         { topic: 'SECTION HEADERS', description: 'Rows containing PHASE, PACKAGE, or EXECUTE are section headers.' },
-        { topic: '', description: 'Leave dates and progress blank for these rows.' },
+        { topic: '', description: 'Leave dates and status blank for these rows.' },
         { topic: '', description: '' },
         { topic: 'RE-IMPORT', description: 'After editing, use the "Re-import" button in the app to sync your changes.' },
         { topic: '', description: 'The system will update dates, progress, and remarks for each task.' },
@@ -5306,12 +5324,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return null;
         };
         
-        // Parse progress - handle Excel percentage format (0-1) and string format
+        // Parse progress - handle "Completed"/"Incomplete" text format
         const parseProgress = (cell: any): number | null => {
           const value = cell.value;
           
           // Null/undefined/empty = leave unchanged (for headers)
           if (value === null || value === undefined || value === '') return null;
+          
+          if (typeof value === 'string') {
+            const trimmed = value.trim().toLowerCase();
+            
+            // Handle text status values
+            if (trimmed === 'completed' || trimmed === 'complete' || trimmed === 'done') {
+              return 100;
+            }
+            if (trimmed === 'incomplete' || trimmed === 'pending' || trimmed === 'not started') {
+              return 0;
+            }
+            
+            // Also support legacy percentage format for backwards compatibility
+            const cleanValue = value.trim().replace('%', '');
+            const num = parseFloat(cleanValue);
+            if (!isNaN(num)) {
+              // If parsed value is <= 1, treat as decimal
+              if (num >= 0 && num <= 1) {
+                return Math.round(num * 100);
+              }
+              return Math.min(100, Math.max(0, Math.round(num)));
+            }
+          }
           
           if (typeof value === 'number') {
             // Excel stores percentages as decimals (0.75 = 75%)
@@ -5321,17 +5362,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             // If value is > 1, it's already in 0-100 format
             return Math.min(100, Math.max(0, Math.round(value)));
-          }
-          
-          if (typeof value === 'string') {
-            const trimmed = value.trim().replace('%', '');
-            const num = parseFloat(trimmed);
-            if (isNaN(num)) return null;
-            // If parsed value is <= 1, treat as decimal
-            if (num >= 0 && num <= 1) {
-              return Math.round(num * 100);
-            }
-            return Math.min(100, Math.max(0, Math.round(num)));
           }
           
           return null;
