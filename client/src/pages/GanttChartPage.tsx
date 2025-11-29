@@ -66,7 +66,6 @@ export default function GanttChartPage() {
   
   // Task table filters and settings
   const [taskSearchQuery, setTaskSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   
@@ -82,7 +81,6 @@ export default function GanttChartPage() {
   const [reimportScheduleId, setReimportScheduleId] = useState<string | null>(null);
   const reimportInputRef = useRef<HTMLInputElement>(null);
   const [visibleColumns, setVisibleColumns] = useState({
-    status: true,
     startDate: true,
     endDate: true,
     assigned: false, // Hidden by default - designers may not need
@@ -1003,10 +1001,6 @@ export default function GanttChartPage() {
           if (taskSearchQuery && !(task.name || '').toLowerCase().includes(taskSearchQuery.toLowerCase())) {
             return false;
           }
-          // Status filter
-          if (statusFilter !== 'all' && task.status !== statusFilter) {
-            return false;
-          }
           // Priority filter
           if (priorityFilter !== 'all' && task.priority !== priorityFilter) {
             return false;
@@ -1138,18 +1132,6 @@ export default function GanttChartPage() {
                       data-testid="input-task-search"
                     />
                   </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[140px]" data-testid="select-status-filter">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="not_started">Not Started</SelectItem>
-                      <SelectItem value="in_progress">In Progress</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="blocked">Blocked</SelectItem>
-                    </SelectContent>
-                  </Select>
                   <Select value={priorityFilter} onValueChange={setPriorityFilter}>
                     <SelectTrigger className="w-[140px]" data-testid="select-priority-filter">
                       <SelectValue placeholder="Priority" />
@@ -1172,13 +1154,12 @@ export default function GanttChartPage() {
                     <AlertTriangle className="h-4 w-4" />
                     {showOverdueOnly ? "Showing Overdue" : "Show Overdue"}
                   </Button>
-                  {(taskSearchQuery || statusFilter !== 'all' || priorityFilter !== 'all' || showOverdueOnly) && (
+                  {(taskSearchQuery || priorityFilter !== 'all' || showOverdueOnly) && (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => {
                         setTaskSearchQuery("");
-                        setStatusFilter("all");
                         setPriorityFilter("all");
                         setShowOverdueOnly(false);
                       }}
@@ -1202,7 +1183,6 @@ export default function GanttChartPage() {
                     <thead>
                       <tr className="border-b bg-muted/50">
                         <th className="text-left py-3 px-3 font-medium">Task</th>
-                        {visibleColumns.status && <th className="text-left py-3 px-2 font-medium">Status</th>}
                         {visibleColumns.startDate && <th className="text-left py-3 px-2 font-medium">Start</th>}
                         {visibleColumns.endDate && <th className="text-left py-3 px-2 font-medium">End</th>}
                         {visibleColumns.assigned && <th className="text-left py-3 px-2 font-medium">Assigned</th>}
@@ -1270,26 +1250,6 @@ export default function GanttChartPage() {
                                         </div>
                                       </div>
                                     </td>
-                                    {visibleColumns.status && (
-                                      <td className="py-2.5 px-2">
-                                        <Badge 
-                                          className={`text-xs whitespace-nowrap ${
-                                            task.status === 'completed' 
-                                              ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900 dark:text-green-300 dark:border-green-700' 
-                                              : task.status === 'in_progress' 
-                                                ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700' 
-                                                : task.status === 'blocked' 
-                                                  ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900 dark:text-red-300 dark:border-red-700' 
-                                                  : 'bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600'
-                                          }`}
-                                        >
-                                          {task.status === 'completed' && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                                          {task.status === 'in_progress' && <Clock className="h-3 w-3 mr-1" />}
-                                          {task.status === 'blocked' && <XCircle className="h-3 w-3 mr-1" />}
-                                          {task.status?.replace('_', ' ')}
-                                        </Badge>
-                                      </td>
-                                    )}
                                     {visibleColumns.startDate && (
                                       <td className="py-2.5 px-2 text-muted-foreground whitespace-nowrap">
                                         {editingStartDateTaskId === task.id ? (

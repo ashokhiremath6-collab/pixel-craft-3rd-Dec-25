@@ -198,17 +198,15 @@ export default function DashboardPage() {
     return 'performed';
   };
 
-  // Calculate task alerts (due today or in 5 days)
+  // Calculate task alerts - Starting Today and Completion Countdown (5 days before)
   const getTaskAlerts = () => {
-    if (!allTasksData || !quotationsData) return { dueToday: [], dueSoon: [] };
+    if (!allTasksData || !quotationsData) return { startingToday: [], completionCountdown: [] };
     
     const today = startOfDay(new Date());
-    const dueToday: Array<Task & { projectName: string }> = [];
-    const dueSoon: Array<Task & { projectName: string, daysUntilDue: number }> = [];
+    const startingToday: Array<Task & { projectName: string }> = [];
+    const completionCountdown: Array<Task & { projectName: string, daysToGo: number }> = [];
     
     allTasksData.forEach(task => {
-      if (!task.endDate) return;
-      
       // Skip PHASE, PACKAGE, and EXECUTE header rows - these are grouping headers, not actual tasks
       const taskName = task.name?.toUpperCase() || '';
       if (taskName.startsWith('PHASE') || taskName.startsWith('PACKAGE') || taskName.startsWith('EXECUTE')) return;
@@ -220,28 +218,36 @@ export default function DashboardPage() {
         if (differenceInDays(endDate, startDate) === 0) return;
       }
       
-      const endDate = startOfDay(new Date(task.endDate));
-      const daysUntil = differenceInDays(endDate, today);
-      
       const project = quotationsData.projects.find(p => p.id === task.projectId);
       const projectName = project?.projectName || 'Unknown Project';
       
-      // Only show tasks that are not completed (based on progress, not status)
-      const progressPercent = Number(task.progressPercentage) || 0;
-      if (progressPercent < 100) {
-        if (daysUntil === 0) {
-          dueToday.push({ ...task, projectName });
-        } else if (daysUntil === 5) {
-          dueSoon.push({ ...task, projectName, daysUntilDue: daysUntil });
+      // Check for tasks starting today
+      if (task.startDate) {
+        const startDate = startOfDay(new Date(task.startDate));
+        const daysUntilStart = differenceInDays(startDate, today);
+        if (daysUntilStart === 0) {
+          startingToday.push({ ...task, projectName });
+        }
+      }
+      
+      // Check for completion countdown (5 days or less before end date)
+      if (task.endDate) {
+        const endDate = startOfDay(new Date(task.endDate));
+        const daysToGo = differenceInDays(endDate, today);
+        if (daysToGo >= 1 && daysToGo <= 5) {
+          completionCountdown.push({ ...task, projectName, daysToGo });
         }
       }
     });
     
-    return { dueToday, dueSoon };
+    // Sort completion countdown by days remaining (ascending)
+    completionCountdown.sort((a, b) => a.daysToGo - b.daysToGo);
+    
+    return { startingToday, completionCountdown };
   };
 
   const taskAlerts = getTaskAlerts();
-  const hasAlerts = taskAlerts.dueToday.length > 0 || taskAlerts.dueSoon.length > 0;
+  const hasAlerts = taskAlerts.startingToday.length > 0 || taskAlerts.completionCountdown.length > 0;
 
   return (
     <div className="space-y-4">
@@ -255,23 +261,23 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Tasks Due Today */}
-            {taskAlerts.dueToday.length > 0 && (
+            {/* Tasks Starting Today */}
+            {taskAlerts.startingToday.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Badge variant="destructive" className="font-semibold">
-                    Due Today
+                  <Badge className="bg-blue-600 hover:bg-blue-700 font-semibold">
+                    Starting Today
                   </Badge>
                   <span className="text-sm text-muted-foreground">
-                    {taskAlerts.dueToday.length} task{taskAlerts.dueToday.length !== 1 ? 's' : ''}
+                    {taskAlerts.startingToday.length} task{taskAlerts.startingToday.length !== 1 ? 's' : ''}
                   </span>
                 </div>
                 <div className="space-y-2">
-                  {taskAlerts.dueToday.map(task => (
+                  {taskAlerts.startingToday.map(task => (
                     <div
                       key={task.id}
-                      className="flex items-center justify-between gap-3 p-3 rounded-md bg-destructive/10 border border-destructive/20"
-                      data-testid={`alert-today-${task.id}`}
+                      className="flex items-center justify-between gap-3 p-3 rounded-md bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900/30"
+                      data-testid={`alert-start-${task.id}`}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm truncate" data-testid={`text-task-name-${task.id}`}>
@@ -282,8 +288,8 @@ export default function DashboardPage() {
                           <span data-testid={`text-project-${task.id}`}>{task.projectName}</span>
                         </div>
                       </div>
-                      <Badge variant="destructive" className="flex-shrink-0">
-                        Today
+                      <Badge className="bg-blue-600 hover:bg-blue-700 flex-shrink-0">
+                        Starts Today
                       </Badge>
                     </div>
                   ))}
@@ -291,35 +297,45 @@ export default function DashboardPage() {
               </div>
             )}
             
-            {/* Tasks Due in 5 Days */}
-            {taskAlerts.dueSoon.length > 0 && (
+            {/* Completion Countdown (5 days or less) */}
+            {taskAlerts.completionCountdown.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary" className="bg-orange-100 dark:bg-orange-900/30 text-orange-900 dark:text-orange-100 font-semibold">
-                    Due in 5 Days
+                    Completion Countdown
                   </Badge>
                   <span className="text-sm text-muted-foreground">
-                    {taskAlerts.dueSoon.length} task{taskAlerts.dueSoon.length !== 1 ? 's' : ''}
+                    {taskAlerts.completionCountdown.length} task{taskAlerts.completionCountdown.length !== 1 ? 's' : ''}
                   </span>
                 </div>
                 <div className="space-y-2">
-                  {taskAlerts.dueSoon.map(task => (
+                  {taskAlerts.completionCountdown.map(task => (
                     <div
                       key={task.id}
                       className="flex items-center justify-between gap-3 p-3 rounded-md bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-900/30"
-                      data-testid={`alert-soon-${task.id}`}
+                      data-testid={`alert-countdown-${task.id}`}
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate" data-testid={`text-task-name-${task.id}`}>
-                          {task.name}
+                        <div className="font-medium text-sm" data-testid={`text-task-name-${task.id}`}>
+                          <span className="truncate">{task.name}</span>
+                          <span className="text-orange-700 dark:text-orange-300 ml-2">
+                            - {task.daysToGo} day{task.daysToGo !== 1 ? 's' : ''} to go for completion
+                          </span>
                         </div>
                         <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                           <Calendar className="h-3 w-3" />
                           <span data-testid={`text-project-${task.id}`}>{task.projectName}</span>
                         </div>
                       </div>
-                      <Badge variant="secondary" className="bg-orange-100 dark:bg-orange-900/30 text-orange-900 dark:text-orange-100 flex-shrink-0">
-                        5 days
+                      <Badge 
+                        variant="secondary" 
+                        className={`flex-shrink-0 ${
+                          task.daysToGo <= 2 
+                            ? 'bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-100' 
+                            : 'bg-orange-100 dark:bg-orange-900/30 text-orange-900 dark:text-orange-100'
+                        }`}
+                      >
+                        {task.daysToGo} day{task.daysToGo !== 1 ? 's' : ''}
                       </Badge>
                     </div>
                   ))}
