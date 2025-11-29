@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { format, startOfDay, isAfter, isSameDay } from "date-fns";
 import { useForm } from "react-hook-form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -48,6 +48,29 @@ interface CriticalPathResult {
   projectDuration: number;
   criticalPathDuration: number;
 }
+
+// Helper function to compute progress state based on dates
+// Returns "Completed" if: progressPercentage >= 100 OR today >= endDate
+// Returns "Incomplete" otherwise
+const getProgressState = (task: Task): { state: 'Completed' | 'Incomplete'; isAutoCompleted: boolean } => {
+  const progress = Number(task.progressPercentage || 0);
+  
+  // If manually marked as complete (100%), it's completed
+  if (progress >= 100) {
+    return { state: 'Completed', isAutoCompleted: false };
+  }
+  
+  // If end date has passed, auto-complete
+  if (task.endDate) {
+    const today = startOfDay(new Date());
+    const endDate = startOfDay(new Date(task.endDate));
+    if (isAfter(today, endDate) || isSameDay(today, endDate)) {
+      return { state: 'Completed', isAutoCompleted: true };
+    }
+  }
+  
+  return { state: 'Incomplete', isAutoCompleted: false };
+};
 
 export default function GanttChartPage() {
   const { toast } = useToast();
@@ -1348,66 +1371,46 @@ export default function GanttChartPage() {
                                     )}
                                     {visibleColumns.progress && (
                                       <td className="py-2.5 px-2 text-center">
-                                        {editingProgressTaskId === task.id ? (
-                                          <div className="flex items-center gap-1">
-                                            <Input
-                                              type="number"
-                                              min={0}
-                                              max={100}
-                                              value={editingProgressValue}
-                                              onChange={(e) => setEditingProgressValue(Math.min(100, Math.max(0, Number(e.target.value))))}
-                                              className="w-16 h-7 text-center text-xs"
-                                              autoFocus
-                                              onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                  updateProgressMutation.mutate({ taskId: task.id, progressPercentage: editingProgressValue });
-                                                } else if (e.key === 'Escape') {
-                                                  setEditingProgressTaskId(null);
-                                                }
-                                              }}
-                                              data-testid={`input-progress-${task.id}`}
-                                            />
-                                            <Button
-                                              size="icon"
-                                              variant="ghost"
-                                              className="h-6 w-6"
-                                              onClick={() => updateProgressMutation.mutate({ taskId: task.id, progressPercentage: editingProgressValue })}
-                                              disabled={updateProgressMutation.isPending}
-                                              data-testid={`button-save-progress-${task.id}`}
-                                            >
-                                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                                            </Button>
-                                          </div>
-                                        ) : (
-                                          <div 
-                                            className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 transition-colors"
-                                            onClick={() => {
-                                              setEditingProgressTaskId(task.id);
-                                              setEditingProgressValue(Number(task.progressPercentage || 0));
-                                            }}
-                                            title="Click to edit progress"
-                                            data-testid={`progress-cell-${task.id}`}
-                                          >
-                                            <div className="flex-1 h-2.5 bg-muted rounded-full overflow-hidden min-w-[60px]">
-                                              <div 
-                                                className={`h-full rounded-full transition-all ${
-                                                  Number(task.progressPercentage || 0) >= 100 
-                                                    ? 'bg-green-500' 
-                                                    : Number(task.progressPercentage || 0) >= 50 
-                                                      ? 'bg-blue-500' 
-                                                      : 'bg-amber-500'
+                                        {(() => {
+                                          const { state, isAutoCompleted } = getProgressState(task);
+                                          if (state === 'Completed') {
+                                            return (
+                                              <Badge 
+                                                className={`text-xs cursor-pointer ${
+                                                  isAutoCompleted 
+                                                    ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900 dark:text-green-300 dark:border-green-700 hover:bg-green-200 dark:hover:bg-green-800' 
+                                                    : 'bg-green-500 text-white border-green-600 hover:bg-green-600'
                                                 }`}
-                                                style={{ width: `${task.progressPercentage || 0}%` }}
-                                              />
-                                            </div>
-                                            <span className={`text-xs font-medium w-10 ${
-                                              Number(task.progressPercentage || 0) >= 100 ? 'text-green-600' : 'text-muted-foreground'
-                                            }`}>
-                                              {task.progressPercentage || 0}%
-                                            </span>
-                                            <Edit className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-50" />
-                                          </div>
-                                        )}
+                                                onClick={() => {
+                                                  // Allow toggling back to incomplete (set to 0)
+                                                  if (confirm('Mark this task as Incomplete?')) {
+                                                    updateProgressMutation.mutate({ taskId: task.id, progressPercentage: 0 });
+                                                  }
+                                                }}
+                                                title={isAutoCompleted ? "Auto-completed (end date passed). Click to mark incomplete." : "Manually completed. Click to mark incomplete."}
+                                                data-testid={`progress-completed-${task.id}`}
+                                              >
+                                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                                Completed
+                                              </Badge>
+                                            );
+                                          } else {
+                                            return (
+                                              <Badge 
+                                                variant="outline"
+                                                className="text-xs cursor-pointer border-gray-300 text-gray-600 dark:border-gray-600 dark:text-gray-400 hover:bg-green-50 hover:border-green-300 hover:text-green-600 dark:hover:bg-green-950 dark:hover:border-green-700 dark:hover:text-green-400"
+                                                onClick={() => {
+                                                  // Mark as complete (set to 100)
+                                                  updateProgressMutation.mutate({ taskId: task.id, progressPercentage: 100 });
+                                                }}
+                                                title="Click to mark as Completed"
+                                                data-testid={`progress-incomplete-${task.id}`}
+                                              >
+                                                Incomplete
+                                              </Badge>
+                                            );
+                                          }
+                                        })()}
                                       </td>
                                     )}
                                     {visibleColumns.approval && (
