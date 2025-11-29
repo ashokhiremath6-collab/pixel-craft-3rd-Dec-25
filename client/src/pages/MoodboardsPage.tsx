@@ -24,13 +24,8 @@ export default function MoodboardsPage() {
   const [tags, setTags] = useState("");
   const [canvaLink, setCanvaLink] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
-  // For working drawings/renders, start blank. For moodboards, start with "all"
-  const [filterProjectId, setFilterProjectId] = useState<string>(() => {
-    if (location === "/working-drawings" || location === "/renders") {
-      return "";
-    }
-    return "all";
-  });
+  // All asset types start blank - require project selection first
+  const [filterProjectId, setFilterProjectId] = useState<string>("");
   
   // Determine asset type based on route
   const assetType = useMemo(() => {
@@ -448,66 +443,49 @@ export default function MoodboardsPage() {
           </p>
         </div>
         
-        {/* Project Selector Card - Show first for working drawings and renders */}
-        {(assetType === "working_drawing" || assetType === "render") && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-bold">Select Project</CardTitle>
-              <CardDescription>Choose a project to view and manage its {assetType === "working_drawing" ? "working drawings" : "renders"}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="max-w-sm">
-                <Label className="mb-2 block">Project</Label>
-                <Select value={filterProjectId} onValueChange={setFilterProjectId}>
-                  <SelectTrigger data-testid="select-project-filter">
-                    <SelectValue placeholder="Select a project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.projectName} - {project.clientName}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="all">All Projects</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Moodboards filter (for moodboards only) */}
-        {assetType === "moodboard" && (
-          <div className="flex items-center gap-2 min-w-[240px]">
-            <Label htmlFor="filter-project" className="text-sm whitespace-nowrap">
-              Filter by:
-            </Label>
-            <Select value={filterProjectId} onValueChange={setFilterProjectId}>
-              <SelectTrigger id="filter-project" data-testid="select-filter-project">
-                <SelectValue placeholder="Select project..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Assets</SelectItem>
-                <SelectItem value="general">General (No Project)</SelectItem>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.projectName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        {/* Project Selector Card - Show for all asset types */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-bold">Select Project</CardTitle>
+            <CardDescription>
+              Choose a project to view and manage its {
+                assetType === "working_drawing" ? "working drawings" : 
+                assetType === "render" ? "renders" : "moodboards"
+              }
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="max-w-sm">
+              <Label className="mb-2 block">Project</Label>
+              <Select value={filterProjectId} onValueChange={setFilterProjectId}>
+                <SelectTrigger data-testid="select-project-filter">
+                  <SelectValue placeholder="Select a project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.projectName} - {project.clientName}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="all">All Projects</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Show empty state when project not selected for working drawings/renders */}
-      {(assetType === "working_drawing" || assetType === "render") && !filterProjectId && (
+      {/* Show empty state when project not selected */}
+      {!filterProjectId && (
         <Card>
           <CardContent className="text-center py-12">
             <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Select a project to begin</h3>
             <p className="text-muted-foreground">
-              Choose a project from the dropdown above to view and manage its {assetType === "working_drawing" ? "working drawings" : "renders"}
+              Choose a project from the dropdown above to view and manage its {
+                assetType === "working_drawing" ? "working drawings" : 
+                assetType === "render" ? "renders" : "moodboards"
+              }
             </p>
           </CardContent>
         </Card>
