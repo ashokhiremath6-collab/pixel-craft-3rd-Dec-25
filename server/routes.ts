@@ -5058,6 +5058,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         progressCell.alignment = { horizontal: 'center' };
         
+        // Add dropdown data validation to Status cell (for non-phase rows)
+        if (!isPhase && progressValue) {
+          progressCell.dataValidation = {
+            type: 'list',
+            allowBlank: false,
+            formulae: ['"Incomplete,Completed"'],
+            showErrorMessage: true,
+            errorStyle: 'error',
+            errorTitle: 'Invalid Status',
+            error: 'Please select either "Incomplete" or "Completed" from the dropdown.'
+          };
+        }
+        
         // Add borders to all cells
         row.eachCell({ includeEmpty: true }, (cell) => {
           cell.border = {
@@ -5134,11 +5147,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { topic: '', description: '   • 15/11/2025' },
         { topic: '', description: '   • Nov 15, 2025' },
         { topic: '', description: '' },
-        { topic: 'STATUS', description: 'The Status column shows:' },
-        { topic: '', description: '   • "Incomplete" - Task is not yet done' },
+        { topic: 'STATUS', description: 'The Status column has a dropdown toggle:' },
+        { topic: '', description: '   • Click the dropdown arrow in any Status cell to toggle between options' },
+        { topic: '', description: '   • "Incomplete" - Task is not yet done (default)' },
         { topic: '', description: '   • "Completed" - Task is finished' },
-        { topic: '', description: '   • To mark a task as Completed, type "Completed" in the Status cell' },
-        { topic: '', description: '   • To mark a task as Incomplete, type "Incomplete" in the Status cell' },
+        { topic: '', description: '   • You can also type directly: "Incomplete" or "Completed"' },
         { topic: '', description: '' },
         { topic: 'SECTION HEADERS', description: 'Rows containing PHASE, PACKAGE, or EXECUTE are section headers.' },
         { topic: '', description: 'Leave dates and status blank for these rows.' },
