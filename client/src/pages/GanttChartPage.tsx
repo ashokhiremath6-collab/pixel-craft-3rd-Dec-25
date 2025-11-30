@@ -74,7 +74,6 @@ export default function GanttChartPage() {
   
   // Task table filters and settings
   const [taskSearchQuery, setTaskSearchQuery] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   
   // Inline editing for progress
@@ -92,7 +91,6 @@ export default function GanttChartPage() {
     startDate: true,
     endDate: true,
     assigned: false, // Hidden by default - designers may not need
-    priority: true,
     progress: true,
     approval: true,
   });
@@ -121,7 +119,6 @@ export default function GanttChartPage() {
       startDate: "",
       endDate: "",
       status: "not_started",
-      priority: "medium",
       progressPercentage: 0,
       approvalRequired: false,
     },
@@ -800,54 +797,29 @@ export default function GanttChartPage() {
                             )}
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="priority"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Priority</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                  <FormControl>
-                                    <SelectTrigger data-testid="select-priority">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="low">Low</SelectItem>
-                                    <SelectItem value="medium">Medium</SelectItem>
-                                    <SelectItem value="high">High</SelectItem>
-                                    <SelectItem value="critical">Critical</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="status"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Status</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                  <FormControl>
-                                    <SelectTrigger data-testid="select-status">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="not_started">Not Started</SelectItem>
-                                    <SelectItem value="in_progress">In Progress</SelectItem>
-                                    <SelectItem value="blocked">Blocked</SelectItem>
-                                    <SelectItem value="completed">Completed</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
+                        <FormField
+                          control={form.control}
+                          name="status"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Status</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-status">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="not_started">Not Started</SelectItem>
+                                  <SelectItem value="in_progress">In Progress</SelectItem>
+                                  <SelectItem value="blocked">Blocked</SelectItem>
+                                  <SelectItem value="completed">Completed</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                         <div className="flex justify-end gap-2">
                           <Button type="button" variant="outline" onClick={() => setIsAddTaskOpen(false)} data-testid="button-cancel-task">
                             Cancel
@@ -1010,10 +982,6 @@ export default function GanttChartPage() {
           if (taskSearchQuery && !(task.name || '').toLowerCase().includes(taskSearchQuery.toLowerCase())) {
             return false;
           }
-          // Priority filter
-          if (priorityFilter !== 'all' && task.priority !== priorityFilter) {
-            return false;
-          }
           // Overdue filter
           if (showOverdueOnly && !isTaskOverdue(task)) {
             return false;
@@ -1097,7 +1065,6 @@ export default function GanttChartPage() {
                             startDate: 'Start Date',
                             endDate: 'End Date',
                             assigned: 'Assigned',
-                            priority: 'Priority',
                             progress: 'Status',
                             approval: 'Approval',
                           };
@@ -1154,18 +1121,6 @@ export default function GanttChartPage() {
                       data-testid="input-task-search"
                     />
                   </div>
-                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                    <SelectTrigger className="w-[140px]" data-testid="select-priority-filter">
-                      <SelectValue placeholder="Priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Priority</SelectItem>
-                      <SelectItem value="critical">Critical</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="low">Low</SelectItem>
-                    </SelectContent>
-                  </Select>
                   <Button
                     variant={showOverdueOnly ? "destructive" : "outline"}
                     size="sm"
@@ -1176,13 +1131,12 @@ export default function GanttChartPage() {
                     <AlertTriangle className="h-4 w-4" />
                     {showOverdueOnly ? "Showing Overdue" : "Show Overdue"}
                   </Button>
-                  {(taskSearchQuery || priorityFilter !== 'all' || showOverdueOnly) && (
+                  {(taskSearchQuery || showOverdueOnly) && (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => {
                         setTaskSearchQuery("");
-                        setPriorityFilter("all");
                         setShowOverdueOnly(false);
                       }}
                       data-testid="button-clear-filters"
@@ -1208,7 +1162,6 @@ export default function GanttChartPage() {
                         {visibleColumns.startDate && <th className="text-left py-3 px-2 font-medium">Start</th>}
                         {visibleColumns.endDate && <th className="text-left py-3 px-2 font-medium">End</th>}
                         {visibleColumns.assigned && <th className="text-left py-3 px-2 font-medium">Assigned</th>}
-                        {visibleColumns.priority && <th className="text-left py-3 px-2 font-medium">Priority</th>}
                         {visibleColumns.progress && <th className="text-center py-3 px-2 font-medium" title="Click badges to toggle status">Status</th>}
                         {visibleColumns.approval && <th className="text-center py-3 px-2 font-medium">Approval</th>}
                         <th className="text-center py-3 px-2 font-medium w-16"></th>
@@ -1351,21 +1304,6 @@ export default function GanttChartPage() {
                                     {visibleColumns.assigned && (
                                       <td className="py-2.5 px-2 text-muted-foreground truncate max-w-[100px]">
                                         {task.assignedTo || '-'}
-                                      </td>
-                                    )}
-                                    {visibleColumns.priority && (
-                                      <td className="py-2.5 px-2">
-                                        <Badge 
-                                          variant="outline"
-                                          className={`text-xs ${
-                                            task.priority === 'critical' ? 'border-red-500 text-red-600 bg-red-50 dark:bg-red-950' :
-                                            task.priority === 'high' ? 'border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950' :
-                                            task.priority === 'medium' ? 'border-yellow-500 text-yellow-600 bg-yellow-50 dark:bg-yellow-950' :
-                                            'border-green-500 text-green-600 bg-green-50 dark:bg-green-950'
-                                          }`}
-                                        >
-                                          {task.priority}
-                                        </Badge>
                                       </td>
                                     )}
                                     {visibleColumns.progress && (
