@@ -1091,18 +1091,28 @@ export default function GanttChartPage() {
                     <PopoverContent className="w-48" align="end">
                       <div className="space-y-2">
                         <p className="text-sm font-medium mb-2">Show/Hide Columns</p>
-                        {Object.entries(visibleColumns).map(([key, value]) => (
-                          <div key={key} className="flex items-center gap-2">
-                            <Checkbox 
-                              id={`col-${key}`}
-                              checked={value}
-                              onCheckedChange={() => toggleColumn(key as keyof typeof visibleColumns)}
-                            />
-                            <label htmlFor={`col-${key}`} className="text-sm capitalize cursor-pointer">
-                              {key.replace(/([A-Z])/g, ' $1').trim()}
-                            </label>
-                          </div>
-                        ))}
+                        {Object.entries(visibleColumns).map(([key, value]) => {
+                          const labelMap: Record<string, string> = {
+                            startDate: 'Start Date',
+                            endDate: 'End Date',
+                            assigned: 'Assigned',
+                            priority: 'Priority',
+                            progress: 'Status',
+                            approval: 'Approval',
+                          };
+                          return (
+                            <div key={key} className="flex items-center gap-2">
+                              <Checkbox 
+                                id={`col-${key}`}
+                                checked={value}
+                                onCheckedChange={() => toggleColumn(key as keyof typeof visibleColumns)}
+                              />
+                              <label htmlFor={`col-${key}`} className="text-sm cursor-pointer">
+                                {labelMap[key] || key}
+                              </label>
+                            </div>
+                          );
+                        })}
                       </div>
                     </PopoverContent>
                   </Popover>
@@ -1123,6 +1133,9 @@ export default function GanttChartPage() {
                     <span className="text-sm"><strong>{overdueCount}</strong> overdue</span>
                   </div>
                   <div className="flex-1" />
+                  <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 px-2 py-1 rounded border border-blue-200 dark:border-blue-800">
+                    Tip: Click status badges to toggle complete/incomplete
+                  </div>
                   <div className="text-sm text-muted-foreground">
                     {Math.round((completedCount / tasks.length) * 100)}% complete
                   </div>
@@ -1195,7 +1208,7 @@ export default function GanttChartPage() {
                         {visibleColumns.endDate && <th className="text-left py-3 px-2 font-medium">End</th>}
                         {visibleColumns.assigned && <th className="text-left py-3 px-2 font-medium">Assigned</th>}
                         {visibleColumns.priority && <th className="text-left py-3 px-2 font-medium">Priority</th>}
-                        {visibleColumns.progress && <th className="text-center py-3 px-2 font-medium">Progress</th>}
+                        {visibleColumns.progress && <th className="text-center py-3 px-2 font-medium" title="Click badges to toggle status">Status</th>}
                         {visibleColumns.approval && <th className="text-center py-3 px-2 font-medium">Approval</th>}
                         <th className="text-center py-3 px-2 font-medium w-16"></th>
                       </tr>
@@ -1358,13 +1371,12 @@ export default function GanttChartPage() {
                                       <td className="py-2.5 px-2 text-center">
                                         {getProgressState(task) === 'Completed' ? (
                                           <Badge 
-                                            className="text-xs cursor-pointer bg-green-500 text-white border-green-600 hover:bg-green-600"
+                                            className="text-xs cursor-pointer bg-green-500 text-white border-green-600 hover:bg-red-500 hover:border-red-600 transition-colors shadow-sm"
                                             onClick={() => {
-                                              if (confirm('Mark this task as Incomplete?')) {
-                                                updateProgressMutation.mutate({ taskId: task.id, progressPercentage: 0 });
-                                              }
+                                              updateProgressMutation.mutate({ taskId: task.id, progressPercentage: 0 });
+                                              toast({ title: "Task marked incomplete", description: task.name });
                                             }}
-                                            title="Click to mark incomplete"
+                                            title="Click to toggle → Incomplete"
                                             data-testid={`progress-completed-${task.id}`}
                                           >
                                             <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -1373,13 +1385,15 @@ export default function GanttChartPage() {
                                         ) : (
                                           <Badge 
                                             variant="outline"
-                                            className="text-xs cursor-pointer border-gray-300 text-gray-600 dark:border-gray-600 dark:text-gray-400 hover:bg-green-50 hover:border-green-300 hover:text-green-600 dark:hover:bg-green-950 dark:hover:border-green-700 dark:hover:text-green-400"
+                                            className="text-xs cursor-pointer border-gray-300 text-gray-600 dark:border-gray-600 dark:text-gray-400 hover:bg-green-500 hover:border-green-500 hover:text-white dark:hover:bg-green-600 transition-colors shadow-sm"
                                             onClick={() => {
                                               updateProgressMutation.mutate({ taskId: task.id, progressPercentage: 100 });
+                                              toast({ title: "Task completed!", description: task.name });
                                             }}
-                                            title="Click to mark as Completed"
+                                            title="Click to toggle → Completed"
                                             data-testid={`progress-incomplete-${task.id}`}
                                           >
+                                            <Clock className="h-3 w-3 mr-1" />
                                             Incomplete
                                           </Badge>
                                         )}
