@@ -206,7 +206,8 @@ export default function GanttChartPage() {
   // Update task progress mutation
   const updateProgressMutation = useMutation({
     mutationFn: async ({ taskId, progressPercentage }: { taskId: string; progressPercentage: number }) => {
-      return await apiRequest('PUT', `/api/tasks/${taskId}`, { progressPercentage });
+      // Send progressPercentage as string since the schema uses decimal type
+      return await apiRequest('PUT', `/api/tasks/${taskId}`, { progressPercentage: String(progressPercentage) });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
