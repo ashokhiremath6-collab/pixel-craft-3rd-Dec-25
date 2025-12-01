@@ -5,15 +5,25 @@ import * as fs from "fs";
 function getGeminiConfig() {
   const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
   const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+  const isProduction = process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT === "1";
   
   console.log("[Gemini Config] Initializing...");
   console.log("[Gemini Config] NODE_ENV:", process.env.NODE_ENV);
+  console.log("[Gemini Config] REPLIT_DEPLOYMENT:", process.env.REPLIT_DEPLOYMENT);
+  console.log("[Gemini Config] Is Production:", isProduction);
   console.log("[Gemini Config] Base URL from env:", baseUrl);
   console.log("[Gemini Config] API Key configured:", !!apiKey);
   
-  if (!baseUrl || !apiKey) {
+  let effectiveBaseUrl = baseUrl || "";
+  
+  if (isProduction && (effectiveBaseUrl.includes("localhost") || !effectiveBaseUrl)) {
+    effectiveBaseUrl = "https://ai.api.replit.com/v1/providers/google-ai";
+    console.log("[Gemini Config] Production detected - using Replit AI gateway:", effectiveBaseUrl);
+  }
+  
+  if (!effectiveBaseUrl || !apiKey) {
     console.error("[Gemini Config] Missing required environment variables!");
-    console.error("[Gemini Config] AI_INTEGRATIONS_GEMINI_BASE_URL:", baseUrl || "NOT SET");
+    console.error("[Gemini Config] Effective Base URL:", effectiveBaseUrl || "NOT SET");
     console.error("[Gemini Config] AI_INTEGRATIONS_GEMINI_API_KEY:", apiKey ? "SET" : "NOT SET");
   }
   
@@ -21,7 +31,7 @@ function getGeminiConfig() {
     apiKey: apiKey || "",
     httpOptions: {
       apiVersion: "",
-      baseUrl: baseUrl || "",
+      baseUrl: effectiveBaseUrl,
     },
   };
 }
