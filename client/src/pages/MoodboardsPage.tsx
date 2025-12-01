@@ -177,9 +177,20 @@ export default function MoodboardsPage() {
     return project ? project.projectName : "Unknown Project";
   };
 
-  // Group moodboards by project
+  // Room type order for sorting
+  const roomTypeOrder = [
+    "Living Room", "Bedroom", "Kitchen", "Dining Room", "Bathroom", 
+    "Study", "Kids Room", "Guest Room", "Puja Room", "Hallway", 
+    "Walk-in Closet", "Balcony", "General"
+  ];
+
+  // Group moodboards by project, and for renders also by room type
   const groupedMoodboards = useMemo(() => {
-    const groups: Record<string, { projectName: string; items: Moodboard[] }> = {};
+    const groups: Record<string, { 
+      projectName: string; 
+      items: Moodboard[];
+      roomGroups?: Record<string, Moodboard[]>;
+    }> = {};
     
     moodboards.forEach((moodboard: Moodboard) => {
       const projectId = moodboard.projectId || 'general';
@@ -189,13 +200,44 @@ export default function MoodboardsPage() {
         groups[projectId] = {
           projectName,
           items: [],
+          roomGroups: assetType === "render" ? {} : undefined,
         };
       }
       groups[projectId].items.push(moodboard);
+      
+      // For renders, also group by room type
+      if (assetType === "render" && groups[projectId].roomGroups) {
+        const roomType = (moodboard as any).roomType || "General";
+        if (!groups[projectId].roomGroups![roomType]) {
+          groups[projectId].roomGroups![roomType] = [];
+        }
+        groups[projectId].roomGroups![roomType].push(moodboard);
+      }
     });
     
+    // Sort room groups by predefined order
+    if (assetType === "render") {
+      Object.values(groups).forEach(group => {
+        if (group.roomGroups) {
+          const sortedRoomGroups: Record<string, Moodboard[]> = {};
+          roomTypeOrder.forEach(roomType => {
+            if (group.roomGroups![roomType]) {
+              sortedRoomGroups[roomType] = group.roomGroups![roomType];
+            }
+          });
+          // Add any room types not in predefined order
+          Object.keys(group.roomGroups).forEach(roomType => {
+            if (!sortedRoomGroups[roomType]) {
+              sortedRoomGroups[roomType] = group.roomGroups![roomType];
+            }
+          });
+          group.roomGroups = sortedRoomGroups;
+        }
+      });
+    }
+    
     return groups;
-  }, [moodboards, projects]);
+  }, [moodboards, projects, assetType]);
 
   // Upload moodboard mutation
   const uploadMutation = useMutation({
@@ -503,7 +545,7 @@ export default function MoodboardsPage() {
         </Card>
       )}
 
-      {/* Uploaded Moodboards - Grouped by Project */}
+      {/* Uploaded Moodboards - Grouped by Project (and Room Type for Renders) */}
       {!isLoading && moodboards.length > 0 && (
         <div className="space-y-6">
           {Object.entries(groupedMoodboards).map(([projectId, group]) => (
@@ -518,67 +560,127 @@ export default function MoodboardsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {group.items.map((moodboard: Moodboard) => (
-                    <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate" data-testid={`drawing-item-${moodboard.id}`}>
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        {moodboard.description && (
-                          <h4 className="font-semibold text-base truncate mb-1" title={moodboard.description}>
-                            {moodboard.description}
+                {/* For renders, show grouped by room type */}
+                {assetType === "render" && group.roomGroups ? (
+                  <div className="space-y-6">
+                    {Object.entries(group.roomGroups).map(([roomType, roomItems]) => (
+                      <div key={roomType} className="space-y-3">
+                        <div className="flex items-center gap-2 pb-2 border-b">
+                          <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                            {roomType}
                           </h4>
-                        )}
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span>{moodboard.fileName || labels.listMetadataText}</span>
-                          <span>•</span>
-                          <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {roomItems.length}
+                          </Badge>
+                        </div>
+                        <div className="space-y-3 pl-2">
+                          {roomItems.map((moodboard: Moodboard) => (
+                            <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate" data-testid={`render-item-${moodboard.id}`}>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold text-base truncate mb-1" title={moodboard.name}>
+                                  {moodboard.name}
+                                </h4>
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {getPreviewUrl(moodboard) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => setPreviewImage(moodboard)}
+                                    data-testid={`button-view-${moodboard.id}`}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-red-600 hover:text-red-700"
+                                  onClick={() => deleteMoodboard(moodboard.id)}
+                                  disabled={deleteMutation.isPending}
+                                  data-testid={`button-delete-${moodboard.id}`}
+                                >
+                                  {deleteMutation.isPending ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* For moodboards and working drawings, show flat list */
+                  <div className="space-y-3">
+                    {group.items.map((moodboard: Moodboard) => (
+                      <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate" data-testid={`drawing-item-${moodboard.id}`}>
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          {moodboard.description && (
+                            <h4 className="font-semibold text-base truncate mb-1" title={moodboard.description}>
+                              {moodboard.description}
+                            </h4>
+                          )}
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>{moodboard.fileName || labels.listMetadataText}</span>
+                            <span>•</span>
+                            <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+                          </div>
+                          
+                          {moodboard.canvaLink && (
+                            <a
+                              href={moodboard.canvaLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
+                              data-testid={`link-canva-${moodboard.id}`}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              <span>{labels.viewLinkText}</span>
+                            </a>
+                          )}
                         </div>
                         
-                        {moodboard.canvaLink && (
-                          <a
-                            href={moodboard.canvaLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
-                            data-testid={`link-canva-${moodboard.id}`}
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            <span>{labels.viewLinkText}</span>
-                          </a>
-                        )}
-                      </div>
-                      
-                      {/* Actions */}
-                      <div className="flex items-center gap-2">
-                        {getPreviewUrl(moodboard) && (
+                        {/* Actions */}
+                        <div className="flex items-center gap-2">
+                          {getPreviewUrl(moodboard) && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => setPreviewImage(moodboard)}
+                              data-testid={`button-view-${moodboard.id}`}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8"
-                            onClick={() => setPreviewImage(moodboard)}
-                            data-testid={`button-view-${moodboard.id}`}
+                            className="h-8 w-8 text-red-600 hover:text-red-700"
+                            onClick={() => deleteMoodboard(moodboard.id)}
+                            disabled={deleteMutation.isPending}
+                            data-testid={`button-delete-${moodboard.id}`}
                           >
-                            <Eye className="h-4 w-4" />
+                            {deleteMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
                           </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-red-600 hover:text-red-700"
-                          onClick={() => deleteMoodboard(moodboard.id)}
-                          disabled={deleteMutation.isPending}
-                          data-testid={`button-delete-${moodboard.id}`}
-                        >
-                          {deleteMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
