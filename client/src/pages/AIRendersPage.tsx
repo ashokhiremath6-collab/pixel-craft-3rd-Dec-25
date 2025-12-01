@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Project } from "@shared/schema";
+import type { Project, Moodboard } from "@shared/schema";
 import { 
   Upload, 
   Wand2, 
@@ -24,7 +25,9 @@ import {
   RefreshCw,
   ExternalLink,
   ShieldAlert,
-  Maximize2
+  Maximize2,
+  FolderOpen,
+  Check
 } from "lucide-react";
 
 interface RenderStyle {
@@ -54,6 +57,8 @@ export default function AIRendersPage() {
   const [generatedRender, setGeneratedRender] = useState<GeneratedRender | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showFullSize, setShowFullSize] = useState(false);
+  const [showSavedRendersDialog, setShowSavedRendersDialog] = useState(false);
+  const [selectedSavedRenderUrl, setSelectedSavedRenderUrl] = useState<string | null>(null);
 
   const { data: user, isLoading: userLoading, isError: userError, refetch: refetchUser } = useQuery<{ role: string }>({
     queryKey: ['/api/auth/user'],
@@ -67,7 +72,23 @@ export default function AIRendersPage() {
     queryKey: ['/api/projects'],
   });
 
+  const { data: savedRenders = [] } = useQuery<Moodboard[]>({
+    queryKey: ['/api/moodboards', { assetType: 'render' }],
+    queryFn: async () => {
+      const response = await fetch('/api/moodboards?assetType=render', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch saved renders');
+      return response.json();
+    },
+  });
+
   const isDesignerOrAdmin = user?.role === 'admin' || user?.role === 'designer';
+
+  const getPreviewUrl = (render: Moodboard) => {
+    if (render.filePath?.startsWith('/objects/')) {
+      return render.filePath;
+    }
+    return `/uploads/${render.filePath}`;
+  };
 
   if (userLoading) {
     return (
@@ -261,8 +282,39 @@ export default function AIRendersPage() {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
+      setSelectedSavedRenderUrl(null);
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
+    }
+  };
+
+  const handleSelectSavedRender = async (render: Moodboard) => {
+    try {
+      const url = getPreviewUrl(render);
+      
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch render image');
+      
+      const blob = await response.blob();
+      const fileName = render.name || render.fileName || 'saved-render.jpg';
+      const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+      
+      setSelectedFile(file);
+      setSelectedSavedRenderUrl(url);
+      setPreviewUrl(url);
+      setShowSavedRendersDialog(false);
+      
+      toast({ 
+        title: "Render Selected", 
+        description: `"${render.name || 'Saved render'}" loaded for modification` 
+      });
+    } catch (error) {
+      console.error('Error loading saved render:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to load the saved render",
+        variant: "destructive" 
+      });
     }
   };
 
@@ -416,26 +468,40 @@ export default function AIRendersPage() {
 
               <TabsContent value="image" className="space-y-4 mt-4">
                 <div>
-                  <Label htmlFor="image-upload">Upload Room Photo</Label>
-                  <div className="mt-2">
+                  <Label htmlFor="image-upload">Source Image</Label>
+                  <div className="mt-2 flex gap-2">
                     <Input
                       id="image-upload"
                       ref={fileInputRef}
                       type="file"
                       accept="image/*"
                       onChange={handleFileSelect}
-                      className="cursor-pointer"
+                      className="cursor-pointer flex-1"
                       data-testid="input-image-upload"
                     />
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowSavedRendersDialog(true)}
+                      disabled={savedRenders.length === 0}
+                      data-testid="button-select-saved-render"
+                    >
+                      <FolderOpen className="h-4 w-4 mr-2" />
+                      Saved
+                    </Button>
                   </div>
                   {previewUrl && (
-                    <div className="mt-3">
+                    <div className="mt-3 relative">
                       <img 
                         src={previewUrl} 
                         alt="Preview" 
                         className="max-h-48 rounded-lg border object-contain"
                         data-testid="image-preview"
                       />
+                      {selectedSavedRenderUrl && (
+                        <Badge className="absolute top-2 left-2" variant="secondary">
+                          From Saved
+                        </Badge>
+                      )}
                     </div>
                   )}
                 </div>
@@ -661,6 +727,59 @@ export default function AIRendersPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={showSavedRendersDialog} onOpenChange={setShowSavedRendersDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderOpen className="h-5 w-5" />
+              Select a Saved Render
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            {savedRenders.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
+                <ImageIcon className="h-12 w-12 mb-4 opacity-50" />
+                <p>No saved renders found</p>
+                <p className="text-sm mt-1">Generate and save some renders first</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {savedRenders.map((render) => {
+                  const projectName = projects.find(p => p.id.toString() === render.projectId?.toString())?.projectName || "General";
+                  return (
+                    <div
+                      key={render.id}
+                      className="group relative rounded-lg border overflow-hidden cursor-pointer hover-elevate"
+                      onClick={() => handleSelectSavedRender(render)}
+                      data-testid={`saved-render-${render.id}`}
+                    >
+                      <img
+                        src={getPreviewUrl(render)}
+                        alt={render.name || "Saved render"}
+                        className="w-full h-32 object-cover"
+                      />
+                      <div className="p-2 bg-background">
+                        <p className="text-sm font-medium truncate">
+                          {render.name || render.roomType || "Untitled"}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {projectName}
+                        </p>
+                      </div>
+                      <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="bg-primary text-primary-foreground rounded-full p-2">
+                          <Check className="h-4 w-4" />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showFullSize} onOpenChange={setShowFullSize}>
         <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 overflow-hidden">
