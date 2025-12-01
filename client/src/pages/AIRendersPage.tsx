@@ -179,6 +179,7 @@ export default function AIRendersPage() {
       projectId: string; 
       styleId: string;
       description?: string;
+      originalFilename?: string;
     }) => {
       return apiRequest('POST', '/api/ai-renders/save', data);
     },
@@ -256,7 +257,8 @@ export default function AIRendersPage() {
       mimeType: generatedRender.mimeType,
       projectId: selectedProject,
       styleId: generatedRender.styleId,
-      description: generateRenderTitle(),
+      description: customPrompt || textDescription || "",
+      originalFilename: selectedFile?.name || textDescription || "",
     });
   };
 

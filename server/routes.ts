@@ -18,7 +18,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
-import { RENDER_STYLES, generateInteriorRender, generateConceptRender } from "./ai/gemini";
+import { RENDER_STYLES, generateInteriorRender, generateConceptRender, detectRoomType, paraphraseBrief } from "./ai/gemini";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
@@ -4258,7 +4258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Save generated render to project moodboards
   app.post("/api/ai-renders/save", requireAdmin, async (req, res) => {
     try {
-      const { imageData, mimeType, projectId, name, description, styleId } = req.body;
+      const { imageData, mimeType, projectId, name, description, styleId, originalFilename } = req.body;
       
       if (!imageData) {
         return res.status(400).json({ error: "Image data is required" });
@@ -4266,10 +4266,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = (req.user as any).claims.sub;
       
+      // Detect room type from original filename
+      const roomType = detectRoomType(originalFilename || name || '');
+      
+      // Get style name from styleId
+      const style = RENDER_STYLES.find(s => s.id === styleId);
+      const styleName = style?.name || 'Custom';
+      
+      // Paraphrase the description/brief
+      let paraphrasedDescription = styleName;
+      if (description && description.trim()) {
+        paraphrasedDescription = await paraphraseBrief(description, styleName);
+      }
+      
+      // Create new naming format: "{Room Type} - {Style} - {Paraphrased Brief}"
+      const displayName = description && description.trim() 
+        ? `${roomType} - ${styleName} - ${paraphrasedDescription}`
+        : `${roomType} - ${styleName}`;
+      
       // Convert base64 to buffer and upload to object storage
       const buffer = Buffer.from(imageData, 'base64');
       const extension = mimeType?.split('/')[1] || 'png';
-      const fileName = name || `AI-Render-${styleId}-${Date.now()}.${extension}`;
+      const fileName = `${roomType.replace(/\s+/g, '-')}-${styleName}-${Date.now()}.${extension}`;
       
       const objectPath = await uploadToObjectStorage(
         buffer,
@@ -4292,14 +4310,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const moodboardData = {
         projectId: validatedProjectId,
         assetType: 'render' as const,
-        name: fileName,
-        description: description || `AI-generated render (${styleId} style)`,
+        name: displayName,
+        description: paraphrasedDescription,
         fileName: fileName,
         filePath: objectPath,
         fileType: extension,
         fileSize: buffer.length.toString(),
-        tags: ['ai-generated', styleId],
-        canvaLink: null
+        tags: ['ai-generated', styleId, roomType.toLowerCase().replace(/\s+/g, '-')],
+        canvaLink: null,
+        roomType: roomType
       };
 
       const moodboard = await storage.createMoodboard(moodboardData);
@@ -4318,7 +4337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           activityType: 'render' as any,
           fileName: fileName,
           filePath: objectPath,
-          description: `created AI-generated Render "${fileName}"`,
+          description: `created AI-generated ${roomType} render "${displayName}"`,
           timestamp: new Date(),
         });
       }
