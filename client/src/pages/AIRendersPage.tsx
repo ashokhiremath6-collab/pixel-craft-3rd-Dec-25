@@ -108,10 +108,55 @@ export default function AIRendersPage() {
     );
   }
 
+  const compressImageOnClient = async (file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.7): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              console.log(`Image compressed: ${file.size} -> ${blob.size} bytes`);
+              resolve(blob);
+            } else {
+              reject(new Error('Failed to compress image'));
+            }
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const generateFromImageMutation = useMutation({
     mutationFn: async (data: { file: File; styleId: string; customPrompt?: string }) => {
+      const compressedBlob = await compressImageOnClient(data.file);
+      const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
+      
       const formData = new FormData();
-      formData.append('image', data.file);
+      formData.append('image', compressedFile);
       formData.append('styleId', data.styleId);
       if (data.customPrompt) {
         formData.append('customPrompt', data.customPrompt);
@@ -129,6 +174,9 @@ export default function AIRendersPage() {
           const error = await response.json();
           throw new Error(error.error || 'Failed to generate render');
         } else {
+          if (response.status === 413) {
+            throw new Error('Image is too large. Please use a smaller image (under 2MB).');
+          }
           if (response.status === 504 || response.status === 502) {
             throw new Error('Request timed out. The AI generation is taking longer than expected. Please try again with a smaller image.');
           }

@@ -89,11 +89,14 @@ export const RENDER_STYLES: RenderStyle[] = [
 
 async function compressImage(imageBase64: string, mimeType: string): Promise<{ data: string; mimeType: string }> {
   const imageBuffer = Buffer.from(imageBase64, 'base64');
+  console.log("[Gemini] Original image size:", imageBuffer.length, "bytes");
   
   const compressed = await sharp(imageBuffer)
-    .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 80 })
+    .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 70 })
     .toBuffer();
+  
+  console.log("[Gemini] Compressed image size:", compressed.length, "bytes");
   
   return {
     data: compressed.toString('base64'),
