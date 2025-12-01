@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Project } from "@shared/schema";
@@ -22,7 +23,8 @@ import {
   Loader2,
   RefreshCw,
   ExternalLink,
-  ShieldAlert
+  ShieldAlert,
+  Maximize2
 } from "lucide-react";
 
 interface RenderStyle {
@@ -51,6 +53,7 @@ export default function AIRendersPage() {
   const [selectedProject, setSelectedProject] = useState<string>("general");
   const [generatedRender, setGeneratedRender] = useState<GeneratedRender | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [showFullSize, setShowFullSize] = useState(false);
 
   const { data: user, isLoading: userLoading, isError: userError, refetch: refetchUser } = useQuery<{ role: string }>({
     queryKey: ['/api/auth/user'],
@@ -436,17 +439,28 @@ export default function AIRendersPage() {
           <CardContent className="space-y-4">
             {generatedRender ? (
               <>
-                <div className="relative">
+                <div className="relative group">
                   <img 
                     src={`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`}
                     alt="Generated Render"
-                    className="w-full rounded-lg border"
+                    className="w-full rounded-lg border cursor-pointer hover:opacity-90 transition-opacity"
                     data-testid="image-generated-render"
+                    onClick={() => setShowFullSize(true)}
                   />
                   <Badge className="absolute top-2 right-2">
                     {generatedRender.styleName}
                   </Badge>
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => setShowFullSize(true)}
+                    data-testid="button-view-fullsize"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
                 </div>
+                <p className="text-xs text-muted-foreground text-center">Click image to view full size</p>
 
                 <div>
                   <Label htmlFor="save-project">Save to Project</Label>
@@ -554,6 +568,35 @@ export default function AIRendersPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={showFullSize} onOpenChange={setShowFullSize}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 overflow-hidden">
+          <DialogHeader className="p-4 pb-0">
+            <DialogTitle className="flex items-center justify-between">
+              <span>AI Generated Render - {generatedRender?.styleName}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {generatedRender && (
+            <div className="p-4 pt-2 overflow-auto">
+              <img 
+                src={`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`}
+                alt="Generated Render Full Size"
+                className="max-w-full max-h-[75vh] mx-auto rounded-lg"
+                data-testid="image-generated-render-fullsize"
+              />
+              <div className="flex justify-center gap-2 mt-4">
+                <Button onClick={handleDownload} data-testid="button-download-fullsize">
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
+                <Button variant="outline" onClick={() => setShowFullSize(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
