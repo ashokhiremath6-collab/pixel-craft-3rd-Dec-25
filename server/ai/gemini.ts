@@ -99,8 +99,8 @@ async function compressImage(imageBase64: string, mimeType: string): Promise<{ d
   console.log("[Gemini] Original image size:", imageBuffer.length, "bytes");
   
   const compressed = await sharp(imageBuffer)
-    .resize(1536, 1536, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 85 })
+    .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 80 })
     .toBuffer();
   
   console.log("[Gemini] Compressed image size:", compressed.length, "bytes");
@@ -112,20 +112,28 @@ async function compressImage(imageBase64: string, mimeType: string): Promise<{ d
 }
 
 async function enhanceOutputImage(imageBase64: string, mimeType: string): Promise<{ data: string; mimeType: string }> {
-  const imageBuffer = Buffer.from(imageBase64, 'base64');
-  
-  const enhanced = await sharp(imageBuffer)
-    .resize(2048, 2048, { fit: 'inside', withoutEnlargement: false, kernel: 'lanczos3' })
-    .sharpen({ sigma: 0.8, m1: 0.5, m2: 0.5 })
-    .png({ quality: 95, compressionLevel: 6 })
-    .toBuffer();
-  
-  console.log("[Gemini] Enhanced output image size:", enhanced.length, "bytes");
-  
-  return {
-    data: enhanced.toString('base64'),
-    mimeType: 'image/png'
-  };
+  try {
+    const imageBuffer = Buffer.from(imageBase64, 'base64');
+    
+    const enhanced = await sharp(imageBuffer)
+      .resize(1536, 1536, { fit: 'inside', withoutEnlargement: false, kernel: 'lanczos3' })
+      .sharpen({ sigma: 0.5 })
+      .png({ compressionLevel: 6 })
+      .toBuffer();
+    
+    console.log("[Gemini] Enhanced output image size:", enhanced.length, "bytes");
+    
+    return {
+      data: enhanced.toString('base64'),
+      mimeType: 'image/png'
+    };
+  } catch (error) {
+    console.error("[Gemini] Enhancement failed, returning original:", error);
+    return {
+      data: imageBase64,
+      mimeType: mimeType
+    };
+  }
 }
 
 export async function generateInteriorRender(
