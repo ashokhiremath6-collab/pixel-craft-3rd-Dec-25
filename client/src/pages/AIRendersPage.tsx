@@ -237,6 +237,17 @@ export default function AIRendersPage() {
     });
   };
 
+  const generateRenderTitle = () => {
+    const style = generatedRender?.styleName || "Custom";
+    const brief = customPrompt.trim() || textDescription.trim();
+    
+    if (brief) {
+      const truncatedBrief = brief.length > 60 ? brief.substring(0, 57) + "..." : brief;
+      return `${style} - ${truncatedBrief}`;
+    }
+    return `${style} style render`;
+  };
+
   const handleSaveRender = () => {
     if (!generatedRender) return;
     
@@ -245,7 +256,7 @@ export default function AIRendersPage() {
       mimeType: generatedRender.mimeType,
       projectId: selectedProject,
       styleId: generatedRender.styleId,
-      description: `AI-generated ${generatedRender.styleName} style render`,
+      description: generateRenderTitle(),
     });
   };
 
