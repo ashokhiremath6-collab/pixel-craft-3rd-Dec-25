@@ -1,13 +1,32 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 import sharp from "sharp";
+import * as fs from "fs";
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-  },
-});
+function getGeminiConfig() {
+  const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+  const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+  
+  console.log("[Gemini Config] Initializing...");
+  console.log("[Gemini Config] NODE_ENV:", process.env.NODE_ENV);
+  console.log("[Gemini Config] Base URL from env:", baseUrl);
+  console.log("[Gemini Config] API Key configured:", !!apiKey);
+  
+  if (!baseUrl || !apiKey) {
+    console.error("[Gemini Config] Missing required environment variables!");
+    console.error("[Gemini Config] AI_INTEGRATIONS_GEMINI_BASE_URL:", baseUrl || "NOT SET");
+    console.error("[Gemini Config] AI_INTEGRATIONS_GEMINI_API_KEY:", apiKey ? "SET" : "NOT SET");
+  }
+  
+  return {
+    apiKey: apiKey || "",
+    httpOptions: {
+      apiVersion: "",
+      baseUrl: baseUrl || "",
+    },
+  };
+}
+
+const ai = new GoogleGenAI(getGeminiConfig());
 
 export interface RenderStyle {
   id: string;
