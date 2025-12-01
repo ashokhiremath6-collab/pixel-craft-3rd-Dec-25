@@ -88,49 +88,72 @@ export async function generateInteriorRender(
   styleId: string,
   customPrompt?: string
 ): Promise<{ imageData: string; mimeType: string }> {
+  console.log("[Gemini] Starting interior render generation...");
+  console.log("[Gemini] Style ID:", styleId);
+  console.log("[Gemini] Has custom prompt:", !!customPrompt);
+  console.log("[Gemini] API Key configured:", !!process.env.AI_INTEGRATIONS_GEMINI_API_KEY);
+  console.log("[Gemini] Base URL:", process.env.AI_INTEGRATIONS_GEMINI_BASE_URL);
+  
   const style = RENDER_STYLES.find(s => s.id === styleId);
   
   if (!style && !customPrompt) {
     throw new Error("Invalid style ID and no custom prompt provided");
   }
 
-  const compressed = await compressImage(imageBase64, mimeType);
+  try {
+    console.log("[Gemini] Compressing image...");
+    const compressed = await compressImage(imageBase64, mimeType);
+    console.log("[Gemini] Image compressed, size:", compressed.data.length, "bytes");
 
-  const stylePrompt = customPrompt || style?.prompt || "";
-  
-  const prompt = `Transform this interior space image into a photorealistic ${style?.name || 'styled'} interior design render. 
+    const stylePrompt = customPrompt || style?.prompt || "";
+    
+    const prompt = `Transform this interior space image into a photorealistic ${style?.name || 'styled'} interior design render. 
 Apply the following design style: ${stylePrompt}
 Keep the same room layout and dimensions, but reimagine the furniture, materials, lighting, and decor to match the style.
 Create a high-quality, professional interior design visualization that looks like a real photograph.
 Make sure the render is detailed, realistic, and suitable for client presentation.`;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-image",
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: prompt },
-          { inlineData: { mimeType: compressed.mimeType, data: compressed.data } }
-        ]
-      }
-    ],
-    config: {
-      responseModalities: [Modality.TEXT, Modality.IMAGE],
-    },
-  });
+    console.log("[Gemini] Calling AI API with model: gemini-2.5-flash-image");
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-image",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: compressed.mimeType, data: compressed.data } }
+          ]
+        }
+      ],
+      config: {
+        responseModalities: [Modality.TEXT, Modality.IMAGE],
+      },
+    });
 
-  const candidate = response.candidates?.[0];
-  const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
-  
-  if (!imagePart?.inlineData?.data) {
-    throw new Error("No image data in response. The AI may not have been able to process the image.");
+    console.log("[Gemini] API response received");
+    console.log("[Gemini] Candidates count:", response.candidates?.length || 0);
+    
+    const candidate = response.candidates?.[0];
+    const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
+    
+    if (!imagePart?.inlineData?.data) {
+      console.error("[Gemini] No image data in response. Full response:", JSON.stringify(response, null, 2));
+      throw new Error("No image data in response. The AI may not have been able to process the image.");
+    }
+
+    console.log("[Gemini] Successfully generated render, image size:", imagePart.inlineData.data.length);
+    
+    return {
+      imageData: imagePart.inlineData.data,
+      mimeType: imagePart.inlineData.mimeType || "image/png"
+    };
+  } catch (error: any) {
+    console.error("[Gemini] Error during render generation:", error);
+    console.error("[Gemini] Error message:", error.message);
+    console.error("[Gemini] Error stack:", error.stack);
+    throw error;
   }
-
-  return {
-    imageData: imagePart.inlineData.data,
-    mimeType: imagePart.inlineData.mimeType || "image/png"
-  };
 }
 
 export async function generateConceptRender(
