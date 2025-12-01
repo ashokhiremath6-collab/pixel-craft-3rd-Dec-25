@@ -156,3 +156,72 @@ Include realistic lighting, materials, and furniture placement.`;
 }
 
 export { RENDER_STYLES as renderStyles };
+
+// Room type detection from filename
+const ROOM_KEYWORDS: { [key: string]: string[] } = {
+  "Living Room": ["living", "lounge", "sitting", "family room", "great room"],
+  "Bedroom": ["bedroom", "master", "guest room", "kids room", "children room"],
+  "Kitchen": ["kitchen", "kitchenette", "cooking"],
+  "Bathroom": ["bathroom", "bath", "toilet", "washroom", "powder room", "ensuite"],
+  "Dining Room": ["dining", "breakfast room"],
+  "Study": ["study", "office", "home office", "workspace", "den"],
+  "Hallway": ["hallway", "corridor", "foyer", "entrance", "entry"],
+  "Balcony": ["balcony", "terrace", "patio", "deck"],
+  "Puja Room": ["puja", "pooja", "prayer", "mandir"],
+  "Kids Room": ["kids", "children", "nursery", "playroom"],
+  "Guest Room": ["guest"],
+  "Walk-in Closet": ["closet", "wardrobe", "dressing"],
+};
+
+export function detectRoomType(filename: string): string {
+  if (!filename) return "General";
+  
+  const normalizedName = filename.toLowerCase().replace(/[-_]/g, " ");
+  
+  for (const [roomType, keywords] of Object.entries(ROOM_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (normalizedName.includes(keyword)) {
+        return roomType;
+      }
+    }
+  }
+  
+  return "General";
+}
+
+// Paraphrase brief using Gemini for more natural descriptions
+export async function paraphraseBrief(brief: string, styleName: string): Promise<string> {
+  if (!brief || brief.trim().length === 0) {
+    return styleName;
+  }
+
+  try {
+    const prompt = `Paraphrase this interior design brief into a short, natural-sounding description (max 8-10 words). Keep the key design intent but use different words. Do not start with articles (a, an, the).
+
+Original: "${brief}"
+
+Respond with ONLY the paraphrased text, nothing else.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-05-20",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+    });
+
+    const candidate = response.candidates?.[0];
+    const textPart = candidate?.content?.parts?.find((part: any) => part.text);
+    
+    if (textPart?.text) {
+      // Clean up the response - remove quotes, trim whitespace
+      let paraphrased = textPart.text.trim().replace(/^["']|["']$/g, "");
+      // Capitalize first letter
+      paraphrased = paraphrased.charAt(0).toUpperCase() + paraphrased.slice(1);
+      return paraphrased;
+    }
+    
+    // Fallback to original brief if paraphrasing fails
+    return brief;
+  } catch (error) {
+    console.error("Failed to paraphrase brief:", error);
+    return brief;
+  }
+}
