@@ -1877,6 +1877,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       fileSize: 10 * 1024 * 1024, // 10MB limit
       files: 1, // Only allow single file upload
     },
+  });
+
+  // Configure multer for AI render uploads (larger limit for high-res images from Neo Foyr)
+  const uploadAIRender = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB limit for AI renders
+      files: 1,
+    },
     fileFilter: (req, file, cb) => {
       const allowedTypes = [
         'image/jpeg', 
@@ -4188,7 +4197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate AI render from uploaded image
-  app.post("/api/ai-renders/generate", requireAdmin, uploadMoodboard.single('image'), async (req, res) => {
+  app.post("/api/ai-renders/generate", requireAdmin, uploadAIRender.single('image'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No image uploaded" });
