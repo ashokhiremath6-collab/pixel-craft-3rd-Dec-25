@@ -99,8 +99,8 @@ async function compressImage(imageBase64: string, mimeType: string): Promise<{ d
   console.log("[Gemini] Original image size:", imageBuffer.length, "bytes");
   
   const compressed = await sharp(imageBuffer)
-    .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 70 })
+    .resize(1536, 1536, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 85 })
     .toBuffer();
   
   console.log("[Gemini] Compressed image size:", compressed.length, "bytes");
@@ -108,6 +108,23 @@ async function compressImage(imageBase64: string, mimeType: string): Promise<{ d
   return {
     data: compressed.toString('base64'),
     mimeType: 'image/jpeg'
+  };
+}
+
+async function enhanceOutputImage(imageBase64: string, mimeType: string): Promise<{ data: string; mimeType: string }> {
+  const imageBuffer = Buffer.from(imageBase64, 'base64');
+  
+  const enhanced = await sharp(imageBuffer)
+    .resize(2048, 2048, { fit: 'inside', withoutEnlargement: false, kernel: 'lanczos3' })
+    .sharpen({ sigma: 0.8, m1: 0.5, m2: 0.5 })
+    .png({ quality: 95, compressionLevel: 6 })
+    .toBuffer();
+  
+  console.log("[Gemini] Enhanced output image size:", enhanced.length, "bytes");
+  
+  return {
+    data: enhanced.toString('base64'),
+    mimeType: 'image/png'
   };
 }
 
@@ -149,13 +166,24 @@ IMPORTANT RULES:
 - Keep the same perspective, lighting style, and room dimensions
 - Do not add or remove items unless specifically asked
 - The output should look almost identical to the input, except for the requested changes
-- Maintain photorealistic quality`;
+
+OUTPUT QUALITY:
+- Generate a HIGH RESOLUTION, photorealistic image with maximum detail
+- Use sharp textures, realistic materials, and professional lighting
+- Ensure crisp edges and fine details are preserved
+- The final image should be suitable for large format printing and professional presentations`;
     } else if (style) {
       prompt = `Transform this interior space image into a photorealistic ${style.name} interior design render. 
 Apply the following design style: ${style.prompt}
 Keep the same room layout and dimensions, but update the furniture, materials, lighting, and decor to match the ${style.name} style.
-Create a high-quality, professional interior design visualization that looks like a real photograph.
-Make sure the render is detailed, realistic, and suitable for client presentation.`;
+
+OUTPUT QUALITY REQUIREMENTS:
+- Generate a HIGH RESOLUTION image with maximum detail and clarity
+- Create sharp, crisp textures on all surfaces (wood grain, fabric weave, marble veining)
+- Apply professional architectural photography lighting with realistic shadows
+- Include fine details: realistic reflections, accurate material properties, subtle ambient occlusion
+- The render should be suitable for large format printing and professional client presentations
+- Ensure photorealistic quality that looks indistinguishable from a real photograph`;
     } else {
       throw new Error("Either a style or custom prompt must be provided");
     }
@@ -189,11 +217,19 @@ Make sure the render is detailed, realistic, and suitable for client presentatio
       throw new Error("No image data in response. The AI may not have been able to process the image.");
     }
 
-    console.log("[Gemini] Successfully generated render, image size:", imagePart.inlineData.data.length);
+    console.log("[Gemini] Raw generated image size:", imagePart.inlineData.data.length);
+    
+    console.log("[Gemini] Enhancing output resolution...");
+    const enhanced = await enhanceOutputImage(
+      imagePart.inlineData.data, 
+      imagePart.inlineData.mimeType || "image/png"
+    );
+    
+    console.log("[Gemini] Successfully generated and enhanced render");
     
     return {
-      imageData: imagePart.inlineData.data,
-      mimeType: imagePart.inlineData.mimeType || "image/png"
+      imageData: enhanced.data,
+      mimeType: enhanced.mimeType
     };
   } catch (error: any) {
     console.error("[Gemini] Error during render generation:", error);
@@ -218,8 +254,13 @@ ${description}
 
 Apply the ${style.name} design style with these characteristics: ${style.prompt}
 
-The image should look like a professional architectural visualization photograph, suitable for client presentation.
-Include realistic lighting, materials, and furniture placement.`;
+OUTPUT QUALITY REQUIREMENTS:
+- Generate a HIGH RESOLUTION image with maximum detail and clarity
+- Create sharp, crisp textures on all surfaces (wood grain, fabric weave, marble veining)
+- Apply professional architectural photography lighting with realistic shadows
+- Include fine details: realistic reflections, accurate material properties, subtle ambient occlusion
+- The render should be suitable for large format printing and professional client presentations
+- Ensure photorealistic quality that looks indistinguishable from a real photograph`;
 
   const response = await getAIClient().models.generateContent({
     model: "gemini-2.5-flash-image",
@@ -236,9 +277,15 @@ Include realistic lighting, materials, and furniture placement.`;
     throw new Error("No image data in response");
   }
 
+  console.log("[Gemini] Enhancing concept render output resolution...");
+  const enhanced = await enhanceOutputImage(
+    imagePart.inlineData.data, 
+    imagePart.inlineData.mimeType || "image/png"
+  );
+
   return {
-    imageData: imagePart.inlineData.data,
-    mimeType: imagePart.inlineData.mimeType || "image/png"
+    imageData: enhanced.data,
+    mimeType: enhanced.mimeType
   };
 }
 

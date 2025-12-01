@@ -129,7 +129,7 @@ export default function AIRendersPage() {
     );
   }
 
-  const compressImageOnClient = async (file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.7): Promise<Blob> => {
+  const compressImageOnClient = async (file: File, maxWidth = 1536, maxHeight = 1536, quality = 0.85): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
