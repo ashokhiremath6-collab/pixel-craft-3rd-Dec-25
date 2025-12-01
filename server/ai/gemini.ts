@@ -127,13 +127,31 @@ export async function generateInteriorRender(
     const compressed = await compressImage(imageBase64, mimeType);
     console.log("[Gemini] Image compressed, size:", compressed.data.length, "bytes");
 
-    const stylePrompt = customPrompt || style?.prompt || "";
+    let prompt: string;
     
-    const prompt = `Transform this interior space image into a photorealistic ${style?.name || 'styled'} interior design render. 
-Apply the following design style: ${stylePrompt}
-Keep the same room layout and dimensions, but reimagine the furniture, materials, lighting, and decor to match the style.
+    if (customPrompt && customPrompt.trim()) {
+      prompt = `You are an interior design assistant. Make ONLY the specific changes requested below to this image. 
+DO NOT change anything else. Keep the room layout, furniture positions, colors, materials, and all other elements EXACTLY as they are in the original image.
+
+ONLY make these specific changes:
+${customPrompt}
+
+IMPORTANT RULES:
+- Make MINIMAL changes - only what is explicitly requested above
+- Preserve all existing furniture, decor, and layout that is not mentioned
+- Keep the same perspective, lighting style, and room dimensions
+- Do not add or remove items unless specifically asked
+- The output should look almost identical to the input, except for the requested changes
+- Maintain photorealistic quality`;
+    } else if (style) {
+      prompt = `Transform this interior space image into a photorealistic ${style.name} interior design render. 
+Apply the following design style: ${style.prompt}
+Keep the same room layout and dimensions, but update the furniture, materials, lighting, and decor to match the ${style.name} style.
 Create a high-quality, professional interior design visualization that looks like a real photograph.
 Make sure the render is detailed, realistic, and suitable for client presentation.`;
+    } else {
+      throw new Error("Either a style or custom prompt must be provided");
+    }
 
     console.log("[Gemini] Calling AI API with model: gemini-2.5-flash-image");
     
