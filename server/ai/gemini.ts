@@ -171,7 +171,7 @@ Make sure the render is detailed, realistic, and suitable for client presentatio
 
     console.log("[Gemini] Calling AI API with model: gemini-2.5-flash-image");
     
-    const response = await ai.models.generateContent({
+    const response = await getAIClient().models.generateContent({
       model: "gemini-2.5-flash-image",
       contents: [
         {
@@ -230,7 +230,7 @@ Apply the ${style.name} design style with these characteristics: ${style.prompt}
 The image should look like a professional architectural visualization photograph, suitable for client presentation.
 Include realistic lighting, materials, and furniture placement.`;
 
-  const response = await ai.models.generateContent({
+  const response = await getAIClient().models.generateContent({
     model: "gemini-2.5-flash-image",
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     config: {
@@ -321,7 +321,7 @@ Original: "${brief}"
 
 Respond with ONLY the paraphrased text, nothing else.`;
 
-    const response = await ai.models.generateContent({
+    const response = await getAIClient().models.generateContent({
       model: "gemini-2.5-flash",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
     });
