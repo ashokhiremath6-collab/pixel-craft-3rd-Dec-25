@@ -61,6 +61,7 @@ export default function ProjectsPage() {
       clientEmail: "",
       startDate: "",
       endDate: "",
+      foyrNeoLink: "",
     },
   });
 
@@ -73,6 +74,7 @@ export default function ProjectsPage() {
       clientEmail: "",
       startDate: "",
       endDate: "",
+      foyrNeoLink: "",
     },
   });
 
@@ -163,6 +165,7 @@ export default function ProjectsPage() {
       clientEmail: project.clientEmail,
       startDate: project.startDate,
       endDate: project.endDate || "",
+      foyrNeoLink: project.foyrNeoLink || "",
     });
   };
 
@@ -324,6 +327,25 @@ export default function ProjectsPage() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="foyrNeoLink"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Foyr Neo Link (Optional)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="url"
+                        placeholder="https://neo.foyr.com/..." 
+                        {...field} 
+                        value={field.value || ""}
+                        data-testid="input-foyr-neo-link"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className="flex justify-end space-x-2">
                 <Button 
                   type="button" 
@@ -462,6 +484,25 @@ export default function ProjectsPage() {
                         {...field} 
                         value={field.value || ""}
                         data-testid="input-end-date"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="foyrNeoLink"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Foyr Neo Link (Optional)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="url"
+                        placeholder="https://neo.foyr.com/..." 
+                        {...field} 
+                        value={field.value || ""}
+                        data-testid="input-foyr-neo-link"
                       />
                     </FormControl>
                     <FormMessage />

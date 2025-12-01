@@ -116,6 +116,20 @@ export default function ProjectCard({ project, vendorCount = 0, onEdit, onView, 
             </a>
           </div>
         )}
+        {project.foyrNeoLink && (
+          <div className="flex items-center gap-2">
+            <a
+              href={project.foyrNeoLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 dark:hover:text-emerald-300 hover:underline"
+              data-testid="link-foyr-neo"
+            >
+              <ExternalLink className="h-4 w-4" />
+              <span>Open Foyr Neo</span>
+            </a>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

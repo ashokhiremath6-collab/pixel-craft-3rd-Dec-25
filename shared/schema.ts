@@ -45,6 +45,7 @@ export const projects = pgTable("projects", {
   endDate: date("end_date"),
   canvaLink: text("canva_link"), // Canva design link for the project
   ganttChartLink: text("gantt_chart_link"), // External Gantt chart link (e.g., Google Sheets, MS Project Online)
+  foyrNeoLink: text("foyr_neo_link"), // Foyr Neo 3D design project link
 });
 
 // Project Clients table - supports multiple clients per project
@@ -423,6 +424,7 @@ export const insertProjectSchema = createInsertSchema(projects).omit({
   id: true,
 }).extend({
   clientEmail: z.string().email("Please enter a valid email address"),
+  foyrNeoLink: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
 });
 
 export const insertProjectClientSchema = createInsertSchema(projectClients).omit({
