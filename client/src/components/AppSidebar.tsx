@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -49,6 +49,11 @@ const mainItems: NavigationItem[] = [
     title: "Renders",
     url: "/renders",
     icon: Sparkles,
+  },
+  {
+    title: "AI Renders",
+    url: "/ai-renders",
+    icon: Wand2,
   },
   {
     title: "Working Drawings",

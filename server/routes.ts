@@ -18,6 +18,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
+import { RENDER_STYLES, generateInteriorRender, generateConceptRender } from "./ai/gemini";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
@@ -4171,6 +4172,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting moodboard:', error);
       res.status(500).json({ error: "Failed to delete moodboard" });
+    }
+  });
+
+  // ==================== AI RENDER ROUTES ====================
+  
+  // Get available render styles
+  app.get("/api/ai-renders/styles", requireAuth, async (req, res) => {
+    try {
+      res.json(RENDER_STYLES);
+    } catch (error) {
+      console.error('Error fetching render styles:', error);
+      res.status(500).json({ error: "Failed to fetch render styles" });
+    }
+  });
+
+  // Generate AI render from uploaded image
+  app.post("/api/ai-renders/generate", requireAdmin, uploadMoodboard.single('image'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No image uploaded" });
+      }
+
+      const { styleId, customPrompt } = req.body;
+      
+      if (!styleId) {
+        return res.status(400).json({ error: "Style ID is required" });
+      }
+      
+      // Convert file to base64
+      const imageBase64 = req.file.buffer.toString('base64');
+      const mimeType = req.file.mimetype;
+
+      // Generate the render
+      const result = await generateInteriorRender(imageBase64, mimeType, styleId, customPrompt);
+      
+      // Return the generated image as base64
+      res.json({
+        success: true,
+        imageData: result.imageData,
+        mimeType: result.mimeType
+      });
+    } catch (error: any) {
+      console.error('Error generating AI render:', error);
+      res.status(500).json({ error: error.message || "Failed to generate render" });
+    }
+  });
+
+  // Generate AI render from text description (no image input)
+  app.post("/api/ai-renders/generate-from-description", requireAdmin, async (req, res) => {
+    try {
+      const { description, styleId } = req.body;
+      
+      if (!description) {
+        return res.status(400).json({ error: "Description is required" });
+      }
+      
+      if (!styleId) {
+        return res.status(400).json({ error: "Style ID is required" });
+      }
+      
+      // Generate the render from description
+      const result = await generateConceptRender(description, styleId);
+      
+      res.json({
+        success: true,
+        imageData: result.imageData,
+        mimeType: result.mimeType
+      });
+    } catch (error: any) {
+      console.error('Error generating concept render:', error);
+      res.status(500).json({ error: error.message || "Failed to generate render" });
+    }
+  });
+
+  // Save generated render to project moodboards
+  app.post("/api/ai-renders/save", requireAdmin, async (req, res) => {
+    try {
+      const { imageData, mimeType, projectId, name, description, styleId } = req.body;
+      
+      if (!imageData) {
+        return res.status(400).json({ error: "Image data is required" });
+      }
+
+      const userId = (req.user as any).claims.sub;
+      
+      // Convert base64 to buffer and upload to object storage
+      const buffer = Buffer.from(imageData, 'base64');
+      const extension = mimeType?.split('/')[1] || 'png';
+      const fileName = name || `AI-Render-${styleId}-${Date.now()}.${extension}`;
+      
+      const objectPath = await uploadToObjectStorage(
+        buffer,
+        fileName,
+        userId,
+        mimeType || 'image/png'
+      );
+
+      // Validate projectId if provided
+      let validatedProjectId = null;
+      if (projectId && projectId !== 'general') {
+        const project = await storage.getProject(projectId);
+        if (!project) {
+          return res.status(400).json({ error: "Project not found" });
+        }
+        validatedProjectId = projectId;
+      }
+
+      // Create moodboard entry as a render
+      const moodboardData = {
+        projectId: validatedProjectId,
+        assetType: 'render' as const,
+        name: fileName,
+        description: description || `AI-generated render (${styleId} style)`,
+        fileName: fileName,
+        filePath: objectPath,
+        fileType: extension,
+        fileSize: buffer.length.toString(),
+        tags: ['ai-generated', styleId],
+        canvaLink: null
+      };
+
+      const moodboard = await storage.createMoodboard(moodboardData);
+
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        const userName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.email || 'Unknown';
+        await storage.createActivity({
+          userId: user.id,
+          userName: userName,
+          userEmail: user.email || '',
+          projectId: validatedProjectId || undefined,
+          activityType: 'render' as any,
+          fileName: fileName,
+          filePath: objectPath,
+          description: `created AI-generated Render "${fileName}"`,
+          timestamp: new Date(),
+        });
+      }
+
+      res.status(201).json(moodboard);
+    } catch (error) {
+      console.error('Error saving AI render:', error);
+      res.status(500).json({ error: "Failed to save render" });
     }
   });
 
