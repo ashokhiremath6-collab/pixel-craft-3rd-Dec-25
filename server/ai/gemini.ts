@@ -1,4 +1,5 @@
 import { GoogleGenAI, Modality } from "@google/genai";
+import sharp from "sharp";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
@@ -67,6 +68,20 @@ export const RENDER_STYLES: RenderStyle[] = [
   }
 ];
 
+async function compressImage(imageBase64: string, mimeType: string): Promise<{ data: string; mimeType: string }> {
+  const imageBuffer = Buffer.from(imageBase64, 'base64');
+  
+  const compressed = await sharp(imageBuffer)
+    .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 80 })
+    .toBuffer();
+  
+  return {
+    data: compressed.toString('base64'),
+    mimeType: 'image/jpeg'
+  };
+}
+
 export async function generateInteriorRender(
   imageBase64: string,
   mimeType: string,
@@ -78,6 +93,8 @@ export async function generateInteriorRender(
   if (!style && !customPrompt) {
     throw new Error("Invalid style ID and no custom prompt provided");
   }
+
+  const compressed = await compressImage(imageBase64, mimeType);
 
   const stylePrompt = customPrompt || style?.prompt || "";
   
@@ -94,7 +111,7 @@ Make sure the render is detailed, realistic, and suitable for client presentatio
         role: "user",
         parts: [
           { text: prompt },
-          { inlineData: { mimeType, data: imageBase64 } }
+          { inlineData: { mimeType: compressed.mimeType, data: compressed.data } }
         ]
       }
     ],
