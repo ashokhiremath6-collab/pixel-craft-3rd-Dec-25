@@ -206,6 +206,29 @@ export function detectRoomType(filename: string): string {
   return "General";
 }
 
+export function extractRoomName(filename: string): string {
+  if (!filename) return "General";
+  
+  // Remove file extension
+  let name = filename.replace(/\.[^/.]+$/, "");
+  
+  // Remove trailing numbers and common suffixes
+  name = name.replace(/[\s_-]*\d+\s*$/, "").trim();
+  
+  // Clean up underscores and dashes to spaces
+  name = name.replace(/[-_]+/g, " ").trim();
+  
+  // Proper case: capitalize first letter of each word
+  name = name.split(" ")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+  
+  // Fix possessive apostrophes (e.g., "Chitra'S" -> "Chitra's")
+  name = name.replace(/'S\b/g, "'s");
+  
+  return name || "General";
+}
+
 // Paraphrase brief using Gemini for more natural descriptions
 export async function paraphraseBrief(brief: string, styleName: string): Promise<string> {
   if (!brief || brief.trim().length === 0) {

@@ -18,7 +18,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
-import { RENDER_STYLES, generateInteriorRender, generateConceptRender, detectRoomType, paraphraseBrief } from "./ai/gemini";
+import { RENDER_STYLES, generateInteriorRender, generateConceptRender, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
@@ -4266,7 +4266,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = (req.user as any).claims.sub;
       
-      // Detect room type from original filename
+      // Extract room name from original filename (e.g., "Chitra's Bedroom" from "Chitra's bedroom 1.jpg")
+      const roomName = extractRoomName(originalFilename || name || '');
+      
+      // Detect room type for grouping (e.g., "Bedroom")
       const roomType = detectRoomType(originalFilename || name || '');
       
       // Get style name from styleId
@@ -4279,15 +4282,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paraphrasedDescription = await paraphraseBrief(description, styleName);
       }
       
-      // Create new naming format: "{Room Type} - {Style} - {Paraphrased Brief}"
+      // Create new naming format: "{Room Name} - {Style} - {Paraphrased Brief}"
+      // Uses the specific room name (e.g., "Chitra's Bedroom") for display
       const displayName = description && description.trim() 
-        ? `${roomType} - ${styleName} - ${paraphrasedDescription}`
-        : `${roomType} - ${styleName}`;
+        ? `${roomName} - ${styleName} - ${paraphrasedDescription}`
+        : `${roomName} - ${styleName}`;
       
       // Convert base64 to buffer and upload to object storage
       const buffer = Buffer.from(imageData, 'base64');
       const extension = mimeType?.split('/')[1] || 'png';
-      const fileName = `${roomType.replace(/\s+/g, '-')}-${styleName}-${Date.now()}.${extension}`;
+      const fileName = `${roomName.replace(/\s+/g, '-').replace(/'/g, '')}-${styleName}-${Date.now()}.${extension}`;
       
       const objectPath = await uploadToObjectStorage(
         buffer,
@@ -4337,7 +4341,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           activityType: 'render' as any,
           fileName: fileName,
           filePath: objectPath,
-          description: `created AI-generated ${roomType} render "${displayName}"`,
+          description: `created AI-generated render "${displayName}"`,
           timestamp: new Date(),
         });
       }
