@@ -583,6 +583,18 @@ export default function MoodboardsPage() {
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                   <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
                                 </div>
+                                {moodboard.canvaLink && (
+                                  <a
+                                    href={moodboard.canvaLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
+                                    data-testid={`link-external-${moodboard.id}`}
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                    <span>{labels.viewLinkText}</span>
+                                  </a>
+                                )}
                               </div>
                               <div className="flex items-center gap-2">
                                 {getPreviewUrl(moodboard) && (
