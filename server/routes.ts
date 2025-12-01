@@ -4197,7 +4197,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate AI render from uploaded image
+  // Extended timeout for AI generation (5 minutes)
   app.post("/api/ai-renders/generate", requireAdmin, uploadAIRender.single('image'), async (req, res) => {
+    // Set extended timeout for AI generation (5 minutes)
+    req.setTimeout(300000);
+    res.setTimeout(300000);
+    
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No image uploaded" });
@@ -4229,7 +4234,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate AI render from text description (no image input)
+  // Extended timeout for AI generation (5 minutes)
   app.post("/api/ai-renders/generate-from-description", requireAdmin, async (req, res) => {
+    // Set extended timeout for AI generation (5 minutes)
+    req.setTimeout(300000);
+    res.setTimeout(300000);
+    
     try {
       const { description, styleId } = req.body;
       
