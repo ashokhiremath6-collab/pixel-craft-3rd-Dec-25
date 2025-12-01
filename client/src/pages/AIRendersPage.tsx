@@ -9,8 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Project, Moodboard } from "@shared/schema";
@@ -27,7 +29,13 @@ import {
   ShieldAlert,
   Maximize2,
   FolderOpen,
-  Check
+  Check,
+  Columns,
+  SlidersHorizontal,
+  Layers,
+  Grid3X3,
+  Heart,
+  X
 } from "lucide-react";
 
 interface RenderStyle {
@@ -42,6 +50,19 @@ interface GeneratedRender {
   styleId: string;
   styleName: string;
 }
+
+const ROOM_PRESETS = [
+  { id: "living-room", name: "Living Room", prompt: "Focus on comfortable seating arrangement, accent lighting, and a cohesive color palette for the living area" },
+  { id: "bedroom", name: "Bedroom", prompt: "Create a restful atmosphere with soft lighting, comfortable bedding, and calming colors for the bedroom" },
+  { id: "kitchen", name: "Kitchen", prompt: "Enhance with modern appliances, efficient storage, pendant lighting, and a functional island or breakfast bar" },
+  { id: "bathroom", name: "Bathroom", prompt: "Add luxury fixtures, ambient lighting, natural stone textures, and spa-like elements" },
+  { id: "dining-room", name: "Dining Room", prompt: "Feature an elegant dining table, statement chandelier, and sophisticated table setting" },
+  { id: "home-office", name: "Home Office", prompt: "Include ergonomic furniture, good task lighting, organized storage, and a productive work environment" },
+  { id: "kids-room", name: "Kids Room", prompt: "Add playful colors, creative storage solutions, and age-appropriate furniture and decor" },
+  { id: "outdoor", name: "Outdoor/Patio", prompt: "Create an inviting outdoor living space with comfortable seating, greenery, and ambient lighting" },
+  { id: "entryway", name: "Entryway/Foyer", prompt: "Make a welcoming first impression with console table, mirror, lighting fixture, and organized storage" },
+  { id: "walk-in-closet", name: "Walk-in Closet", prompt: "Design with efficient organization, good lighting, and luxurious finishes for wardrobe storage" },
+];
 
 export default function AIRendersPage() {
   const { toast } = useToast();
@@ -59,6 +80,15 @@ export default function AIRendersPage() {
   const [showFullSize, setShowFullSize] = useState(false);
   const [showSavedRendersDialog, setShowSavedRendersDialog] = useState(false);
   const [selectedSavedRenderUrl, setSelectedSavedRenderUrl] = useState<string | null>(null);
+  const [showComparison, setShowComparison] = useState(false);
+  const [sliderPosition, setSliderPosition] = useState(50);
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedBatchStyles, setSelectedBatchStyles] = useState<string[]>([]);
+  const [batchResults, setBatchResults] = useState<GeneratedRender[]>([]);
+  const [batchGenerating, setBatchGenerating] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+  const [showFavoritesDialog, setShowFavoritesDialog] = useState(false);
+  const [newFavoriteName, setNewFavoriteName] = useState("");
 
   const { data: user, isLoading: userLoading, isError: userError, refetch: refetchUser } = useQuery<{ role: string }>({
     queryKey: ['/api/auth/user'],
@@ -79,6 +109,11 @@ export default function AIRendersPage() {
       if (!response.ok) throw new Error('Failed to fetch saved renders');
       return response.json();
     },
+  });
+
+  // Fetch favorite styles from the database
+  const { data: favoriteStyles = [] } = useQuery<Array<{ id: string; name: string; styleId: string; prompt: string | null; createdAt: string }>>({
+    queryKey: ['/api/ai-renders/favorites'],
   });
 
   const isDesignerOrAdmin = user?.role === 'admin' || user?.role === 'designer';
@@ -278,6 +313,43 @@ export default function AIRendersPage() {
     },
   });
 
+  // Favorite styles mutations
+  const addFavoriteMutation = useMutation({
+    mutationFn: async (data: { name: string; styleId: string; prompt: string | null }) => {
+      return apiRequest('POST', '/api/ai-renders/favorites', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-renders/favorites'] });
+      setNewFavoriteName("");
+      setShowFavoritesDialog(false);
+      toast({ title: "Favorite Saved", description: "Style combination saved to your favorites" });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Failed to Save", 
+        description: error.message || "Could not save favorite",
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const deleteFavoriteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('DELETE', `/api/ai-renders/favorites/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-renders/favorites'] });
+      toast({ title: "Favorite Removed", description: "Style removed from favorites" });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Failed to Remove", 
+        description: error.message || "Could not remove favorite",
+        variant: "destructive" 
+      });
+    },
+  });
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -351,6 +423,75 @@ export default function AIRendersPage() {
     });
   };
 
+  const toggleBatchStyle = (styleId: string) => {
+    setSelectedBatchStyles(prev => 
+      prev.includes(styleId) 
+        ? prev.filter(s => s !== styleId)
+        : [...prev, styleId]
+    );
+  };
+
+  const handleBatchGenerate = async () => {
+    if (!selectedFile || selectedBatchStyles.length === 0) {
+      toast({ 
+        title: "Missing Information", 
+        description: "Please select an image and at least one style",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setBatchGenerating(true);
+    setBatchResults([]);
+    setBatchProgress({ current: 0, total: selectedBatchStyles.length });
+
+    const results: GeneratedRender[] = [];
+
+    for (let i = 0; i < selectedBatchStyles.length; i++) {
+      const styleId = selectedBatchStyles[i];
+      const style = styles.find(s => s.id === styleId);
+      
+      setBatchProgress({ current: i + 1, total: selectedBatchStyles.length });
+
+      try {
+        const compressedBlob = await compressImageOnClient(selectedFile);
+        const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
+        
+        const formData = new FormData();
+        formData.append('image', compressedFile);
+        formData.append('styleId', styleId);
+        if (customPrompt) {
+          formData.append('customPrompt', customPrompt);
+        }
+        
+        const response = await fetch('/api/ai-renders/generate', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          results.push({
+            imageData: data.imageData,
+            mimeType: data.mimeType,
+            styleId: styleId,
+            styleName: style?.name || styleId
+          });
+          setBatchResults([...results]);
+        }
+      } catch (error) {
+        console.error(`Error generating ${styleId}:`, error);
+      }
+    }
+
+    setBatchGenerating(false);
+    toast({ 
+      title: "Batch Complete", 
+      description: `Generated ${results.length} of ${selectedBatchStyles.length} renders` 
+    });
+  };
+
   const generateRenderTitle = () => {
     const style = generatedRender?.styleName || "Custom";
     const brief = customPrompt.trim() || textDescription.trim();
@@ -411,9 +552,46 @@ export default function AIRendersPage() {
     setGeneratedRender(null);
     setCustomPrompt("");
     setTextDescription("");
+    setSelectedSavedRenderUrl(null);
+    setBatchResults([]);
+    setSelectedBatchStyles([]);
+    setShowComparison(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  const handleDownloadBatchRender = (render: GeneratedRender) => {
+    let roomName = "Render";
+    if (selectedFile?.name) {
+      roomName = selectedFile.name
+        .replace(/\.[^/.]+$/, "")
+        .replace(/[\s_-]*\d+\s*$/, "")
+        .replace(/[-_]+/g, " ")
+        .trim()
+        .split(" ")
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join("-")
+        .replace(/'/g, "");
+    }
+    
+    const link = document.createElement('a');
+    link.href = `data:${render.mimeType};base64,${render.imageData}`;
+    link.download = `${roomName}-${render.styleName}-${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleSaveBatchRender = (render: GeneratedRender) => {
+    saveRenderMutation.mutate({
+      imageData: render.imageData,
+      mimeType: render.mimeType,
+      projectId: selectedProject,
+      styleId: render.styleId,
+      description: customPrompt || `${render.styleName} render`,
+      originalFilename: selectedFile?.name || render.styleName,
+    });
   };
 
   const isGenerating = generateFromImageMutation.isPending || generateFromDescriptionMutation.isPending;
@@ -507,7 +685,29 @@ export default function AIRendersPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="custom-prompt">Custom Instructions (Optional)</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="custom-prompt">Custom Instructions (Optional)</Label>
+                    <Select 
+                      value="" 
+                      onValueChange={(presetId) => {
+                        const preset = ROOM_PRESETS.find(p => p.id === presetId);
+                        if (preset) {
+                          setCustomPrompt(prev => prev ? `${prev}\n${preset.prompt}` : preset.prompt);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-40 h-8" data-testid="select-room-preset">
+                        <SelectValue placeholder="Room presets" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ROOM_PRESETS.map((preset) => (
+                          <SelectItem key={preset.id} value={preset.id}>
+                            {preset.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Textarea
                     id="custom-prompt"
                     placeholder="Add specific instructions like 'add more plants' or 'change the sofa to leather'"
@@ -535,45 +735,225 @@ export default function AIRendersPage() {
             </Tabs>
 
             <div>
-              <Label htmlFor="style-select">Design Style</Label>
-              <Select value={selectedStyle} onValueChange={setSelectedStyle}>
-                <SelectTrigger className="mt-2" data-testid="select-style">
-                  <SelectValue placeholder="Select a style" />
-                </SelectTrigger>
-                <SelectContent>
-                  {styles.map((style) => (
-                    <SelectItem key={style.id} value={style.id}>
-                      {style.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedStyle && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  {styles.find(s => s.id === selectedStyle)?.prompt}
-                </p>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="style-select">Design Style</Label>
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    id="batch-mode" 
+                    checked={batchMode}
+                    onCheckedChange={(checked) => {
+                      setBatchMode(!!checked);
+                      if (!checked) setSelectedBatchStyles([]);
+                    }}
+                    data-testid="checkbox-batch-mode"
+                  />
+                  <Label htmlFor="batch-mode" className="text-sm cursor-pointer">
+                    <Layers className="h-4 w-4 inline mr-1" />
+                    Batch Mode
+                  </Label>
+                </div>
+              </div>
+              
+              {batchMode ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Select multiple styles to generate at once:</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {styles.map((style) => (
+                      <div
+                        key={style.id}
+                        className={`p-2 rounded-lg border cursor-pointer transition-colors ${
+                          selectedBatchStyles.includes(style.id) 
+                            ? 'bg-primary/10 border-primary' 
+                            : 'hover:bg-muted'
+                        }`}
+                        onClick={() => toggleBatchStyle(style.id)}
+                        data-testid={`batch-style-${style.id}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Checkbox 
+                            checked={selectedBatchStyles.includes(style.id)}
+                            onCheckedChange={() => toggleBatchStyle(style.id)}
+                          />
+                          <span className="text-sm font-medium">{style.name}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {selectedBatchStyles.length > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      {selectedBatchStyles.length} style{selectedBatchStyles.length > 1 ? 's' : ''} selected
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <Select value={selectedStyle} onValueChange={setSelectedStyle}>
+                    <SelectTrigger className="mt-2" data-testid="select-style">
+                      <SelectValue placeholder="Select a style" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {styles.map((style) => (
+                        <SelectItem key={style.id} value={style.id}>
+                          {style.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedStyle && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {styles.find(s => s.id === selectedStyle)?.prompt}
+                    </p>
+                  )}
+                  
+                  {/* Favorite Styles Section */}
+                  {favoriteStyles.length > 0 && (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium flex items-center gap-1">
+                          <Heart className="h-4 w-4 text-rose-500" />
+                          Favorite Styles
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {favoriteStyles.map((fav) => (
+                          <Badge
+                            key={fav.id}
+                            variant="outline"
+                            className="cursor-pointer hover:bg-muted group"
+                            onClick={() => {
+                              setSelectedStyle(fav.styleId);
+                              if (fav.prompt) setCustomPrompt(fav.prompt);
+                            }}
+                            data-testid={`favorite-${fav.id}`}
+                          >
+                            <Heart className="h-3 w-3 mr-1 text-rose-500 fill-rose-500" />
+                            {fav.name}
+                            <button
+                              className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteFavoriteMutation.mutate(fav.id);
+                              }}
+                              data-testid={`delete-favorite-${fav.id}`}
+                            >
+                              <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Save Current as Favorite Button */}
+                  {selectedStyle && (
+                    <div className="mt-3">
+                      <Dialog open={showFavoritesDialog} onOpenChange={setShowFavoritesDialog}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm" data-testid="button-save-favorite">
+                            <Heart className="h-4 w-4 mr-1" />
+                            Save as Favorite
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Save Favorite Style</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <p className="text-sm text-muted-foreground">
+                              Save this style{customPrompt ? " and prompt" : ""} combination for quick access:
+                            </p>
+                            <div className="space-y-2">
+                              <p className="text-sm">
+                                <strong>Style:</strong> {styles.find(s => s.id === selectedStyle)?.name}
+                              </p>
+                              {customPrompt && (
+                                <p className="text-sm">
+                                  <strong>Prompt:</strong> {customPrompt.slice(0, 100)}{customPrompt.length > 100 ? '...' : ''}
+                                </p>
+                              )}
+                            </div>
+                            <Input
+                              placeholder="Enter a name for this favorite"
+                              value={newFavoriteName}
+                              onChange={(e) => setNewFavoriteName(e.target.value)}
+                              data-testid="input-favorite-name"
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button variant="outline" onClick={() => setShowFavoritesDialog(false)}>
+                                Cancel
+                              </Button>
+                              <Button 
+                                onClick={() => {
+                                  if (newFavoriteName.trim()) {
+                                    addFavoriteMutation.mutate({
+                                      name: newFavoriteName.trim(),
+                                      styleId: selectedStyle,
+                                      prompt: customPrompt || null,
+                                    });
+                                  }
+                                }}
+                                disabled={!newFavoriteName.trim() || addFavoriteMutation.isPending}
+                                data-testid="button-confirm-save-favorite"
+                              >
+                                {addFavoriteMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Heart className="h-4 w-4 mr-1" />
+                                    Save
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
             <div className="flex gap-2">
-              <Button 
-                onClick={handleGenerateFromImage}
-                disabled={isGenerating || !selectedStyle}
-                className="flex-1"
-                data-testid="button-generate"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="h-4 w-4 mr-2" />
-                    Generate Render
-                  </>
-                )}
-              </Button>
+              {batchMode ? (
+                <Button 
+                  onClick={handleBatchGenerate}
+                  disabled={batchGenerating || selectedBatchStyles.length === 0 || !selectedFile}
+                  className="flex-1"
+                  data-testid="button-batch-generate"
+                >
+                  {batchGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating {batchProgress.current}/{batchProgress.total}...
+                    </>
+                  ) : (
+                    <>
+                      <Grid3X3 className="h-4 w-4 mr-2" />
+                      Generate {selectedBatchStyles.length} Renders
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleGenerateFromImage}
+                  disabled={isGenerating || !selectedStyle}
+                  className="flex-1"
+                  data-testid="button-generate"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="h-4 w-4 mr-2" />
+                      Generate Render
+                    </>
+                  )}
+                </Button>
+              )}
               <Button 
                 variant="outline" 
                 onClick={handleClearAll}
@@ -582,44 +962,202 @@ export default function AIRendersPage() {
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </div>
+            
+            {batchGenerating && (
+              <Progress value={(batchProgress.current / batchProgress.total) * 100} className="h-2" />
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ImageIcon className="h-5 w-5 text-primary" />
-              Generated Result
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="h-5 w-5 text-primary" />
+                Generated Result
+              </div>
+              {generatedRender && previewUrl && (
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant={showComparison ? "default" : "outline"}
+                    onClick={() => setShowComparison(!showComparison)}
+                    data-testid="button-toggle-comparison"
+                  >
+                    <Columns className="h-4 w-4 mr-1" />
+                    Compare
+                  </Button>
+                </div>
+              )}
             </CardTitle>
             <CardDescription>
               Preview your AI-generated render and save it to your project
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {generatedRender ? (
-              <>
-                <div className="relative group">
-                  <img 
-                    src={`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`}
-                    alt="Generated Render"
-                    className="w-full rounded-lg border cursor-pointer hover:opacity-90 transition-opacity"
-                    data-testid="image-generated-render"
-                    onClick={() => setShowFullSize(true)}
-                  />
-                  <Badge className="absolute top-2 right-2">
-                    {generatedRender.styleName}
-                  </Badge>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => setShowFullSize(true)}
-                    data-testid="button-view-fullsize"
-                  >
-                    <Maximize2 className="h-4 w-4" />
-                  </Button>
+            {batchResults.length > 0 ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">{batchResults.length} render{batchResults.length > 1 ? 's' : ''} generated</p>
+                  <Select value={selectedProject} onValueChange={setSelectedProject}>
+                    <SelectTrigger className="w-48" data-testid="select-batch-project">
+                      <SelectValue placeholder="Save to project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="general">General (No Project)</SelectItem>
+                      {projects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.projectName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <p className="text-xs text-muted-foreground text-center">Click image to view full size</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {batchResults.map((result, index) => (
+                    <div key={index} className="relative group rounded-lg border overflow-hidden">
+                      <img 
+                        src={`data:${result.mimeType};base64,${result.imageData}`}
+                        alt={`${result.styleName} render`}
+                        className="w-full aspect-square object-cover"
+                      />
+                      <Badge className="absolute top-2 left-2">{result.styleName}</Badge>
+                      <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1 justify-end">
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            className="h-8 w-8"
+                            onClick={() => handleSaveBatchRender(result)}
+                            data-testid={`button-save-batch-${index}`}
+                          >
+                            <Save className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            className="h-8 w-8"
+                            onClick={() => handleDownloadBatchRender(result)}
+                            data-testid={`button-download-batch-${index}`}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : generatedRender ? (
+              <>
+                {showComparison && previewUrl ? (
+                  <div className="space-y-4">
+                    <div className="flex gap-1 justify-center">
+                      <Button
+                        size="sm"
+                        variant={sliderPosition === -1 ? "default" : "outline"}
+                        onClick={() => setSliderPosition(-1)}
+                        data-testid="button-side-by-side"
+                      >
+                        <Columns className="h-4 w-4 mr-1" />
+                        Side by Side
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={sliderPosition >= 0 ? "default" : "outline"}
+                        onClick={() => setSliderPosition(50)}
+                        data-testid="button-slider-view"
+                      >
+                        <SlidersHorizontal className="h-4 w-4 mr-1" />
+                        Slider
+                      </Button>
+                    </div>
+                    
+                    {sliderPosition === -1 ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="relative">
+                          <img 
+                            src={previewUrl} 
+                            alt="Original" 
+                            className="w-full rounded-lg border"
+                          />
+                          <Badge className="absolute top-2 left-2" variant="secondary">Original</Badge>
+                        </div>
+                        <div className="relative">
+                          <img 
+                            src={`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`}
+                            alt="Generated"
+                            className="w-full rounded-lg border"
+                          />
+                          <Badge className="absolute top-2 right-2">{generatedRender.styleName}</Badge>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="relative overflow-hidden rounded-lg border" style={{ aspectRatio: '4/3' }}>
+                        <img 
+                          src={`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`}
+                          alt="Generated"
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        <div 
+                          className="absolute inset-0 overflow-hidden"
+                          style={{ width: `${sliderPosition}%` }}
+                        >
+                          <img 
+                            src={previewUrl} 
+                            alt="Original" 
+                            className="absolute inset-0 w-full h-full object-cover"
+                            style={{ width: `${100 / (sliderPosition / 100)}%`, maxWidth: 'none' }}
+                          />
+                        </div>
+                        <div 
+                          className="absolute top-0 bottom-0 w-1 bg-white shadow-lg cursor-ew-resize flex items-center justify-center"
+                          style={{ left: `${sliderPosition}%`, transform: 'translateX(-50%)' }}
+                        >
+                          <div className="w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center">
+                            <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                        </div>
+                        <Badge className="absolute top-2 left-2" variant="secondary">Original</Badge>
+                        <Badge className="absolute top-2 right-2">{generatedRender.styleName}</Badge>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={sliderPosition}
+                          onChange={(e) => setSliderPosition(Number(e.target.value))}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize"
+                          data-testid="slider-comparison"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative group">
+                    <img 
+                      src={`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`}
+                      alt="Generated Render"
+                      className="w-full rounded-lg border cursor-pointer hover:opacity-90 transition-opacity"
+                      data-testid="image-generated-render"
+                      onClick={() => setShowFullSize(true)}
+                    />
+                    <Badge className="absolute top-2 right-2">
+                      {generatedRender.styleName}
+                    </Badge>
+                    <Button
+                      size="icon"
+                      variant="secondary"
+                      className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => setShowFullSize(true)}
+                      data-testid="button-view-fullsize"
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground text-center">
+                  {showComparison ? "Compare original with generated render" : "Click image to view full size"}
+                </p>
 
                 <div>
                   <Label htmlFor="save-project">Save to Project</Label>
