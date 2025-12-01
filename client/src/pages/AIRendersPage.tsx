@@ -265,9 +265,28 @@ export default function AIRendersPage() {
   const handleDownload = () => {
     if (!generatedRender) return;
     
+    // Extract room name from filename or use description
+    let roomName = "Render";
+    if (selectedFile?.name) {
+      // Remove extension and trailing numbers, clean up
+      roomName = selectedFile.name
+        .replace(/\.[^/.]+$/, "")
+        .replace(/[\s_-]*\d+\s*$/, "")
+        .replace(/[-_]+/g, " ")
+        .trim()
+        .split(" ")
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join("-")
+        .replace(/'/g, "");
+    } else if (textDescription) {
+      roomName = textDescription.substring(0, 30).replace(/\s+/g, "-");
+    }
+    
+    const styleName = generatedRender.styleName || generatedRender.styleId;
+    
     const link = document.createElement('a');
     link.href = `data:${generatedRender.mimeType};base64,${generatedRender.imageData}`;
-    link.download = `AI-Render-${generatedRender.styleId}-${Date.now()}.png`;
+    link.download = `${roomName}-${styleName}-${Date.now()}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
