@@ -7,8 +7,6 @@ import {
   type InsertUserProjectAssignment,
   type DesignerAllowlist,
   type InsertDesignerAllowlist,
-  type FavoriteRenderStyle,
-  type InsertFavoriteRenderStyle,
   type VendorCategory,
   type InsertVendorCategory,
   type Vendor,
@@ -63,7 +61,6 @@ import {
   userRoles,
   userProjectAssignments,
   designerAllowlist,
-  favoriteRenderStyles,
   vendorCategories,
   vendors,
   vendorContacts,
@@ -343,11 +340,6 @@ export interface IStorage {
   // Vendors (with role-based filtering)
   getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
   getProjectVendorsForUser(userId: string, role: string): Promise<ProjectVendor[]>;
-  
-  // Favorite Render Styles
-  getFavoriteRenderStyles(userId: string): Promise<FavoriteRenderStyle[]>;
-  createFavoriteRenderStyle(favorite: InsertFavoriteRenderStyle): Promise<FavoriteRenderStyle>;
-  deleteFavoriteRenderStyle(id: string, userId: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -2720,28 +2712,6 @@ export class DBStorage implements IStorage {
       const result = await tx.insert(worksOrderItems).values(items).returning();
       return result;
     });
-  }
-
-  // Favorite Render Styles
-  async getFavoriteRenderStyles(userId: string): Promise<FavoriteRenderStyle[]> {
-    return await db.select()
-      .from(favoriteRenderStyles)
-      .where(eq(favoriteRenderStyles.userId, userId))
-      .orderBy(desc(favoriteRenderStyles.createdAt));
-  }
-
-  async createFavoriteRenderStyle(favorite: InsertFavoriteRenderStyle): Promise<FavoriteRenderStyle> {
-    const result = await db.insert(favoriteRenderStyles).values(favorite).returning();
-    return result[0];
-  }
-
-  async deleteFavoriteRenderStyle(id: string, userId: string): Promise<boolean> {
-    const result = await db.delete(favoriteRenderStyles)
-      .where(and(
-        eq(favoriteRenderStyles.id, id),
-        eq(favoriteRenderStyles.userId, userId)
-      ));
-    return result.rowCount !== null && result.rowCount > 0;
   }
 }
 

@@ -736,16 +736,6 @@ export const designerAllowlist = pgTable("designer_allowlist", {
   addedAt: timestamp("added_at").notNull().default(sql`now()`),
 });
 
-// AI Render Favorite Styles - save frequently used style + prompt combinations
-export const favoriteRenderStyles = pgTable("favorite_render_styles", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
-  name: text("name").notNull(),
-  styleId: text("style_id").notNull(),
-  prompt: text("prompt"),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
-
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
@@ -772,11 +762,3 @@ export type UserProjectAssignment = typeof userProjectAssignments.$inferSelect;
 
 export type InsertDesignerAllowlist = z.infer<typeof insertDesignerAllowlistSchema>;
 export type DesignerAllowlist = typeof designerAllowlist.$inferSelect;
-
-export const insertFavoriteRenderStyleSchema = createInsertSchema(favoriteRenderStyles).omit({
-  id: true,
-  createdAt: true,
-});
-
-export type InsertFavoriteRenderStyle = z.infer<typeof insertFavoriteRenderStyleSchema>;
-export type FavoriteRenderStyle = typeof favoriteRenderStyles.$inferSelect;

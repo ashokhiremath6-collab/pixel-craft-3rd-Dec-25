@@ -4361,62 +4361,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Favorite Render Styles API
-
-  // Get all favorite styles for current user
-  app.get("/api/ai-renders/favorites", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as any).claims.sub;
-      const favorites = await storage.getFavoriteRenderStyles(userId);
-      res.json(favorites);
-    } catch (error) {
-      console.error('Error fetching favorite styles:', error);
-      res.status(500).json({ error: "Failed to fetch favorite styles" });
-    }
-  });
-
-  // Create a new favorite style
-  app.post("/api/ai-renders/favorites", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as any).claims.sub;
-      const { name, styleId, prompt } = req.body;
-
-      if (!name || !styleId) {
-        return res.status(400).json({ error: "Name and style are required" });
-      }
-
-      const favorite = await storage.createFavoriteRenderStyle({
-        userId,
-        name,
-        styleId,
-        prompt: prompt || null,
-      });
-
-      res.status(201).json(favorite);
-    } catch (error) {
-      console.error('Error creating favorite style:', error);
-      res.status(500).json({ error: "Failed to create favorite style" });
-    }
-  });
-
-  // Delete a favorite style
-  app.delete("/api/ai-renders/favorites/:id", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as any).claims.sub;
-      const { id } = req.params;
-
-      const success = await storage.deleteFavoriteRenderStyle(id, userId);
-      if (!success) {
-        return res.status(404).json({ error: "Favorite style not found" });
-      }
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Error deleting favorite style:', error);
-      res.status(500).json({ error: "Failed to delete favorite style" });
-    }
-  });
-
   // Task Management API Routes
 
   // Get all tasks across all projects
