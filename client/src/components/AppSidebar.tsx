@@ -51,11 +51,6 @@ const mainItems: NavigationItem[] = [
     icon: Sparkles,
   },
   {
-    title: "AI Renders",
-    url: "/ai-renders",
-    icon: Wand2,
-  },
-  {
     title: "Working Drawings",
     url: "/working-drawings",
     icon: PenTool,
@@ -101,6 +96,11 @@ const settingsItems: NavigationItem[] = [
 ];
 
 const designerOnlyItems: NavigationItem[] = [
+  {
+    title: "AI Renders",
+    url: "/ai-renders",
+    icon: Wand2,
+  },
   {
     title: "Catalogues",
     url: "/catalogue",

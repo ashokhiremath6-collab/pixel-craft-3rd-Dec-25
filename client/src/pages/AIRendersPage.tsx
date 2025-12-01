@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,8 @@ import {
   Sparkles,
   Loader2,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  ShieldAlert
 } from "lucide-react";
 
 interface RenderStyle {
@@ -39,6 +41,7 @@ interface GeneratedRender {
 export default function AIRendersPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -49,6 +52,10 @@ export default function AIRendersPage() {
   const [generatedRender, setGeneratedRender] = useState<GeneratedRender | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  const { data: user, isLoading: userLoading, isError: userError, refetch: refetchUser } = useQuery<{ role: string }>({
+    queryKey: ['/api/auth/user'],
+  });
+
   const { data: styles = [] } = useQuery<RenderStyle[]>({
     queryKey: ['/api/ai-renders/styles'],
   });
@@ -56,6 +63,47 @@ export default function AIRendersPage() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
   });
+
+  const isDesignerOrAdmin = user?.role === 'admin' || user?.role === 'designer';
+
+  if (userLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (userError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Unable to Verify Access</h2>
+        <p className="text-muted-foreground mb-4">
+          There was a problem checking your permissions. Please try again.
+        </p>
+        <Button onClick={() => refetchUser()} data-testid="button-retry-auth">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (!isDesignerOrAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <ShieldAlert className="h-16 w-16 text-muted-foreground mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Access Restricted</h2>
+        <p className="text-muted-foreground mb-4">
+          This page is only available to designers and admins.
+        </p>
+        <Button onClick={() => setLocation("/renders")} data-testid="button-go-to-renders">
+          View Client Renders
+        </Button>
+      </div>
+    );
+  }
 
   const generateFromImageMutation = useMutation({
     mutationFn: async (data: { file: File; styleId: string; customPrompt?: string }) => {
