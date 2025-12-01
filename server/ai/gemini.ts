@@ -2,7 +2,11 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import sharp from "sharp";
 import * as fs from "fs";
 
-function getGeminiConfig() {
+let aiClient: GoogleGenAI | null = null;
+
+function getAIClient(): GoogleGenAI {
+  if (aiClient) return aiClient;
+  
   const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
   const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
   const isProduction = process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT === "1";
@@ -17,8 +21,8 @@ function getGeminiConfig() {
   let effectiveBaseUrl = baseUrl || "";
   
   if (isProduction && (effectiveBaseUrl.includes("localhost") || !effectiveBaseUrl)) {
-    effectiveBaseUrl = "https://ai.api.replit.com/v1/providers/google-ai";
-    console.log("[Gemini Config] Production detected - using Replit AI gateway:", effectiveBaseUrl);
+    effectiveBaseUrl = "https://modelfarm.replit.app";
+    console.log("[Gemini Config] Production detected - using Replit modelfarm:", effectiveBaseUrl);
   }
   
   if (!effectiveBaseUrl || !apiKey) {
@@ -27,16 +31,18 @@ function getGeminiConfig() {
     console.error("[Gemini Config] AI_INTEGRATIONS_GEMINI_API_KEY:", apiKey ? "SET" : "NOT SET");
   }
   
-  return {
+  console.log("[Gemini Config] Creating client with base URL:", effectiveBaseUrl);
+  
+  aiClient = new GoogleGenAI({
     apiKey: apiKey || "",
     httpOptions: {
       apiVersion: "",
       baseUrl: effectiveBaseUrl,
     },
-  };
+  });
+  
+  return aiClient;
 }
-
-const ai = new GoogleGenAI(getGeminiConfig());
 
 export interface RenderStyle {
   id: string;
