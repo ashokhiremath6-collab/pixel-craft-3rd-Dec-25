@@ -242,10 +242,10 @@ export default function AIRendersPage() {
     const brief = customPrompt.trim() || textDescription.trim();
     
     if (brief) {
-      const truncatedBrief = brief.length > 60 ? brief.substring(0, 57) + "..." : brief;
-      return `${style} - ${truncatedBrief}`;
+      const truncatedBrief = brief.length > 50 ? brief.substring(0, 47) + "..." : brief;
+      return `Render - ${style} - ${truncatedBrief}`;
     }
-    return `${style} style render`;
+    return `Render - ${style}`;
   };
 
   const handleSaveRender = () => {
