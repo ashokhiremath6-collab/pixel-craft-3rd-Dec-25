@@ -9,35 +9,26 @@ function getAIClient(): GoogleGenAI {
   
   const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
   const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
-  const isProduction = process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT === "1";
   
   console.log("[Gemini Config] Initializing...");
   console.log("[Gemini Config] NODE_ENV:", process.env.NODE_ENV);
-  console.log("[Gemini Config] REPLIT_DEPLOYMENT:", process.env.REPLIT_DEPLOYMENT);
-  console.log("[Gemini Config] Is Production:", isProduction);
   console.log("[Gemini Config] Base URL from env:", baseUrl);
   console.log("[Gemini Config] API Key configured:", !!apiKey);
   
-  let effectiveBaseUrl = baseUrl || "";
-  
-  if (isProduction && (effectiveBaseUrl.includes("localhost") || !effectiveBaseUrl)) {
-    effectiveBaseUrl = "https://modelfarm.replit.app";
-    console.log("[Gemini Config] Production detected - using Replit modelfarm:", effectiveBaseUrl);
-  }
-  
-  if (!effectiveBaseUrl || !apiKey) {
+  if (!baseUrl || !apiKey) {
     console.error("[Gemini Config] Missing required environment variables!");
-    console.error("[Gemini Config] Effective Base URL:", effectiveBaseUrl || "NOT SET");
+    console.error("[Gemini Config] AI_INTEGRATIONS_GEMINI_BASE_URL:", baseUrl || "NOT SET");
     console.error("[Gemini Config] AI_INTEGRATIONS_GEMINI_API_KEY:", apiKey ? "SET" : "NOT SET");
+    throw new Error("AI integration not configured. Please ensure Gemini AI integration is set up.");
   }
   
-  console.log("[Gemini Config] Creating client with base URL:", effectiveBaseUrl);
+  console.log("[Gemini Config] Creating client with base URL:", baseUrl);
   
   aiClient = new GoogleGenAI({
-    apiKey: apiKey || "",
+    apiKey: apiKey,
     httpOptions: {
       apiVersion: "",
-      baseUrl: effectiveBaseUrl,
+      baseUrl: baseUrl,
     },
   });
   
