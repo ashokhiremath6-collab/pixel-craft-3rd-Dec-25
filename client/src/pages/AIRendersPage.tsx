@@ -124,8 +124,21 @@ export default function AIRendersPage() {
       });
       
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to generate render');
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to generate render');
+        } else {
+          if (response.status === 504 || response.status === 502) {
+            throw new Error('Request timed out. The AI generation is taking longer than expected. Please try again with a smaller image.');
+          }
+          throw new Error(`Server error (${response.status}). Please try again.`);
+        }
+      }
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Unexpected server response. Please try again.');
       }
       
       return response.json();
