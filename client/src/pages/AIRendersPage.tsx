@@ -1199,11 +1199,11 @@ export default function AIRendersPage() {
                   </Select>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2">
                   <Button 
                     onClick={handleSaveRender}
                     disabled={saveRenderMutation.isPending}
-                    className="flex-1"
+                    className="w-full"
                     data-testid="button-save-render"
                   >
                     {saveRenderMutation.isPending ? (
@@ -1219,21 +1219,23 @@ export default function AIRendersPage() {
                     )}
                   </Button>
                   <Button 
+                    variant="secondary" 
+                    onClick={handleEditThisResult}
+                    title="Use this render as the new source image for further editing"
+                    className="w-full"
+                    data-testid="button-edit-result"
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit This Result
+                  </Button>
+                  <Button 
                     variant="outline" 
                     onClick={handleDownload}
+                    className="w-full"
                     data-testid="button-download-render"
                   >
                     <Download className="h-4 w-4 mr-2" />
                     Download
-                  </Button>
-                  <Button 
-                    variant="secondary" 
-                    onClick={handleEditThisResult}
-                    title="Use this render as the new source image for further editing"
-                    data-testid="button-edit-result"
-                  >
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit This
                   </Button>
                 </div>
               </>

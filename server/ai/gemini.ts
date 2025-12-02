@@ -561,14 +561,22 @@ YOUR TASK:
    - "leather sofa" → change ONLY the sofa material to leather
    - "remove the lamp" → remove ONLY the lamp
    - "add another chair" → add a chair that MATCHES existing chairs exactly (same style, scale, orientation)
+   - "second chair" or "duplicate chair" → place the new chair IMMEDIATELY ADJACENT to the existing one, on the same side of the room
 
-2. LOCATE: Find the specific element(s) in the image that match the user's request
+2. DUPLICATION RULES (when user requests "another", "second", "duplicate", or "identical" item):
+   - Place the duplicate DIRECTLY NEXT TO the original item, NOT across the room
+   - Position duplicates in a PAIR arrangement (side by side, or flanking a centerpiece like a sofa)
+   - Maintain IDENTICAL style, scale, color, and proportions
+   - Match orientation and angle of the original item
+   - Create SYMMETRICAL arrangements when duplicating chairs/lamps around seating areas
+
+3. LOCATE: Find the specific element(s) in the image that match the user's request
    ${regionFocusInstructions ? '- IMPORTANT: Focus on elements within the user-selected region' : ''}
    - If they mention "wall", identify all visible walls
    - If they mention "sofa" or "couch", find the seating furniture
    - If they mention "floor" or "carpet", identify the floor covering
 
-3. MODIFY: Apply the change ONLY to the identified element
+4. MODIFY: Apply the change ONLY to the identified element
    - Preserve exact perspective, lighting, and camera angle
    - Keep all other furniture, decor, and architectural elements UNCHANGED
    - Blend the modification naturally with realistic shadows and lighting
