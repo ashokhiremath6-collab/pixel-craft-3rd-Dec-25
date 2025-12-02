@@ -4253,13 +4253,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No image uploaded" });
       }
 
-      const { styleId, customPrompt, referenceItems, editRegion } = req.body;
+      const { styleId, customPrompt, referenceItems, editRegion, customRegionPercent } = req.body;
       
       if (!styleId && !referenceItems) {
         return res.status(400).json({ error: "Style ID or reference items are required" });
       }
       
-      console.log("[AI Render] Edit region:", editRegion || "full image");
+      // Parse custom region if provided
+      let parsedCustomRegion = undefined;
+      if (customRegionPercent) {
+        try {
+          parsedCustomRegion = typeof customRegionPercent === 'string' 
+            ? JSON.parse(customRegionPercent) 
+            : customRegionPercent;
+          console.log("[AI Render] Custom region (%):", parsedCustomRegion);
+        } catch (e) {
+          console.error('Error parsing custom region:', e);
+        }
+      }
+      
+      console.log("[AI Render] Edit region:", editRegion || (parsedCustomRegion ? "custom" : "full image"));
       
       // Parse reference items if provided as JSON string
       let parsedReferenceItems = undefined;
@@ -4318,7 +4331,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         styleId || 'modern', // Default style if using reference items only
         customPrompt,
         parsedReferenceItems,
-        editRegion || undefined
+        editRegion || undefined,
+        parsedCustomRegion
       );
       
       // Return the generated image as base64

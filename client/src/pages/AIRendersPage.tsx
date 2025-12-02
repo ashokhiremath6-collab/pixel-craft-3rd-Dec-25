@@ -98,7 +98,11 @@ export default function AIRendersPage() {
   const [catalogueSearch, setCatalogueSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [editRegion, setEditRegion] = useState<string | null>(null);
+  const [customRegion, setCustomRegion] = useState<{x: number; y: number; width: number; height: number} | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{x: number; y: number} | null>(null);
   const imagePreviewRef = useRef<HTMLImageElement>(null);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
 
   const { data: user, isLoading: userLoading, isError: userError, refetch: refetchUser } = useQuery<{ role: string }>({
     queryKey: ['/api/auth/user'],
@@ -381,8 +385,43 @@ export default function AIRendersPage() {
     );
   };
 
+  // Drag handlers for custom region selection
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!imageContainerRef.current) return;
+    const rect = imageContainerRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setDragStart({ x, y });
+    setIsDragging(true);
+    setEditRegion(null); // Clear grid selection when using custom
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging || !dragStart || !imageContainerRef.current) return;
+    const rect = imageContainerRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+    
+    setCustomRegion({
+      x: Math.min(dragStart.x, x),
+      y: Math.min(dragStart.y, y),
+      width: Math.abs(x - dragStart.x),
+      height: Math.abs(y - dragStart.y)
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    setDragStart(null);
+  };
+
+  const clearCustomRegion = () => {
+    setCustomRegion(null);
+    setEditRegion(null);
+  };
+
   const generateFromImageMutation = useMutation({
-    mutationFn: async (data: { file: File; styleId: string; customPrompt?: string; referenceItems?: ReferenceItem[]; editRegion?: string | null }) => {
+    mutationFn: async (data: { file: File; styleId: string; customPrompt?: string; referenceItems?: ReferenceItem[]; editRegion?: string | null; customRegionPercent?: {x: number; y: number; width: number; height: number} | null }) => {
       const compressedBlob = await compressImageOnClient(data.file);
       const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
       
@@ -397,6 +436,9 @@ export default function AIRendersPage() {
       }
       if (data.editRegion) {
         formData.append('editRegion', data.editRegion);
+      }
+      if (data.customRegionPercent) {
+        formData.append('customRegionPercent', JSON.stringify(data.customRegionPercent));
       }
       
       const response = await fetch('/api/ai-renders/generate', {
@@ -564,6 +606,7 @@ export default function AIRendersPage() {
       customPrompt: customPrompt || undefined,
       referenceItems: validReferenceItems.length > 0 ? validReferenceItems : undefined,
       editRegion: editRegion || undefined,
+      customRegionPercent: customRegion || undefined,
     });
   };
 
@@ -734,50 +777,90 @@ export default function AIRendersPage() {
                   </div>
                   {previewUrl && (
                     <div className="mt-3 space-y-2">
-                      <div className="relative inline-block">
+                      <div 
+                        ref={imageContainerRef}
+                        className="relative inline-block cursor-crosshair select-none"
+                        onMouseDown={(customPrompt.trim() || referenceItems.length > 0) ? handleMouseDown : undefined}
+                        onMouseMove={(customPrompt.trim() || referenceItems.length > 0) ? handleMouseMove : undefined}
+                        onMouseUp={(customPrompt.trim() || referenceItems.length > 0) ? handleMouseUp : undefined}
+                        onMouseLeave={(customPrompt.trim() || referenceItems.length > 0) ? handleMouseUp : undefined}
+                      >
                         <img 
                           ref={imagePreviewRef}
                           src={previewUrl} 
                           alt="Preview" 
-                          className="max-h-48 rounded-lg border object-contain"
+                          className="max-h-48 rounded-lg border object-contain pointer-events-none"
                           data-testid="image-preview"
+                          draggable={false}
                         />
                         {selectedSavedRenderUrl && (
-                          <Badge className="absolute top-2 left-2" variant="secondary">
+                          <Badge className="absolute top-2 left-2 pointer-events-none" variant="secondary">
                             From Saved
                           </Badge>
                         )}
-                        {(customPrompt.trim() || referenceItems.length > 0) && (
-                          <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-1 rounded-lg overflow-hidden bg-black/20 p-1">
+                        {(customPrompt.trim() || referenceItems.length > 0) && !customRegion && !editRegion && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg pointer-events-none">
+                            <span className="text-white text-sm font-medium bg-black/50 px-3 py-1 rounded">
+                              Drag to select edit area
+                            </span>
+                          </div>
+                        )}
+                        {customRegion && customRegion.width > 2 && customRegion.height > 2 && (
+                          <div 
+                            className="absolute border-2 border-primary bg-primary/30 rounded pointer-events-none"
+                            style={{
+                              left: `${customRegion.x}%`,
+                              top: `${customRegion.y}%`,
+                              width: `${customRegion.width}%`,
+                              height: `${customRegion.height}%`
+                            }}
+                          />
+                        )}
+                        {editRegion && !customRegion && (
+                          <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 rounded-lg overflow-hidden pointer-events-none">
                             {['top-left', 'top-center', 'top-right', 'center-left', 'center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right'].map((region) => (
-                              <button
+                              <div
                                 key={region}
-                                type="button"
-                                onClick={() => setEditRegion(editRegion === region ? null : region)}
-                                className={`transition-all rounded ${
-                                  editRegion === region 
-                                    ? 'bg-primary/60 border-2 border-primary ring-2 ring-primary/50' 
-                                    : 'bg-white/10 hover:bg-primary/30 border border-white/50'
-                                }`}
-                                title={`Click to edit ${region.replace('-', ' ')} area`}
-                                data-testid={`region-${region}`}
+                                className={`${editRegion === region ? 'bg-primary/40 border-2 border-primary' : ''}`}
                               />
                             ))}
                           </div>
                         )}
                       </div>
                       {(customPrompt.trim() || referenceItems.length > 0) && (
-                        <div className="flex items-center gap-2 text-xs">
+                        <div className="flex items-center gap-2 text-xs flex-wrap">
                           <span className="text-muted-foreground">Edit region:</span>
-                          {editRegion ? (
+                          {customRegion && customRegion.width > 2 ? (
+                            <Badge variant="default">
+                              Custom selection
+                              <button onClick={clearCustomRegion} className="ml-1 hover:text-destructive">
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          ) : editRegion ? (
                             <Badge variant="default" className="capitalize">
                               {editRegion.replace('-', ' ')}
-                              <button onClick={() => setEditRegion(null)} className="ml-1 hover:text-destructive">
+                              <button onClick={clearCustomRegion} className="ml-1 hover:text-destructive">
                                 <X className="h-3 w-3" />
                               </button>
                             </Badge>
                           ) : (
-                            <span className="text-muted-foreground italic">Click image to select area to edit (recommended)</span>
+                            <span className="text-muted-foreground italic">Drag on image to select area</span>
+                          )}
+                          {!customRegion && (
+                            <div className="flex gap-1 ml-2">
+                              {['center', 'top-center', 'bottom-center'].map((region) => (
+                                <Button 
+                                  key={region}
+                                  variant={editRegion === region ? "default" : "outline"} 
+                                  size="sm" 
+                                  className="h-6 text-xs px-2"
+                                  onClick={() => setEditRegion(editRegion === region ? null : region)}
+                                >
+                                  {region.split('-').map(w => w[0].toUpperCase()).join('')}
+                                </Button>
+                              ))}
+                            </div>
                           )}
                         </div>
                       )}

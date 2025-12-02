@@ -184,7 +184,8 @@ async function generatePatchEdit(
   mimeType: string,
   customPrompt: string,
   referenceItems?: ReferenceItem[],
-  editRegion?: string
+  editRegion?: string,
+  customRegionPercent?: {x: number; y: number; width: number; height: number}
 ): Promise<{ imageData: string; mimeType: string }> {
   console.log("[Gemini Patch] Starting patch-edit pipeline...");
   
@@ -195,9 +196,27 @@ async function generatePatchEdit(
   
   console.log("[Gemini Patch] Original image dimensions:", width, "x", height);
   
-  // Calculate crop region
-  const region = getRegionCoordinates(editRegion || 'center', width, height);
-  console.log("[Gemini Patch] Crop region:", region);
+  // Calculate crop region - use custom percentage region if provided, otherwise grid-based
+  let region: { left: number; top: number; width: number; height: number };
+  
+  if (customRegionPercent && customRegionPercent.width > 2 && customRegionPercent.height > 2) {
+    // Convert percentage coordinates to pixel coordinates
+    region = {
+      left: Math.round((customRegionPercent.x / 100) * width),
+      top: Math.round((customRegionPercent.y / 100) * height),
+      width: Math.round((customRegionPercent.width / 100) * width),
+      height: Math.round((customRegionPercent.height / 100) * height)
+    };
+    // Ensure we don't exceed image bounds
+    region.left = Math.max(0, Math.min(region.left, width - 10));
+    region.top = Math.max(0, Math.min(region.top, height - 10));
+    region.width = Math.min(region.width, width - region.left);
+    region.height = Math.min(region.height, height - region.top);
+    console.log("[Gemini Patch] Using custom region (from %):", region);
+  } else {
+    region = getRegionCoordinates(editRegion || 'center', width, height);
+    console.log("[Gemini Patch] Using grid region:", region);
+  }
   
   // Crop the region from the original image
   const croppedBuffer = await sharp(originalBuffer)
@@ -306,13 +325,15 @@ export async function generateInteriorRender(
   styleId: string,
   customPrompt?: string,
   referenceItems?: ReferenceItem[],
-  editRegion?: string
+  editRegion?: string,
+  customRegionPercent?: {x: number; y: number; width: number; height: number}
 ): Promise<{ imageData: string; mimeType: string }> {
   console.log("[Gemini] Starting interior render generation...");
   console.log("[Gemini] Style ID:", styleId);
   console.log("[Gemini] Has custom prompt:", !!customPrompt);
   console.log("[Gemini] Reference items count:", referenceItems?.length || 0);
-  console.log("[Gemini] Edit region:", editRegion || "full");
+  console.log("[Gemini] Edit region:", editRegion || (customRegionPercent ? "custom" : "full"));
+  console.log("[Gemini] Custom region (%):", customRegionPercent || "none");
   console.log("[Gemini] API Key configured:", !!process.env.AI_INTEGRATIONS_GEMINI_API_KEY);
   console.log("[Gemini] Base URL:", process.env.AI_INTEGRATIONS_GEMINI_BASE_URL);
   
@@ -325,8 +346,8 @@ export async function generateInteriorRender(
   try {
     // If edit region is specified with custom prompt or reference items, use patch-edit pipeline
     const hasEditContent = (customPrompt && customPrompt.trim()) || (referenceItems && referenceItems.length > 0);
-    if (editRegion && hasEditContent) {
-      console.log("[Gemini] Using patch-edit pipeline for region:", editRegion);
+    if ((editRegion || customRegionPercent) && hasEditContent) {
+      console.log("[Gemini] Using patch-edit pipeline for region:", editRegion || "custom");
       // Build edit instruction from custom prompt and/or reference items
       let editInstruction = customPrompt?.trim() || '';
       if (referenceItems && referenceItems.length > 0) {
@@ -337,7 +358,7 @@ export async function generateInteriorRender(
           editInstruction = refInstructions;
         }
       }
-      return await generatePatchEdit(imageBase64, mimeType, editInstruction, referenceItems, editRegion);
+      return await generatePatchEdit(imageBase64, mimeType, editInstruction, referenceItems, editRegion, customRegionPercent);
     }
     
     console.log("[Gemini] Compressing image...");
