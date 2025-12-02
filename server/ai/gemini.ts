@@ -178,7 +178,45 @@ function getRegionCoordinates(region: string, width: number, height: number): { 
   };
 }
 
-// Patch-edit pipeline: crops region, generates replacement, composites back
+// Create a feathered mask for smooth blending at edges
+async function createFeatheredMask(width: number, height: number, featherSize: number): Promise<Buffer> {
+  // Create a white rectangle with feathered/gradient edges
+  const channels = 4; // RGBA
+  const data = Buffer.alloc(width * height * channels);
+  
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * channels;
+      
+      // Calculate distance from each edge
+      const distLeft = x;
+      const distRight = width - 1 - x;
+      const distTop = y;
+      const distBottom = height - 1 - y;
+      
+      // Find minimum distance to any edge
+      const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+      
+      // Calculate alpha based on distance (feather gradient)
+      let alpha = 255;
+      if (minDist < featherSize) {
+        alpha = Math.round((minDist / featherSize) * 255);
+      }
+      
+      // Set RGBA (white with variable alpha for feathering)
+      data[idx] = 255;     // R
+      data[idx + 1] = 255; // G
+      data[idx + 2] = 255; // B
+      data[idx + 3] = alpha; // A (feathered at edges)
+    }
+  }
+  
+  return sharp(data, { raw: { width, height, channels } })
+    .png()
+    .toBuffer();
+}
+
+// Patch-edit pipeline: crops region with context, generates replacement, composites back with feathered blending
 async function generatePatchEdit(
   imageBase64: string,
   mimeType: string,
@@ -187,7 +225,7 @@ async function generatePatchEdit(
   editRegion?: string,
   customRegionPercent?: {x: number; y: number; width: number; height: number}
 ): Promise<{ imageData: string; mimeType: string }> {
-  console.log("[Gemini Patch] Starting patch-edit pipeline...");
+  console.log("[Gemini Patch] Starting context-aware patch-edit pipeline...");
   
   // Decode original image and get dimensions
   const originalBuffer = Buffer.from(imageBase64, 'base64');
@@ -218,27 +256,62 @@ async function generatePatchEdit(
     console.log("[Gemini Patch] Using grid region:", region);
   }
   
-  // Crop the region from the original image
-  const croppedBuffer = await sharp(originalBuffer)
-    .extract({ left: region.left, top: region.top, width: region.width, height: region.height })
-    .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 85 })
+  // Add context padding (15-20% of region size) to help AI understand surrounding context
+  const paddingPercent = 0.18; // 18% padding
+  const paddingX = Math.round(region.width * paddingPercent);
+  const paddingY = Math.round(region.height * paddingPercent);
+  
+  // Calculate expanded region with padding (clamped to image bounds)
+  const expandedRegion = {
+    left: Math.max(0, region.left - paddingX),
+    top: Math.max(0, region.top - paddingY),
+    width: 0,
+    height: 0
+  };
+  expandedRegion.width = Math.min(width - expandedRegion.left, region.width + paddingX * 2);
+  expandedRegion.height = Math.min(height - expandedRegion.top, region.height + paddingY * 2);
+  
+  console.log("[Gemini Patch] Original region:", region);
+  console.log("[Gemini Patch] Expanded region with context:", expandedRegion);
+  
+  // Calculate the inner region position relative to expanded region (for masking)
+  const innerOffset = {
+    left: region.left - expandedRegion.left,
+    top: region.top - expandedRegion.top
+  };
+  
+  // Crop the expanded region (includes context padding)
+  const expandedCropBuffer = await sharp(originalBuffer)
+    .extract({ 
+      left: expandedRegion.left, 
+      top: expandedRegion.top, 
+      width: expandedRegion.width, 
+      height: expandedRegion.height 
+    })
+    .jpeg({ quality: 90 })
     .toBuffer();
   
-  const croppedBase64 = croppedBuffer.toString('base64');
-  console.log("[Gemini Patch] Cropped region size:", croppedBuffer.length, "bytes");
+  const expandedCropBase64 = expandedCropBuffer.toString('base64');
+  console.log("[Gemini Patch] Expanded crop size:", expandedCropBuffer.length, "bytes");
+  
+  // Also prepare full image context (resized for API limits)
+  const fullContextBuffer = await sharp(originalBuffer)
+    .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 75 })
+    .toBuffer();
+  const fullContextBase64 = fullContextBuffer.toString('base64');
   
   // Build reference instructions for patch generation
   let referenceInstructions = '';
   const referenceImageParts: any[] = [];
   
   if (referenceItems && referenceItems.length > 0) {
-    referenceInstructions = '\n\nREFERENCE IMAGE TO USE:\n';
+    referenceInstructions = '\n\nREFERENCE ITEMS TO INCORPORATE:\n';
     for (let i = 0; i < referenceItems.length; i++) {
       const item = referenceItems[i];
       const itemDesc = item.aiPromptHints || item.description || `${item.subcategory} from ${item.vendorBrand || 'unknown vendor'}`;
       referenceInstructions += `${i + 1}. ${item.name}: ${itemDesc}\n`;
-      referenceInstructions += `   Use this to: ${item.placementInstruction}\n`;
+      referenceInstructions += `   Placement: ${item.placementInstruction}\n`;
       
       if (item.imageData && item.imageMimeType) {
         const refCompressed = await compressImage(item.imageData, item.imageMimeType);
@@ -249,27 +322,47 @@ async function generatePatchEdit(
     }
   }
   
-  // Prompt specifically for the cropped region
-  const patchPrompt = `TASK: Edit this cropped portion of an interior room image.
+  // Enhanced prompt with context awareness and object consistency
+  const patchPrompt = `TASK: Edit a specific region of an interior room while maintaining perfect visual continuity.
+
+You are provided with:
+1. FULL ROOM CONTEXT (Image 1): The complete room for understanding lighting, perspective, and existing furniture
+2. EDIT REGION WITH PADDING (Image 2): The area to edit, with surrounding context visible at the edges
 
 EDIT REQUEST: ${customPrompt}${referenceInstructions}
 
-CRITICAL INSTRUCTIONS:
-- This is a CROPPED SECTION of a larger room image
-- Apply ONLY the specific edit requested above
-- Keep the same perspective, lighting, and style as the original
-- If a reference image is provided, use it to replace/modify the requested element
-- Maintain realistic proportions and scale
-- The output should blend seamlessly when composited back into the original
+CRITICAL REQUIREMENTS FOR SEAMLESS BLENDING:
 
-OUTPUT: Generate a high-resolution photorealistic edited version of this cropped section.`;
+1. VISUAL CONTINUITY:
+   - The edited region MUST blend seamlessly with surrounding areas
+   - Match the exact wall colors, floor patterns, and textures visible at the edges
+   - Maintain consistent lighting direction, shadows, and ambient color
+   - Preserve perspective lines and vanishing points from the original
 
-  console.log("[Gemini Patch] Calling AI for patch generation...");
+2. OBJECT ALIGNMENT & CONSISTENCY:
+   - If adding/modifying furniture similar to existing pieces, ensure IDENTICAL scale, orientation, and style
+   - Match leg angles, arm heights, and proportions of similar objects (e.g., pairs of chairs must be symmetrical)
+   - Align objects with floor planes and maintain proper ground contact
+   - Keep consistent spacing between furniture pieces
+
+3. EDGE TREATMENT:
+   - Elements at the crop boundary must connect naturally with what's outside
+   - Wall edges, floor lines, and architectural elements must continue smoothly
+   - No visible seams, color shifts, or style breaks at boundaries
+
+4. PRESERVATION:
+   - Only modify what's explicitly requested
+   - Keep unchanged elements exactly as they appear in the context
+
+OUTPUT: Generate a HIGH RESOLUTION photorealistic edited version of Image 2 (the edit region) that will composite seamlessly back into the full room.`;
+
+  console.log("[Gemini Patch] Calling AI with full context + expanded region...");
   
-  // Generate the patch
+  // Generate the patch with both full context and expanded crop
   const parts: any[] = [
     { text: patchPrompt },
-    { inlineData: { mimeType: 'image/jpeg', data: croppedBase64 } },
+    { inlineData: { mimeType: 'image/jpeg', data: fullContextBase64 } },
+    { inlineData: { mimeType: 'image/jpeg', data: expandedCropBase64 } },
     ...referenceImageParts
   ];
   
@@ -288,21 +381,50 @@ OUTPUT: Generate a high-resolution photorealistic edited version of this cropped
   
   console.log("[Gemini Patch] Patch generated, size:", imagePart.inlineData.data.length);
   
-  // Resize the generated patch back to the original region size
+  // Resize the generated patch back to the expanded region size
   const patchBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
-  const resizedPatch = await sharp(patchBuffer)
-    .resize(region.width, region.height, { fit: 'fill' })
+  const resizedExpandedPatch = await sharp(patchBuffer)
+    .resize(expandedRegion.width, expandedRegion.height, { fit: 'fill' })
     .png()
     .toBuffer();
   
-  console.log("[Gemini Patch] Resized patch to:", region.width, "x", region.height);
+  console.log("[Gemini Patch] Resized patch to expanded region:", expandedRegion.width, "x", expandedRegion.height);
   
-  // Composite the patch back onto the original image
+  // Extract just the inner region from the generated patch (removing context padding)
+  const innerPatch = await sharp(resizedExpandedPatch)
+    .extract({
+      left: innerOffset.left,
+      top: innerOffset.top,
+      width: region.width,
+      height: region.height
+    })
+    .png()
+    .toBuffer();
+  
+  console.log("[Gemini Patch] Extracted inner patch:", region.width, "x", region.height);
+  
+  // Create feathered mask for smooth blending (feather size = 5% of smallest dimension)
+  const featherSize = Math.round(Math.min(region.width, region.height) * 0.08);
+  const featheredMask = await createFeatheredMask(region.width, region.height, featherSize);
+  
+  // Apply feathered mask to the inner patch
+  const maskedPatch = await sharp(innerPatch)
+    .composite([{
+      input: featheredMask,
+      blend: 'dest-in' // Use mask as alpha channel
+    }])
+    .png()
+    .toBuffer();
+  
+  console.log("[Gemini Patch] Applied feathered mask for blending");
+  
+  // Composite the masked patch back onto the original image
   const composited = await sharp(originalBuffer)
     .composite([{
-      input: resizedPatch,
+      input: maskedPatch,
       left: region.left,
-      top: region.top
+      top: region.top,
+      blend: 'over' // Blend using patch's alpha channel
     }])
     .png({ compressionLevel: 4 })
     .toBuffer();
