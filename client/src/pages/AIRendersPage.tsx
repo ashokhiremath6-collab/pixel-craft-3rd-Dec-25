@@ -563,7 +563,7 @@ export default function AIRendersPage() {
       styleId: selectedStyle,
       customPrompt: customPrompt || undefined,
       referenceItems: validReferenceItems.length > 0 ? validReferenceItems : undefined,
-      editRegion: customPrompt?.trim() ? editRegion : undefined,
+      editRegion: editRegion || undefined,
     });
   };
 
@@ -747,7 +747,7 @@ export default function AIRendersPage() {
                             From Saved
                           </Badge>
                         )}
-                        {customPrompt.trim() && (
+                        {(customPrompt.trim() || referenceItems.length > 0) && (
                           <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-1 rounded-lg overflow-hidden bg-black/20 p-1">
                             {['top-left', 'top-center', 'top-right', 'center-left', 'center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right'].map((region) => (
                               <button
@@ -766,7 +766,7 @@ export default function AIRendersPage() {
                           </div>
                         )}
                       </div>
-                      {customPrompt.trim() && (
+                      {(customPrompt.trim() || referenceItems.length > 0) && (
                         <div className="flex items-center gap-2 text-xs">
                           <span className="text-muted-foreground">Edit region:</span>
                           {editRegion ? (

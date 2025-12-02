@@ -319,10 +319,21 @@ export async function generateInteriorRender(
   }
 
   try {
-    // If edit region is specified with custom prompt, use patch-edit pipeline
-    if (editRegion && customPrompt && customPrompt.trim()) {
+    // If edit region is specified with custom prompt or reference items, use patch-edit pipeline
+    const hasEditContent = (customPrompt && customPrompt.trim()) || (referenceItems && referenceItems.length > 0);
+    if (editRegion && hasEditContent) {
       console.log("[Gemini] Using patch-edit pipeline for region:", editRegion);
-      return await generatePatchEdit(imageBase64, mimeType, customPrompt, referenceItems, editRegion);
+      // Build edit instruction from custom prompt and/or reference items
+      let editInstruction = customPrompt?.trim() || '';
+      if (referenceItems && referenceItems.length > 0) {
+        const refInstructions = referenceItems.map(item => item.placementInstruction).join('. ');
+        if (editInstruction) {
+          editInstruction += '. ' + refInstructions;
+        } else {
+          editInstruction = refInstructions;
+        }
+      }
+      return await generatePatchEdit(imageBase64, mimeType, editInstruction, referenceItems, editRegion);
     }
     
     console.log("[Gemini] Compressing image...");
