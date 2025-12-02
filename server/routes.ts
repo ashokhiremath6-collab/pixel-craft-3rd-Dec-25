@@ -4196,6 +4196,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get catalogue items available for AI references (with images only)
+  app.get("/api/ai-renders/catalogue-references", requireAdmin, async (req, res) => {
+    try {
+      const { mainCategory, subcategory, search } = req.query;
+      
+      // Get catalogue items - filter for those that might have usable images
+      let items = await storage.getCatalogueItems(
+        mainCategory as string | undefined,
+        subcategory as string | undefined
+      );
+      
+      // Filter items that have an image path (either aiImagePath or filePath that's an image)
+      items = items.filter(item => {
+        // Check if has dedicated AI image
+        if (item.aiImagePath) return true;
+        
+        // Check if filePath is an image (not a PDF/doc)
+        if (item.filePath) {
+          const ext = item.filePath.split('.').pop()?.toLowerCase();
+          return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '');
+        }
+        
+        return false;
+      });
+      
+      // Apply search filter if provided
+      if (search && typeof search === 'string') {
+        const searchLower = search.toLowerCase();
+        items = items.filter(item => 
+          item.mainCategory.toLowerCase().includes(searchLower) ||
+          item.subcategory.toLowerCase().includes(searchLower) ||
+          (item.vendorBrand?.toLowerCase().includes(searchLower)) ||
+          (item.description?.toLowerCase().includes(searchLower)) ||
+          (item.aiPromptHints?.toLowerCase().includes(searchLower))
+        );
+      }
+      
+      res.json(items);
+    } catch (error) {
+      console.error('Error fetching catalogue references:', error);
+      res.status(500).json({ error: "Failed to fetch catalogue references" });
+    }
+  });
+
   // Generate AI render from uploaded image
   // Extended timeout for AI generation (5 minutes)
   app.post("/api/ai-renders/generate", requireAdmin, uploadAIRender.single('image'), async (req, res) => {
@@ -4208,24 +4252,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No image uploaded" });
       }
 
-      const { styleId, customPrompt } = req.body;
+      const { styleId, customPrompt, referenceItems } = req.body;
       
-      if (!styleId) {
-        return res.status(400).json({ error: "Style ID is required" });
+      if (!styleId && !referenceItems) {
+        return res.status(400).json({ error: "Style ID or reference items are required" });
+      }
+      
+      // Parse reference items if provided as JSON string
+      let parsedReferenceItems = undefined;
+      if (referenceItems) {
+        try {
+          parsedReferenceItems = typeof referenceItems === 'string' 
+            ? JSON.parse(referenceItems) 
+            : referenceItems;
+          
+          // Validate reference items (max 3)
+          if (Array.isArray(parsedReferenceItems) && parsedReferenceItems.length > 3) {
+            return res.status(400).json({ error: "Maximum 3 reference items allowed" });
+          }
+          
+          console.log("[AI Render] Processing", parsedReferenceItems?.length || 0, "reference items");
+        } catch (e) {
+          console.error('Error parsing reference items:', e);
+          return res.status(400).json({ error: "Invalid reference items format" });
+        }
       }
       
       // Convert file to base64
       const imageBase64 = req.file.buffer.toString('base64');
       const mimeType = req.file.mimetype;
 
-      // Generate the render
-      const result = await generateInteriorRender(imageBase64, mimeType, styleId, customPrompt);
+      // Generate the render with optional reference items
+      const result = await generateInteriorRender(
+        imageBase64, 
+        mimeType, 
+        styleId || 'modern', // Default style if using reference items only
+        customPrompt,
+        parsedReferenceItems
+      );
       
       // Return the generated image as base64
       res.json({
         success: true,
         imageData: result.imageData,
-        mimeType: result.mimeType
+        mimeType: result.mimeType,
+        referenceItemsUsed: parsedReferenceItems?.length || 0
       });
     } catch (error: any) {
       console.error('Error generating AI render:', error);
