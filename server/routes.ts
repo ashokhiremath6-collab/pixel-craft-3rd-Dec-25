@@ -4427,16 +4427,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let referenceMetadataForStorage: any[] | null = null;
       
       if (referenceItems && Array.isArray(referenceItems) && referenceItems.length > 0) {
-        baseTags.push('catalogue-references');
+        // Check if we have any catalogue items or uploaded photos
+        const hasCatalogueItems = referenceItems.some((r: any) => r.type !== 'uploaded');
+        const hasUploadedPhotos = referenceItems.some((r: any) => r.type === 'uploaded');
+        
+        if (hasCatalogueItems) baseTags.push('catalogue-references');
+        if (hasUploadedPhotos) baseTags.push('photo-references');
         
         // Build detailed reference description for activity log
         const refDetails = referenceItems.map((r: any) => {
-          const parts = [r.name];
+          const typeLabel = r.type === 'uploaded' ? '[Photo]' : '[Catalogue]';
+          const parts = [`${typeLabel} ${r.name}`];
           if (r.vendorBrand) parts.push(`(${r.vendorBrand})`);
           if (r.placementInstruction) parts.push(`- ${r.placementInstruction}`);
           return parts.join(' ');
         });
-        referenceItemsDescription = ` with catalogue references: ${refDetails.join('; ')}`;
+        referenceItemsDescription = ` with references: ${refDetails.join('; ')}`;
         
         // Add individual item IDs as tags for searchability
         referenceItems.forEach((r: any, idx: number) => {
@@ -4445,7 +4451,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Store full reference metadata in dedicated field for reconstruction and auditing
         referenceMetadataForStorage = referenceItems.map((r: any) => ({
-          catalogueId: r.id,
+          type: r.type || 'catalogue',
+          catalogueId: r.type === 'uploaded' ? null : r.id,
           name: r.name,
           category: r.category,
           subcategory: r.subcategory,

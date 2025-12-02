@@ -15,7 +15,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Project, Moodboard, CatalogueItem } from "@shared/schema";
+import type { Project, Moodboard } from "@shared/schema";
 import { 
   Upload, 
   Wand2, 
@@ -48,9 +48,10 @@ interface ReferenceItem {
   imageData?: string;
   imageMimeType?: string;
   imagePath?: string;
+  type: 'catalogue' | 'uploaded';
 }
 
-interface CatalogueItem {
+interface CatalogueItemForReference {
   id: string;
   mainCategory: string;
   subcategory: string;
@@ -79,6 +80,7 @@ export default function AIRendersPage() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const referenceFileInputRef = useRef<HTMLInputElement>(null);
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string>("");
@@ -117,7 +119,7 @@ export default function AIRendersPage() {
     },
   });
 
-  const { data: catalogueItems = [] } = useQuery<CatalogueItem[]>({
+  const { data: catalogueItems = [] } = useQuery<CatalogueItemForReference[]>({
     queryKey: ['/api/ai-renders/catalogue-references', selectedCategory, catalogueSearch],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -251,7 +253,7 @@ export default function AIRendersPage() {
     }
   };
 
-  const addCatalogueItemAsReference = async (item: CatalogueItem) => {
+  const addCatalogueItemAsReference = async (item: CatalogueItemForReference) => {
     if (referenceItems.length >= 3) {
       toast({
         title: "Limit Reached",
@@ -294,6 +296,7 @@ export default function AIRendersPage() {
       imageData,
       imageMimeType,
       imagePath: imagePath || undefined,
+      type: 'catalogue',
     };
 
     setReferenceItems(prev => [...prev, newReference]);
@@ -301,6 +304,67 @@ export default function AIRendersPage() {
       title: "Item Added",
       description: `${newReference.name} added to references`
     });
+  };
+
+  const handleReferenceImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (referenceItems.length >= 3) {
+      toast({
+        title: "Limit Reached",
+        description: "Maximum 3 reference items allowed",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid File",
+        description: "Please upload an image file (JPG, PNG, WebP)",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        const previewUrl = URL.createObjectURL(file);
+        
+        const newReference: ReferenceItem = {
+          id: `upload-${Date.now()}`,
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          category: 'Uploaded Reference',
+          subcategory: 'Custom Upload',
+          placementInstruction: "",
+          imageData: base64,
+          imageMimeType: file.type,
+          imagePath: previewUrl,
+          type: 'uploaded',
+        };
+
+        setReferenceItems(prev => [...prev, newReference]);
+        toast({
+          title: "Image Added",
+          description: `${newReference.name} added as reference`
+        });
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      toast({
+        title: "Upload Failed",
+        description: "Could not process the image",
+        variant: "destructive"
+      });
+    }
+
+    // Reset the input
+    if (referenceFileInputRef.current) {
+      referenceFileInputRef.current.value = '';
+    }
   };
 
   const removeReferenceItem = (id: string) => {
@@ -409,6 +473,7 @@ export default function AIRendersPage() {
       styleId: string;
       description?: string;
       originalFilename?: string;
+      referenceItems?: { id: string; name: string; type: string; placementInstruction: string; }[];
     }) => {
       return apiRequest('POST', '/api/ai-renders/save', data);
     },
@@ -536,12 +601,7 @@ export default function AIRendersPage() {
       referenceItems: referenceItems.map(item => ({
         id: item.id,
         name: item.name,
-        category: item.category,
-        subcategory: item.subcategory,
-        vendorBrand: item.vendorBrand,
-        description: item.description,
-        aiPromptHints: item.aiPromptHints,
-        imagePath: item.imagePath,
+        type: item.type,
         placementInstruction: item.placementInstruction,
       })),
     });
@@ -589,7 +649,7 @@ export default function AIRendersPage() {
     }
   };
 
-  const getCatalogueItemImageUrl = (item: CatalogueItem) => {
+  const getCatalogueItemImageUrl = (item: CatalogueItemForReference) => {
     return item.aiImagePath || item.filePath;
   };
 
@@ -696,25 +756,45 @@ export default function AIRendersPage() {
                 </div>
 
                 <div className="border rounded-lg p-3 bg-muted/30">
+                  <input
+                    type="file"
+                    ref={referenceFileInputRef}
+                    onChange={handleReferenceImageUpload}
+                    accept="image/*"
+                    className="hidden"
+                    data-testid="input-reference-file"
+                  />
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <Palette className="h-4 w-4 text-primary" />
                       <Label className="text-sm font-medium">Reference Materials</Label>
                       <Badge variant="outline" className="text-xs">{referenceItems.length}/3</Badge>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowCatalogueBrowser(true)}
-                      disabled={referenceItems.length >= 3}
-                      data-testid="button-add-reference"
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => referenceFileInputRef.current?.click()}
+                        disabled={referenceItems.length >= 3}
+                        data-testid="button-upload-reference"
+                      >
+                        <Upload className="h-4 w-4 mr-1" />
+                        Photo
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowCatalogueBrowser(true)}
+                        disabled={referenceItems.length >= 3}
+                        data-testid="button-add-reference"
+                      >
+                        <FolderOpen className="h-4 w-4 mr-1" />
+                        Catalogue
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Select furniture, finishes, or materials from your catalogue to insert into the render
+                    Upload a photo or select from your catalogue to use as reference for the AI render
                   </p>
                   
                   {referenceItems.length === 0 ? (
@@ -734,8 +814,13 @@ export default function AIRendersPage() {
                               />
                             )}
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium truncate">{item.name}</span>
+                              <div className="flex items-center justify-between gap-1">
+                                <div className="flex items-center gap-1 min-w-0">
+                                  <span className="text-sm font-medium truncate">{item.name}</span>
+                                  <Badge variant={item.type === 'uploaded' ? 'secondary' : 'outline'} className="text-[10px] px-1 shrink-0">
+                                    {item.type === 'uploaded' ? 'Photo' : 'Catalogue'}
+                                  </Badge>
+                                </div>
                                 <Button
                                   variant="ghost"
                                   size="icon"
