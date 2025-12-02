@@ -280,6 +280,8 @@ export const catalogueItems = pgTable("catalogue_items", {
   catalogueUrl: text("catalogue_url"), // Optional URL link to online catalogue
   fileName: text("file_name"), // Original name of uploaded catalogue file
   filePath: text("file_path"), // Object storage path to the catalogue file
+  aiImagePath: text("ai_image_path"), // Optional specific image for AI render references
+  aiPromptHints: text("ai_prompt_hints"), // Optional AI-specific hints (e.g., "oak chevron pattern hardwood flooring")
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => ({
   // Index for faster filtering by main category
