@@ -9,11 +9,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Project, Moodboard } from "@shared/schema";
+import type { Project, Moodboard, CatalogueItem } from "@shared/schema";
 import { 
   Upload, 
   Wand2, 
@@ -27,8 +29,26 @@ import {
   ShieldAlert,
   Maximize2,
   FolderOpen,
-  Check
+  Check,
+  Plus,
+  X,
+  Palette,
+  Search
 } from "lucide-react";
+
+interface ReferenceItem {
+  id: string;
+  name: string;
+  category: string;
+  subcategory: string;
+  vendorBrand?: string;
+  description?: string;
+  aiPromptHints?: string;
+  placementInstruction: string;
+  imageData?: string;
+  imageMimeType?: string;
+  imagePath?: string;
+}
 
 interface RenderStyle {
   id: string;
@@ -59,6 +79,11 @@ export default function AIRendersPage() {
   const [showFullSize, setShowFullSize] = useState(false);
   const [showSavedRendersDialog, setShowSavedRendersDialog] = useState(false);
   const [selectedSavedRenderUrl, setSelectedSavedRenderUrl] = useState<string | null>(null);
+  
+  const [showCatalogueBrowser, setShowCatalogueBrowser] = useState(false);
+  const [referenceItems, setReferenceItems] = useState<ReferenceItem[]>([]);
+  const [catalogueSearch, setCatalogueSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   const { data: user, isLoading: userLoading, isError: userError, refetch: refetchUser } = useQuery<{ role: string }>({
     queryKey: ['/api/auth/user'],
@@ -79,6 +104,28 @@ export default function AIRendersPage() {
       if (!response.ok) throw new Error('Failed to fetch saved renders');
       return response.json();
     },
+  });
+
+  const { data: catalogueItems = [] } = useQuery<CatalogueItem[]>({
+    queryKey: ['/api/ai-renders/catalogue-references', selectedCategory, catalogueSearch],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedCategory && selectedCategory !== 'all') {
+        params.append('mainCategory', selectedCategory);
+      }
+      if (catalogueSearch) {
+        params.append('search', catalogueSearch);
+      }
+      const response = await fetch(`/api/ai-renders/catalogue-references?${params.toString()}`, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch catalogue items');
+      return response.json();
+    },
+    enabled: showCatalogueBrowser,
+  });
+
+  const { data: catalogueCategories = [] } = useQuery<string[]>({
+    queryKey: ['/api/catalogue/categories'],
+    enabled: showCatalogueBrowser,
   });
 
   const isDesignerOrAdmin = user?.role === 'admin' || user?.role === 'designer';
@@ -171,8 +218,94 @@ export default function AIRendersPage() {
     });
   };
 
+  const fetchImageAsBase64 = async (imagePath: string): Promise<{ data: string; mimeType: string } | null> => {
+    try {
+      const response = await fetch(imagePath, { credentials: 'include' });
+      if (!response.ok) return null;
+      
+      const blob = await response.blob();
+      const mimeType = blob.type || 'image/jpeg';
+      
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve({ data: base64, mimeType });
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const addCatalogueItemAsReference = async (item: CatalogueItem) => {
+    if (referenceItems.length >= 3) {
+      toast({
+        title: "Limit Reached",
+        description: "Maximum 3 reference items allowed",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (referenceItems.find(r => r.id === item.id)) {
+      toast({
+        title: "Already Added",
+        description: "This item is already in your references",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const imagePath = item.aiImagePath || item.filePath;
+    let imageData: string | undefined;
+    let imageMimeType: string | undefined;
+
+    if (imagePath) {
+      const imageResult = await fetchImageAsBase64(imagePath);
+      if (imageResult) {
+        imageData = imageResult.data;
+        imageMimeType = imageResult.mimeType;
+      }
+    }
+
+    const newReference: ReferenceItem = {
+      id: item.id,
+      name: `${item.subcategory}${item.vendorBrand ? ` - ${item.vendorBrand}` : ''}`,
+      category: item.mainCategory,
+      subcategory: item.subcategory,
+      vendorBrand: item.vendorBrand || undefined,
+      description: item.description || undefined,
+      aiPromptHints: item.aiPromptHints || undefined,
+      placementInstruction: "",
+      imageData,
+      imageMimeType,
+      imagePath: imagePath || undefined,
+    };
+
+    setReferenceItems(prev => [...prev, newReference]);
+    toast({
+      title: "Item Added",
+      description: `${newReference.name} added to references`
+    });
+  };
+
+  const removeReferenceItem = (id: string) => {
+    setReferenceItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  const updateReferenceInstruction = (id: string, instruction: string) => {
+    setReferenceItems(prev => 
+      prev.map(item => 
+        item.id === id ? { ...item, placementInstruction: instruction } : item
+      )
+    );
+  };
+
   const generateFromImageMutation = useMutation({
-    mutationFn: async (data: { file: File; styleId: string; customPrompt?: string }) => {
+    mutationFn: async (data: { file: File; styleId: string; customPrompt?: string; referenceItems?: ReferenceItem[] }) => {
       const compressedBlob = await compressImageOnClient(data.file);
       const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
       
@@ -181,6 +314,9 @@ export default function AIRendersPage() {
       formData.append('styleId', data.styleId);
       if (data.customPrompt) {
         formData.append('customPrompt', data.customPrompt);
+      }
+      if (data.referenceItems && data.referenceItems.length > 0) {
+        formData.append('referenceItems', JSON.stringify(data.referenceItems));
       }
       
       const response = await fetch('/api/ai-renders/generate', {
@@ -327,11 +463,25 @@ export default function AIRendersPage() {
       });
       return;
     }
+
+    const validReferenceItems = referenceItems.filter(item => 
+      item.placementInstruction && item.placementInstruction.trim()
+    );
+
+    if (referenceItems.length > 0 && validReferenceItems.length < referenceItems.length) {
+      toast({ 
+        title: "Missing Instructions", 
+        description: "Please add placement instructions for all reference items",
+        variant: "destructive" 
+      });
+      return;
+    }
     
     generateFromImageMutation.mutate({
       file: selectedFile,
       styleId: selectedStyle,
       customPrompt: customPrompt || undefined,
+      referenceItems: validReferenceItems.length > 0 ? validReferenceItems : undefined,
     });
   };
 
@@ -411,9 +561,14 @@ export default function AIRendersPage() {
     setGeneratedRender(null);
     setCustomPrompt("");
     setTextDescription("");
+    setReferenceItems([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  const getCatalogueItemImageUrl = (item: CatalogueItem) => {
+    return item.aiImagePath || item.filePath;
   };
 
   const isGenerating = generateFromImageMutation.isPending || generateFromDescriptionMutation.isPending;
@@ -516,6 +671,73 @@ export default function AIRendersPage() {
                     className="mt-2"
                     data-testid="input-custom-prompt"
                   />
+                </div>
+
+                <div className="border rounded-lg p-3 bg-muted/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Palette className="h-4 w-4 text-primary" />
+                      <Label className="text-sm font-medium">Reference Materials</Label>
+                      <Badge variant="outline" className="text-xs">{referenceItems.length}/3</Badge>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowCatalogueBrowser(true)}
+                      disabled={referenceItems.length >= 3}
+                      data-testid="button-add-reference"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Select furniture, finishes, or materials from your catalogue to insert into the render
+                  </p>
+                  
+                  {referenceItems.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground text-sm">
+                      No reference items added
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {referenceItems.map((item) => (
+                        <div key={item.id} className="bg-background rounded-md border p-2">
+                          <div className="flex items-start gap-2">
+                            {item.imagePath && (
+                              <img
+                                src={item.imagePath}
+                                alt={item.name}
+                                className="w-12 h-12 object-cover rounded"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium truncate">{item.name}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 shrink-0"
+                                  onClick={() => removeReferenceItem(item.id)}
+                                  data-testid={`button-remove-reference-${item.id}`}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <span className="text-xs text-muted-foreground">{item.category}</span>
+                              <Input
+                                placeholder="Placement instruction (e.g., 'on the main floor area')"
+                                value={item.placementInstruction}
+                                onChange={(e) => updateReferenceInstruction(item.id, e.target.value)}
+                                className="mt-1 h-7 text-xs"
+                                data-testid={`input-placement-${item.id}`}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </TabsContent>
 
@@ -809,6 +1031,112 @@ export default function AIRendersPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Sheet open={showCatalogueBrowser} onOpenChange={setShowCatalogueBrowser}>
+        <SheetContent className="w-[400px] sm:w-[540px]">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Palette className="h-5 w-5" />
+              Catalogue Browser
+            </SheetTitle>
+            <SheetDescription>
+              Select items with images to use as AI references
+            </SheetDescription>
+          </SheetHeader>
+          
+          <div className="mt-4 space-y-4">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search items..."
+                  value={catalogueSearch}
+                  onChange={(e) => setCatalogueSearch(e.target.value)}
+                  className="pl-9"
+                  data-testid="input-catalogue-search"
+                />
+              </div>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-[180px]" data-testid="select-catalogue-category">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {catalogueCategories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Separator />
+
+            <ScrollArea className="h-[calc(100vh-280px)]">
+              {catalogueItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
+                  <ImageIcon className="h-12 w-12 mb-4 opacity-50" />
+                  <p className="text-sm">No catalogue items with images found</p>
+                  <p className="text-xs mt-1">Add images to catalogue items to use them as references</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 pr-4">
+                  {catalogueItems.map((item) => {
+                    const imageUrl = getCatalogueItemImageUrl(item);
+                    const isSelected = referenceItems.some(r => r.id === item.id);
+                    
+                    return (
+                      <div
+                        key={item.id}
+                        className={`relative rounded-lg border overflow-hidden cursor-pointer transition-all ${
+                          isSelected 
+                            ? 'ring-2 ring-primary opacity-60' 
+                            : 'hover-elevate'
+                        }`}
+                        onClick={() => !isSelected && addCatalogueItemAsReference(item)}
+                        data-testid={`catalogue-item-${item.id}`}
+                      >
+                        {imageUrl && (
+                          <img
+                            src={imageUrl}
+                            alt={item.subcategory}
+                            className="w-full h-24 object-cover"
+                          />
+                        )}
+                        <div className="p-2 bg-background">
+                          <p className="text-sm font-medium truncate">
+                            {item.subcategory}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {item.vendorBrand || item.mainCategory}
+                          </p>
+                          {item.aiPromptHints && (
+                            <p className="text-xs text-primary truncate mt-1">
+                              {item.aiPromptHints}
+                            </p>
+                          )}
+                        </div>
+                        {isSelected && (
+                          <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
+                            <Check className="h-3 w-3" />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </ScrollArea>
+
+            <div className="pt-2 border-t">
+              <p className="text-xs text-muted-foreground">
+                Selected: {referenceItems.length}/3 items. Click an item to add it as a reference.
+              </p>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
