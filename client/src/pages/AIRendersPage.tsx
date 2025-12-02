@@ -50,6 +50,17 @@ interface ReferenceItem {
   imagePath?: string;
 }
 
+interface CatalogueItem {
+  id: string;
+  mainCategory: string;
+  subcategory: string;
+  vendorBrand: string | null;
+  description: string | null;
+  filePath: string | null;
+  aiImagePath: string | null;
+  aiPromptHints: string | null;
+}
+
 interface RenderStyle {
   id: string;
   name: string;
@@ -522,6 +533,17 @@ export default function AIRendersPage() {
       styleId: generatedRender.styleId,
       description: customPrompt || textDescription || "",
       originalFilename: selectedFile?.name || textDescription || "",
+      referenceItems: referenceItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        subcategory: item.subcategory,
+        vendorBrand: item.vendorBrand,
+        description: item.description,
+        aiPromptHints: item.aiPromptHints,
+        imagePath: item.imagePath,
+        placementInstruction: item.placementInstruction,
+      })),
     });
   };
 

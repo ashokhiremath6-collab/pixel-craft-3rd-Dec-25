@@ -301,3 +301,26 @@ export async function signObjectURL({
   const { signed_url: signedURL } = await response.json();
   return signedURL;
 }
+
+export async function downloadObjectBuffer(objectPath: string): Promise<Buffer | null> {
+  const objectStorageService = new ObjectStorageService();
+  
+  try {
+    const file = await objectStorageService.getObjectEntityFile(objectPath);
+    
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      const stream = file.createReadStream();
+      
+      stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      stream.on('error', (err) => {
+        console.error('[ObjectStorage] Download error:', err);
+        resolve(null);
+      });
+    });
+  } catch (error) {
+    console.error('[ObjectStorage] Error getting file:', error);
+    return null;
+  }
+}

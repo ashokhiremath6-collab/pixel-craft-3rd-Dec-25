@@ -154,6 +154,7 @@ export const moodboards = pgTable("moodboards", {
   tags: jsonb("tags"), // Array of tags for organization
   canvaLink: text("canva_link"), // Canva design link for the moodboard
   roomType: text("room_type"), // For renders: living room, bedroom, kitchen, etc. (extracted from filename)
+  referenceMetadata: jsonb("reference_metadata"), // For AI renders: array of catalogue items used as references
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
 });
 

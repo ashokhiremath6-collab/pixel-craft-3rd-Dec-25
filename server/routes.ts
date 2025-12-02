@@ -16,7 +16,7 @@ import { randomUUID } from "crypto";
 import { sql } from "drizzle-orm";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL } from "./objectStorage";
+import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { RENDER_STYLES, generateInteriorRender, generateConceptRender, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
 import { 
@@ -4272,6 +4272,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           console.log("[AI Render] Processing", parsedReferenceItems?.length || 0, "reference items");
+          
+          // Enrich reference items by fetching images from their paths if imageData not provided
+          for (const item of parsedReferenceItems) {
+            if (!item.imageData && item.imagePath) {
+              try {
+                console.log(`[AI Render] Fetching image for reference item: ${item.name}`);
+                const imageBuffer = await downloadObjectBuffer(item.imagePath);
+                if (imageBuffer) {
+                  // Detect mime type from path
+                  const ext = item.imagePath.split('.').pop()?.toLowerCase();
+                  const mimeTypeMap: Record<string, string> = {
+                    'jpg': 'image/jpeg',
+                    'jpeg': 'image/jpeg',
+                    'png': 'image/png',
+                    'gif': 'image/gif',
+                    'webp': 'image/webp'
+                  };
+                  item.imageData = imageBuffer.toString('base64');
+                  item.imageMimeType = mimeTypeMap[ext || 'jpg'] || 'image/jpeg';
+                  console.log(`[AI Render] Loaded image for ${item.name}: ${item.imageData.length} bytes`);
+                }
+              } catch (imgErr) {
+                console.error(`[AI Render] Failed to fetch image for ${item.name}:`, imgErr);
+              }
+            }
+          }
         } catch (e) {
           console.error('Error parsing reference items:', e);
           return res.status(400).json({ error: "Invalid reference items format" });
@@ -4339,7 +4365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Save generated render to project moodboards
   app.post("/api/ai-renders/save", requireAdmin, async (req, res) => {
     try {
-      const { imageData, mimeType, projectId, name, description, styleId, originalFilename } = req.body;
+      const { imageData, mimeType, projectId, name, description, styleId, originalFilename, referenceItems } = req.body;
       
       if (!imageData) {
         return res.status(400).json({ error: "Image data is required" });
@@ -4393,6 +4419,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         validatedProjectId = projectId;
       }
 
+      // Build tags including reference item markers
+      const baseTags: string[] = ['ai-generated', styleId, roomTypeForGrouping.toLowerCase().replace(/\s+/g, '-')];
+      
+      // Add reference item info to tags and build reference metadata for audit trail
+      let referenceItemsDescription = '';
+      let referenceMetadataForStorage: any[] | null = null;
+      
+      if (referenceItems && Array.isArray(referenceItems) && referenceItems.length > 0) {
+        baseTags.push('catalogue-references');
+        
+        // Build detailed reference description for activity log
+        const refDetails = referenceItems.map((r: any) => {
+          const parts = [r.name];
+          if (r.vendorBrand) parts.push(`(${r.vendorBrand})`);
+          if (r.placementInstruction) parts.push(`- ${r.placementInstruction}`);
+          return parts.join(' ');
+        });
+        referenceItemsDescription = ` with catalogue references: ${refDetails.join('; ')}`;
+        
+        // Add individual item IDs as tags for searchability
+        referenceItems.forEach((r: any, idx: number) => {
+          if (r.id) baseTags.push(`ref-${r.id}`);
+        });
+        
+        // Store full reference metadata in dedicated field for reconstruction and auditing
+        referenceMetadataForStorage = referenceItems.map((r: any) => ({
+          catalogueId: r.id,
+          name: r.name,
+          category: r.category,
+          subcategory: r.subcategory,
+          vendorBrand: r.vendorBrand || null,
+          description: r.description || null,
+          aiPromptHints: r.aiPromptHints || null,
+          imagePath: r.imagePath || null,
+          placementInstruction: r.placementInstruction || null,
+        }));
+      }
+
       // Create moodboard entry as a render
       const moodboardData = {
         projectId: validatedProjectId,
@@ -4403,9 +4467,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         filePath: objectPath,
         fileType: extension,
         fileSize: buffer.length.toString(),
-        tags: ['ai-generated', styleId, roomTypeForGrouping.toLowerCase().replace(/\s+/g, '-')],
+        tags: baseTags,
         canvaLink: null,
-        roomType: roomTypeForGrouping
+        roomType: roomTypeForGrouping,
+        referenceMetadata: referenceMetadataForStorage,
       };
 
       const moodboard = await storage.createMoodboard(moodboardData);
@@ -4424,7 +4489,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           activityType: 'render' as any,
           fileName: fileName,
           filePath: objectPath,
-          description: `created AI-generated render "${displayName}"`,
+          description: `created AI-generated render "${displayName}"${referenceItemsDescription}`,
           timestamp: new Date(),
         });
       }
