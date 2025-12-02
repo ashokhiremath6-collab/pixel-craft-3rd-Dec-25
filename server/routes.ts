@@ -1884,6 +1884,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     storage: multer.memoryStorage(),
     limits: {
       fileSize: 50 * 1024 * 1024, // 50MB limit for AI renders
+      fieldSize: 25 * 1024 * 1024, // 25MB limit for fields (base64 reference images)
       files: 1,
     },
     fileFilter: (req, file, cb) => {
