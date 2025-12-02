@@ -41,6 +41,20 @@ export interface RenderStyle {
   prompt: string;
 }
 
+// Reference item for AI render insertion
+export interface ReferenceItem {
+  id: string;
+  name: string;
+  category: string;
+  subcategory: string;
+  vendorBrand?: string;
+  description?: string;
+  aiPromptHints?: string;
+  placementInstruction: string;
+  imageData?: string; // Base64 encoded image
+  imageMimeType?: string;
+}
+
 export const RENDER_STYLES: RenderStyle[] = [
   {
     id: "modern",
@@ -141,24 +155,58 @@ export async function generateInteriorRender(
   imageBase64: string,
   mimeType: string,
   styleId: string,
-  customPrompt?: string
+  customPrompt?: string,
+  referenceItems?: ReferenceItem[]
 ): Promise<{ imageData: string; mimeType: string }> {
   console.log("[Gemini] Starting interior render generation...");
   console.log("[Gemini] Style ID:", styleId);
   console.log("[Gemini] Has custom prompt:", !!customPrompt);
+  console.log("[Gemini] Reference items count:", referenceItems?.length || 0);
   console.log("[Gemini] API Key configured:", !!process.env.AI_INTEGRATIONS_GEMINI_API_KEY);
   console.log("[Gemini] Base URL:", process.env.AI_INTEGRATIONS_GEMINI_BASE_URL);
   
   const style = RENDER_STYLES.find(s => s.id === styleId);
   
-  if (!style && !customPrompt) {
-    throw new Error("Invalid style ID and no custom prompt provided");
+  if (!style && !customPrompt && (!referenceItems || referenceItems.length === 0)) {
+    throw new Error("Invalid style ID and no custom prompt or reference items provided");
   }
 
   try {
     console.log("[Gemini] Compressing image...");
     const compressed = await compressImage(imageBase64, mimeType);
     console.log("[Gemini] Image compressed, size:", compressed.data.length, "bytes");
+
+    // Build reference items instruction block
+    let referenceInstructions = '';
+    const referenceImageParts: any[] = [];
+    
+    if (referenceItems && referenceItems.length > 0) {
+      console.log("[Gemini] Processing reference items...");
+      referenceInstructions = '\n\nREFERENCE MATERIALS/ITEMS TO INSERT:\n';
+      
+      for (let i = 0; i < referenceItems.length; i++) {
+        const item = referenceItems[i];
+        const itemDesc = item.aiPromptHints || item.description || `${item.subcategory} from ${item.vendorBrand || 'unknown vendor'}`;
+        referenceInstructions += `${i + 1}. ${item.name} (${item.category}/${item.subcategory}): ${itemDesc}\n`;
+        referenceInstructions += `   Placement: ${item.placementInstruction}\n`;
+        
+        // Add reference image if available
+        if (item.imageData && item.imageMimeType) {
+          console.log(`[Gemini] Compressing reference image ${i + 1}...`);
+          const refCompressed = await compressImage(item.imageData, item.imageMimeType);
+          referenceImageParts.push({
+            inlineData: { mimeType: refCompressed.mimeType, data: refCompressed.data }
+          });
+          referenceInstructions += `   (Reference image ${i + 1} attached - use this as visual guide)\n`;
+        }
+      }
+      
+      referenceInstructions += '\nINSTRUCTIONS FOR REFERENCE ITEMS:\n';
+      referenceInstructions += '- Study each reference image carefully for color, texture, pattern, and style\n';
+      referenceInstructions += '- Insert or replace items in the render to match the reference images as closely as possible\n';
+      referenceInstructions += '- Follow the placement instructions for where to position each item\n';
+      referenceInstructions += '- Maintain consistent lighting and perspective with the rest of the room\n';
+    }
 
     let prompt: string;
     
@@ -167,7 +215,7 @@ export async function generateInteriorRender(
 DO NOT change anything else. Keep the room layout, furniture positions, colors, materials, and all other elements EXACTLY as they are in the original image.
 
 ONLY make these specific changes:
-${customPrompt}
+${customPrompt}${referenceInstructions}
 
 IMPORTANT RULES:
 - Make MINIMAL changes - only what is explicitly requested above
@@ -175,6 +223,7 @@ IMPORTANT RULES:
 - Keep the same perspective, lighting style, and room dimensions
 - Do not add or remove items unless specifically asked
 - The output should look almost identical to the input, except for the requested changes
+- When inserting reference items, match their appearance as closely as possible
 
 OUTPUT QUALITY:
 - Generate a HIGH RESOLUTION, photorealistic image with maximum detail
@@ -184,30 +233,52 @@ OUTPUT QUALITY:
     } else if (style) {
       prompt = `Transform this interior space image into a photorealistic ${style.name} interior design render. 
 Apply the following design style: ${style.prompt}
-Keep the same room layout and dimensions, but update the furniture, materials, lighting, and decor to match the ${style.name} style.
+Keep the same room layout and dimensions, but update the furniture, materials, lighting, and decor to match the ${style.name} style.${referenceInstructions}
 
 OUTPUT QUALITY REQUIREMENTS:
 - Generate a HIGH RESOLUTION image with maximum detail and clarity
 - Create sharp, crisp textures on all surfaces (wood grain, fabric weave, marble veining)
 - Apply professional architectural photography lighting with realistic shadows
 - Include fine details: realistic reflections, accurate material properties, subtle ambient occlusion
+- When inserting reference items, match their appearance as closely as possible
 - The render should be suitable for large format printing and professional client presentations
 - Ensure photorealistic quality that looks indistinguishable from a real photograph`;
+    } else if (referenceItems && referenceItems.length > 0) {
+      // Reference items only mode
+      prompt = `You are an interior design assistant. Modify this interior image by inserting specific materials and items as described below.
+${referenceInstructions}
+
+IMPORTANT RULES:
+- Insert each reference item according to its placement instruction
+- Match the appearance of reference images as closely as possible
+- Maintain realistic lighting, shadows, and perspective
+- Blend the new items naturally with the existing room
+- Keep other elements of the room unchanged unless necessary for the insertion
+
+OUTPUT QUALITY:
+- Generate a HIGH RESOLUTION, photorealistic image with maximum detail
+- Use sharp textures, realistic materials, and professional lighting
+- Ensure crisp edges and fine details are preserved
+- The final image should be suitable for large format printing and professional presentations`;
     } else {
-      throw new Error("Either a style or custom prompt must be provided");
+      throw new Error("Either a style, custom prompt, or reference items must be provided");
     }
 
     console.log("[Gemini] Calling AI API with model: gemini-2.5-flash-image");
+    
+    // Build parts array: text prompt + source image + reference images
+    const parts: any[] = [
+      { text: prompt },
+      { inlineData: { mimeType: compressed.mimeType, data: compressed.data } },
+      ...referenceImageParts
+    ];
     
     const response = await getAIClient().models.generateContent({
       model: "gemini-2.5-flash-image",
       contents: [
         {
           role: "user",
-          parts: [
-            { text: prompt },
-            { inlineData: { mimeType: compressed.mimeType, data: compressed.data } }
-          ]
+          parts: parts
         }
       ],
       config: {
