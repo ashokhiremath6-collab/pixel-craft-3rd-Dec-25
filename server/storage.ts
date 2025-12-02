@@ -2287,10 +2287,21 @@ export class DBStorage implements IStorage {
   }
 
   async getMainCategories(): Promise<string[]> {
-    const result = await db.selectDistinct({ mainCategory: catalogueItems.mainCategory })
+    // Get categories from existing catalogue items
+    const catalogueResult = await db.selectDistinct({ mainCategory: catalogueItems.mainCategory })
       .from(catalogueItems)
       .orderBy(catalogueItems.mainCategory);
-    return result.map(r => r.mainCategory);
+    const catalogueCategories = catalogueResult.map(r => r.mainCategory);
+    
+    // Get all vendor categories to include them as options
+    const vendorCategoriesResult = await db.select({ name: vendorCategories.name })
+      .from(vendorCategories)
+      .orderBy(vendorCategories.name);
+    const vendorCategoryNames = vendorCategoriesResult.map(r => r.name);
+    
+    // Merge and deduplicate, then sort alphabetically
+    const allCategories = [...new Set([...catalogueCategories, ...vendorCategoryNames])].sort();
+    return allCategories;
   }
 
   async getCatalogueItemsByCategory(mainCategory?: string, subcategory?: string): Promise<CatalogueItem[]> {
