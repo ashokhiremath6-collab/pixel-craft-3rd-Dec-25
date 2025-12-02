@@ -151,313 +151,17 @@ async function enhanceOutputImage(imageBase64: string, mimeType: string): Promis
   }
 }
 
-// Helper function to calculate crop region coordinates
-function getRegionCoordinates(region: string, width: number, height: number): { left: number; top: number; width: number; height: number } {
-  const regionWidth = Math.floor(width / 3);
-  const regionHeight = Math.floor(height / 3);
-  
-  const regionMap: Record<string, { col: number; row: number }> = {
-    'top-left': { col: 0, row: 0 },
-    'top-center': { col: 1, row: 0 },
-    'top-right': { col: 2, row: 0 },
-    'center-left': { col: 0, row: 1 },
-    'center': { col: 1, row: 1 },
-    'center-right': { col: 2, row: 1 },
-    'bottom-left': { col: 0, row: 2 },
-    'bottom-center': { col: 1, row: 2 },
-    'bottom-right': { col: 2, row: 2 },
-  };
-  
-  const pos = regionMap[region] || { col: 1, row: 1 };
-  
-  return {
-    left: pos.col * regionWidth,
-    top: pos.row * regionHeight,
-    width: regionWidth,
-    height: regionHeight
-  };
-}
-
-// Create a feathered mask for smooth blending at edges
-async function createFeatheredMask(width: number, height: number, featherSize: number): Promise<Buffer> {
-  // Create a white rectangle with feathered/gradient edges
-  const channels = 4; // RGBA
-  const data = Buffer.alloc(width * height * channels);
-  
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = (y * width + x) * channels;
-      
-      // Calculate distance from each edge
-      const distLeft = x;
-      const distRight = width - 1 - x;
-      const distTop = y;
-      const distBottom = height - 1 - y;
-      
-      // Find minimum distance to any edge
-      const minDist = Math.min(distLeft, distRight, distTop, distBottom);
-      
-      // Calculate alpha based on distance (feather gradient)
-      let alpha = 255;
-      if (minDist < featherSize) {
-        alpha = Math.round((minDist / featherSize) * 255);
-      }
-      
-      // Set RGBA (white with variable alpha for feathering)
-      data[idx] = 255;     // R
-      data[idx + 1] = 255; // G
-      data[idx + 2] = 255; // B
-      data[idx + 3] = alpha; // A (feathered at edges)
-    }
-  }
-  
-  return sharp(data, { raw: { width, height, channels } })
-    .png()
-    .toBuffer();
-}
-
-// Patch-edit pipeline: crops region with context, generates replacement, composites back with feathered blending
-async function generatePatchEdit(
-  imageBase64: string,
-  mimeType: string,
-  customPrompt: string,
-  referenceItems?: ReferenceItem[],
-  editRegion?: string,
-  customRegionPercent?: {x: number; y: number; width: number; height: number}
-): Promise<{ imageData: string; mimeType: string }> {
-  console.log("[Gemini Patch] Starting context-aware patch-edit pipeline...");
-  
-  // Decode original image and get dimensions
-  const originalBuffer = Buffer.from(imageBase64, 'base64');
-  const metadata = await sharp(originalBuffer).metadata();
-  const { width = 1024, height = 1024 } = metadata;
-  
-  console.log("[Gemini Patch] Original image dimensions:", width, "x", height);
-  
-  // Calculate crop region - use custom percentage region if provided, otherwise grid-based
-  let region: { left: number; top: number; width: number; height: number };
-  
-  if (customRegionPercent && customRegionPercent.width > 2 && customRegionPercent.height > 2) {
-    // Convert percentage coordinates to pixel coordinates
-    region = {
-      left: Math.round((customRegionPercent.x / 100) * width),
-      top: Math.round((customRegionPercent.y / 100) * height),
-      width: Math.round((customRegionPercent.width / 100) * width),
-      height: Math.round((customRegionPercent.height / 100) * height)
-    };
-    // Ensure we don't exceed image bounds
-    region.left = Math.max(0, Math.min(region.left, width - 10));
-    region.top = Math.max(0, Math.min(region.top, height - 10));
-    region.width = Math.min(region.width, width - region.left);
-    region.height = Math.min(region.height, height - region.top);
-    console.log("[Gemini Patch] Using custom region (from %):", region);
-  } else {
-    region = getRegionCoordinates(editRegion || 'center', width, height);
-    console.log("[Gemini Patch] Using grid region:", region);
-  }
-  
-  // Add context padding (15-20% of region size) to help AI understand surrounding context
-  const paddingPercent = 0.18; // 18% padding
-  const paddingX = Math.round(region.width * paddingPercent);
-  const paddingY = Math.round(region.height * paddingPercent);
-  
-  // Calculate expanded region with padding (clamped to image bounds)
-  const expandedRegion = {
-    left: Math.max(0, region.left - paddingX),
-    top: Math.max(0, region.top - paddingY),
-    width: 0,
-    height: 0
-  };
-  expandedRegion.width = Math.min(width - expandedRegion.left, region.width + paddingX * 2);
-  expandedRegion.height = Math.min(height - expandedRegion.top, region.height + paddingY * 2);
-  
-  console.log("[Gemini Patch] Original region:", region);
-  console.log("[Gemini Patch] Expanded region with context:", expandedRegion);
-  
-  // Calculate the inner region position relative to expanded region (for masking)
-  const innerOffset = {
-    left: region.left - expandedRegion.left,
-    top: region.top - expandedRegion.top
-  };
-  
-  // Crop the expanded region (includes context padding)
-  const expandedCropBuffer = await sharp(originalBuffer)
-    .extract({ 
-      left: expandedRegion.left, 
-      top: expandedRegion.top, 
-      width: expandedRegion.width, 
-      height: expandedRegion.height 
-    })
-    .jpeg({ quality: 90 })
-    .toBuffer();
-  
-  const expandedCropBase64 = expandedCropBuffer.toString('base64');
-  console.log("[Gemini Patch] Expanded crop size:", expandedCropBuffer.length, "bytes");
-  
-  // Also prepare full image context (resized for API limits)
-  const fullContextBuffer = await sharp(originalBuffer)
-    .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 75 })
-    .toBuffer();
-  const fullContextBase64 = fullContextBuffer.toString('base64');
-  
-  // Build reference instructions for patch generation
-  let referenceInstructions = '';
-  const referenceImageParts: any[] = [];
-  
-  if (referenceItems && referenceItems.length > 0) {
-    referenceInstructions = '\n\nREFERENCE ITEMS TO INCORPORATE:\n';
-    for (let i = 0; i < referenceItems.length; i++) {
-      const item = referenceItems[i];
-      const itemDesc = item.aiPromptHints || item.description || `${item.subcategory} from ${item.vendorBrand || 'unknown vendor'}`;
-      referenceInstructions += `${i + 1}. ${item.name}: ${itemDesc}\n`;
-      referenceInstructions += `   Placement: ${item.placementInstruction}\n`;
-      
-      if (item.imageData && item.imageMimeType) {
-        const refCompressed = await compressImage(item.imageData, item.imageMimeType);
-        referenceImageParts.push({
-          inlineData: { mimeType: refCompressed.mimeType, data: refCompressed.data }
-        });
-      }
-    }
-  }
-  
-  // Enhanced prompt with context awareness and object consistency
-  const patchPrompt = `TASK: Edit a specific region of an interior room while maintaining perfect visual continuity.
-
-You are provided with:
-1. FULL ROOM CONTEXT (Image 1): The complete room for understanding lighting, perspective, and existing furniture
-2. EDIT REGION WITH PADDING (Image 2): The area to edit, with surrounding context visible at the edges
-
-EDIT REQUEST: ${customPrompt}${referenceInstructions}
-
-CRITICAL REQUIREMENTS FOR SEAMLESS BLENDING:
-
-1. VISUAL CONTINUITY:
-   - The edited region MUST blend seamlessly with surrounding areas
-   - Match the exact wall colors, floor patterns, and textures visible at the edges
-   - Maintain consistent lighting direction, shadows, and ambient color
-   - Preserve perspective lines and vanishing points from the original
-
-2. OBJECT ALIGNMENT & CONSISTENCY:
-   - If adding/modifying furniture similar to existing pieces, ensure IDENTICAL scale, orientation, and style
-   - Match leg angles, arm heights, and proportions of similar objects (e.g., pairs of chairs must be symmetrical)
-   - Align objects with floor planes and maintain proper ground contact
-   - Keep consistent spacing between furniture pieces
-
-3. EDGE TREATMENT:
-   - Elements at the crop boundary must connect naturally with what's outside
-   - Wall edges, floor lines, and architectural elements must continue smoothly
-   - No visible seams, color shifts, or style breaks at boundaries
-
-4. PRESERVATION:
-   - Only modify what's explicitly requested
-   - Keep unchanged elements exactly as they appear in the context
-
-OUTPUT: Generate a HIGH RESOLUTION photorealistic edited version of Image 2 (the edit region) that will composite seamlessly back into the full room.`;
-
-  console.log("[Gemini Patch] Calling AI with full context + expanded region...");
-  
-  // Generate the patch with both full context and expanded crop
-  const parts: any[] = [
-    { text: patchPrompt },
-    { inlineData: { mimeType: 'image/jpeg', data: fullContextBase64 } },
-    { inlineData: { mimeType: 'image/jpeg', data: expandedCropBase64 } },
-    ...referenceImageParts
-  ];
-  
-  const response = await getAIClient().models.generateContent({
-    model: "gemini-2.5-flash-image",
-    contents: [{ role: "user", parts }],
-    config: { responseModalities: [Modality.TEXT, Modality.IMAGE] },
-  });
-  
-  const candidate = response.candidates?.[0];
-  const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
-  
-  if (!imagePart?.inlineData?.data) {
-    throw new Error("No image data in patch generation response");
-  }
-  
-  console.log("[Gemini Patch] Patch generated, size:", imagePart.inlineData.data.length);
-  
-  // Resize the generated patch back to the expanded region size
-  const patchBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
-  const resizedExpandedPatch = await sharp(patchBuffer)
-    .resize(expandedRegion.width, expandedRegion.height, { fit: 'fill' })
-    .png()
-    .toBuffer();
-  
-  console.log("[Gemini Patch] Resized patch to expanded region:", expandedRegion.width, "x", expandedRegion.height);
-  
-  // Extract just the inner region from the generated patch (removing context padding)
-  const innerPatch = await sharp(resizedExpandedPatch)
-    .extract({
-      left: innerOffset.left,
-      top: innerOffset.top,
-      width: region.width,
-      height: region.height
-    })
-    .png()
-    .toBuffer();
-  
-  console.log("[Gemini Patch] Extracted inner patch:", region.width, "x", region.height);
-  
-  // Create feathered mask for smooth blending (feather size = 5% of smallest dimension)
-  const featherSize = Math.round(Math.min(region.width, region.height) * 0.08);
-  const featheredMask = await createFeatheredMask(region.width, region.height, featherSize);
-  
-  // Apply feathered mask to the inner patch
-  const maskedPatch = await sharp(innerPatch)
-    .composite([{
-      input: featheredMask,
-      blend: 'dest-in' // Use mask as alpha channel
-    }])
-    .png()
-    .toBuffer();
-  
-  console.log("[Gemini Patch] Applied feathered mask for blending");
-  
-  // Composite the masked patch back onto the original image
-  const composited = await sharp(originalBuffer)
-    .composite([{
-      input: maskedPatch,
-      left: region.left,
-      top: region.top,
-      blend: 'over' // Blend using patch's alpha channel
-    }])
-    .png({ compressionLevel: 4 })
-    .toBuffer();
-  
-  console.log("[Gemini Patch] Final composited image size:", composited.length, "bytes");
-  
-  // Enhance the final output
-  const enhanced = await enhanceOutputImage(composited.toString('base64'), 'image/png');
-  
-  // Return in the expected format with imageData (not data)
-  return {
-    imageData: enhanced.data,
-    mimeType: enhanced.mimeType
-  };
-}
-
 export async function generateInteriorRender(
   imageBase64: string,
   mimeType: string,
   styleId: string,
   customPrompt?: string,
-  referenceItems?: ReferenceItem[],
-  editRegion?: string,
-  customRegionPercent?: {x: number; y: number; width: number; height: number},
-  editMode?: "smart" | "grid"
+  referenceItems?: ReferenceItem[]
 ): Promise<{ imageData: string; mimeType: string }> {
   console.log("[Gemini] Starting interior render generation...");
   console.log("[Gemini] Style ID:", styleId);
   console.log("[Gemini] Has custom prompt:", !!customPrompt);
   console.log("[Gemini] Reference items count:", referenceItems?.length || 0);
-  console.log("[Gemini] Edit mode:", editMode || "style-only");
-  console.log("[Gemini] Edit region:", editRegion || (customRegionPercent ? "custom" : "full"));
-  console.log("[Gemini] Custom region (%):", customRegionPercent || "none");
   console.log("[Gemini] API Key configured:", !!process.env.AI_INTEGRATIONS_GEMINI_API_KEY);
   console.log("[Gemini] Base URL:", process.env.AI_INTEGRATIONS_GEMINI_BASE_URL);
   
@@ -468,9 +172,6 @@ export async function generateInteriorRender(
   }
 
   try {
-    // Note: We no longer use patch-edit for grid mode as it caused compositing artifacts
-    // Instead, grid mode uses the full-image approach with region focus instructions in the prompt
-    
     console.log("[Gemini] Compressing image...");
     const compressed = await compressImage(imageBase64, mimeType);
     console.log("[Gemini] Image compressed, size:", compressed.data.length, "bytes");
@@ -509,90 +210,26 @@ export async function generateInteriorRender(
 
     let prompt: string;
     
-    // Build region focus instructions for grid mode
-    let regionFocusInstructions = '';
-    if (editMode === "grid") {
-      // Convert named grid regions to percentage coordinates
-      const gridRegionToPercent: Record<string, {x: number; y: number; width: number; height: number}> = {
-        'top-left': { x: 0, y: 0, width: 33, height: 33 },
-        'top-center': { x: 33, y: 0, width: 34, height: 33 },
-        'top-right': { x: 67, y: 0, width: 33, height: 33 },
-        'center-left': { x: 0, y: 33, width: 33, height: 34 },
-        'center': { x: 33, y: 33, width: 34, height: 34 },
-        'center-right': { x: 67, y: 33, width: 33, height: 34 },
-        'bottom-left': { x: 0, y: 67, width: 33, height: 33 },
-        'bottom-center': { x: 33, y: 67, width: 34, height: 33 },
-        'bottom-right': { x: 67, y: 67, width: 33, height: 33 },
-      };
-      
-      let regionPercent: {x: number; y: number; width: number; height: number} | null = null;
-      
-      // Use custom region if provided, otherwise use named grid region
-      if (customRegionPercent && customRegionPercent.width > 2 && customRegionPercent.height > 2) {
-        regionPercent = customRegionPercent;
-      } else if (editRegion && gridRegionToPercent[editRegion]) {
-        regionPercent = gridRegionToPercent[editRegion];
-      }
-      
-      if (regionPercent) {
-        const regionDesc = `The user has selected a specific region of the image:
-- LEFT edge: ${Math.round(regionPercent.x)}% from left side
-- TOP edge: ${Math.round(regionPercent.y)}% from top
-- WIDTH: ${Math.round(regionPercent.width)}% of image width
-- HEIGHT: ${Math.round(regionPercent.height)}% of image height
-
-FOCUS YOUR EDIT on elements within this selected region. Elements OUTSIDE this region should remain COMPLETELY UNCHANGED.`;
-        regionFocusInstructions = `\n\nSELECTED REGION (Grid Mode):\n${regionDesc}\n`;
-      }
-    }
-    
     if (customPrompt && customPrompt.trim()) {
-      // Smart/Grid mode: AI semantically understands what element to modify
-      prompt = `You are an expert interior design AI assistant. Analyze this room image and perform a TARGETED EDIT based on the user's description.
+      prompt = `You are an interior design assistant. Make ONLY the specific changes requested below to this image. 
+DO NOT change anything else. Keep the room layout, furniture positions, colors, materials, and all other elements EXACTLY as they are in the original image.
 
-USER'S EDIT REQUEST: "${customPrompt}"
-${regionFocusInstructions}${referenceInstructions}
+ONLY make these specific changes:
+${customPrompt}${referenceInstructions}
 
-YOUR TASK:
-1. UNDERSTAND: Parse the user's request to identify EXACTLY what element they want to change
-   - "wall color pink" → change ONLY the wall color to pink
-   - "bigger carpet" → make ONLY the carpet larger  
-   - "add plant in corner" → add a plant in a corner, change nothing else
-   - "leather sofa" → change ONLY the sofa material to leather
-   - "remove the lamp" → remove ONLY the lamp
-   - "add another chair" → add a chair that MATCHES existing chairs exactly (same style, scale, orientation)
-   - "second chair" or "duplicate chair" → place the new chair IMMEDIATELY ADJACENT to the existing one, on the same side of the room
+IMPORTANT RULES:
+- Make MINIMAL changes - only what is explicitly requested above
+- Preserve all existing furniture, decor, and layout that is not mentioned
+- Keep the same perspective, lighting style, and room dimensions
+- Do not add or remove items unless specifically asked
+- The output should look almost identical to the input, except for the requested changes
+- When inserting reference items, match their appearance as closely as possible
 
-2. DUPLICATION RULES (when user requests "another", "second", "duplicate", or "identical" item):
-   - Place the duplicate DIRECTLY NEXT TO the original item, NOT across the room
-   - Position duplicates in a PAIR arrangement (side by side, or flanking a centerpiece like a sofa)
-   - Maintain IDENTICAL style, scale, color, and proportions
-   - Match orientation and angle of the original item
-   - Create SYMMETRICAL arrangements when duplicating chairs/lamps around seating areas
-
-3. LOCATE: Find the specific element(s) in the image that match the user's request
-   ${regionFocusInstructions ? '- IMPORTANT: Focus on elements within the user-selected region' : ''}
-   - If they mention "wall", identify all visible walls
-   - If they mention "sofa" or "couch", find the seating furniture
-   - If they mention "floor" or "carpet", identify the floor covering
-
-4. MODIFY: Apply the change ONLY to the identified element
-   - Preserve exact perspective, lighting, and camera angle
-   - Keep all other furniture, decor, and architectural elements UNCHANGED
-   - Blend the modification naturally with realistic shadows and lighting
-   - If adding furniture similar to existing pieces, ensure IDENTICAL style, scale, and proportions
-   - New chairs must match existing chairs exactly (leg angles, arm heights, upholstery)
-
-CRITICAL PRESERVATION RULES:
-- The output image must be 95%+ identical to the input
-- DO NOT change anything not explicitly mentioned in the request
-- DO NOT add decorations or furniture not requested
-- DO NOT modify the room layout, ceiling, or architecture
-- DO NOT adjust colors of items not mentioned
-- Keep the same style and atmosphere of the room
-- Duplicate objects (pairs of chairs, matching lamps) must be SYMMETRICAL and IDENTICAL
-
-OUTPUT: Generate a high-resolution photorealistic result where ONLY the specifically requested element has been modified.`;
+OUTPUT QUALITY:
+- Generate a HIGH RESOLUTION, photorealistic image with maximum detail
+- Use sharp textures, realistic materials, and professional lighting
+- Ensure crisp edges and fine details are preserved
+- The final image should be suitable for large format printing and professional presentations`;
     } else if (style) {
       prompt = `Transform this interior space image into a photorealistic ${style.name} interior design render. 
 Apply the following design style: ${style.prompt}

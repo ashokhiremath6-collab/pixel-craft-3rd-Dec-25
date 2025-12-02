@@ -15,7 +15,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Project, Moodboard } from "@shared/schema";
+import type { Project, Moodboard, CatalogueItem } from "@shared/schema";
 import { 
   Upload, 
   Wand2, 
@@ -33,9 +33,7 @@ import {
   Plus,
   X,
   Palette,
-  Search,
-  Grid3X3,
-  Pencil
+  Search
 } from "lucide-react";
 
 interface ReferenceItem {
@@ -50,10 +48,9 @@ interface ReferenceItem {
   imageData?: string;
   imageMimeType?: string;
   imagePath?: string;
-  type: 'catalogue' | 'uploaded';
 }
 
-interface CatalogueItemForReference {
+interface CatalogueItem {
   id: string;
   mainCategory: string;
   subcategory: string;
@@ -82,7 +79,6 @@ export default function AIRendersPage() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const referenceFileInputRef = useRef<HTMLInputElement>(null);
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string>("");
@@ -99,15 +95,6 @@ export default function AIRendersPage() {
   const [referenceItems, setReferenceItems] = useState<ReferenceItem[]>([]);
   const [catalogueSearch, setCatalogueSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [editMode, setEditMode] = useState<"smart" | "grid">("smart");
-  const [editRegion, setEditRegion] = useState<string | null>(null);
-  const [customRegion, setCustomRegion] = useState<{x: number; y: number; width: number; height: number} | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<{x: number; y: number} | null>(null);
-  const [isResizing, setIsResizing] = useState(false);
-  const [resizeHandle, setResizeHandle] = useState<string | null>(null);
-  const imagePreviewRef = useRef<HTMLImageElement>(null);
-  const imageContainerRef = useRef<HTMLDivElement>(null);
 
   const { data: user, isLoading: userLoading, isError: userError, refetch: refetchUser } = useQuery<{ role: string }>({
     queryKey: ['/api/auth/user'],
@@ -130,7 +117,7 @@ export default function AIRendersPage() {
     },
   });
 
-  const { data: catalogueItems = [] } = useQuery<CatalogueItemForReference[]>({
+  const { data: catalogueItems = [] } = useQuery<CatalogueItem[]>({
     queryKey: ['/api/ai-renders/catalogue-references', selectedCategory, catalogueSearch],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -264,7 +251,7 @@ export default function AIRendersPage() {
     }
   };
 
-  const addCatalogueItemAsReference = async (item: CatalogueItemForReference) => {
+  const addCatalogueItemAsReference = async (item: CatalogueItem) => {
     if (referenceItems.length >= 3) {
       toast({
         title: "Limit Reached",
@@ -307,7 +294,6 @@ export default function AIRendersPage() {
       imageData,
       imageMimeType,
       imagePath: imagePath || undefined,
-      type: 'catalogue',
     };
 
     setReferenceItems(prev => [...prev, newReference]);
@@ -315,67 +301,6 @@ export default function AIRendersPage() {
       title: "Item Added",
       description: `${newReference.name} added to references`
     });
-  };
-
-  const handleReferenceImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (referenceItems.length >= 3) {
-      toast({
-        title: "Limit Reached",
-        description: "Maximum 3 reference items allowed",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Invalid File",
-        description: "Please upload an image file (JPG, PNG, WebP)",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = (reader.result as string).split(',')[1];
-        const previewUrl = URL.createObjectURL(file);
-        
-        const newReference: ReferenceItem = {
-          id: `upload-${Date.now()}`,
-          name: file.name.replace(/\.[^/.]+$/, ''),
-          category: 'Uploaded Reference',
-          subcategory: 'Custom Upload',
-          placementInstruction: "",
-          imageData: base64,
-          imageMimeType: file.type,
-          imagePath: previewUrl,
-          type: 'uploaded',
-        };
-
-        setReferenceItems(prev => [...prev, newReference]);
-        toast({
-          title: "Image Added",
-          description: `${newReference.name} added as reference`
-        });
-      };
-      reader.readAsDataURL(file);
-    } catch {
-      toast({
-        title: "Upload Failed",
-        description: "Could not process the image",
-        variant: "destructive"
-      });
-    }
-
-    // Reset the input
-    if (referenceFileInputRef.current) {
-      referenceFileInputRef.current.value = '';
-    }
   };
 
   const removeReferenceItem = (id: string) => {
@@ -390,87 +315,8 @@ export default function AIRendersPage() {
     );
   };
 
-  // Drag handlers for custom region selection (grid mode only)
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (editMode !== "grid" || !imageContainerRef.current) return;
-    e.preventDefault();
-    const rect = imageContainerRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setDragStart({ x, y });
-    setIsDragging(true);
-    setEditRegion(null);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!imageContainerRef.current) return;
-    
-    // Handle resizing (grid mode only)
-    if (editMode === "grid" && isResizing && customRegion && resizeHandle) {
-      const rect = imageContainerRef.current.getBoundingClientRect();
-      const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-      const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-      
-      let newRegion = { ...customRegion };
-      const minSize = 10; // Minimum 10% size
-      
-      if (resizeHandle.includes('e')) {
-        newRegion.width = Math.max(minSize, x - customRegion.x);
-      }
-      if (resizeHandle.includes('w')) {
-        const newX = Math.min(x, customRegion.x + customRegion.width - minSize);
-        newRegion.width = customRegion.x + customRegion.width - newX;
-        newRegion.x = newX;
-      }
-      if (resizeHandle.includes('s')) {
-        newRegion.height = Math.max(minSize, y - customRegion.y);
-      }
-      if (resizeHandle.includes('n')) {
-        const newY = Math.min(y, customRegion.y + customRegion.height - minSize);
-        newRegion.height = customRegion.y + customRegion.height - newY;
-        newRegion.y = newY;
-      }
-      
-      setCustomRegion(newRegion);
-      return;
-    }
-    
-    // Handle dragging to create new region (grid mode only)
-    if (editMode === "grid" && isDragging && dragStart) {
-      const rect = imageContainerRef.current.getBoundingClientRect();
-      const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-      const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-      
-      setCustomRegion({
-        x: Math.min(dragStart.x, x),
-        y: Math.min(dragStart.y, y),
-        width: Math.abs(x - dragStart.x),
-        height: Math.abs(y - dragStart.y)
-      });
-    }
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-    setDragStart(null);
-    setIsResizing(false);
-    setResizeHandle(null);
-  };
-
-  const handleResizeStart = (e: React.MouseEvent, handle: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsResizing(true);
-    setResizeHandle(handle);
-  };
-
-  const clearCustomRegion = () => {
-    setCustomRegion(null);
-    setEditRegion(null);
-  };
-
   const generateFromImageMutation = useMutation({
-    mutationFn: async (data: { file: File; styleId: string; customPrompt?: string; referenceItems?: ReferenceItem[]; editRegion?: string | null; customRegionPercent?: {x: number; y: number; width: number; height: number} | null; editMode?: "smart" | "grid" }) => {
+    mutationFn: async (data: { file: File; styleId: string; customPrompt?: string; referenceItems?: ReferenceItem[] }) => {
       const compressedBlob = await compressImageOnClient(data.file);
       const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
       
@@ -482,15 +328,6 @@ export default function AIRendersPage() {
       }
       if (data.referenceItems && data.referenceItems.length > 0) {
         formData.append('referenceItems', JSON.stringify(data.referenceItems));
-      }
-      if (data.editRegion) {
-        formData.append('editRegion', data.editRegion);
-      }
-      if (data.customRegionPercent) {
-        formData.append('customRegionPercent', JSON.stringify(data.customRegionPercent));
-      }
-      if (data.editMode) {
-        formData.append('editMode', data.editMode);
       }
       
       const response = await fetch('/api/ai-renders/generate', {
@@ -572,7 +409,6 @@ export default function AIRendersPage() {
       styleId: string;
       description?: string;
       originalFilename?: string;
-      referenceItems?: { id: string; name: string; type: string; placementInstruction: string; }[];
     }) => {
       return apiRequest('POST', '/api/ai-renders/save', data);
     },
@@ -657,9 +493,6 @@ export default function AIRendersPage() {
       styleId: selectedStyle,
       customPrompt: customPrompt || undefined,
       referenceItems: validReferenceItems.length > 0 ? validReferenceItems : undefined,
-      editRegion: editMode === "grid" ? (editRegion || undefined) : undefined,
-      customRegionPercent: editMode === "grid" ? (customRegion || undefined) : undefined,
-      editMode: customPrompt?.trim() ? editMode : undefined,
     });
   };
 
@@ -703,7 +536,12 @@ export default function AIRendersPage() {
       referenceItems: referenceItems.map(item => ({
         id: item.id,
         name: item.name,
-        type: item.type,
+        category: item.category,
+        subcategory: item.subcategory,
+        vendorBrand: item.vendorBrand,
+        description: item.description,
+        aiPromptHints: item.aiPromptHints,
+        imagePath: item.imagePath,
         placementInstruction: item.placementInstruction,
       })),
     });
@@ -739,47 +577,6 @@ export default function AIRendersPage() {
     document.body.removeChild(link);
   };
 
-  const handleEditThisResult = () => {
-    if (!generatedRender) return;
-    
-    // Convert base64 to Blob and then to File
-    const byteCharacters = atob(generatedRender.imageData);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: generatedRender.mimeType });
-    
-    // Create a new File from the blob
-    const styleName = generatedRender.styleName || generatedRender.styleId;
-    const fileName = `${styleName}-render-${Date.now()}.png`;
-    const file = new File([blob], fileName, { type: generatedRender.mimeType });
-    
-    // Set as the new source image
-    setSelectedFile(file);
-    const url = URL.createObjectURL(blob);
-    setPreviewUrl(url);
-    setSelectedSavedRenderUrl(null);
-    
-    // Clear edit settings for fresh editing
-    setCustomPrompt("");
-    setCustomRegion(null);
-    setEditRegion(null);
-    setReferenceItems([]);
-    
-    // Close the full-size dialog but keep the generatedRender state
-    // so users can still access it via the thumbnail for download/save
-    setShowFullSize(false);
-    // Note: Don't clear generatedRender - keep it visible so user can still download/save
-    // It will be replaced when a new render is generated
-    
-    toast({
-      title: "Ready for More Edits",
-      description: "The render is now your source image. You can still download/save the previous render, then add new instructions to continue editing.",
-    });
-  };
-
   const handleClearAll = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
@@ -792,7 +589,7 @@ export default function AIRendersPage() {
     }
   };
 
-  const getCatalogueItemImageUrl = (item: CatalogueItemForReference) => {
+  const getCatalogueItemImageUrl = (item: CatalogueItem) => {
     return item.aiImagePath || item.filePath;
   };
 
@@ -870,163 +667,54 @@ export default function AIRendersPage() {
                     </Button>
                   </div>
                   {previewUrl && (
-                    <div className="mt-3 space-y-2">
-                      <div 
-                        ref={imageContainerRef}
-                        className={`relative inline-block select-none ${editMode === "grid" ? "cursor-crosshair" : ""}`}
-                        onMouseDown={handleMouseDown}
-                        onMouseMove={handleMouseMove}
-                        onMouseUp={handleMouseUp}
-                        onMouseLeave={handleMouseUp}
-                      >
-                        <img 
-                          ref={imagePreviewRef}
-                          src={previewUrl} 
-                          alt="Preview" 
-                          className="max-h-48 rounded-lg border object-contain pointer-events-none"
-                          data-testid="image-preview"
-                          draggable={false}
-                        />
-                        {selectedSavedRenderUrl && (
-                          <Badge className="absolute top-2 left-2 pointer-events-none" variant="secondary">
-                            From Saved
-                          </Badge>
-                        )}
-                        {editMode === "grid" && customRegion && customRegion.width > 2 && customRegion.height > 2 && (
-                          <div 
-                            className="absolute border-2 border-primary bg-primary/30 rounded"
-                            style={{
-                              left: `${customRegion.x}%`,
-                              top: `${customRegion.y}%`,
-                              width: `${customRegion.width}%`,
-                              height: `${customRegion.height}%`
-                            }}
-                          >
-                            <div className="absolute -top-1 -left-1 w-3 h-3 bg-primary rounded-full cursor-nw-resize" onMouseDown={(e) => handleResizeStart(e, 'nw')} />
-                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full cursor-ne-resize" onMouseDown={(e) => handleResizeStart(e, 'ne')} />
-                            <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-primary rounded-full cursor-sw-resize" onMouseDown={(e) => handleResizeStart(e, 'sw')} />
-                            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-primary rounded-full cursor-se-resize" onMouseDown={(e) => handleResizeStart(e, 'se')} />
-                          </div>
-                        )}
-                        {editMode === "grid" && !customRegion && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg pointer-events-none">
-                            <span className="text-white text-sm font-medium bg-black/50 px-3 py-1 rounded">
-                              Drag to select area
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="border rounded-lg p-3 bg-muted/20">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Label className="text-sm font-medium">Edit Mode</Label>
-                    <div className="flex gap-1">
-                      <Button 
-                        variant={editMode === "smart" ? "default" : "outline"} 
-                        size="sm"
-                        onClick={() => { setEditMode("smart"); clearCustomRegion(); }}
-                        data-testid="button-smart-mode"
-                      >
-                        <Wand2 className="h-3 w-3 mr-1" />
-                        Smart
-                      </Button>
-                      <Button 
-                        variant={editMode === "grid" ? "default" : "outline"} 
-                        size="sm"
-                        onClick={() => setEditMode("grid")}
-                        data-testid="button-grid-mode"
-                      >
-                        <Grid3X3 className="h-3 w-3 mr-1" />
-                        Grid
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  {editMode === "smart" ? (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">
-                        Describe what to change and AI will identify and modify just that element
-                      </p>
-                      <Textarea
-                        id="custom-prompt"
-                        placeholder='Examples: "wall color pink", "bigger carpet", "add a plant in the corner", "change sofa to leather"'
-                        value={customPrompt}
-                        onChange={(e) => setCustomPrompt(e.target.value)}
-                        className="min-h-[80px]"
-                        data-testid="input-custom-prompt"
+                    <div className="mt-3 relative">
+                      <img 
+                        src={previewUrl} 
+                        alt="Preview" 
+                        className="max-h-48 rounded-lg border object-contain"
+                        data-testid="image-preview"
                       />
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">
-                        Draw a box on the image above, then describe what to change in that area
-                      </p>
-                      <Textarea
-                        id="custom-prompt-grid"
-                        placeholder="Describe what to change in the selected area..."
-                        value={customPrompt}
-                        onChange={(e) => setCustomPrompt(e.target.value)}
-                        className="min-h-[60px]"
-                        data-testid="input-custom-prompt-grid"
-                      />
-                      {customRegion && customRegion.width > 2 && (
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="text-xs">
-                            Selection: {Math.round(customRegion.width)}% x {Math.round(customRegion.height)}%
-                          </Badge>
-                          <Button variant="ghost" size="sm" onClick={clearCustomRegion} className="h-6 px-2">
-                            <X className="h-3 w-3 mr-1" />
-                            Clear
-                          </Button>
-                        </div>
+                      {selectedSavedRenderUrl && (
+                        <Badge className="absolute top-2 left-2" variant="secondary">
+                          From Saved
+                        </Badge>
                       )}
                     </div>
                   )}
                 </div>
 
-                <div className="border rounded-lg p-3 bg-muted/30">
-                  <input
-                    type="file"
-                    ref={referenceFileInputRef}
-                    onChange={handleReferenceImageUpload}
-                    accept="image/*"
-                    className="hidden"
-                    data-testid="input-reference-file"
+                <div>
+                  <Label htmlFor="custom-prompt">Custom Instructions (Optional)</Label>
+                  <Textarea
+                    id="custom-prompt"
+                    placeholder="Add specific instructions like 'add more plants' or 'change the sofa to leather'"
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    className="mt-2"
+                    data-testid="input-custom-prompt"
                   />
+                </div>
+
+                <div className="border rounded-lg p-3 bg-muted/30">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <Palette className="h-4 w-4 text-primary" />
                       <Label className="text-sm font-medium">Reference Materials</Label>
                       <Badge variant="outline" className="text-xs">{referenceItems.length}/3</Badge>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => referenceFileInputRef.current?.click()}
-                        disabled={referenceItems.length >= 3}
-                        data-testid="button-upload-reference"
-                      >
-                        <Upload className="h-4 w-4 mr-1" />
-                        Photo
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowCatalogueBrowser(true)}
-                        disabled={referenceItems.length >= 3}
-                        data-testid="button-add-reference"
-                      >
-                        <FolderOpen className="h-4 w-4 mr-1" />
-                        Catalogue
-                      </Button>
-                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowCatalogueBrowser(true)}
+                      disabled={referenceItems.length >= 3}
+                      data-testid="button-add-reference"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add
+                    </Button>
                   </div>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Upload a photo or select from your catalogue to use as reference for the AI render
+                    Select furniture, finishes, or materials from your catalogue to insert into the render
                   </p>
                   
                   {referenceItems.length === 0 ? (
@@ -1046,13 +734,8 @@ export default function AIRendersPage() {
                               />
                             )}
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-1">
-                                <div className="flex items-center gap-1 min-w-0">
-                                  <span className="text-sm font-medium truncate">{item.name}</span>
-                                  <Badge variant={item.type === 'uploaded' ? 'secondary' : 'outline'} className="text-[10px] px-1 shrink-0">
-                                    {item.type === 'uploaded' ? 'Photo' : 'Catalogue'}
-                                  </Badge>
-                                </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium truncate">{item.name}</span>
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -1199,11 +882,11 @@ export default function AIRendersPage() {
                   </Select>
                 </div>
 
-                <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
                   <Button 
                     onClick={handleSaveRender}
                     disabled={saveRenderMutation.isPending}
-                    className="w-full"
+                    className="flex-1"
                     data-testid="button-save-render"
                   >
                     {saveRenderMutation.isPending ? (
@@ -1219,19 +902,8 @@ export default function AIRendersPage() {
                     )}
                   </Button>
                   <Button 
-                    variant="secondary" 
-                    onClick={handleEditThisResult}
-                    title="Use this render as the new source image for further editing"
-                    className="w-full"
-                    data-testid="button-edit-result"
-                  >
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit This Result
-                  </Button>
-                  <Button 
                     variant="outline" 
                     onClick={handleDownload}
-                    className="w-full"
                     data-testid="button-download-render"
                   >
                     <Download className="h-4 w-4 mr-2" />
@@ -1369,15 +1041,11 @@ export default function AIRendersPage() {
                 data-testid="image-generated-render-fullsize"
               />
               <div className="flex justify-center gap-2 mt-4">
-                <Button onClick={handleEditThisResult} variant="default" data-testid="button-edit-this-result">
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit This Result
-                </Button>
-                <Button onClick={handleDownload} variant="outline" data-testid="button-download-fullsize">
+                <Button onClick={handleDownload} data-testid="button-download-fullsize">
                   <Download className="h-4 w-4 mr-2" />
                   Download
                 </Button>
-                <Button variant="ghost" onClick={() => setShowFullSize(false)}>
+                <Button variant="outline" onClick={() => setShowFullSize(false)}>
                   Close
                 </Button>
               </div>

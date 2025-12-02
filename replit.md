@@ -100,16 +100,6 @@ Preferred communication style: Simple, everyday language.
   - File upload support for specification documents (PDF, Word, Excel)
   - Auto-fill category from filter selection when adding new documents
   - Admin/Designer only access for document management
-- **AI Renders System**: Gemini-powered interior design render generation
-  - Upload floor plans or describe spaces to generate styled renders
-  - Multiple design styles: Modern Minimalist, Scandinavian, Industrial, etc.
-  - Reference Materials: Up to 3 catalogue items or uploaded photos per render
-    - Catalogue references: Link items from the product catalogue with placement instructions
-    - Photo references: Upload custom inspiration images directly
-    - Placement instructions required for each reference item
-    - Full traceability: Reference metadata stored in dedicated jsonb column
-  - Server-side image enrichment: Fetches catalogue images from object storage
-  - Renders saved with project association, room type grouping, and activity logging
 
 ### Advanced Project Scheduling
 - **Gantt Chart Template**: 250-row Excel template with Instructions sheet

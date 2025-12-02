@@ -1884,7 +1884,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     storage: multer.memoryStorage(),
     limits: {
       fileSize: 50 * 1024 * 1024, // 50MB limit for AI renders
-      fieldSize: 25 * 1024 * 1024, // 25MB limit for fields (base64 reference images)
       files: 1,
     },
     fileFilter: (req, file, cb) => {
@@ -4253,27 +4252,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No image uploaded" });
       }
 
-      const { styleId, customPrompt, referenceItems, editRegion, customRegionPercent, editMode } = req.body;
+      const { styleId, customPrompt, referenceItems } = req.body;
       
       if (!styleId && !referenceItems) {
         return res.status(400).json({ error: "Style ID or reference items are required" });
       }
-      
-      // Parse custom region if provided (only used in grid mode)
-      let parsedCustomRegion = undefined;
-      if (customRegionPercent && editMode === "grid") {
-        try {
-          parsedCustomRegion = typeof customRegionPercent === 'string' 
-            ? JSON.parse(customRegionPercent) 
-            : customRegionPercent;
-          console.log("[AI Render] Custom region (%):", parsedCustomRegion);
-        } catch (e) {
-          console.error('Error parsing custom region:', e);
-        }
-      }
-      
-      console.log("[AI Render] Edit mode:", editMode || "style-only");
-      console.log("[AI Render] Edit region:", editMode === "grid" ? (editRegion || (parsedCustomRegion ? "custom" : "none")) : "smart-detection");
       
       // Parse reference items if provided as JSON string
       let parsedReferenceItems = undefined;
@@ -4325,16 +4308,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const imageBase64 = req.file.buffer.toString('base64');
       const mimeType = req.file.mimetype;
 
-      // Generate the render with optional reference items and edit region/mode
+      // Generate the render with optional reference items
       const result = await generateInteriorRender(
         imageBase64, 
         mimeType, 
         styleId || 'modern', // Default style if using reference items only
         customPrompt,
-        parsedReferenceItems,
-        editMode === "grid" ? (editRegion || undefined) : undefined,
-        editMode === "grid" ? parsedCustomRegion : undefined,
-        editMode as "smart" | "grid" | undefined
+        parsedReferenceItems
       );
       
       // Return the generated image as base64
@@ -4447,22 +4427,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let referenceMetadataForStorage: any[] | null = null;
       
       if (referenceItems && Array.isArray(referenceItems) && referenceItems.length > 0) {
-        // Check if we have any catalogue items or uploaded photos
-        const hasCatalogueItems = referenceItems.some((r: any) => r.type !== 'uploaded');
-        const hasUploadedPhotos = referenceItems.some((r: any) => r.type === 'uploaded');
-        
-        if (hasCatalogueItems) baseTags.push('catalogue-references');
-        if (hasUploadedPhotos) baseTags.push('photo-references');
+        baseTags.push('catalogue-references');
         
         // Build detailed reference description for activity log
         const refDetails = referenceItems.map((r: any) => {
-          const typeLabel = r.type === 'uploaded' ? '[Photo]' : '[Catalogue]';
-          const parts = [`${typeLabel} ${r.name}`];
+          const parts = [r.name];
           if (r.vendorBrand) parts.push(`(${r.vendorBrand})`);
           if (r.placementInstruction) parts.push(`- ${r.placementInstruction}`);
           return parts.join(' ');
         });
-        referenceItemsDescription = ` with references: ${refDetails.join('; ')}`;
+        referenceItemsDescription = ` with catalogue references: ${refDetails.join('; ')}`;
         
         // Add individual item IDs as tags for searchability
         referenceItems.forEach((r: any, idx: number) => {
@@ -4471,8 +4445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Store full reference metadata in dedicated field for reconstruction and auditing
         referenceMetadataForStorage = referenceItems.map((r: any) => ({
-          type: r.type || 'catalogue',
-          catalogueId: r.type === 'uploaded' ? null : r.id,
+          catalogueId: r.id,
           name: r.name,
           category: r.category,
           subcategory: r.subcategory,
