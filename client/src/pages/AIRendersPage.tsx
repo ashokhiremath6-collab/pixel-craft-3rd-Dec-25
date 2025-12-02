@@ -97,6 +97,8 @@ export default function AIRendersPage() {
   const [referenceItems, setReferenceItems] = useState<ReferenceItem[]>([]);
   const [catalogueSearch, setCatalogueSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [editRegion, setEditRegion] = useState<string | null>(null);
+  const imagePreviewRef = useRef<HTMLImageElement>(null);
 
   const { data: user, isLoading: userLoading, isError: userError, refetch: refetchUser } = useQuery<{ role: string }>({
     queryKey: ['/api/auth/user'],
@@ -380,7 +382,7 @@ export default function AIRendersPage() {
   };
 
   const generateFromImageMutation = useMutation({
-    mutationFn: async (data: { file: File; styleId: string; customPrompt?: string; referenceItems?: ReferenceItem[] }) => {
+    mutationFn: async (data: { file: File; styleId: string; customPrompt?: string; referenceItems?: ReferenceItem[]; editRegion?: string | null }) => {
       const compressedBlob = await compressImageOnClient(data.file);
       const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
       
@@ -392,6 +394,9 @@ export default function AIRendersPage() {
       }
       if (data.referenceItems && data.referenceItems.length > 0) {
         formData.append('referenceItems', JSON.stringify(data.referenceItems));
+      }
+      if (data.editRegion) {
+        formData.append('editRegion', data.editRegion);
       }
       
       const response = await fetch('/api/ai-renders/generate', {
@@ -558,6 +563,7 @@ export default function AIRendersPage() {
       styleId: selectedStyle,
       customPrompt: customPrompt || undefined,
       referenceItems: validReferenceItems.length > 0 ? validReferenceItems : undefined,
+      editRegion: customPrompt?.trim() ? editRegion : undefined,
     });
   };
 
@@ -727,17 +733,52 @@ export default function AIRendersPage() {
                     </Button>
                   </div>
                   {previewUrl && (
-                    <div className="mt-3 relative">
-                      <img 
-                        src={previewUrl} 
-                        alt="Preview" 
-                        className="max-h-48 rounded-lg border object-contain"
-                        data-testid="image-preview"
-                      />
-                      {selectedSavedRenderUrl && (
-                        <Badge className="absolute top-2 left-2" variant="secondary">
-                          From Saved
-                        </Badge>
+                    <div className="mt-3 space-y-2">
+                      <div className="relative inline-block">
+                        <img 
+                          ref={imagePreviewRef}
+                          src={previewUrl} 
+                          alt="Preview" 
+                          className="max-h-48 rounded-lg border object-contain"
+                          data-testid="image-preview"
+                        />
+                        {selectedSavedRenderUrl && (
+                          <Badge className="absolute top-2 left-2" variant="secondary">
+                            From Saved
+                          </Badge>
+                        )}
+                        {customPrompt.trim() && (
+                          <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-[1px] rounded-lg overflow-hidden">
+                            {['top-left', 'top-center', 'top-right', 'center-left', 'center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right'].map((region) => (
+                              <button
+                                key={region}
+                                onClick={() => setEditRegion(editRegion === region ? null : region)}
+                                className={`transition-all ${
+                                  editRegion === region 
+                                    ? 'bg-primary/40 border-2 border-primary' 
+                                    : 'bg-transparent hover:bg-primary/20 border border-white/30'
+                                }`}
+                                title={`Edit ${region.replace('-', ' ')}`}
+                                data-testid={`region-${region}`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {customPrompt.trim() && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-muted-foreground">Edit region:</span>
+                          {editRegion ? (
+                            <Badge variant="default" className="capitalize">
+                              {editRegion.replace('-', ' ')}
+                              <button onClick={() => setEditRegion(null)} className="ml-1 hover:text-destructive">
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground italic">Click image to select area to edit (recommended)</span>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}

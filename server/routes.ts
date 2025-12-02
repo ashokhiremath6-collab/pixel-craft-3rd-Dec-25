@@ -4253,11 +4253,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No image uploaded" });
       }
 
-      const { styleId, customPrompt, referenceItems } = req.body;
+      const { styleId, customPrompt, referenceItems, editRegion } = req.body;
       
       if (!styleId && !referenceItems) {
         return res.status(400).json({ error: "Style ID or reference items are required" });
       }
+      
+      console.log("[AI Render] Edit region:", editRegion || "full image");
       
       // Parse reference items if provided as JSON string
       let parsedReferenceItems = undefined;
@@ -4309,13 +4311,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const imageBase64 = req.file.buffer.toString('base64');
       const mimeType = req.file.mimetype;
 
-      // Generate the render with optional reference items
+      // Generate the render with optional reference items and edit region
       const result = await generateInteriorRender(
         imageBase64, 
         mimeType, 
         styleId || 'modern', // Default style if using reference items only
         customPrompt,
-        parsedReferenceItems
+        parsedReferenceItems,
+        editRegion || undefined
       );
       
       // Return the generated image as base64

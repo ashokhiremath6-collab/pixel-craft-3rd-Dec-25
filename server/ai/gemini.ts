@@ -151,17 +151,164 @@ async function enhanceOutputImage(imageBase64: string, mimeType: string): Promis
   }
 }
 
+// Helper function to calculate crop region coordinates
+function getRegionCoordinates(region: string, width: number, height: number): { left: number; top: number; width: number; height: number } {
+  const regionWidth = Math.floor(width / 3);
+  const regionHeight = Math.floor(height / 3);
+  
+  const regionMap: Record<string, { col: number; row: number }> = {
+    'top-left': { col: 0, row: 0 },
+    'top-center': { col: 1, row: 0 },
+    'top-right': { col: 2, row: 0 },
+    'center-left': { col: 0, row: 1 },
+    'center': { col: 1, row: 1 },
+    'center-right': { col: 2, row: 1 },
+    'bottom-left': { col: 0, row: 2 },
+    'bottom-center': { col: 1, row: 2 },
+    'bottom-right': { col: 2, row: 2 },
+  };
+  
+  const pos = regionMap[region] || { col: 1, row: 1 };
+  
+  return {
+    left: pos.col * regionWidth,
+    top: pos.row * regionHeight,
+    width: regionWidth,
+    height: regionHeight
+  };
+}
+
+// Patch-edit pipeline: crops region, generates replacement, composites back
+async function generatePatchEdit(
+  imageBase64: string,
+  mimeType: string,
+  customPrompt: string,
+  referenceItems?: ReferenceItem[],
+  editRegion?: string
+): Promise<{ imageData: string; mimeType: string }> {
+  console.log("[Gemini Patch] Starting patch-edit pipeline...");
+  
+  // Decode original image and get dimensions
+  const originalBuffer = Buffer.from(imageBase64, 'base64');
+  const metadata = await sharp(originalBuffer).metadata();
+  const { width = 1024, height = 1024 } = metadata;
+  
+  console.log("[Gemini Patch] Original image dimensions:", width, "x", height);
+  
+  // Calculate crop region
+  const region = getRegionCoordinates(editRegion || 'center', width, height);
+  console.log("[Gemini Patch] Crop region:", region);
+  
+  // Crop the region from the original image
+  const croppedBuffer = await sharp(originalBuffer)
+    .extract({ left: region.left, top: region.top, width: region.width, height: region.height })
+    .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+  
+  const croppedBase64 = croppedBuffer.toString('base64');
+  console.log("[Gemini Patch] Cropped region size:", croppedBuffer.length, "bytes");
+  
+  // Build reference instructions for patch generation
+  let referenceInstructions = '';
+  const referenceImageParts: any[] = [];
+  
+  if (referenceItems && referenceItems.length > 0) {
+    referenceInstructions = '\n\nREFERENCE IMAGE TO USE:\n';
+    for (let i = 0; i < referenceItems.length; i++) {
+      const item = referenceItems[i];
+      const itemDesc = item.aiPromptHints || item.description || `${item.subcategory} from ${item.vendorBrand || 'unknown vendor'}`;
+      referenceInstructions += `${i + 1}. ${item.name}: ${itemDesc}\n`;
+      referenceInstructions += `   Use this to: ${item.placementInstruction}\n`;
+      
+      if (item.imageData && item.imageMimeType) {
+        const refCompressed = await compressImage(item.imageData, item.imageMimeType);
+        referenceImageParts.push({
+          inlineData: { mimeType: refCompressed.mimeType, data: refCompressed.data }
+        });
+      }
+    }
+  }
+  
+  // Prompt specifically for the cropped region
+  const patchPrompt = `TASK: Edit this cropped portion of an interior room image.
+
+EDIT REQUEST: ${customPrompt}${referenceInstructions}
+
+CRITICAL INSTRUCTIONS:
+- This is a CROPPED SECTION of a larger room image
+- Apply ONLY the specific edit requested above
+- Keep the same perspective, lighting, and style as the original
+- If a reference image is provided, use it to replace/modify the requested element
+- Maintain realistic proportions and scale
+- The output should blend seamlessly when composited back into the original
+
+OUTPUT: Generate a high-resolution photorealistic edited version of this cropped section.`;
+
+  console.log("[Gemini Patch] Calling AI for patch generation...");
+  
+  // Generate the patch
+  const parts: any[] = [
+    { text: patchPrompt },
+    { inlineData: { mimeType: 'image/jpeg', data: croppedBase64 } },
+    ...referenceImageParts
+  ];
+  
+  const response = await getAIClient().models.generateContent({
+    model: "gemini-2.5-flash-image",
+    contents: [{ role: "user", parts }],
+    config: { responseModalities: [Modality.TEXT, Modality.IMAGE] },
+  });
+  
+  const candidate = response.candidates?.[0];
+  const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
+  
+  if (!imagePart?.inlineData?.data) {
+    throw new Error("No image data in patch generation response");
+  }
+  
+  console.log("[Gemini Patch] Patch generated, size:", imagePart.inlineData.data.length);
+  
+  // Resize the generated patch back to the original region size
+  const patchBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
+  const resizedPatch = await sharp(patchBuffer)
+    .resize(region.width, region.height, { fit: 'fill' })
+    .png()
+    .toBuffer();
+  
+  console.log("[Gemini Patch] Resized patch to:", region.width, "x", region.height);
+  
+  // Composite the patch back onto the original image
+  const composited = await sharp(originalBuffer)
+    .composite([{
+      input: resizedPatch,
+      left: region.left,
+      top: region.top
+    }])
+    .png({ compressionLevel: 4 })
+    .toBuffer();
+  
+  console.log("[Gemini Patch] Final composited image size:", composited.length, "bytes");
+  
+  // Enhance the final output
+  const enhanced = await enhanceOutputImage(composited.toString('base64'), 'image/png');
+  
+  return enhanced;
+}
+
 export async function generateInteriorRender(
   imageBase64: string,
   mimeType: string,
   styleId: string,
   customPrompt?: string,
-  referenceItems?: ReferenceItem[]
+  referenceItems?: ReferenceItem[],
+  editRegion?: string
 ): Promise<{ imageData: string; mimeType: string }> {
   console.log("[Gemini] Starting interior render generation...");
   console.log("[Gemini] Style ID:", styleId);
   console.log("[Gemini] Has custom prompt:", !!customPrompt);
   console.log("[Gemini] Reference items count:", referenceItems?.length || 0);
+  console.log("[Gemini] Edit region:", editRegion || "full");
   console.log("[Gemini] API Key configured:", !!process.env.AI_INTEGRATIONS_GEMINI_API_KEY);
   console.log("[Gemini] Base URL:", process.env.AI_INTEGRATIONS_GEMINI_BASE_URL);
   
@@ -172,6 +319,12 @@ export async function generateInteriorRender(
   }
 
   try {
+    // If edit region is specified with custom prompt, use patch-edit pipeline
+    if (editRegion && customPrompt && customPrompt.trim()) {
+      console.log("[Gemini] Using patch-edit pipeline for region:", editRegion);
+      return await generatePatchEdit(imageBase64, mimeType, customPrompt, referenceItems, editRegion);
+    }
+    
     console.log("[Gemini] Compressing image...");
     const compressed = await compressImage(imageBase64, mimeType);
     console.log("[Gemini] Image compressed, size:", compressed.data.length, "bytes");
