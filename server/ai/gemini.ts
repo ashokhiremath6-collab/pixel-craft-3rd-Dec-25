@@ -211,25 +211,32 @@ export async function generateInteriorRender(
     let prompt: string;
     
     if (customPrompt && customPrompt.trim()) {
-      prompt = `You are an interior design assistant. Make ONLY the specific changes requested below to this image. 
-DO NOT change anything else. Keep the room layout, furniture positions, colors, materials, and all other elements EXACTLY as they are in the original image.
+      prompt = `CRITICAL INSTRUCTION: This is a MINIMAL EDIT task, NOT a redesign. You MUST preserve the original image almost entirely.
 
-ONLY make these specific changes:
+EDIT REQUEST:
 ${customPrompt}${referenceInstructions}
 
-IMPORTANT RULES:
-- Make MINIMAL changes - only what is explicitly requested above
-- Preserve all existing furniture, decor, and layout that is not mentioned
-- Keep the same perspective, lighting style, and room dimensions
-- Do not add or remove items unless specifically asked
-- The output should look almost identical to the input, except for the requested changes
-- When inserting reference items, match their appearance as closely as possible
+STRICT PRESERVATION RULES - DO NOT VIOLATE:
+- DO NOT change the room layout, dimensions, or architecture
+- DO NOT move, replace, or modify ANY furniture that is not mentioned in the edit request
+- DO NOT change the wall colors, floor materials, or ceiling
+- DO NOT alter the lighting style, windows, or doors
+- DO NOT add or remove any decorative items not mentioned
+- DO NOT change the color scheme or overall style of the room
+- DO NOT modify curtains, rugs, cushions, or textiles not mentioned
+- DO NOT adjust the camera angle or perspective
 
-OUTPUT QUALITY:
-- Generate a HIGH RESOLUTION, photorealistic image with maximum detail
-- Use sharp textures, realistic materials, and professional lighting
-- Ensure crisp edges and fine details are preserved
-- The final image should be suitable for large format printing and professional presentations`;
+WHAT TO DO:
+1. Look at the original image carefully
+2. Identify ONLY the specific element mentioned in the edit request (e.g., "the painting", "the lamp")
+3. Make ONLY that one change using the reference image if provided
+4. Leave EVERYTHING else pixel-perfect identical to the original
+
+The output image should be 99% identical to the input. Only the specifically mentioned item should change.
+
+If reference images are provided, use them to replace/modify ONLY the item specified in the edit request.
+
+OUTPUT: Generate a high-resolution photorealistic result maintaining exact fidelity to the original except for the requested edit.`;
     } else if (style) {
       prompt = `Transform this interior space image into a photorealistic ${style.name} interior design render. 
 Apply the following design style: ${style.prompt}
