@@ -4277,8 +4277,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as any).claims.sub;
       
       // Extract room name from original filename (e.g., "Chitra's Bedroom" from "Chitra's bedroom 1.jpg")
-      // This is used for both display AND grouping
+      // This is used for display purposes
       const roomName = extractRoomName(originalFilename || name || '');
+      
+      // Detect room type for grouping (uses keywords like "living", "bedroom", etc.)
+      // This ensures renders are properly grouped even when using saved renders as source
+      const roomTypeForGrouping = detectRoomType(originalFilename || name || '');
       
       // Get style name from styleId
       const style = RENDER_STYLES.find(s => s.id === styleId);
@@ -4328,9 +4332,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         filePath: objectPath,
         fileType: extension,
         fileSize: buffer.length.toString(),
-        tags: ['ai-generated', styleId, roomName.toLowerCase().replace(/\s+/g, '-')],
+        tags: ['ai-generated', styleId, roomTypeForGrouping.toLowerCase().replace(/\s+/g, '-')],
         canvaLink: null,
-        roomType: roomName
+        roomType: roomTypeForGrouping
       };
 
       const moodboard = await storage.createMoodboard(moodboardData);
