@@ -116,12 +116,13 @@ async function enhanceOutputImage(imageBase64: string, mimeType: string): Promis
     const imageBuffer = Buffer.from(imageBase64, 'base64');
     
     const enhanced = await sharp(imageBuffer)
-      .resize(1536, 1536, { fit: 'inside', withoutEnlargement: false, kernel: 'lanczos3' })
-      .sharpen({ sigma: 0.5 })
-      .png({ compressionLevel: 6 })
+      .resize(2048, 2048, { fit: 'inside', withoutEnlargement: false, kernel: 'lanczos3' })
+      .sharpen({ sigma: 1.0, m1: 1.0, m2: 0.5 })
+      .modulate({ saturation: 1.05 })
+      .png({ compressionLevel: 4 })
       .toBuffer();
     
-    console.log("[Gemini] Enhanced output image size:", enhanced.length, "bytes");
+    console.log("[Gemini] Enhanced output image size:", enhanced.length, "bytes (2048px)");
     
     return {
       data: enhanced.toString('base64'),
