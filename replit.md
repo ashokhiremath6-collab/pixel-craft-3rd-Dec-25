@@ -101,6 +101,35 @@ Preferred communication style: Simple, everyday language.
   - Auto-fill category from filter selection when adding new documents
   - Admin/Designer only access for document management
 
+### AI Render Generation System
+- **Gemini AI Integration**: Uses Google's Gemini 2.5 Flash Image model via Replit AI Integrations
+- **Image Processing Pipeline**:
+  - Client-side compression: 1024x1024 max resolution, 80% JPEG quality before upload
+  - Server-side enhancement: 2048x2048 output with sharpening and color saturation
+  - Reference photos: 512x512 compression for context images
+- **Style Presets**: Modern, Scandinavian, Industrial, Bohemian, Minimalist, Traditional, Art Deco, Coastal, Japandi, Mid-Century
+- **Catalogue Reference Items**: Select furniture/materials from catalogue to insert into renders
+  - Images fetched from object storage and converted to base64
+  - Placement instructions for item positioning
+  - AI prompt hints from catalogue items
+- **Reference Photos**: Upload inspiration or existing space photos for context-aware generation
+  - Support for multiple photos (up to 5)
+  - Type classification: inspiration vs existing_space
+  - Descriptions for each photo
+- **Grid Overlay System**: Alignment reference tool
+  - Toggleable grid display on generated renders
+  - Adjustable grid size (10-100px)
+  - Adjustable opacity (5-80%)
+  - Available in both preview and fullsize views
+- **Smart Modification Tools**: Edit existing renders with targeted changes
+  - Quick actions: Change Colors, Add Plants, Swap Furniture, Brighten Up, Declutter
+  - Custom modification prompts for specific changes
+  - Uses same compression and generation pipeline
+- **Render Storage**: Saves to moodboards table with reference metadata
+  - Room type detection for grouping
+  - Reference items stored in reference_metadata column
+  - Links to projects for organization
+
 ### Advanced Project Scheduling
 - **Gantt Chart Template**: 250-row Excel template with Instructions sheet
   - 18 columns: ID, Name, Start, Finish, Duration, % Complete, Predecessors, Resource Names, Status, Priority, Approval Required, Materials, Owner, Target Start/Finish, Remarks, Outline Level, Color

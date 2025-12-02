@@ -1884,7 +1884,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     storage: multer.memoryStorage(),
     limits: {
       fileSize: 50 * 1024 * 1024, // 50MB limit for AI renders
-      files: 1,
+      files: 6, // 1 main image + 5 reference photos
     },
     fileFilter: (req, file, cb) => {
       const allowedTypes = [
@@ -4242,17 +4242,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Generate AI render from uploaded image
   // Extended timeout for AI generation (5 minutes)
-  app.post("/api/ai-renders/generate", requireAdmin, uploadAIRender.single('image'), async (req, res) => {
+  app.post("/api/ai-renders/generate", requireAdmin, uploadAIRender.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'referencePhotos', maxCount: 5 }
+  ]), async (req, res) => {
     // Set extended timeout for AI generation (5 minutes)
     req.setTimeout(300000);
     res.setTimeout(300000);
     
     try {
-      if (!req.file) {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      const mainImageFile = files['image']?.[0];
+      
+      if (!mainImageFile) {
         return res.status(400).json({ error: "No image uploaded" });
       }
 
-      const { styleId, customPrompt, referenceItems } = req.body;
+      const { styleId, customPrompt, referenceItems, referencePhotosMeta } = req.body;
       
       if (!styleId && !referenceItems) {
         return res.status(400).json({ error: "Style ID or reference items are required" });
@@ -4304,17 +4310,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Convert file to base64
-      const imageBase64 = req.file.buffer.toString('base64');
-      const mimeType = req.file.mimetype;
+      // Process reference photos if provided
+      const referencePhotoFiles = files['referencePhotos'] || [];
+      let parsedRefPhotoMeta: Array<{ type: string; description: string }> = [];
+      
+      if (referencePhotosMeta) {
+        try {
+          parsedRefPhotoMeta = typeof referencePhotosMeta === 'string' 
+            ? JSON.parse(referencePhotosMeta) 
+            : referencePhotosMeta;
+        } catch (e) {
+          console.error('Error parsing reference photos metadata:', e);
+        }
+      }
+      
+      // Convert reference photos to base64 for AI processing
+      const processedRefPhotos = referencePhotoFiles.map((file, index) => ({
+        imageData: file.buffer.toString('base64'),
+        mimeType: file.mimetype,
+        type: parsedRefPhotoMeta[index]?.type || 'inspiration',
+        description: parsedRefPhotoMeta[index]?.description || ''
+      }));
+      
+      console.log("[AI Render] Processing", processedRefPhotos.length, "reference photos");
+      
+      // Convert main image file to base64
+      const imageBase64 = mainImageFile.buffer.toString('base64');
+      const mimeType = mainImageFile.mimetype;
 
-      // Generate the render with optional reference items
+      // Generate the render with optional reference items and reference photos
       const result = await generateInteriorRender(
         imageBase64, 
         mimeType, 
         styleId || 'modern', // Default style if using reference items only
         customPrompt,
-        parsedReferenceItems
+        parsedReferenceItems,
+        processedRefPhotos.length > 0 ? processedRefPhotos : undefined
       );
       
       // Return the generated image as base64
@@ -4322,7 +4353,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         imageData: result.imageData,
         mimeType: result.mimeType,
-        referenceItemsUsed: parsedReferenceItems?.length || 0
+        referenceItemsUsed: parsedReferenceItems?.length || 0,
+        referencePhotosUsed: processedRefPhotos.length
       });
     } catch (error: any) {
       console.error('Error generating AI render:', error);
@@ -4475,12 +4507,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const moodboard = await storage.createMoodboard(moodboardData);
 
-      // Log activity
+      // Log activity with structured metadata for reference items
       const user = await storage.getUser(userId);
       if (user) {
         const userName = user.firstName && user.lastName 
           ? `${user.firstName} ${user.lastName}` 
           : user.email || 'Unknown';
+        
+        // Build structured metadata for activity log
+        const activityMetadata: Record<string, any> = {
+          styleId: styleId,
+          styleName: styleName,
+          roomType: roomTypeForGrouping,
+          moodboardId: moodboard.id,
+        };
+        
+        // Add reference items to metadata for structured audit trail
+        if (referenceMetadataForStorage && referenceMetadataForStorage.length > 0) {
+          activityMetadata.referenceItems = referenceMetadataForStorage;
+          activityMetadata.referenceCount = referenceMetadataForStorage.length;
+        }
+        
         await storage.createActivity({
           userId: user.id,
           userName: userName,
@@ -4490,7 +4537,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fileName: fileName,
           filePath: objectPath,
           description: `created AI-generated render "${displayName}"${referenceItemsDescription}`,
-          timestamp: new Date(),
+          metadata: activityMetadata,
         });
       }
 

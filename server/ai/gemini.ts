@@ -55,6 +55,14 @@ export interface ReferenceItem {
   imageMimeType?: string;
 }
 
+// Reference photo for inspiration or existing space
+export interface ReferencePhoto {
+  imageData: string; // Base64 encoded image
+  mimeType: string;
+  type: 'inspiration' | 'existing_space';
+  description: string;
+}
+
 export const RENDER_STYLES: RenderStyle[] = [
   {
     id: "modern",
@@ -156,12 +164,14 @@ export async function generateInteriorRender(
   mimeType: string,
   styleId: string,
   customPrompt?: string,
-  referenceItems?: ReferenceItem[]
+  referenceItems?: ReferenceItem[],
+  referencePhotos?: ReferencePhoto[]
 ): Promise<{ imageData: string; mimeType: string }> {
   console.log("[Gemini] Starting interior render generation...");
   console.log("[Gemini] Style ID:", styleId);
   console.log("[Gemini] Has custom prompt:", !!customPrompt);
   console.log("[Gemini] Reference items count:", referenceItems?.length || 0);
+  console.log("[Gemini] Reference photos count:", referencePhotos?.length || 0);
   console.log("[Gemini] API Key configured:", !!process.env.AI_INTEGRATIONS_GEMINI_API_KEY);
   console.log("[Gemini] Base URL:", process.env.AI_INTEGRATIONS_GEMINI_BASE_URL);
   
@@ -180,9 +190,51 @@ export async function generateInteriorRender(
     let referenceInstructions = '';
     const referenceImageParts: any[] = [];
     
+    // Process reference photos (inspiration/existing space)
+    if (referencePhotos && referencePhotos.length > 0) {
+      console.log("[Gemini] Processing reference photos...");
+      referenceInstructions += '\n\nREFERENCE PHOTOS FOR GUIDANCE:\n';
+      
+      const inspirationPhotos = referencePhotos.filter(p => p.type === 'inspiration');
+      const existingSpacePhotos = referencePhotos.filter(p => p.type === 'existing_space');
+      
+      if (inspirationPhotos.length > 0) {
+        referenceInstructions += '\nINSPIRATION PHOTOS (use these as style/mood references):\n';
+        for (let i = 0; i < inspirationPhotos.length; i++) {
+          const photo = inspirationPhotos[i];
+          console.log(`[Gemini] Compressing inspiration photo ${i + 1}...`);
+          const compressed = await compressImage(photo.imageData, photo.mimeType);
+          referenceImageParts.push({
+            inlineData: { mimeType: compressed.mimeType, data: compressed.data }
+          });
+          const desc = photo.description || 'Style inspiration';
+          referenceInstructions += `- Inspiration ${i + 1}: ${desc} (image attached)\n`;
+        }
+      }
+      
+      if (existingSpacePhotos.length > 0) {
+        referenceInstructions += '\nEXISTING SPACE PHOTOS (reference for room context):\n';
+        for (let i = 0; i < existingSpacePhotos.length; i++) {
+          const photo = existingSpacePhotos[i];
+          console.log(`[Gemini] Compressing existing space photo ${i + 1}...`);
+          const compressed = await compressImage(photo.imageData, photo.mimeType);
+          referenceImageParts.push({
+            inlineData: { mimeType: compressed.mimeType, data: compressed.data }
+          });
+          const desc = photo.description || 'Existing space reference';
+          referenceInstructions += `- Existing space ${i + 1}: ${desc} (image attached)\n`;
+        }
+      }
+      
+      referenceInstructions += '\nGUIDANCE:\n';
+      referenceInstructions += '- Use inspiration photos to guide the overall mood, color palette, and style\n';
+      referenceInstructions += '- Use existing space photos to understand the room context and proportions\n';
+    }
+    
+    // Process catalogue reference items
     if (referenceItems && referenceItems.length > 0) {
       console.log("[Gemini] Processing reference items...");
-      referenceInstructions = '\n\nREFERENCE MATERIALS/ITEMS TO INSERT:\n';
+      referenceInstructions += '\n\nREFERENCE MATERIALS/ITEMS TO INSERT:\n';
       
       for (let i = 0; i < referenceItems.length; i++) {
         const item = referenceItems[i];

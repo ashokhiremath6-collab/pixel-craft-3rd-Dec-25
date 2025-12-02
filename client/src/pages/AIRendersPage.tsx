@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -15,7 +17,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Project, Moodboard, CatalogueItem } from "@shared/schema";
+import type { Project, Moodboard } from "@shared/schema";
 import { 
   Upload, 
   Wand2, 
@@ -33,7 +35,19 @@ import {
   Plus,
   X,
   Palette,
-  Search
+  Search,
+  Camera,
+  ImagePlus,
+  Grid3X3,
+  Settings2,
+  Edit3,
+  Paintbrush,
+  Trash2,
+  Sofa,
+  TreeDeciduous,
+  Sun,
+  Eraser,
+  RotateCcw
 } from "lucide-react";
 
 interface ReferenceItem {
@@ -74,6 +88,14 @@ interface GeneratedRender {
   styleName: string;
 }
 
+interface ReferencePhoto {
+  id: string;
+  file: File;
+  previewUrl: string;
+  type: 'inspiration' | 'existing_space';
+  description: string;
+}
+
 export default function AIRendersPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -95,6 +117,83 @@ export default function AIRendersPage() {
   const [referenceItems, setReferenceItems] = useState<ReferenceItem[]>([]);
   const [catalogueSearch, setCatalogueSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  
+  const [referencePhotos, setReferencePhotos] = useState<ReferencePhoto[]>([]);
+  const referencePhotoInputRef = useRef<HTMLInputElement>(null);
+  
+  const [showGrid, setShowGrid] = useState(false);
+  const [gridSize, setGridSize] = useState(50);
+  const [gridOpacity, setGridOpacity] = useState(0.3);
+  const [showGridSettings, setShowGridSettings] = useState(false);
+  
+  const [showModifyTools, setShowModifyTools] = useState(false);
+  const [modificationPrompt, setModificationPrompt] = useState("");
+  const modifyRenderMutation = useMutation({
+    mutationFn: async (prompt: string) => {
+      if (!generatedRender) throw new Error("No render to modify");
+      
+      // Convert base64 to blob, then compress for API
+      const base64Response = await fetch(`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`);
+      const blob = await base64Response.blob();
+      const file = new File([blob], 'render-to-modify.png', { type: generatedRender.mimeType });
+      
+      // Compress the image before sending
+      const compressedBlob = await compressImageOnClient(file);
+      const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
+      
+      const formData = new FormData();
+      formData.append('image', compressedFile);
+      formData.append('styleId', 'custom');
+      formData.append('customPrompt', prompt);
+      
+      const response = await fetch('/api/ai-renders/generate', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to modify render');
+        }
+        throw new Error(`Server error (${response.status}). Please try again.`);
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      setGeneratedRender({
+        imageData: data.imageData,
+        mimeType: data.mimeType,
+        styleId: generatedRender?.styleId || "modified",
+        styleName: `Modified - ${generatedRender?.styleName || "Custom"}`
+      });
+      setModificationPrompt("");
+      setShowModifyTools(false);
+      toast({
+        title: "Modification Complete",
+        description: "Your render has been modified successfully."
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Modification Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+  
+  const quickModifications = [
+    { icon: Paintbrush, label: "Change Colors", prompt: "Change the color scheme to be warmer and more inviting with earth tones" },
+    { icon: TreeDeciduous, label: "Add Plants", prompt: "Add indoor plants and greenery to make the space feel more natural and lively" },
+    { icon: Sofa, label: "Swap Furniture", prompt: "Replace the main furniture with a more modern, minimalist style" },
+    { icon: Sun, label: "Brighten Up", prompt: "Make the lighting brighter and add more natural light to the space" },
+    { icon: Eraser, label: "Declutter", prompt: "Remove unnecessary items and make the space cleaner and more minimal" },
+    { icon: RotateCcw, label: "Undo Changes", prompt: "Revert to a more classic, traditional style similar to the original" }
+  ];
 
   const { data: user, isLoading: userLoading, isError: userError, refetch: refetchUser } = useQuery<{ role: string }>({
     queryKey: ['/api/auth/user'],
@@ -315,8 +414,75 @@ export default function AIRendersPage() {
     );
   };
 
+  const handleReferencePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, photoType: 'inspiration' | 'existing_space') => {
+    const files = e.target.files;
+    if (!files) return;
+
+    if (referencePhotos.length + files.length > 5) {
+      toast({
+        title: "Limit Reached",
+        description: "Maximum 5 reference photos allowed",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const newPhotos: ReferencePhoto[] = [];
+    Array.from(files).forEach((file) => {
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid File",
+          description: `${file.name} is not an image`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const id = `ref-photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const previewUrl = URL.createObjectURL(file);
+      
+      newPhotos.push({
+        id,
+        file,
+        previewUrl,
+        type: photoType,
+        description: ''
+      });
+    });
+
+    if (newPhotos.length > 0) {
+      setReferencePhotos(prev => [...prev, ...newPhotos]);
+      toast({
+        title: "Photos Added",
+        description: `${newPhotos.length} reference photo(s) added`
+      });
+    }
+
+    if (referencePhotoInputRef.current) {
+      referencePhotoInputRef.current.value = '';
+    }
+  };
+
+  const removeReferencePhoto = (id: string) => {
+    setReferencePhotos(prev => {
+      const photo = prev.find(p => p.id === id);
+      if (photo) {
+        URL.revokeObjectURL(photo.previewUrl);
+      }
+      return prev.filter(p => p.id !== id);
+    });
+  };
+
+  const updateReferencePhotoDescription = (id: string, description: string) => {
+    setReferencePhotos(prev =>
+      prev.map(photo =>
+        photo.id === id ? { ...photo, description } : photo
+      )
+    );
+  };
+
   const generateFromImageMutation = useMutation({
-    mutationFn: async (data: { file: File; styleId: string; customPrompt?: string; referenceItems?: ReferenceItem[] }) => {
+    mutationFn: async (data: { file: File; styleId: string; customPrompt?: string; referenceItems?: ReferenceItem[]; referencePhotos?: ReferencePhoto[] }) => {
       const compressedBlob = await compressImageOnClient(data.file);
       const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
       
@@ -328,6 +494,25 @@ export default function AIRendersPage() {
       }
       if (data.referenceItems && data.referenceItems.length > 0) {
         formData.append('referenceItems', JSON.stringify(data.referenceItems));
+      }
+      
+      if (data.referencePhotos && data.referencePhotos.length > 0) {
+        const compressedRefPhotos = await Promise.all(
+          data.referencePhotos.map(async (photo, index) => {
+            const compressed = await compressImageOnClient(photo.file, 512, 512, 0.7);
+            return new File([compressed], `ref-photo-${index}.jpg`, { type: 'image/jpeg' });
+          })
+        );
+        
+        compressedRefPhotos.forEach((photo, index) => {
+          formData.append(`referencePhotos`, photo);
+        });
+        
+        const refPhotoMeta = data.referencePhotos.map(p => ({
+          type: p.type,
+          description: p.description
+        }));
+        formData.append('referencePhotosMeta', JSON.stringify(refPhotoMeta));
       }
       
       const response = await fetch('/api/ai-renders/generate', {
@@ -409,6 +594,17 @@ export default function AIRendersPage() {
       styleId: string;
       description?: string;
       originalFilename?: string;
+      referenceItems?: Array<{
+        id: string;
+        name: string;
+        category: string;
+        subcategory: string;
+        vendorBrand?: string;
+        description?: string;
+        aiPromptHints?: string;
+        imagePath?: string;
+        placementInstruction?: string;
+      }>;
     }) => {
       return apiRequest('POST', '/api/ai-renders/save', data);
     },
@@ -493,6 +689,7 @@ export default function AIRendersPage() {
       styleId: selectedStyle,
       customPrompt: customPrompt || undefined,
       referenceItems: validReferenceItems.length > 0 ? validReferenceItems : undefined,
+      referencePhotos: referencePhotos.length > 0 ? referencePhotos : undefined,
     });
   };
 
@@ -584,8 +781,13 @@ export default function AIRendersPage() {
     setCustomPrompt("");
     setTextDescription("");
     setReferenceItems([]);
+    referencePhotos.forEach(photo => URL.revokeObjectURL(photo.previewUrl));
+    setReferencePhotos([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+    if (referencePhotoInputRef.current) {
+      referencePhotoInputRef.current.value = "";
     }
   };
 
@@ -761,6 +963,97 @@ export default function AIRendersPage() {
                     </div>
                   )}
                 </div>
+
+                <div className="border rounded-lg p-3 bg-muted/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Camera className="h-4 w-4 text-primary" />
+                      <Label className="text-sm font-medium">Reference Photos</Label>
+                      <Badge variant="outline" className="text-xs">{referencePhotos.length}/5</Badge>
+                    </div>
+                    <div className="flex gap-1">
+                      <input
+                        type="file"
+                        ref={referencePhotoInputRef}
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => handleReferencePhotoUpload(e, 'inspiration')}
+                        data-testid="input-reference-photos"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => referencePhotoInputRef.current?.click()}
+                        disabled={referencePhotos.length >= 5}
+                        data-testid="button-add-inspiration-photo"
+                      >
+                        <ImagePlus className="h-4 w-4 mr-1" />
+                        Inspiration
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.multiple = true;
+                          input.onchange = (e) => handleReferencePhotoUpload(e as any, 'existing_space');
+                          input.click();
+                        }}
+                        disabled={referencePhotos.length >= 5}
+                        data-testid="button-add-existing-photo"
+                      >
+                        <Camera className="h-4 w-4 mr-1" />
+                        Existing
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Add inspiration photos or existing space photos to guide the AI
+                  </p>
+                  
+                  {referencePhotos.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground text-sm">
+                      No reference photos added
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      {referencePhotos.map((photo) => (
+                        <div key={photo.id} className="relative group">
+                          <img
+                            src={photo.previewUrl}
+                            alt={`Reference ${photo.type}`}
+                            className="w-full h-20 object-cover rounded border"
+                          />
+                          <Badge 
+                            className="absolute top-1 left-1 text-[10px] px-1 py-0"
+                            variant={photo.type === 'inspiration' ? 'default' : 'secondary'}
+                          >
+                            {photo.type === 'inspiration' ? 'Insp' : 'Exist'}
+                          </Badge>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-1 right-1 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => removeReferencePhoto(photo.id)}
+                            data-testid={`button-remove-photo-${photo.id}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                          <Input
+                            placeholder="Brief note..."
+                            value={photo.description}
+                            onChange={(e) => updateReferencePhotoDescription(photo.id, e.target.value)}
+                            className="mt-1 h-6 text-xs"
+                            data-testid={`input-photo-desc-${photo.id}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </TabsContent>
 
               <TabsContent value="description" className="space-y-4 mt-4">
@@ -850,9 +1143,80 @@ export default function AIRendersPage() {
                     data-testid="image-generated-render"
                     onClick={() => setShowFullSize(true)}
                   />
+                  
+                  {showGrid && (
+                    <div 
+                      className="absolute inset-0 rounded-lg pointer-events-none overflow-hidden"
+                      style={{
+                        backgroundImage: `
+                          linear-gradient(to right, rgba(100, 100, 255, ${gridOpacity}) 1px, transparent 1px),
+                          linear-gradient(to bottom, rgba(100, 100, 255, ${gridOpacity}) 1px, transparent 1px)
+                        `,
+                        backgroundSize: `${gridSize}px ${gridSize}px`,
+                      }}
+                      data-testid="grid-overlay"
+                    />
+                  )}
+                  
                   <Badge className="absolute top-2 right-2">
                     {generatedRender.styleName}
                   </Badge>
+                  
+                  <div className="absolute top-2 left-2 flex gap-1">
+                    <Button
+                      size="icon"
+                      variant={showGrid ? "default" : "secondary"}
+                      className="h-8 w-8"
+                      onClick={() => setShowGrid(!showGrid)}
+                      data-testid="button-toggle-grid"
+                    >
+                      <Grid3X3 className="h-4 w-4" />
+                    </Button>
+                    
+                    {showGrid && (
+                      <Popover open={showGridSettings} onOpenChange={setShowGridSettings}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            className="h-8 w-8"
+                            data-testid="button-grid-settings"
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64" align="start">
+                          <div className="space-y-4">
+                            <div>
+                              <Label className="text-xs">Grid Size: {gridSize}px</Label>
+                              <Slider
+                                value={[gridSize]}
+                                onValueChange={(v) => setGridSize(Math.max(10, v[0]))}
+                                min={10}
+                                max={100}
+                                step={5}
+                                className="mt-2"
+                                data-testid="slider-grid-size"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Opacity: {Math.round(gridOpacity * 100)}%</Label>
+                              <Slider
+                                value={[gridOpacity * 100]}
+                                onValueChange={(v) => setGridOpacity(Math.max(0.05, v[0] / 100))}
+                                min={5}
+                                max={80}
+                                step={5}
+                                className="mt-2"
+                                data-testid="slider-grid-opacity"
+                              />
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  </div>
+                  
                   <Button
                     size="icon"
                     variant="secondary"
@@ -863,7 +1227,77 @@ export default function AIRendersPage() {
                     <Maximize2 className="h-4 w-4" />
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground text-center">Click image to view full size</p>
+                <p className="text-xs text-muted-foreground text-center">Click image to view full size. Use grid for alignment reference.</p>
+                
+                <div className="border rounded-lg p-3 bg-muted/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Edit3 className="h-4 w-4 text-primary" />
+                      <Label className="text-sm font-medium">Smart Modification</Label>
+                    </div>
+                    <Button
+                      variant={showModifyTools ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setShowModifyTools(!showModifyTools)}
+                      data-testid="button-toggle-modify-tools"
+                    >
+                      {showModifyTools ? "Hide" : "Edit Render"}
+                    </Button>
+                  </div>
+                  
+                  {showModifyTools && (
+                    <div className="space-y-3 mt-3">
+                      <div className="grid grid-cols-3 gap-2">
+                        {quickModifications.map((mod, index) => (
+                          <Button
+                            key={index}
+                            variant="outline"
+                            size="sm"
+                            className="flex flex-col h-auto py-2 px-2"
+                            onClick={() => modifyRenderMutation.mutate(mod.prompt)}
+                            disabled={modifyRenderMutation.isPending}
+                            data-testid={`button-quick-mod-${index}`}
+                          >
+                            <mod.icon className="h-4 w-4 mb-1" />
+                            <span className="text-xs">{mod.label}</span>
+                          </Button>
+                        ))}
+                      </div>
+                      
+                      <Separator />
+                      
+                      <div>
+                        <Label className="text-xs">Custom Modification</Label>
+                        <Textarea
+                          placeholder="Describe your modification (e.g., 'replace the blue sofa with a grey sectional')"
+                          value={modificationPrompt}
+                          onChange={(e) => setModificationPrompt(e.target.value)}
+                          className="mt-1 min-h-[60px]"
+                          data-testid="input-modification-prompt"
+                        />
+                      </div>
+                      
+                      <Button
+                        onClick={() => modifyRenderMutation.mutate(modificationPrompt)}
+                        disabled={modifyRenderMutation.isPending || !modificationPrompt.trim()}
+                        className="w-full"
+                        data-testid="button-apply-modification"
+                      >
+                        {modifyRenderMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Modifying...
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 className="h-4 w-4 mr-2" />
+                            Apply Modification
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
                 <div>
                   <Label htmlFor="save-project">Save to Project</Label>
@@ -1034,12 +1468,82 @@ export default function AIRendersPage() {
           </DialogHeader>
           {generatedRender && (
             <div className="p-4 pt-2 overflow-auto">
-              <img 
-                src={`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`}
-                alt="Generated Render Full Size"
-                className="max-w-full max-h-[75vh] mx-auto rounded-lg"
-                data-testid="image-generated-render-fullsize"
-              />
+              <div className="relative inline-block mx-auto">
+                <img 
+                  src={`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`}
+                  alt="Generated Render Full Size"
+                  className="max-w-full max-h-[70vh] rounded-lg"
+                  data-testid="image-generated-render-fullsize"
+                />
+                
+                {showGrid && (
+                  <div 
+                    className="absolute inset-0 rounded-lg pointer-events-none overflow-hidden"
+                    style={{
+                      backgroundImage: `
+                        linear-gradient(to right, rgba(100, 100, 255, ${gridOpacity}) 1px, transparent 1px),
+                        linear-gradient(to bottom, rgba(100, 100, 255, ${gridOpacity}) 1px, transparent 1px)
+                      `,
+                      backgroundSize: `${gridSize}px ${gridSize}px`,
+                    }}
+                    data-testid="grid-overlay-fullsize"
+                  />
+                )}
+                
+                <div className="absolute top-2 left-2 flex gap-1">
+                  <Button
+                    size="icon"
+                    variant={showGrid ? "default" : "secondary"}
+                    className="h-8 w-8"
+                    onClick={() => setShowGrid(!showGrid)}
+                    data-testid="button-toggle-grid-fullsize"
+                  >
+                    <Grid3X3 className="h-4 w-4" />
+                  </Button>
+                  
+                  {showGrid && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="secondary"
+                          className="h-8 w-8"
+                          data-testid="button-grid-settings-fullsize"
+                        >
+                          <Settings2 className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64" align="start">
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-xs">Grid Size: {gridSize}px</Label>
+                            <Slider
+                              value={[gridSize]}
+                              onValueChange={(v) => setGridSize(Math.max(10, v[0]))}
+                              min={10}
+                              max={100}
+                              step={5}
+                              className="mt-2"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Opacity: {Math.round(gridOpacity * 100)}%</Label>
+                            <Slider
+                              value={[gridOpacity * 100]}
+                              onValueChange={(v) => setGridOpacity(Math.max(0.05, v[0] / 100))}
+                              min={5}
+                              max={80}
+                              step={5}
+                              className="mt-2"
+                            />
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+              </div>
+              
               <div className="flex justify-center gap-2 mt-4">
                 <Button onClick={handleDownload} data-testid="button-download-fullsize">
                   <Download className="h-4 w-4 mr-2" />
