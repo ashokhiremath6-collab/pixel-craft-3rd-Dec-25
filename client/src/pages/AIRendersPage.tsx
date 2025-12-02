@@ -748,17 +748,18 @@ export default function AIRendersPage() {
                           </Badge>
                         )}
                         {customPrompt.trim() && (
-                          <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-[1px] rounded-lg overflow-hidden">
+                          <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-1 rounded-lg overflow-hidden bg-black/20 p-1">
                             {['top-left', 'top-center', 'top-right', 'center-left', 'center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right'].map((region) => (
                               <button
                                 key={region}
+                                type="button"
                                 onClick={() => setEditRegion(editRegion === region ? null : region)}
-                                className={`transition-all ${
+                                className={`transition-all rounded ${
                                   editRegion === region 
-                                    ? 'bg-primary/40 border-2 border-primary' 
-                                    : 'bg-transparent hover:bg-primary/20 border border-white/30'
+                                    ? 'bg-primary/60 border-2 border-primary ring-2 ring-primary/50' 
+                                    : 'bg-white/10 hover:bg-primary/30 border border-white/50'
                                 }`}
-                                title={`Edit ${region.replace('-', ' ')}`}
+                                title={`Click to edit ${region.replace('-', ' ')} area`}
                                 data-testid={`region-${region}`}
                               />
                             ))}
