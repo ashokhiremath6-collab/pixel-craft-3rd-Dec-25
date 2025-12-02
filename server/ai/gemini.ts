@@ -293,7 +293,11 @@ OUTPUT: Generate a high-resolution photorealistic edited version of this cropped
   // Enhance the final output
   const enhanced = await enhanceOutputImage(composited.toString('base64'), 'image/png');
   
-  return enhanced;
+  // Return in the expected format with imageData (not data)
+  return {
+    imageData: enhanced.data,
+    mimeType: enhanced.mimeType
+  };
 }
 
 export async function generateInteriorRender(
