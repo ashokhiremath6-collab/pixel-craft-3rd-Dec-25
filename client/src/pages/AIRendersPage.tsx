@@ -33,7 +33,8 @@ import {
   Plus,
   X,
   Palette,
-  Search
+  Search,
+  Grid3X3
 } from "lucide-react";
 
 interface ReferenceItem {
@@ -97,10 +98,13 @@ export default function AIRendersPage() {
   const [referenceItems, setReferenceItems] = useState<ReferenceItem[]>([]);
   const [catalogueSearch, setCatalogueSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [editMode, setEditMode] = useState<"smart" | "grid">("smart");
   const [editRegion, setEditRegion] = useState<string | null>(null);
   const [customRegion, setCustomRegion] = useState<{x: number; y: number; width: number; height: number} | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{x: number; y: number} | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeHandle, setResizeHandle] = useState<string | null>(null);
   const imagePreviewRef = useRef<HTMLImageElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
 
@@ -385,34 +389,78 @@ export default function AIRendersPage() {
     );
   };
 
-  // Drag handlers for custom region selection
+  // Drag handlers for custom region selection (grid mode only)
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!imageContainerRef.current) return;
+    if (editMode !== "grid" || !imageContainerRef.current) return;
+    e.preventDefault();
     const rect = imageContainerRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     setDragStart({ x, y });
     setIsDragging(true);
-    setEditRegion(null); // Clear grid selection when using custom
+    setEditRegion(null);
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDragging || !dragStart || !imageContainerRef.current) return;
-    const rect = imageContainerRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+    if (!imageContainerRef.current) return;
     
-    setCustomRegion({
-      x: Math.min(dragStart.x, x),
-      y: Math.min(dragStart.y, y),
-      width: Math.abs(x - dragStart.x),
-      height: Math.abs(y - dragStart.y)
-    });
+    // Handle resizing (grid mode only)
+    if (editMode === "grid" && isResizing && customRegion && resizeHandle) {
+      const rect = imageContainerRef.current.getBoundingClientRect();
+      const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+      const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+      
+      let newRegion = { ...customRegion };
+      const minSize = 10; // Minimum 10% size
+      
+      if (resizeHandle.includes('e')) {
+        newRegion.width = Math.max(minSize, x - customRegion.x);
+      }
+      if (resizeHandle.includes('w')) {
+        const newX = Math.min(x, customRegion.x + customRegion.width - minSize);
+        newRegion.width = customRegion.x + customRegion.width - newX;
+        newRegion.x = newX;
+      }
+      if (resizeHandle.includes('s')) {
+        newRegion.height = Math.max(minSize, y - customRegion.y);
+      }
+      if (resizeHandle.includes('n')) {
+        const newY = Math.min(y, customRegion.y + customRegion.height - minSize);
+        newRegion.height = customRegion.y + customRegion.height - newY;
+        newRegion.y = newY;
+      }
+      
+      setCustomRegion(newRegion);
+      return;
+    }
+    
+    // Handle dragging to create new region (grid mode only)
+    if (editMode === "grid" && isDragging && dragStart) {
+      const rect = imageContainerRef.current.getBoundingClientRect();
+      const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+      const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+      
+      setCustomRegion({
+        x: Math.min(dragStart.x, x),
+        y: Math.min(dragStart.y, y),
+        width: Math.abs(x - dragStart.x),
+        height: Math.abs(y - dragStart.y)
+      });
+    }
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
     setDragStart(null);
+    setIsResizing(false);
+    setResizeHandle(null);
+  };
+
+  const handleResizeStart = (e: React.MouseEvent, handle: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(true);
+    setResizeHandle(handle);
   };
 
   const clearCustomRegion = () => {
@@ -421,7 +469,7 @@ export default function AIRendersPage() {
   };
 
   const generateFromImageMutation = useMutation({
-    mutationFn: async (data: { file: File; styleId: string; customPrompt?: string; referenceItems?: ReferenceItem[]; editRegion?: string | null; customRegionPercent?: {x: number; y: number; width: number; height: number} | null }) => {
+    mutationFn: async (data: { file: File; styleId: string; customPrompt?: string; referenceItems?: ReferenceItem[]; editRegion?: string | null; customRegionPercent?: {x: number; y: number; width: number; height: number} | null; editMode?: "smart" | "grid" }) => {
       const compressedBlob = await compressImageOnClient(data.file);
       const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
       
@@ -439,6 +487,9 @@ export default function AIRendersPage() {
       }
       if (data.customRegionPercent) {
         formData.append('customRegionPercent', JSON.stringify(data.customRegionPercent));
+      }
+      if (data.editMode) {
+        formData.append('editMode', data.editMode);
       }
       
       const response = await fetch('/api/ai-renders/generate', {
@@ -605,8 +656,9 @@ export default function AIRendersPage() {
       styleId: selectedStyle,
       customPrompt: customPrompt || undefined,
       referenceItems: validReferenceItems.length > 0 ? validReferenceItems : undefined,
-      editRegion: editRegion || undefined,
-      customRegionPercent: customRegion || undefined,
+      editRegion: editMode === "grid" ? (editRegion || undefined) : undefined,
+      customRegionPercent: editMode === "grid" ? (customRegion || undefined) : undefined,
+      editMode: customPrompt?.trim() ? editMode : undefined,
     });
   };
 
@@ -779,11 +831,11 @@ export default function AIRendersPage() {
                     <div className="mt-3 space-y-2">
                       <div 
                         ref={imageContainerRef}
-                        className="relative inline-block cursor-crosshair select-none"
-                        onMouseDown={(customPrompt.trim() || referenceItems.length > 0) ? handleMouseDown : undefined}
-                        onMouseMove={(customPrompt.trim() || referenceItems.length > 0) ? handleMouseMove : undefined}
-                        onMouseUp={(customPrompt.trim() || referenceItems.length > 0) ? handleMouseUp : undefined}
-                        onMouseLeave={(customPrompt.trim() || referenceItems.length > 0) ? handleMouseUp : undefined}
+                        className={`relative inline-block select-none ${editMode === "grid" ? "cursor-crosshair" : ""}`}
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseUp}
                       >
                         <img 
                           ref={imagePreviewRef}
@@ -798,86 +850,99 @@ export default function AIRendersPage() {
                             From Saved
                           </Badge>
                         )}
-                        {(customPrompt.trim() || referenceItems.length > 0) && !customRegion && !editRegion && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg pointer-events-none">
-                            <span className="text-white text-sm font-medium bg-black/50 px-3 py-1 rounded">
-                              Drag to select edit area
-                            </span>
-                          </div>
-                        )}
-                        {customRegion && customRegion.width > 2 && customRegion.height > 2 && (
+                        {editMode === "grid" && customRegion && customRegion.width > 2 && customRegion.height > 2 && (
                           <div 
-                            className="absolute border-2 border-primary bg-primary/30 rounded pointer-events-none"
+                            className="absolute border-2 border-primary bg-primary/30 rounded"
                             style={{
                               left: `${customRegion.x}%`,
                               top: `${customRegion.y}%`,
                               width: `${customRegion.width}%`,
                               height: `${customRegion.height}%`
                             }}
-                          />
+                          >
+                            <div className="absolute -top-1 -left-1 w-3 h-3 bg-primary rounded-full cursor-nw-resize" onMouseDown={(e) => handleResizeStart(e, 'nw')} />
+                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full cursor-ne-resize" onMouseDown={(e) => handleResizeStart(e, 'ne')} />
+                            <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-primary rounded-full cursor-sw-resize" onMouseDown={(e) => handleResizeStart(e, 'sw')} />
+                            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-primary rounded-full cursor-se-resize" onMouseDown={(e) => handleResizeStart(e, 'se')} />
+                          </div>
                         )}
-                        {editRegion && !customRegion && (
-                          <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 rounded-lg overflow-hidden pointer-events-none">
-                            {['top-left', 'top-center', 'top-right', 'center-left', 'center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right'].map((region) => (
-                              <div
-                                key={region}
-                                className={`${editRegion === region ? 'bg-primary/40 border-2 border-primary' : ''}`}
-                              />
-                            ))}
+                        {editMode === "grid" && !customRegion && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg pointer-events-none">
+                            <span className="text-white text-sm font-medium bg-black/50 px-3 py-1 rounded">
+                              Drag to select area
+                            </span>
                           </div>
                         )}
                       </div>
-                      {(customPrompt.trim() || referenceItems.length > 0) && (
-                        <div className="flex items-center gap-2 text-xs flex-wrap">
-                          <span className="text-muted-foreground">Edit region:</span>
-                          {customRegion && customRegion.width > 2 ? (
-                            <Badge variant="default">
-                              Custom selection
-                              <button onClick={clearCustomRegion} className="ml-1 hover:text-destructive">
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          ) : editRegion ? (
-                            <Badge variant="default" className="capitalize">
-                              {editRegion.replace('-', ' ')}
-                              <button onClick={clearCustomRegion} className="ml-1 hover:text-destructive">
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground italic">Drag on image to select area</span>
-                          )}
-                          {!customRegion && (
-                            <div className="flex gap-1 ml-2">
-                              {['center', 'top-center', 'bottom-center'].map((region) => (
-                                <Button 
-                                  key={region}
-                                  variant={editRegion === region ? "default" : "outline"} 
-                                  size="sm" 
-                                  className="h-6 text-xs px-2"
-                                  onClick={() => setEditRegion(editRegion === region ? null : region)}
-                                >
-                                  {region.split('-').map(w => w[0].toUpperCase()).join('')}
-                                </Button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
 
-                <div>
-                  <Label htmlFor="custom-prompt">Custom Instructions (Optional)</Label>
-                  <Textarea
-                    id="custom-prompt"
-                    placeholder="Add specific instructions like 'add more plants' or 'change the sofa to leather'"
-                    value={customPrompt}
-                    onChange={(e) => setCustomPrompt(e.target.value)}
-                    className="mt-2"
-                    data-testid="input-custom-prompt"
-                  />
+                <div className="border rounded-lg p-3 bg-muted/20">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Label className="text-sm font-medium">Edit Mode</Label>
+                    <div className="flex gap-1">
+                      <Button 
+                        variant={editMode === "smart" ? "default" : "outline"} 
+                        size="sm"
+                        onClick={() => { setEditMode("smart"); clearCustomRegion(); }}
+                        data-testid="button-smart-mode"
+                      >
+                        <Wand2 className="h-3 w-3 mr-1" />
+                        Smart
+                      </Button>
+                      <Button 
+                        variant={editMode === "grid" ? "default" : "outline"} 
+                        size="sm"
+                        onClick={() => setEditMode("grid")}
+                        data-testid="button-grid-mode"
+                      >
+                        <Grid3X3 className="h-3 w-3 mr-1" />
+                        Grid
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {editMode === "smart" ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Describe what to change and AI will identify and modify just that element
+                      </p>
+                      <Textarea
+                        id="custom-prompt"
+                        placeholder='Examples: "wall color pink", "bigger carpet", "add a plant in the corner", "change sofa to leather"'
+                        value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        className="min-h-[80px]"
+                        data-testid="input-custom-prompt"
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Draw a box on the image above, then describe what to change in that area
+                      </p>
+                      <Textarea
+                        id="custom-prompt-grid"
+                        placeholder="Describe what to change in the selected area..."
+                        value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        className="min-h-[60px]"
+                        data-testid="input-custom-prompt-grid"
+                      />
+                      {customRegion && customRegion.width > 2 && (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-xs">
+                            Selection: {Math.round(customRegion.width)}% x {Math.round(customRegion.height)}%
+                          </Badge>
+                          <Button variant="ghost" size="sm" onClick={clearCustomRegion} className="h-6 px-2">
+                            <X className="h-3 w-3 mr-1" />
+                            Clear
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="border rounded-lg p-3 bg-muted/30">

@@ -326,12 +326,14 @@ export async function generateInteriorRender(
   customPrompt?: string,
   referenceItems?: ReferenceItem[],
   editRegion?: string,
-  customRegionPercent?: {x: number; y: number; width: number; height: number}
+  customRegionPercent?: {x: number; y: number; width: number; height: number},
+  editMode?: "smart" | "grid"
 ): Promise<{ imageData: string; mimeType: string }> {
   console.log("[Gemini] Starting interior render generation...");
   console.log("[Gemini] Style ID:", styleId);
   console.log("[Gemini] Has custom prompt:", !!customPrompt);
   console.log("[Gemini] Reference items count:", referenceItems?.length || 0);
+  console.log("[Gemini] Edit mode:", editMode || "style-only");
   console.log("[Gemini] Edit region:", editRegion || (customRegionPercent ? "custom" : "full"));
   console.log("[Gemini] Custom region (%):", customRegionPercent || "none");
   console.log("[Gemini] API Key configured:", !!process.env.AI_INTEGRATIONS_GEMINI_API_KEY);
@@ -344,11 +346,10 @@ export async function generateInteriorRender(
   }
 
   try {
-    // If edit region is specified with custom prompt or reference items, use patch-edit pipeline
+    // Grid mode: use patch-edit pipeline for targeted region edits
     const hasEditContent = (customPrompt && customPrompt.trim()) || (referenceItems && referenceItems.length > 0);
-    if ((editRegion || customRegionPercent) && hasEditContent) {
-      console.log("[Gemini] Using patch-edit pipeline for region:", editRegion || "custom");
-      // Build edit instruction from custom prompt and/or reference items
+    if (editMode === "grid" && (editRegion || customRegionPercent) && hasEditContent) {
+      console.log("[Gemini] Using patch-edit pipeline for grid region:", editRegion || "custom");
       let editInstruction = customPrompt?.trim() || '';
       if (referenceItems && referenceItems.length > 0) {
         const refInstructions = referenceItems.map(item => item.placementInstruction).join('. ');
@@ -400,32 +401,39 @@ export async function generateInteriorRender(
     let prompt: string;
     
     if (customPrompt && customPrompt.trim()) {
-      prompt = `CRITICAL INSTRUCTION: This is a MINIMAL EDIT task, NOT a redesign. You MUST preserve the original image almost entirely.
+      // Smart mode: AI semantically understands what element to modify
+      prompt = `You are an expert interior design AI assistant. Analyze this room image and perform a TARGETED EDIT based on the user's description.
 
-EDIT REQUEST:
-${customPrompt}${referenceInstructions}
+USER'S EDIT REQUEST: "${customPrompt}"
+${referenceInstructions}
 
-STRICT PRESERVATION RULES - DO NOT VIOLATE:
-- DO NOT change the room layout, dimensions, or architecture
-- DO NOT move, replace, or modify ANY furniture that is not mentioned in the edit request
-- DO NOT change the wall colors, floor materials, or ceiling
-- DO NOT alter the lighting style, windows, or doors
-- DO NOT add or remove any decorative items not mentioned
-- DO NOT change the color scheme or overall style of the room
-- DO NOT modify curtains, rugs, cushions, or textiles not mentioned
-- DO NOT adjust the camera angle or perspective
+YOUR TASK:
+1. UNDERSTAND: Parse the user's request to identify EXACTLY what element they want to change
+   - "wall color pink" → change ONLY the wall color to pink
+   - "bigger carpet" → make ONLY the carpet larger
+   - "add plant in corner" → add a plant in a corner, change nothing else
+   - "leather sofa" → change ONLY the sofa material to leather
+   - "remove the lamp" → remove ONLY the lamp
 
-WHAT TO DO:
-1. Look at the original image carefully
-2. Identify ONLY the specific element mentioned in the edit request (e.g., "the painting", "the lamp")
-3. Make ONLY that one change using the reference image if provided
-4. Leave EVERYTHING else pixel-perfect identical to the original
+2. LOCATE: Find the specific element(s) in the image that match the user's request
+   - If they mention "wall", identify all visible walls
+   - If they mention "sofa" or "couch", find the seating furniture
+   - If they mention "floor" or "carpet", identify the floor covering
 
-The output image should be 99% identical to the input. Only the specifically mentioned item should change.
+3. MODIFY: Apply the change ONLY to the identified element
+   - Preserve exact perspective, lighting, and camera angle
+   - Keep all other furniture, decor, and architectural elements UNCHANGED
+   - Blend the modification naturally with realistic shadows and lighting
 
-If reference images are provided, use them to replace/modify ONLY the item specified in the edit request.
+CRITICAL PRESERVATION RULES:
+- The output image must be 95%+ identical to the input
+- DO NOT change anything not explicitly mentioned in the request
+- DO NOT add decorations or furniture not requested
+- DO NOT modify the room layout, ceiling, or architecture
+- DO NOT adjust colors of items not mentioned
+- Keep the same style and atmosphere of the room
 
-OUTPUT: Generate a high-resolution photorealistic result maintaining exact fidelity to the original except for the requested edit.`;
+OUTPUT: Generate a high-resolution photorealistic result where ONLY the specifically requested element has been modified.`;
     } else if (style) {
       prompt = `Transform this interior space image into a photorealistic ${style.name} interior design render. 
 Apply the following design style: ${style.prompt}

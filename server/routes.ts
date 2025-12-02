@@ -4253,15 +4253,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No image uploaded" });
       }
 
-      const { styleId, customPrompt, referenceItems, editRegion, customRegionPercent } = req.body;
+      const { styleId, customPrompt, referenceItems, editRegion, customRegionPercent, editMode } = req.body;
       
       if (!styleId && !referenceItems) {
         return res.status(400).json({ error: "Style ID or reference items are required" });
       }
       
-      // Parse custom region if provided
+      // Parse custom region if provided (only used in grid mode)
       let parsedCustomRegion = undefined;
-      if (customRegionPercent) {
+      if (customRegionPercent && editMode === "grid") {
         try {
           parsedCustomRegion = typeof customRegionPercent === 'string' 
             ? JSON.parse(customRegionPercent) 
@@ -4272,7 +4272,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      console.log("[AI Render] Edit region:", editRegion || (parsedCustomRegion ? "custom" : "full image"));
+      console.log("[AI Render] Edit mode:", editMode || "style-only");
+      console.log("[AI Render] Edit region:", editMode === "grid" ? (editRegion || (parsedCustomRegion ? "custom" : "none")) : "smart-detection");
       
       // Parse reference items if provided as JSON string
       let parsedReferenceItems = undefined;
@@ -4324,15 +4325,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const imageBase64 = req.file.buffer.toString('base64');
       const mimeType = req.file.mimetype;
 
-      // Generate the render with optional reference items and edit region
+      // Generate the render with optional reference items and edit region/mode
       const result = await generateInteriorRender(
         imageBase64, 
         mimeType, 
         styleId || 'modern', // Default style if using reference items only
         customPrompt,
         parsedReferenceItems,
-        editRegion || undefined,
-        parsedCustomRegion
+        editMode === "grid" ? (editRegion || undefined) : undefined,
+        editMode === "grid" ? parsedCustomRegion : undefined,
+        editMode as "smart" | "grid" | undefined
       );
       
       // Return the generated image as base64
