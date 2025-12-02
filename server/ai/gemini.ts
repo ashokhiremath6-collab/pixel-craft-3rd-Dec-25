@@ -468,21 +468,8 @@ export async function generateInteriorRender(
   }
 
   try {
-    // Grid mode: use patch-edit pipeline for targeted region edits
-    const hasEditContent = (customPrompt && customPrompt.trim()) || (referenceItems && referenceItems.length > 0);
-    if (editMode === "grid" && (editRegion || customRegionPercent) && hasEditContent) {
-      console.log("[Gemini] Using patch-edit pipeline for grid region:", editRegion || "custom");
-      let editInstruction = customPrompt?.trim() || '';
-      if (referenceItems && referenceItems.length > 0) {
-        const refInstructions = referenceItems.map(item => item.placementInstruction).join('. ');
-        if (editInstruction) {
-          editInstruction += '. ' + refInstructions;
-        } else {
-          editInstruction = refInstructions;
-        }
-      }
-      return await generatePatchEdit(imageBase64, mimeType, editInstruction, referenceItems, editRegion, customRegionPercent);
-    }
+    // Note: We no longer use patch-edit for grid mode as it caused compositing artifacts
+    // Instead, grid mode uses the full-image approach with region focus instructions in the prompt
     
     console.log("[Gemini] Compressing image...");
     const compressed = await compressImage(imageBase64, mimeType);
@@ -522,22 +509,61 @@ export async function generateInteriorRender(
 
     let prompt: string;
     
+    // Build region focus instructions for grid mode
+    let regionFocusInstructions = '';
+    if (editMode === "grid") {
+      // Convert named grid regions to percentage coordinates
+      const gridRegionToPercent: Record<string, {x: number; y: number; width: number; height: number}> = {
+        'top-left': { x: 0, y: 0, width: 33, height: 33 },
+        'top-center': { x: 33, y: 0, width: 34, height: 33 },
+        'top-right': { x: 67, y: 0, width: 33, height: 33 },
+        'center-left': { x: 0, y: 33, width: 33, height: 34 },
+        'center': { x: 33, y: 33, width: 34, height: 34 },
+        'center-right': { x: 67, y: 33, width: 33, height: 34 },
+        'bottom-left': { x: 0, y: 67, width: 33, height: 33 },
+        'bottom-center': { x: 33, y: 67, width: 34, height: 33 },
+        'bottom-right': { x: 67, y: 67, width: 33, height: 33 },
+      };
+      
+      let regionPercent: {x: number; y: number; width: number; height: number} | null = null;
+      
+      // Use custom region if provided, otherwise use named grid region
+      if (customRegionPercent && customRegionPercent.width > 2 && customRegionPercent.height > 2) {
+        regionPercent = customRegionPercent;
+      } else if (editRegion && gridRegionToPercent[editRegion]) {
+        regionPercent = gridRegionToPercent[editRegion];
+      }
+      
+      if (regionPercent) {
+        const regionDesc = `The user has selected a specific region of the image:
+- LEFT edge: ${Math.round(regionPercent.x)}% from left side
+- TOP edge: ${Math.round(regionPercent.y)}% from top
+- WIDTH: ${Math.round(regionPercent.width)}% of image width
+- HEIGHT: ${Math.round(regionPercent.height)}% of image height
+
+FOCUS YOUR EDIT on elements within this selected region. Elements OUTSIDE this region should remain COMPLETELY UNCHANGED.`;
+        regionFocusInstructions = `\n\nSELECTED REGION (Grid Mode):\n${regionDesc}\n`;
+      }
+    }
+    
     if (customPrompt && customPrompt.trim()) {
-      // Smart mode: AI semantically understands what element to modify
+      // Smart/Grid mode: AI semantically understands what element to modify
       prompt = `You are an expert interior design AI assistant. Analyze this room image and perform a TARGETED EDIT based on the user's description.
 
 USER'S EDIT REQUEST: "${customPrompt}"
-${referenceInstructions}
+${regionFocusInstructions}${referenceInstructions}
 
 YOUR TASK:
 1. UNDERSTAND: Parse the user's request to identify EXACTLY what element they want to change
    - "wall color pink" → change ONLY the wall color to pink
-   - "bigger carpet" → make ONLY the carpet larger
+   - "bigger carpet" → make ONLY the carpet larger  
    - "add plant in corner" → add a plant in a corner, change nothing else
    - "leather sofa" → change ONLY the sofa material to leather
    - "remove the lamp" → remove ONLY the lamp
+   - "add another chair" → add a chair that MATCHES existing chairs exactly (same style, scale, orientation)
 
 2. LOCATE: Find the specific element(s) in the image that match the user's request
+   ${regionFocusInstructions ? '- IMPORTANT: Focus on elements within the user-selected region' : ''}
    - If they mention "wall", identify all visible walls
    - If they mention "sofa" or "couch", find the seating furniture
    - If they mention "floor" or "carpet", identify the floor covering
@@ -546,6 +572,8 @@ YOUR TASK:
    - Preserve exact perspective, lighting, and camera angle
    - Keep all other furniture, decor, and architectural elements UNCHANGED
    - Blend the modification naturally with realistic shadows and lighting
+   - If adding furniture similar to existing pieces, ensure IDENTICAL style, scale, and proportions
+   - New chairs must match existing chairs exactly (leg angles, arm heights, upholstery)
 
 CRITICAL PRESERVATION RULES:
 - The output image must be 95%+ identical to the input
@@ -554,6 +582,7 @@ CRITICAL PRESERVATION RULES:
 - DO NOT modify the room layout, ceiling, or architecture
 - DO NOT adjust colors of items not mentioned
 - Keep the same style and atmosphere of the room
+- Duplicate objects (pairs of chairs, matching lamps) must be SYMMETRICAL and IDENTICAL
 
 OUTPUT: Generate a high-resolution photorealistic result where ONLY the specifically requested element has been modified.`;
     } else if (style) {
