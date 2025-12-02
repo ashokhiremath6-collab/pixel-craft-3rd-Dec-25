@@ -34,7 +34,8 @@ import {
   X,
   Palette,
   Search,
-  Grid3X3
+  Grid3X3,
+  Pencil
 } from "lucide-react";
 
 interface ReferenceItem {
@@ -738,6 +739,47 @@ export default function AIRendersPage() {
     document.body.removeChild(link);
   };
 
+  const handleEditThisResult = () => {
+    if (!generatedRender) return;
+    
+    // Convert base64 to Blob and then to File
+    const byteCharacters = atob(generatedRender.imageData);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: generatedRender.mimeType });
+    
+    // Create a new File from the blob
+    const styleName = generatedRender.styleName || generatedRender.styleId;
+    const fileName = `${styleName}-render-${Date.now()}.png`;
+    const file = new File([blob], fileName, { type: generatedRender.mimeType });
+    
+    // Set as the new source image
+    setSelectedFile(file);
+    const url = URL.createObjectURL(blob);
+    setPreviewUrl(url);
+    setSelectedSavedRenderUrl(null);
+    
+    // Clear edit settings for fresh editing
+    setCustomPrompt("");
+    setCustomRegion(null);
+    setEditRegion(null);
+    setReferenceItems([]);
+    
+    // Close the full-size dialog but keep the generatedRender state
+    // so users can still access it via the thumbnail for download/save
+    setShowFullSize(false);
+    // Note: Don't clear generatedRender - keep it visible so user can still download/save
+    // It will be replaced when a new render is generated
+    
+    toast({
+      title: "Ready for More Edits",
+      description: "The render is now your source image. You can still download/save the previous render, then add new instructions to continue editing.",
+    });
+  };
+
   const handleClearAll = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
@@ -1316,11 +1358,15 @@ export default function AIRendersPage() {
                 data-testid="image-generated-render-fullsize"
               />
               <div className="flex justify-center gap-2 mt-4">
-                <Button onClick={handleDownload} data-testid="button-download-fullsize">
+                <Button onClick={handleEditThisResult} variant="default" data-testid="button-edit-this-result">
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit This Result
+                </Button>
+                <Button onClick={handleDownload} variant="outline" data-testid="button-download-fullsize">
                   <Download className="h-4 w-4 mr-2" />
                   Download
                 </Button>
-                <Button variant="outline" onClick={() => setShowFullSize(false)}>
+                <Button variant="ghost" onClick={() => setShowFullSize(false)}>
                   Close
                 </Button>
               </div>
