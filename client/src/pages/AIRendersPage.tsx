@@ -1226,6 +1226,15 @@ export default function AIRendersPage() {
                     <Download className="h-4 w-4 mr-2" />
                     Download
                   </Button>
+                  <Button 
+                    variant="secondary" 
+                    onClick={handleEditThisResult}
+                    title="Use this render as the new source image for further editing"
+                    data-testid="button-edit-result"
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit This
+                  </Button>
                 </div>
               </>
             ) : (
