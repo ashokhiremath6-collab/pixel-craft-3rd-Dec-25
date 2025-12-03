@@ -135,6 +135,21 @@ export default function AIRendersPage() {
   const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   
+  const abortControllerRef = useRef<AbortController | null>(null);
+  
+  const cancelGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setGenerationStartTime(null);
+      setElapsedTime(0);
+      toast({
+        title: "Generation Cancelled",
+        description: "You can try again whenever you're ready."
+      });
+    }
+  };
+  
   // Helper function to convert column index to letter (0=A, 1=B, etc.)
   const columnToLetter = (col: number): string => {
     let result = '';
@@ -165,6 +180,8 @@ export default function AIRendersPage() {
     mutationFn: async (params: { prompt: string; gridCell?: { col: number; row: number } | null }) => {
       if (!generatedRender) throw new Error("No render to modify");
       
+      abortControllerRef.current = new AbortController();
+      
       // Convert base64 to blob, then compress for API
       const base64Response = await fetch(`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`);
       const blob = await base64Response.blob();
@@ -193,6 +210,7 @@ export default function AIRendersPage() {
         method: 'POST',
         body: formData,
         credentials: 'include',
+        signal: abortControllerRef.current.signal,
       });
       
       if (!response.ok) {
@@ -222,6 +240,9 @@ export default function AIRendersPage() {
       });
     },
     onError: (error: Error) => {
+      if (error.name === 'AbortError') {
+        return;
+      }
       const isTimeout = error.message.includes('timed out') || error.message.includes('90 seconds');
       toast({
         title: isTimeout ? "Generation Timed Out" : "Modification Failed",
@@ -530,6 +551,8 @@ export default function AIRendersPage() {
 
   const generateFromImageMutation = useMutation({
     mutationFn: async (data: { file: File; styleId: string; customPrompt?: string; referenceItems?: ReferenceItem[]; referencePhotos?: ReferencePhoto[] }) => {
+      abortControllerRef.current = new AbortController();
+      
       const compressedBlob = await compressImageOnClient(data.file);
       const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
       
@@ -566,6 +589,7 @@ export default function AIRendersPage() {
         method: 'POST',
         body: formData,
         credentials: 'include',
+        signal: abortControllerRef.current.signal,
       });
       
       if (!response.ok) {
@@ -602,6 +626,9 @@ export default function AIRendersPage() {
       toast({ title: "Render Generated", description: "Your AI render is ready!" });
     },
     onError: (error: any) => {
+      if (error.name === 'AbortError') {
+        return;
+      }
       const message = error.message || "Failed to generate render";
       const isTimeout = message.includes('timed out') || message.includes('90 seconds') || message.includes('timeout');
       toast({ 
@@ -1175,36 +1202,50 @@ export default function AIRendersPage() {
             </div>
 
             <div className="flex gap-2">
-              <Button 
-                onClick={handleGenerateFromImage}
-                disabled={isGenerating || !selectedStyle}
-                className="flex-1"
-                data-testid="button-generate"
-              >
-                {isGenerating ? (
-                  <>
+              {isGenerating ? (
+                <>
+                  <Button 
+                    disabled
+                    className="flex-1"
+                    data-testid="button-generate"
+                  >
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Generating... {elapsedTime > 0 && `(${formatElapsedTime(elapsedTime)})`}
-                  </>
-                ) : (
-                  <>
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={cancelGeneration}
+                    data-testid="button-cancel-generation"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button 
+                    onClick={handleGenerateFromImage}
+                    disabled={!selectedStyle}
+                    className="flex-1"
+                    data-testid="button-generate"
+                  >
                     <Wand2 className="h-4 w-4 mr-2" />
                     Generate Render
-                  </>
-                )}
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={handleClearAll}
-                data-testid="button-clear"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleClearAll}
+                    data-testid="button-clear"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
             </div>
             
             {isGenerating && elapsedTime > 30 && (
               <p className="text-xs text-muted-foreground text-center">
-                AI generation can take up to 90 seconds. Please wait...
+                AI generation can take up to 90 seconds. Click Cancel to stop and try again.
               </p>
             )}
           </CardContent>
@@ -1456,28 +1497,41 @@ export default function AIRendersPage() {
                         />
                       </div>
                       
-                      <Button
-                        onClick={() => modifyRenderMutation.mutate({ prompt: modificationPrompt, gridCell: selectedGridCell })}
-                        disabled={modifyRenderMutation.isPending || !modificationPrompt.trim()}
-                        className="w-full"
-                        data-testid="button-apply-modification"
-                      >
+                      <div className="flex gap-2">
                         {modifyRenderMutation.isPending ? (
                           <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Modifying... {elapsedTime > 0 && `(${formatElapsedTime(elapsedTime)})`}
+                            <Button
+                              disabled
+                              className="flex-1"
+                              data-testid="button-apply-modification"
+                            >
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Modifying... {elapsedTime > 0 && `(${formatElapsedTime(elapsedTime)})`}
+                            </Button>
+                            <Button 
+                              variant="destructive" 
+                              onClick={cancelGeneration}
+                              data-testid="button-cancel-modification"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
                           </>
                         ) : (
-                          <>
+                          <Button
+                            onClick={() => modifyRenderMutation.mutate({ prompt: modificationPrompt, gridCell: selectedGridCell })}
+                            disabled={!modificationPrompt.trim()}
+                            className="w-full"
+                            data-testid="button-apply-modification"
+                          >
                             <Wand2 className="h-4 w-4 mr-2" />
                             Apply Modification
-                          </>
+                          </Button>
                         )}
-                      </Button>
+                      </div>
                       
                       {modifyRenderMutation.isPending && elapsedTime > 30 && (
                         <p className="text-xs text-muted-foreground text-center">
-                          AI modification can take up to 90 seconds...
+                          AI modification can take up to 90 seconds. Click X to cancel.
                         </p>
                       )}
                     </div>
