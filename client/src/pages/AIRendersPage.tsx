@@ -141,13 +141,13 @@ export default function AIRendersPage() {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
-      setGenerationStartTime(null);
-      setElapsedTime(0);
-      toast({
-        title: "Generation Cancelled",
-        description: "You can try again whenever you're ready."
-      });
     }
+    setGenerationStartTime(null);
+    setElapsedTime(0);
+    toast({
+      title: "Generation Cancelled",
+      description: "Your image is still selected - click Generate to try again."
+    });
   };
   
   // Helper function to convert column index to letter (0=A, 1=B, etc.)
