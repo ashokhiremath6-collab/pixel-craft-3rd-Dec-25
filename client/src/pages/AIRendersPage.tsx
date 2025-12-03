@@ -222,9 +222,12 @@ export default function AIRendersPage() {
       });
     },
     onError: (error: Error) => {
+      const isTimeout = error.message.includes('timed out') || error.message.includes('90 seconds');
       toast({
-        title: "Modification Failed",
-        description: error.message,
+        title: isTimeout ? "Generation Timed Out" : "Modification Failed",
+        description: isTimeout 
+          ? "The AI took too long to respond. This can happen with complex images. Please try again." 
+          : error.message,
         variant: "destructive"
       });
     }
@@ -599,9 +602,13 @@ export default function AIRendersPage() {
       toast({ title: "Render Generated", description: "Your AI render is ready!" });
     },
     onError: (error: any) => {
+      const message = error.message || "Failed to generate render";
+      const isTimeout = message.includes('timed out') || message.includes('90 seconds') || message.includes('timeout');
       toast({ 
-        title: "Generation Failed", 
-        description: error.message || "Failed to generate render",
+        title: isTimeout ? "Generation Timed Out" : "Generation Failed", 
+        description: isTimeout 
+          ? "The AI took too long. Try with a smaller image or fewer reference items." 
+          : message,
         variant: "destructive" 
       });
     },
@@ -622,9 +629,13 @@ export default function AIRendersPage() {
       toast({ title: "Render Generated", description: "Your concept render is ready!" });
     },
     onError: (error: any) => {
+      const message = error.message || "Failed to generate render";
+      const isTimeout = message.includes('timed out') || message.includes('90 seconds') || message.includes('timeout');
       toast({ 
-        title: "Generation Failed", 
-        description: error.message || "Failed to generate render",
+        title: isTimeout ? "Generation Timed Out" : "Generation Failed", 
+        description: isTimeout 
+          ? "The AI took too long. Try a simpler description." 
+          : message,
         variant: "destructive" 
       });
     },
