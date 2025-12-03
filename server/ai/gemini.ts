@@ -227,7 +227,10 @@ export async function generateInteriorRender(
       const existingSpacePhotos = referencePhotos.filter(p => p.type === 'existing_space');
       
       if (inspirationPhotos.length > 0) {
-        referenceInstructions += '\nINSPIRATION PHOTOS (use these as style/mood references):\n';
+        referenceInstructions += '\nITEM REFERENCE PHOTOS (show what the specific item should look like):\n';
+        referenceInstructions += 'WARNING: These photos show ONLY what a specific furniture item looks like.\n';
+        referenceInstructions += 'DO NOT copy the room, walls, floors, lighting, or any other elements from these photos.\n';
+        referenceInstructions += 'ONLY extract the specific item (like a sofa or chair) from these reference photos.\n\n';
         for (let i = 0; i < inspirationPhotos.length; i++) {
           const photo = inspirationPhotos[i];
           console.log(`[Gemini] Compressing inspiration photo ${i + 1}...`);
@@ -235,8 +238,8 @@ export async function generateInteriorRender(
           referenceImageParts.push({
             inlineData: { mimeType: compressed.mimeType, data: compressed.data }
           });
-          const desc = photo.description || 'Style inspiration';
-          referenceInstructions += `- Inspiration ${i + 1}: ${desc} (image attached)\n`;
+          const desc = photo.description || 'Item reference';
+          referenceInstructions += `- Reference ${i + 1}: ${desc} - copy ONLY the specific item from this photo, nothing else (image attached)\n`;
         }
       }
       
@@ -254,11 +257,12 @@ export async function generateInteriorRender(
         }
       }
       
-      referenceInstructions += '\nGUIDANCE FOR REFERENCE PHOTOS:\n';
-      referenceInstructions += '- Use inspiration photos ONLY to understand what specific items should look like (e.g., sofa style, color, material)\n';
-      referenceInstructions += '- DO NOT apply the overall style or color palette from inspiration photos to the whole room\n';
-      referenceInstructions += '- ONLY replace or modify the specific item mentioned in the instructions, nothing else\n';
-      referenceInstructions += '- Use existing space photos to understand the room context and proportions\n';
+      referenceInstructions += '\nCRITICAL RULES FOR USING REFERENCE PHOTOS:\n';
+      referenceInstructions += '- The reference photos show what ONE SPECIFIC ITEM should look like (e.g., a sofa, chair, or table)\n';
+      referenceInstructions += '- COPY ONLY THAT SPECIFIC ITEM into the original room - match its exact appearance, color, and style\n';
+      referenceInstructions += '- DO NOT change ANYTHING ELSE in the room - same walls, floors, other furniture, lighting, colors\n';
+      referenceInstructions += '- The background/room in the reference photo is IRRELEVANT - ignore it completely\n';
+      referenceInstructions += '- The output room should be 99% identical to the input room, with only the ONE item changed\n';
     }
     
     // Process catalogue reference items
