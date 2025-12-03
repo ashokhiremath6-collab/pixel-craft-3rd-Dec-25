@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -131,6 +131,9 @@ export default function AIRendersPage() {
   
   const [showModifyTools, setShowModifyTools] = useState(false);
   const [modificationPrompt, setModificationPrompt] = useState("");
+  
+  const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
   
   // Helper function to convert column index to letter (0=A, 1=B, etc.)
   const columnToLetter = (col: number): string => {
@@ -837,6 +840,33 @@ export default function AIRendersPage() {
   };
 
   const isGenerating = generateFromImageMutation.isPending || generateFromDescriptionMutation.isPending;
+  const isModifying = modifyRenderMutation.isPending;
+  const isAnyAIWorking = isGenerating || isModifying;
+
+  useEffect(() => {
+    if (isAnyAIWorking && !generationStartTime) {
+      setGenerationStartTime(Date.now());
+      setElapsedTime(0);
+    } else if (!isAnyAIWorking && generationStartTime) {
+      setGenerationStartTime(null);
+    }
+  }, [isAnyAIWorking, generationStartTime]);
+
+  useEffect(() => {
+    if (!generationStartTime) return;
+    
+    const interval = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - generationStartTime) / 1000));
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [generationStartTime]);
+
+  const formatElapsedTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  };
 
   return (
     <div className="space-y-6">
@@ -1143,7 +1173,7 @@ export default function AIRendersPage() {
                 {isGenerating ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Generating...
+                    Generating... {elapsedTime > 0 && `(${formatElapsedTime(elapsedTime)})`}
                   </>
                 ) : (
                   <>
@@ -1160,6 +1190,12 @@ export default function AIRendersPage() {
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </div>
+            
+            {isGenerating && elapsedTime > 30 && (
+              <p className="text-xs text-muted-foreground text-center">
+                AI generation can take up to 90 seconds. Please wait...
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -1418,7 +1454,7 @@ export default function AIRendersPage() {
                         {modifyRenderMutation.isPending ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Modifying...
+                            Modifying... {elapsedTime > 0 && `(${formatElapsedTime(elapsedTime)})`}
                           </>
                         ) : (
                           <>
@@ -1427,6 +1463,12 @@ export default function AIRendersPage() {
                           </>
                         )}
                       </Button>
+                      
+                      {modifyRenderMutation.isPending && elapsedTime > 30 && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          AI modification can take up to 90 seconds...
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
