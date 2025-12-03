@@ -234,7 +234,7 @@ export default function ProjectsPage() {
 
       {/* Edit Project Dialog */}
       <Dialog open={!!editingProject} onOpenChange={handleCloseEditDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="max-w-[95vw] sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Project</DialogTitle>
           </DialogHeader>
@@ -394,7 +394,7 @@ export default function ProjectsPage() {
 
       {/* Add Project Dialog */}
       <Dialog open={isAddingProject} onOpenChange={handleCloseAddDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="max-w-[95vw] sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Project</DialogTitle>
             <DialogDescription>

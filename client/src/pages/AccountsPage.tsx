@@ -591,7 +591,7 @@ export default function AccountsPage() {
                       Add Invoice
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Add Invoice</DialogTitle>
                   <DialogDescription>
@@ -730,7 +730,7 @@ export default function AccountsPage() {
                   Record Payment
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Record Payment</DialogTitle>
                   <DialogDescription>
@@ -840,7 +840,7 @@ export default function AccountsPage() {
 
             {/* Edit Invoice Dialog */}
             <Dialog open={editInvoiceDialogOpen} onOpenChange={(open) => !open && handleCloseEditInvoice()}>
-              <DialogContent>
+              <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Edit Invoice</DialogTitle>
                   <DialogDescription>
@@ -952,7 +952,7 @@ export default function AccountsPage() {
 
             {/* Edit Payment Dialog */}
             <Dialog open={editPaymentDialogOpen} onOpenChange={(open) => !open && handleCloseEditPayment()}>
-              <DialogContent>
+              <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Edit Payment</DialogTitle>
                   <DialogDescription>

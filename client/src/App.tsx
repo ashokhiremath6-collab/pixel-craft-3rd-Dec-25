@@ -76,14 +76,15 @@ function AuthenticatedApp() {
       <div className="flex h-screen w-full overflow-hidden">
         <AppSidebar />
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center justify-between p-4 border-b bg-background shrink-0">
-            <div className="flex items-center gap-3 min-w-0">
+          <header className="flex items-center justify-between p-2 sm:p-4 border-b bg-background shrink-0 gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <h1 className="text-lg font-semibold truncate" data-testid="heading-app-title">
-                PixelCraft Designer
+              <h1 className="text-sm sm:text-lg font-semibold truncate" data-testid="heading-app-title">
+                <span className="sm:hidden">PixelCraft</span>
+                <span className="hidden sm:inline">PixelCraft Designer</span>
               </h1>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-1 sm:gap-3 shrink-0">
               {user && (
                 <div className="flex items-center gap-2">
                   <Badge 
@@ -92,13 +93,13 @@ function AuthenticatedApp() {
                       user.role === 'designer' ? 'default' : 
                       'secondary'
                     }
-                    className="capitalize flex items-center gap-1 px-2 py-1"
+                    className="capitalize flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs"
                     data-testid="badge-user-role"
                   >
                     {user.role === 'admin' && <Crown className="h-3 w-3" />}
                     {user.role === 'designer' && <Shield className="h-3 w-3" />}
                     {user.role === 'client' && <User className="h-3 w-3" />}
-                    {user.role}
+                    <span className="hidden sm:inline">{user.role}</span>
                   </Badge>
                 </div>
               )}

@@ -574,11 +574,11 @@ export default function GanttChartPage() {
 
       {/* Project Selector and Actions */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-4 flex-1">
+        <CardHeader className="p-3 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
               <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                <SelectTrigger className="w-[300px]" data-testid="select-project">
+                <SelectTrigger className="w-full sm:w-[300px]" data-testid="select-project">
                   <SelectValue placeholder="Select a project" />
                 </SelectTrigger>
                 <SelectContent>
@@ -596,7 +596,7 @@ export default function GanttChartPage() {
               )}
             </div>
             {selectedProjectId && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Dialog open={isGanttLinkOpen} onOpenChange={(open) => {
                   setIsGanttLinkOpen(open);
                   if (open && selectedProject) {

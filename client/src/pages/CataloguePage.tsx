@@ -713,7 +713,7 @@ export default function CataloguePage() {
         </Tabs>
 
         <Dialog open={dialogOpen} onOpenChange={handleCloseDialog}>
-          <DialogContent>
+          <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingItem ? "Edit Catalogue Item" : "Add Catalogue Item"}

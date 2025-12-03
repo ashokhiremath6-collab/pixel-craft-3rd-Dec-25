@@ -571,7 +571,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                 Add Main Category
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create New Main Category</DialogTitle>
               </DialogHeader>
@@ -641,7 +641,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                 Add Subcategory
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create New Subcategory</DialogTitle>
               </DialogHeader>
@@ -736,7 +736,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                 Add Vendor
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Vendor</DialogTitle>
               </DialogHeader>
@@ -969,7 +969,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
 
           {/* Edit Vendor Dialog */}
           <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Edit Vendor</DialogTitle>
               </DialogHeader>

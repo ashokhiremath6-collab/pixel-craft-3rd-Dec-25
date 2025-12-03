@@ -1653,7 +1653,7 @@ export default function AIRendersPage() {
       </Card>
 
       <Dialog open={showSavedRendersDialog} onOpenChange={setShowSavedRendersDialog}>
-        <DialogContent className="max-w-3xl max-h-[80vh]">
+        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[80vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FolderOpen className="h-5 w-5" />

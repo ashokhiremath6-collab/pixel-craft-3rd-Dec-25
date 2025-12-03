@@ -1061,7 +1061,7 @@ export default function WorksOrdersPage() {
 
       {/* Template Import Dialog */}
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
-        <DialogContent className="max-w-2xl" data-testid="dialog-template">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-template">
           <DialogHeader>
             <DialogTitle>Import Template</DialogTitle>
           </DialogHeader>
@@ -1149,7 +1149,7 @@ export default function WorksOrdersPage() {
 
       {/* Order Dialog */}
       <Dialog open={orderDialogOpen} onOpenChange={setOrderDialogOpen}>
-        <DialogContent className="max-w-2xl" data-testid="dialog-order">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-order">
           <DialogHeader>
             <DialogTitle>
               {editingOrder ? 'Edit Works Order' : 'Create Works Order'}
@@ -1468,7 +1468,7 @@ export default function WorksOrdersPage() {
 
       {/* Import Works Order Dialog */}
       <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-        <DialogContent data-testid="dialog-import-works-order">
+        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto" data-testid="dialog-import-works-order">
           <DialogHeader>
             <DialogTitle>Import Works Order</DialogTitle>
           </DialogHeader>
