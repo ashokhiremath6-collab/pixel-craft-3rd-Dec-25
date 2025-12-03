@@ -1154,13 +1154,24 @@ export default function AIRendersPage() {
                           >
                             <X className="h-3 w-3" />
                           </Button>
-                          <Input
-                            placeholder="Brief note..."
-                            value={photo.description}
-                            onChange={(e) => updateReferencePhotoDescription(photo.id, e.target.value)}
-                            className="mt-1 h-6 text-xs"
-                            data-testid={`input-photo-desc-${photo.id}`}
-                          />
+                          <div className="mt-1 flex items-center gap-1">
+                            <Input
+                              placeholder="What item to copy from this photo..."
+                              value={photo.description}
+                              onChange={(e) => updateReferencePhotoDescription(photo.id, e.target.value)}
+                              className="h-7 text-xs flex-1"
+                              data-testid={`input-photo-desc-${photo.id}`}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 shrink-0"
+                              onClick={() => removeReferencePhoto(photo.id)}
+                              data-testid={`button-remove-photo-inline-${photo.id}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
