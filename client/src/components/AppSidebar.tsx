@@ -117,14 +117,17 @@ const designerOnlyItems: NavigationItem[] = [
     icon: Calendar,
   },
   {
-    title: "Works Orders",
-    url: "/works-orders",
-    icon: FileSignature,
-  },
-  {
     title: "Client Access",
     url: "/client-access",
     icon: UserCheck,
+  },
+];
+
+const projectManagerItems: NavigationItem[] = [
+  {
+    title: "Works Orders",
+    url: "/works-orders",
+    icon: FileSignature,
   },
 ];
 
@@ -139,6 +142,7 @@ export function AppSidebar() {
   });
   
   const canManageCatalogues = ['admin', 'designer'].includes((user as any)?.role);
+  const canAccessWorksOrders = ['admin', 'designer', 'project_manager'].includes((user as any)?.role);
 
   // Close mobile sidebar when a link is clicked
   const handleLinkClick = () => {
@@ -178,6 +182,44 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {designerOnlyItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton 
+                      asChild
+                      data-active={location === item.url}
+                      data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Link href={item.url} onClick={handleLinkClick}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+                {projectManagerItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton 
+                      asChild
+                      data-active={location === item.url}
+                      data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Link href={item.url} onClick={handleLinkClick}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {!canManageCatalogues && canAccessWorksOrders && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Project Management</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {projectManagerItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton 
                       asChild

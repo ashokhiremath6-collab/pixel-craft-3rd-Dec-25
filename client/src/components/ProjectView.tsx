@@ -107,25 +107,18 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
           
           <Card>
             <CardContent className="p-0">
-              <Table className="table-fixed">
-                <colgroup>
-                  <col className="w-[25%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[13%]" />
-                </colgroup>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="py-2">Project Name</TableHead>
-                    <TableHead className="py-2">Client</TableHead>
-                    <TableHead className="py-2">Timeline</TableHead>
-                    <TableHead className="py-2">Status</TableHead>
-                    <TableHead className="py-2">Vendors</TableHead>
-                    <TableHead className="py-2 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[700px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="py-2 min-w-[150px]">Project Name</TableHead>
+                      <TableHead className="py-2 min-w-[120px]">Client</TableHead>
+                      <TableHead className="py-2 min-w-[180px]">Timeline</TableHead>
+                      <TableHead className="py-2 min-w-[80px]">Status</TableHead>
+                      <TableHead className="py-2 min-w-[70px]">Vendors</TableHead>
+                      <TableHead className="py-2 text-right min-w-[100px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
                   <TableBody>
                     {filteredProjects.map(project => {
                       const formatDate = (dateString: string | null) => {
@@ -236,6 +229,7 @@ export default function ProjectView({ projects, quotations, onAddProject, onEdit
                     })}
                   </TableBody>
                 </Table>
+              </div>
             </CardContent>
           </Card>
 

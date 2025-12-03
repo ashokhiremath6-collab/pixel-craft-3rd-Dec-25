@@ -8,7 +8,7 @@ interface User {
   name: string | null;
   username: string | null;
   image: string | null;
-  role: 'admin' | 'designer' | 'client';
+  role: 'admin' | 'designer' | 'project_manager' | 'client';
   isActive: boolean;
 }
 
