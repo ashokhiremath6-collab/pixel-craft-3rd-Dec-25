@@ -998,10 +998,13 @@ export default function AIRendersPage() {
                   <Label htmlFor="custom-prompt">Custom Instructions (Optional)</Label>
                   <Textarea
                     id="custom-prompt"
-                    placeholder="Add specific instructions like 'add more plants' or 'change the sofa to leather'"
+                    placeholder="Describe specific changes you want, e.g.:
+• Replace the sofa with the one from the inspiration photo
+• Change the coffee table to a round marble one
+• Add a floor lamp in the corner"
                     value={customPrompt}
                     onChange={(e) => setCustomPrompt(e.target.value)}
-                    className="mt-2"
+                    className="mt-2 min-h-[100px]"
                     data-testid="input-custom-prompt"
                   />
                 </div>

@@ -254,8 +254,10 @@ export async function generateInteriorRender(
         }
       }
       
-      referenceInstructions += '\nGUIDANCE:\n';
-      referenceInstructions += '- Use inspiration photos to guide the overall mood, color palette, and style\n';
+      referenceInstructions += '\nGUIDANCE FOR REFERENCE PHOTOS:\n';
+      referenceInstructions += '- Use inspiration photos ONLY to understand what specific items should look like (e.g., sofa style, color, material)\n';
+      referenceInstructions += '- DO NOT apply the overall style or color palette from inspiration photos to the whole room\n';
+      referenceInstructions += '- ONLY replace or modify the specific item mentioned in the instructions, nothing else\n';
       referenceInstructions += '- Use existing space photos to understand the room context and proportions\n';
     }
     
@@ -291,19 +293,22 @@ export async function generateInteriorRender(
     let prompt: string;
     
     if (customPrompt && customPrompt.trim()) {
-      prompt = `You are an interior design assistant. Make ONLY the specific changes requested below to this image. 
-DO NOT change anything else. Keep the room layout, furniture positions, colors, materials, and all other elements EXACTLY as they are in the original image.
+      prompt = `You are a precise interior design assistant. Your task is to make ONLY ONE SPECIFIC CHANGE to this image.
 
-ONLY make these specific changes:
-${customPrompt}${referenceInstructions}
+THE ONLY CHANGE TO MAKE:
+${customPrompt}
+${referenceInstructions}
 
-IMPORTANT RULES:
-- Make MINIMAL changes - only what is explicitly requested above
-- Preserve all existing furniture, decor, and layout that is not mentioned
-- Keep the same perspective, lighting style, and room dimensions
-- Do not add or remove items unless specifically asked
-- The output should look almost identical to the input, except for the requested changes
-- When inserting reference items, match their appearance as closely as possible
+CRITICAL RULES - YOU MUST FOLLOW THESE EXACTLY:
+1. ONLY modify the specific item mentioned above (e.g., if asked to replace the sofa, ONLY change the sofa)
+2. DO NOT change ANY other furniture, decor, walls, floors, lighting, or colors in the room
+3. DO NOT apply any overall style transformation to the room
+4. The room should look 99% identical to the original - only the ONE specific item changes
+5. Keep the exact same camera angle, perspective, and room layout
+6. Keep the exact same wall colors, floor materials, and lighting
+7. Keep ALL other furniture exactly where it is and exactly as it looks
+8. If reference/inspiration photos are provided, use them ONLY to understand what the NEW item should look like
+9. DO NOT use reference photos to change the overall room style or color scheme
 
 OUTPUT QUALITY:
 - Generate a HIGH RESOLUTION, photorealistic image with maximum detail
