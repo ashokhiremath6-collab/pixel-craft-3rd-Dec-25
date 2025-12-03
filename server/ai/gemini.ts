@@ -4,6 +4,34 @@ import * as fs from "fs";
 
 let aiClient: GoogleGenAI | null = null;
 
+const AI_TIMEOUT_MS = 90000; // 90 seconds timeout for AI generation
+
+class TimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TimeoutError';
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new TimeoutError(`${operation} timed out after ${timeoutMs / 1000} seconds. Please try again.`));
+    }, timeoutMs);
+  });
+  
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId!);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutId!);
+    throw error;
+  }
+}
+
 function getAIClient(): GoogleGenAI {
   if (aiClient) return aiClient;
   
@@ -317,6 +345,7 @@ OUTPUT QUALITY:
     }
 
     console.log("[Gemini] Calling AI API with model: gemini-2.5-flash-image");
+    console.log("[Gemini] Timeout set to:", AI_TIMEOUT_MS / 1000, "seconds");
     
     // Build parts array: text prompt + source image + reference images
     const parts: any[] = [
@@ -325,18 +354,22 @@ OUTPUT QUALITY:
       ...referenceImageParts
     ];
     
-    const response = await getAIClient().models.generateContent({
-      model: "gemini-2.5-flash-image",
-      contents: [
-        {
-          role: "user",
-          parts: parts
-        }
-      ],
-      config: {
-        responseModalities: [Modality.TEXT, Modality.IMAGE],
-      },
-    });
+    const response = await withTimeout(
+      getAIClient().models.generateContent({
+        model: "gemini-2.5-flash-image",
+        contents: [
+          {
+            role: "user",
+            parts: parts
+          }
+        ],
+        config: {
+          responseModalities: [Modality.TEXT, Modality.IMAGE],
+        },
+      }),
+      AI_TIMEOUT_MS,
+      "AI render generation"
+    );
 
     console.log("[Gemini] API response received");
     console.log("[Gemini] Candidates count:", response.candidates?.length || 0);
@@ -394,13 +427,20 @@ OUTPUT QUALITY REQUIREMENTS:
 - The render should be suitable for large format printing and professional client presentations
 - Ensure photorealistic quality that looks indistinguishable from a real photograph`;
 
-  const response = await getAIClient().models.generateContent({
-    model: "gemini-2.5-flash-image",
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    config: {
-      responseModalities: [Modality.TEXT, Modality.IMAGE],
-    },
-  });
+  console.log("[Gemini] Calling AI API for concept render...");
+  console.log("[Gemini] Timeout set to:", AI_TIMEOUT_MS / 1000, "seconds");
+  
+  const response = await withTimeout(
+    getAIClient().models.generateContent({
+      model: "gemini-2.5-flash-image",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        responseModalities: [Modality.TEXT, Modality.IMAGE],
+      },
+    }),
+    AI_TIMEOUT_MS,
+    "AI concept render generation"
+  );
 
   const candidate = response.candidates?.[0];
   const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
