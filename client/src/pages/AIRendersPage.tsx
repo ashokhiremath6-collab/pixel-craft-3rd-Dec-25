@@ -125,11 +125,41 @@ export default function AIRendersPage() {
   const [gridSize, setGridSize] = useState(50);
   const [gridOpacity, setGridOpacity] = useState(0.3);
   const [showGridSettings, setShowGridSettings] = useState(false);
+  const [selectedGridCell, setSelectedGridCell] = useState<{ col: number; row: number } | null>(null);
+  const [gridInteractive, setGridInteractive] = useState(false);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
   
   const [showModifyTools, setShowModifyTools] = useState(false);
   const [modificationPrompt, setModificationPrompt] = useState("");
+  
+  // Helper function to convert column index to letter (0=A, 1=B, etc.)
+  const columnToLetter = (col: number): string => {
+    let result = '';
+    let n = col;
+    while (n >= 0) {
+      result = String.fromCharCode(65 + (n % 26)) + result;
+      n = Math.floor(n / 26) - 1;
+    }
+    return result;
+  };
+  
+  // Get grid cell coordinate label (e.g., "A1", "B3")
+  const getCellLabel = (col: number, row: number): string => {
+    return `${columnToLetter(col)}${row + 1}`;
+  };
+  
+  // Calculate grid dimensions based on container size
+  const getGridDimensions = () => {
+    if (!gridContainerRef.current) return { cols: 0, rows: 0 };
+    const width = gridContainerRef.current.offsetWidth;
+    const height = gridContainerRef.current.offsetHeight;
+    return {
+      cols: Math.ceil(width / gridSize),
+      rows: Math.ceil(height / gridSize)
+    };
+  };
   const modifyRenderMutation = useMutation({
-    mutationFn: async (prompt: string) => {
+    mutationFn: async (params: { prompt: string; gridCell?: { col: number; row: number } | null }) => {
       if (!generatedRender) throw new Error("No render to modify");
       
       // Convert base64 to blob, then compress for API
@@ -141,10 +171,20 @@ export default function AIRendersPage() {
       const compressedBlob = await compressImageOnClient(file);
       const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
       
+      // Build prompt with grid context if a cell is selected
+      let finalPrompt = params.prompt;
+      if (params.gridCell) {
+        const cellLabel = getCellLabel(params.gridCell.col, params.gridCell.row);
+        const { cols, rows } = getGridDimensions();
+        const colPosition = params.gridCell.col < cols / 3 ? 'left' : params.gridCell.col > (2 * cols) / 3 ? 'right' : 'center';
+        const rowPosition = params.gridCell.row < rows / 3 ? 'top' : params.gridCell.row > (2 * rows) / 3 ? 'bottom' : 'middle';
+        finalPrompt = `Focus specifically on grid cell ${cellLabel} (located at the ${rowPosition}-${colPosition} area of the image). ${params.prompt}`;
+      }
+      
       const formData = new FormData();
       formData.append('image', compressedFile);
       formData.append('styleId', 'custom');
-      formData.append('customPrompt', prompt);
+      formData.append('customPrompt', finalPrompt);
       
       const response = await fetch('/api/ai-renders/generate', {
         method: 'POST',
@@ -172,6 +212,7 @@ export default function AIRendersPage() {
       });
       setModificationPrompt("");
       setShowModifyTools(false);
+      setSelectedGridCell(null);
       toast({
         title: "Modification Complete",
         description: "Your render has been modified successfully."
@@ -1135,27 +1176,77 @@ export default function AIRendersPage() {
           <CardContent className="space-y-4">
             {generatedRender ? (
               <>
-                <div className="relative group">
+                <div className="relative group" ref={gridContainerRef}>
                   <img 
                     src={`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`}
                     alt="Generated Render"
                     className="w-full rounded-lg border cursor-pointer hover:opacity-90 transition-opacity"
                     data-testid="image-generated-render"
-                    onClick={() => setShowFullSize(true)}
+                    onClick={() => !gridInteractive && setShowFullSize(true)}
                   />
                   
                   {showGrid && (
                     <div 
-                      className="absolute inset-0 rounded-lg pointer-events-none overflow-hidden"
-                      style={{
-                        backgroundImage: `
-                          linear-gradient(to right, rgba(100, 100, 255, ${gridOpacity}) 1px, transparent 1px),
-                          linear-gradient(to bottom, rgba(100, 100, 255, ${gridOpacity}) 1px, transparent 1px)
-                        `,
-                        backgroundSize: `${gridSize}px ${gridSize}px`,
-                      }}
+                      className={`absolute inset-0 rounded-lg overflow-hidden ${gridInteractive ? '' : 'pointer-events-none'}`}
                       data-testid="grid-overlay"
-                    />
+                    >
+                      {/* Base grid lines */}
+                      <div 
+                        className="absolute inset-0 pointer-events-none"
+                        style={{
+                          backgroundImage: `
+                            linear-gradient(to right, rgba(100, 100, 255, ${gridOpacity}) 1px, transparent 1px),
+                            linear-gradient(to bottom, rgba(100, 100, 255, ${gridOpacity}) 1px, transparent 1px)
+                          `,
+                          backgroundSize: `${gridSize}px ${gridSize}px`,
+                        }}
+                      />
+                      
+                      {/* Interactive cells overlay */}
+                      {gridInteractive && gridContainerRef.current && (() => {
+                        const width = gridContainerRef.current.offsetWidth;
+                        const height = gridContainerRef.current.offsetHeight;
+                        const cols = Math.ceil(width / gridSize);
+                        const rows = Math.ceil(height / gridSize);
+                        const cells = [];
+                        
+                        for (let row = 0; row < rows; row++) {
+                          for (let col = 0; col < cols; col++) {
+                            const isSelected = selectedGridCell?.col === col && selectedGridCell?.row === row;
+                            cells.push(
+                              <div
+                                key={`${col}-${row}`}
+                                className={`absolute cursor-pointer transition-colors border ${
+                                  isSelected 
+                                    ? 'bg-primary/30 border-primary' 
+                                    : 'hover:bg-primary/20 border-transparent hover:border-primary/50'
+                                }`}
+                                style={{
+                                  left: col * gridSize,
+                                  top: row * gridSize,
+                                  width: gridSize,
+                                  height: gridSize,
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedGridCell(isSelected ? null : { col, row });
+                                  if (!showModifyTools) setShowModifyTools(true);
+                                }}
+                                title={getCellLabel(col, row)}
+                                data-testid={`grid-cell-${col}-${row}`}
+                              >
+                                {isSelected && (
+                                  <span className="absolute top-1 left-1 text-xs font-bold text-primary bg-background/80 px-1 rounded">
+                                    {getCellLabel(col, row)}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          }
+                        }
+                        return cells;
+                      })()}
+                    </div>
                   )}
                   
                   <Badge className="absolute top-2 right-2">
@@ -1167,53 +1258,72 @@ export default function AIRendersPage() {
                       size="icon"
                       variant={showGrid ? "default" : "secondary"}
                       className="h-8 w-8"
-                      onClick={() => setShowGrid(!showGrid)}
+                      onClick={() => {
+                        setShowGrid(!showGrid);
+                        if (showGrid) {
+                          setGridInteractive(false);
+                          setSelectedGridCell(null);
+                        }
+                      }}
                       data-testid="button-toggle-grid"
                     >
                       <Grid3X3 className="h-4 w-4" />
                     </Button>
                     
                     {showGrid && (
-                      <Popover open={showGridSettings} onOpenChange={setShowGridSettings}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant="secondary"
-                            className="h-8 w-8"
-                            data-testid="button-grid-settings"
-                          >
-                            <Settings2 className="h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64" align="start">
-                          <div className="space-y-4">
-                            <div>
-                              <Label className="text-xs">Grid Size: {gridSize}px</Label>
-                              <Slider
-                                value={[gridSize]}
-                                onValueChange={(v) => setGridSize(Math.max(10, v[0]))}
-                                min={10}
-                                max={100}
-                                step={5}
-                                className="mt-2"
-                                data-testid="slider-grid-size"
-                              />
+                      <>
+                        <Button
+                          size="icon"
+                          variant={gridInteractive ? "default" : "secondary"}
+                          className="h-8 w-8"
+                          onClick={() => setGridInteractive(!gridInteractive)}
+                          title={gridInteractive ? "Exit cell selection mode" : "Select a cell to target"}
+                          data-testid="button-toggle-grid-interactive"
+                        >
+                          <Search className="h-4 w-4" />
+                        </Button>
+                        
+                        <Popover open={showGridSettings} onOpenChange={setShowGridSettings}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="secondary"
+                              className="h-8 w-8"
+                              data-testid="button-grid-settings"
+                            >
+                              <Settings2 className="h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64" align="start">
+                            <div className="space-y-4">
+                              <div>
+                                <Label className="text-xs">Grid Size: {gridSize}px</Label>
+                                <Slider
+                                  value={[gridSize]}
+                                  onValueChange={(v) => setGridSize(Math.max(10, v[0]))}
+                                  min={10}
+                                  max={100}
+                                  step={5}
+                                  className="mt-2"
+                                  data-testid="slider-grid-size"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Opacity: {Math.round(gridOpacity * 100)}%</Label>
+                                <Slider
+                                  value={[gridOpacity * 100]}
+                                  onValueChange={(v) => setGridOpacity(Math.max(0.05, v[0] / 100))}
+                                  min={5}
+                                  max={80}
+                                  step={5}
+                                  className="mt-2"
+                                  data-testid="slider-grid-opacity"
+                                />
+                              </div>
                             </div>
-                            <div>
-                              <Label className="text-xs">Opacity: {Math.round(gridOpacity * 100)}%</Label>
-                              <Slider
-                                value={[gridOpacity * 100]}
-                                onValueChange={(v) => setGridOpacity(Math.max(0.05, v[0] / 100))}
-                                min={5}
-                                max={80}
-                                step={5}
-                                className="mt-2"
-                                data-testid="slider-grid-opacity"
-                              />
-                            </div>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                          </PopoverContent>
+                        </Popover>
+                      </>
                     )}
                   </div>
                   
@@ -1227,7 +1337,11 @@ export default function AIRendersPage() {
                     <Maximize2 className="h-4 w-4" />
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground text-center">Click image to view full size. Use grid for alignment reference.</p>
+                <p className="text-xs text-muted-foreground text-center">
+                  {gridInteractive 
+                    ? "Click on a grid cell to select it for targeted AI modifications"
+                    : "Click image to view full size. Enable grid and click magnifying glass to select cells."}
+                </p>
                 
                 <div className="border rounded-lg p-3 bg-muted/30">
                   <div className="flex items-center justify-between mb-2">
@@ -1247,6 +1361,22 @@ export default function AIRendersPage() {
                   
                   {showModifyTools && (
                     <div className="space-y-3 mt-3">
+                      {selectedGridCell && (
+                        <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-md border border-primary/20">
+                          <Grid3X3 className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-medium">Target: Cell {getCellLabel(selectedGridCell.col, selectedGridCell.row)}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 ml-auto"
+                            onClick={() => setSelectedGridCell(null)}
+                            data-testid="button-clear-grid-selection"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                      
                       <div className="grid grid-cols-3 gap-2">
                         {quickModifications.map((mod, index) => (
                           <Button
@@ -1254,7 +1384,7 @@ export default function AIRendersPage() {
                             variant="outline"
                             size="sm"
                             className="flex flex-col h-auto py-2 px-2"
-                            onClick={() => modifyRenderMutation.mutate(mod.prompt)}
+                            onClick={() => modifyRenderMutation.mutate({ prompt: mod.prompt, gridCell: selectedGridCell })}
                             disabled={modifyRenderMutation.isPending}
                             data-testid={`button-quick-mod-${index}`}
                           >
@@ -1267,9 +1397,11 @@ export default function AIRendersPage() {
                       <Separator />
                       
                       <div>
-                        <Label className="text-xs">Custom Modification</Label>
+                        <Label className="text-xs">Custom Modification {selectedGridCell ? `(targeting cell ${getCellLabel(selectedGridCell.col, selectedGridCell.row)})` : ''}</Label>
                         <Textarea
-                          placeholder="Describe your modification (e.g., 'replace the blue sofa with a grey sectional')"
+                          placeholder={selectedGridCell 
+                            ? `Describe what to change in cell ${getCellLabel(selectedGridCell.col, selectedGridCell.row)} (e.g., 'add a potted plant here')`
+                            : "Describe your modification (e.g., 'replace the blue sofa with a grey sectional')"}
                           value={modificationPrompt}
                           onChange={(e) => setModificationPrompt(e.target.value)}
                           className="mt-1 min-h-[60px]"
@@ -1278,7 +1410,7 @@ export default function AIRendersPage() {
                       </div>
                       
                       <Button
-                        onClick={() => modifyRenderMutation.mutate(modificationPrompt)}
+                        onClick={() => modifyRenderMutation.mutate({ prompt: modificationPrompt, gridCell: selectedGridCell })}
                         disabled={modifyRenderMutation.isPending || !modificationPrompt.trim()}
                         className="w-full"
                         data-testid="button-apply-modification"
