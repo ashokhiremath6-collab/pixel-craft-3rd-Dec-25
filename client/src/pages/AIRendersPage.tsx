@@ -1131,47 +1131,40 @@ export default function AIRendersPage() {
                       No reference photos added
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-3">
                       {referencePhotos.map((photo) => (
-                        <div key={photo.id} className="relative group">
-                          <img
-                            src={photo.previewUrl}
-                            alt={`Reference ${photo.type}`}
-                            className="w-full h-20 object-cover rounded border"
-                          />
-                          <Badge 
-                            className="absolute top-1 left-1 text-[10px] px-1 py-0"
-                            variant={photo.type === 'inspiration' ? 'default' : 'secondary'}
-                          >
-                            {photo.type === 'inspiration' ? 'Insp' : 'Exist'}
-                          </Badge>
+                        <div key={photo.id} className="flex gap-3 p-2 border rounded-lg bg-background">
+                          <div className="relative shrink-0">
+                            <img
+                              src={photo.previewUrl}
+                              alt={`Reference ${photo.type}`}
+                              className="w-16 h-16 object-cover rounded"
+                            />
+                            <Badge 
+                              className="absolute -top-1 -left-1 text-[10px] px-1 py-0"
+                              variant={photo.type === 'inspiration' ? 'default' : 'secondary'}
+                            >
+                              {photo.type === 'inspiration' ? 'Insp' : 'Exist'}
+                            </Badge>
+                          </div>
+                          <div className="flex-1 flex flex-col min-w-0">
+                            <Textarea
+                              placeholder="Describe what item to copy from this photo (e.g., 'the teal velvet sofa' or 'the wooden coffee table')"
+                              value={photo.description}
+                              onChange={(e) => updateReferencePhotoDescription(photo.id, e.target.value)}
+                              className="text-xs flex-1 min-h-[60px] resize-none"
+                              data-testid={`input-photo-desc-${photo.id}`}
+                            />
+                          </div>
                           <Button
-                            variant="destructive"
+                            variant="ghost"
                             size="icon"
-                            className="absolute top-1 right-1 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
                             onClick={() => removeReferencePhoto(photo.id)}
                             data-testid={`button-remove-photo-${photo.id}`}
                           >
-                            <X className="h-3 w-3" />
+                            <X className="h-4 w-4" />
                           </Button>
-                          <div className="mt-1 flex items-center gap-1">
-                            <Input
-                              placeholder="What item to copy from this photo..."
-                              value={photo.description}
-                              onChange={(e) => updateReferencePhotoDescription(photo.id, e.target.value)}
-                              className="h-7 text-xs flex-1"
-                              data-testid={`input-photo-desc-${photo.id}`}
-                            />
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 shrink-0"
-                              onClick={() => removeReferencePhoto(photo.id)}
-                              data-testid={`button-remove-photo-inline-${photo.id}`}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
                         </div>
                       ))}
                     </div>
