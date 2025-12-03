@@ -297,28 +297,44 @@ export async function generateInteriorRender(
     let prompt: string;
     
     if (customPrompt && customPrompt.trim()) {
-      prompt = `You are a precise interior design assistant. Your task is to make ONLY ONE SPECIFIC CHANGE to this image.
+      // Check if there are reference photos to add special handling
+      const hasReferencePhotos = referencePhotos && referencePhotos.length > 0;
+      
+      prompt = `STOP. READ THESE CONSTRAINTS FIRST BEFORE LOOKING AT ANY IMAGES:
 
-THE ONLY CHANGE TO MAKE:
+===== ABSOLUTE CONSTRAINTS (VIOLATION = FAILURE) =====
+- You MUST NOT change the wall colors
+- You MUST NOT change the floor
+- You MUST NOT change the ceiling  
+- You MUST NOT change the windows
+- You MUST NOT change the lighting style
+- You MUST NOT move or modify ANY furniture except the ONE item specified below
+- You MUST NOT add new decor items
+- You MUST NOT remove existing items (except the one being replaced)
+- You MUST NOT apply any style transformation to the room
+- The camera angle MUST remain exactly the same
+- The room layout MUST remain exactly the same
+================================================
+
+YOUR SINGLE TASK:
 ${customPrompt}
-${referenceInstructions}
 
-CRITICAL RULES - YOU MUST FOLLOW THESE EXACTLY:
-1. ONLY modify the specific item mentioned above (e.g., if asked to replace the sofa, ONLY change the sofa)
-2. DO NOT change ANY other furniture, decor, walls, floors, lighting, or colors in the room
-3. DO NOT apply any overall style transformation to the room
-4. The room should look 99% identical to the original - only the ONE specific item changes
-5. Keep the exact same camera angle, perspective, and room layout
-6. Keep the exact same wall colors, floor materials, and lighting
-7. Keep ALL other furniture exactly where it is and exactly as it looks
-8. If reference/inspiration photos are provided, use them ONLY to understand what the NEW item should look like
-9. DO NOT use reference photos to change the overall room style or color scheme
+${hasReferencePhotos ? `HOW TO USE THE REFERENCE PHOTO(S):
+- The reference photo shows what the NEW item should look like
+- EXTRACT ONLY: the specific piece of furniture/item from the reference
+- IGNORE COMPLETELY: the room, walls, floor, other furniture, and styling in the reference photo
+- Copy the item's: shape, color, material, and design details
+- Place it in the EXACT same position as the item it replaces in the original room
+` : ''}${referenceInstructions}
 
-OUTPUT QUALITY:
-- Generate a HIGH RESOLUTION, photorealistic image with maximum detail
-- Use sharp textures, realistic materials, and professional lighting
-- Ensure crisp edges and fine details are preserved
-- The final image should be suitable for large format printing and professional presentations`;
+VERIFICATION CHECKLIST (mentally confirm before generating):
+[ ] Wall colors: UNCHANGED from original
+[ ] Floor: UNCHANGED from original
+[ ] All other furniture: UNCHANGED from original
+[ ] Lighting: UNCHANGED from original
+[ ] Only the specified item is different
+
+OUTPUT: High resolution photorealistic image with sharp details.`;
     } else if (style) {
       prompt = `Transform this interior space image into a photorealistic ${style.name} interior design render. 
 Apply the following design style: ${style.prompt}
