@@ -4203,7 +4203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'];
       
       // Get catalogue items - filter for those that might have usable images
-      let items = await storage.getCatalogueItems(
+      let items = await storage.getCatalogueItemsByCategory(
         mainCategory as string | undefined,
         subcategory as string | undefined
       );
