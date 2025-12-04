@@ -171,6 +171,7 @@ export default function AssetIngestionPage() {
   });
 
   const [editingPromptHints, setEditingPromptHints] = useState<string | null>(null);
+  const [editingProcessingInstructions, setEditingProcessingInstructions] = useState<string | null>(null);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -477,6 +478,55 @@ export default function AssetIngestionPage() {
                   <p className="text-sm text-muted-foreground">{selectedAsset.aiDescription}</p>
                 </div>
               )}
+
+              <div>
+                <Label className="text-sm mb-1 block">Processing Instructions</Label>
+                <p className="text-xs text-muted-foreground mb-2">Enter instructions for AI to apply when reprocessing (e.g., "center the image", "increase brightness")</p>
+                {editingProcessingInstructions !== null ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={editingProcessingInstructions}
+                      onChange={(e) => setEditingProcessingInstructions(e.target.value)}
+                      className="text-sm font-mono min-h-[80px]"
+                      placeholder="e.g., Center the artwork in frame, increase brightness, make proportions symmetrical"
+                      data-testid="textarea-processing-instructions"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          updateAssetMutation.mutate({ 
+                            id: selectedAsset.id, 
+                            processingInstructions: editingProcessingInstructions 
+                          });
+                          setEditingProcessingInstructions(null);
+                        }}
+                        disabled={updateAssetMutation.isPending}
+                        data-testid="button-save-processing-instructions"
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingProcessingInstructions(null)}
+                        data-testid="button-cancel-processing-instructions"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div 
+                    className="text-sm font-mono bg-muted px-2 py-1 rounded cursor-pointer hover:bg-muted/80 transition-colors"
+                    onClick={() => setEditingProcessingInstructions((selectedAsset as any).processingInstructions || '')}
+                    title="Click to edit"
+                    data-testid="text-processing-instructions"
+                  >
+                    {(selectedAsset as any).processingInstructions || <span className="text-muted-foreground italic">Click to add processing instructions...</span>}
+                  </div>
+                )}
+              </div>
 
               <div>
                 <Label className="text-sm mb-1 block">AI Prompt Hints (for renders)</Label>

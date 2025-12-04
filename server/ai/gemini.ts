@@ -853,3 +853,73 @@ Maintain the original colors, lighting, and details of the object.`;
     return null;
   }
 }
+
+// AI-based image editing that follows user processing instructions
+export async function applyProcessingInstructions(
+  imageData: string,
+  mimeType: string,
+  instructions: string,
+  objectDescription: string
+): Promise<{ processedData: string | null; dimensions: { width: number; height: number } | null }> {
+  console.log("[AI Edit] Applying processing instructions:", instructions);
+  
+  const prompt = `Edit this image according to these specific instructions:
+
+${instructions}
+
+This is an image of: ${objectDescription}
+
+Important guidelines:
+- Apply ONLY the changes described in the instructions above
+- Maintain the integrity and quality of the original image
+- Keep the same subject/object in focus
+- Preserve important details while making the requested adjustments
+- Output a high-quality edited version of the image
+
+Please create the edited image now.`;
+
+  try {
+    const response = await withTimeout(
+      getAIClient().models.generateContent({
+        model: "gemini-2.0-flash-exp-image-generation",
+        contents: [{
+          role: "user",
+          parts: [
+            { inlineData: { data: imageData, mimeType } },
+            { text: prompt }
+          ]
+        }],
+        config: {
+          responseModalities: [Modality.TEXT, Modality.IMAGE],
+        },
+      }),
+      AI_TIMEOUT_MS * 2, // Longer timeout for image generation
+      "AI image editing"
+    );
+
+    const candidate = response.candidates?.[0];
+    const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
+    
+    if (imagePart?.inlineData?.data) {
+      console.log("[AI Edit] Successfully applied processing instructions");
+      
+      // Get dimensions from the generated image
+      const processedBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
+      const metadata = await sharp(processedBuffer).metadata();
+      
+      return {
+        processedData: imagePart.inlineData.data,
+        dimensions: {
+          width: metadata.width || 0,
+          height: metadata.height || 0
+        }
+      };
+    }
+    
+    console.log("[AI Edit] No image in response, AI editing not available");
+    return { processedData: null, dimensions: null };
+  } catch (error) {
+    console.error("[AI Edit] Error applying processing instructions:", error);
+    return { processedData: null, dimensions: null };
+  }
+}

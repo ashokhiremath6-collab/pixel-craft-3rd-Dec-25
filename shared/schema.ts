@@ -304,6 +304,7 @@ export const objectAssets = pgTable("object_assets", {
   dimensions: jsonb("dimensions"), // {width, height} of processed image
   aiDescription: text("ai_description"), // AI-generated description of the object
   aiPromptHints: text("ai_prompt_hints"), // Hints for using in AI render generation
+  processingInstructions: text("processing_instructions"), // User instructions for AI-based processing (centering, brightness, etc.)
   userDescription: text("user_description"), // User-provided description
   catalogueItemId: varchar("catalogue_item_id").references(() => catalogueItems.id), // Link if saved to catalogue
   uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),

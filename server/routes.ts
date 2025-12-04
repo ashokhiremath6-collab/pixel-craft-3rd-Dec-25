@@ -6976,8 +6976,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Import AI editing function
+  const { applyProcessingInstructions } = await import("./ai/gemini");
+
   // Background processing function
-  async function processAssetInBackground(assetId: string, buffer: Buffer, mimeType: string, userObjectType?: string, preserveHints?: string) {
+  async function processAssetInBackground(
+    assetId: string, 
+    buffer: Buffer, 
+    mimeType: string, 
+    userObjectType?: string, 
+    preserveHints?: string,
+    processingInstructions?: string
+  ) {
     try {
       // Update status to processing
       await storage.updateObjectAssetProcessing(assetId, { processingStatus: 'processing' });
@@ -7000,17 +7010,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const detection = await detectObjectInImage(imageData, correctedMimeType);
       const objectType = userObjectType || detection.objectType;
 
-      // Step 2: Process the image (crop, enhance) - using rotated buffer
-      const { processedBuffer, thumbnailBuffer, dimensions } = await processObjectImage(
-        rotatedBuffer, // Use the already-rotated buffer
-        objectType,
-        detection.boundingBox
-      );
-
-      // Step 3: Upload processed images to object storage
       const asset = await storage.getObjectAsset(assetId);
       if (!asset) throw new Error('Asset not found');
 
+      let processedBuffer: Buffer;
+      let thumbnailBuffer: Buffer;
+      let dimensions: { width: number; height: number };
+
+      // Check if user has provided processing instructions for AI-based editing
+      if (processingInstructions && processingInstructions.trim()) {
+        console.log('[Asset Processing] Using AI-based editing with instructions:', processingInstructions);
+        
+        // Use AI to edit the image based on user instructions
+        const aiResult = await applyProcessingInstructions(
+          imageData,
+          correctedMimeType,
+          processingInstructions,
+          detection.description
+        );
+
+        if (aiResult.processedData && aiResult.dimensions) {
+          // Use AI-edited image
+          processedBuffer = Buffer.from(aiResult.processedData, 'base64');
+          dimensions = aiResult.dimensions;
+          console.log('[Asset Processing] AI editing successful');
+        } else {
+          // Fallback to standard processing if AI editing fails
+          console.log('[Asset Processing] AI editing failed, falling back to standard processing');
+          const standardResult = await processObjectImage(
+            rotatedBuffer,
+            objectType,
+            detection.boundingBox
+          );
+          processedBuffer = standardResult.processedBuffer;
+          dimensions = standardResult.dimensions;
+        }
+
+        // Create thumbnail
+        thumbnailBuffer = await sharp(processedBuffer)
+          .resize(256, 256, { fit: 'cover' })
+          .png({ quality: 80 })
+          .toBuffer();
+      } else {
+        // Step 2: Standard processing (crop, enhance) - using rotated buffer
+        const standardResult = await processObjectImage(
+          rotatedBuffer,
+          objectType,
+          detection.boundingBox
+        );
+        processedBuffer = standardResult.processedBuffer;
+        thumbnailBuffer = standardResult.thumbnailBuffer;
+        dimensions = standardResult.dimensions;
+      }
+
+      // Step 3: Upload processed images to object storage
       const processedPath = await uploadToObjectStorage(
         processedBuffer,
         `processed_${asset.originalFileName}`,
@@ -7093,9 +7146,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ message: 'Reprocessing started', reprocessCount: currentCount + 1 });
 
-      // Start async processing - preserve user-edited hints if they exist
+      // Start async processing - preserve user-edited hints and use processing instructions if provided
       const mimeType = asset.originalFileName.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-      processAssetInBackground(asset.id, originalBuffer, mimeType, req.body.objectType, asset.aiPromptHints || undefined).catch(error => {
+      const processingInstructions = (asset as any).processingInstructions || undefined;
+      processAssetInBackground(
+        asset.id, 
+        originalBuffer, 
+        mimeType, 
+        req.body.objectType, 
+        asset.aiPromptHints || undefined,
+        processingInstructions
+      ).catch(error => {
         console.error('Reprocessing failed:', error);
       });
 
@@ -7108,12 +7169,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update object asset metadata
   app.put("/api/object-assets/:id", requireAdmin, async (req, res) => {
     try {
-      const { userDescription, objectType, aiPromptHints } = req.body;
+      const { userDescription, objectType, aiPromptHints, processingInstructions } = req.body;
       
       const updates: any = {};
       if (userDescription !== undefined) updates.userDescription = userDescription;
       if (objectType) updates.objectType = objectType;
       if (aiPromptHints !== undefined) updates.aiPromptHints = aiPromptHints;
+      if (processingInstructions !== undefined) updates.processingInstructions = processingInstructions;
 
       const asset = await storage.updateObjectAsset(req.params.id, updates);
       if (!asset) {
