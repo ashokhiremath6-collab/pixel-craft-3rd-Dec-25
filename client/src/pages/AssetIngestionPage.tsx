@@ -350,12 +350,12 @@ export default function AssetIngestionPage() {
 
             <div>
               <Label htmlFor="objectType">Object Type (Optional)</Label>
-              <Select value={selectedObjectType} onValueChange={setSelectedObjectType}>
+              <Select value={selectedObjectType || "auto"} onValueChange={(v) => setSelectedObjectType(v === "auto" ? "" : v)}>
                 <SelectTrigger id="objectType" data-testid="select-object-type">
                   <SelectValue placeholder="Auto-detect" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Auto-detect</SelectItem>
+                  <SelectItem value="auto">Auto-detect</SelectItem>
                   {OBJECT_TYPES.map(type => (
                     <SelectItem key={type.value} value={type.value}>
                       <div className="flex items-center gap-2">
