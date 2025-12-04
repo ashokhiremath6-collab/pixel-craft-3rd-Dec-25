@@ -157,8 +157,12 @@ export default function AssetIngestionPage() {
     mutationFn: async (data: { id: string; aiPromptHints?: string; userDescription?: string; objectType?: string }) => {
       return apiRequest('PUT', `/api/object-assets/${data.id}`, data);
     },
-    onSuccess: () => {
+    onSuccess: (updatedAsset: ObjectAsset, variables) => {
       toast({ title: "Asset updated" });
+      // Update the selected asset with new hints so dialog shows correct value
+      if (selectedAsset && selectedAsset.id === variables.id) {
+        setSelectedAsset({ ...selectedAsset, ...variables });
+      }
       queryClient.invalidateQueries({ queryKey: ['/api/object-assets'] });
     },
     onError: () => {

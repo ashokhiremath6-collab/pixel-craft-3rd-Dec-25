@@ -6977,7 +6977,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Background processing function
-  async function processAssetInBackground(assetId: string, buffer: Buffer, mimeType: string, userObjectType?: string) {
+  async function processAssetInBackground(assetId: string, buffer: Buffer, mimeType: string, userObjectType?: string, preserveHints?: string) {
     try {
       // Update status to processing
       await storage.updateObjectAssetProcessing(assetId, { processingStatus: 'processing' });
@@ -7044,6 +7044,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Step 5: Update asset with all processing results
+      // If preserveHints is provided (user edited), keep it; otherwise use AI-generated hints
       await storage.updateObjectAssetProcessing(assetId, {
         processingStatus: 'completed',
         processedFilePath: processedPath,
@@ -7052,7 +7053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         detectedBounds: detection.boundingBox,
         dimensions: dimensions,
         aiDescription: detection.description,
-        aiPromptHints: detection.aiPromptHints,
+        aiPromptHints: preserveHints || detection.aiPromptHints,
         processedAt: new Date(),
       });
 
@@ -7090,9 +7091,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ message: 'Reprocessing started' });
 
-      // Start async processing
+      // Start async processing - preserve user-edited hints if they exist
       const mimeType = asset.originalFileName.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-      processAssetInBackground(asset.id, originalBuffer, mimeType, req.body.objectType).catch(error => {
+      processAssetInBackground(asset.id, originalBuffer, mimeType, req.body.objectType, asset.aiPromptHints || undefined).catch(error => {
         console.error('Reprocessing failed:', error);
       });
 
