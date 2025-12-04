@@ -8,10 +8,71 @@ const AI_TIMEOUT_MS = 90000; // 90 seconds timeout for AI generation
 const MAX_RETRIES = 3; // Maximum retry attempts for AI operations
 const RETRY_DELAY_MS = 2000; // Base delay between retries (will be exponentially increased)
 
+// Circuit Breaker Configuration
+const CIRCUIT_BREAKER_THRESHOLD = 5; // Number of consecutive failures before opening circuit
+const CIRCUIT_BREAKER_RESET_MS = 60000; // Time to wait before trying again (1 minute)
+
+// Circuit Breaker State
+interface CircuitBreakerState {
+  failures: number;
+  lastFailure: number;
+  isOpen: boolean;
+}
+
+const circuitBreaker: CircuitBreakerState = {
+  failures: 0,
+  lastFailure: 0,
+  isOpen: false
+};
+
+// Check if circuit breaker allows requests
+function canMakeRequest(): boolean {
+  if (!circuitBreaker.isOpen) {
+    return true;
+  }
+  
+  // Check if enough time has passed to try again
+  const timeSinceLastFailure = Date.now() - circuitBreaker.lastFailure;
+  if (timeSinceLastFailure >= CIRCUIT_BREAKER_RESET_MS) {
+    console.log("[Circuit Breaker] Reset - allowing request");
+    circuitBreaker.isOpen = false;
+    circuitBreaker.failures = 0;
+    return true;
+  }
+  
+  const remainingMs = CIRCUIT_BREAKER_RESET_MS - timeSinceLastFailure;
+  console.log(`[Circuit Breaker] OPEN - blocking request, try again in ${Math.ceil(remainingMs / 1000)}s`);
+  return false;
+}
+
+// Record a successful request
+function recordSuccess(): void {
+  circuitBreaker.failures = 0;
+  circuitBreaker.isOpen = false;
+}
+
+// Record a failed request
+function recordFailure(): void {
+  circuitBreaker.failures++;
+  circuitBreaker.lastFailure = Date.now();
+  
+  if (circuitBreaker.failures >= CIRCUIT_BREAKER_THRESHOLD) {
+    console.log(`[Circuit Breaker] Opening - ${circuitBreaker.failures} consecutive failures`);
+    circuitBreaker.isOpen = true;
+  }
+}
+
 class TimeoutError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'TimeoutError';
+  }
+}
+
+class CircuitBreakerError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CircuitBreakerError';
   }
 }
 
@@ -20,24 +81,36 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Retry wrapper for AI operations with exponential backoff
+// Retry wrapper for AI operations with exponential backoff and circuit breaker
 async function withRetry<T>(
   operation: () => Promise<T>,
   operationName: string,
   maxRetries: number = MAX_RETRIES
 ): Promise<T> {
+  // Check circuit breaker first
+  if (!canMakeRequest()) {
+    throw new CircuitBreakerError(
+      "AI service is temporarily unavailable. Too many recent failures. Please wait a moment and try again."
+    );
+  }
+  
   let lastError: Error | null = null;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`[Retry] ${operationName} - Attempt ${attempt}/${maxRetries}`);
-      return await operation();
+      const result = await operation();
+      
+      // Success! Record it and return
+      recordSuccess();
+      return result;
     } catch (error: any) {
       lastError = error;
       console.error(`[Retry] ${operationName} failed on attempt ${attempt}:`, error.message);
       
       // Don't retry on timeout errors (already waited too long)
       if (error instanceof TimeoutError) {
+        recordFailure();
         throw error;
       }
       
@@ -45,6 +118,14 @@ async function withRetry<T>(
       if (error.message?.includes('not configured')) {
         throw error;
       }
+      
+      // Don't retry on input validation errors
+      if (error.message?.includes('Please upload') || error.message?.includes('Unsupported image')) {
+        throw error;
+      }
+      
+      // Record failure for circuit breaker
+      recordFailure();
       
       // Wait before retrying (exponential backoff)
       if (attempt < maxRetries) {
@@ -190,21 +271,62 @@ export const RENDER_STYLES: RenderStyle[] = [
   }
 ];
 
+// Adaptive image compression - more aggressive for larger images
 async function compressImage(imageBase64: string, mimeType: string): Promise<{ data: string; mimeType: string }> {
-  const imageBuffer = Buffer.from(imageBase64, 'base64');
-  console.log("[Gemini] Original image size:", imageBuffer.length, "bytes");
-  
-  const compressed = await sharp(imageBuffer)
-    .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 80 })
-    .toBuffer();
-  
-  console.log("[Gemini] Compressed image size:", compressed.length, "bytes");
-  
-  return {
-    data: compressed.toString('base64'),
-    mimeType: 'image/jpeg'
-  };
+  try {
+    const imageBuffer = Buffer.from(imageBase64, 'base64');
+    const originalSize = imageBuffer.length;
+    console.log("[Gemini] Original image size:", originalSize, "bytes");
+    
+    // Get original dimensions
+    const metadata = await sharp(imageBuffer).metadata();
+    const originalWidth = metadata.width || 1000;
+    const originalHeight = metadata.height || 1000;
+    console.log("[Gemini] Original dimensions:", originalWidth, "x", originalHeight);
+    
+    // Adaptive quality based on image size (larger images get more compression)
+    let quality = 80;
+    let maxSize = 1024;
+    
+    if (originalSize > 5000000) { // > 5MB
+      quality = 65;
+      maxSize = 900;
+      console.log("[Gemini] Large image detected, using aggressive compression");
+    } else if (originalSize > 2000000) { // > 2MB
+      quality = 70;
+      maxSize = 950;
+      console.log("[Gemini] Medium-large image, using moderate compression");
+    }
+    
+    // Apply EXIF rotation first, then resize
+    const compressed = await sharp(imageBuffer)
+      .rotate() // Auto-rotate based on EXIF
+      .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality, mozjpeg: true }) // Use mozjpeg for better compression
+      .toBuffer();
+    
+    console.log("[Gemini] Compressed image size:", compressed.length, "bytes (target max:", maxSize, "px, quality:", quality, ")");
+    
+    // Verify compression succeeded
+    if (compressed.length > originalSize) {
+      console.log("[Gemini] Compression resulted in larger file, using original");
+      return {
+        data: imageBase64,
+        mimeType: mimeType
+      };
+    }
+    
+    return {
+      data: compressed.toString('base64'),
+      mimeType: 'image/jpeg'
+    };
+  } catch (error) {
+    console.error("[Gemini] Compression failed, using original:", error);
+    return {
+      data: imageBase64,
+      mimeType: mimeType
+    };
+  }
 }
 
 async function enhanceOutputImage(imageBase64: string, mimeType: string): Promise<{ data: string; mimeType: string }> {
@@ -233,6 +355,32 @@ async function enhanceOutputImage(imageBase64: string, mimeType: string): Promis
   }
 }
 
+// Validate image data before processing
+function validateImageInput(imageBase64: string, mimeType: string): { valid: boolean; error?: string } {
+  if (!imageBase64 || imageBase64.length === 0) {
+    return { valid: false, error: "No image data provided. Please upload an image first." };
+  }
+  
+  // Check for minimum size (very small images are likely corrupt)
+  const minSize = 1000; // ~1KB minimum
+  if (imageBase64.length < minSize) {
+    return { valid: false, error: "Image is too small or corrupt. Please upload a valid image." };
+  }
+  
+  // Check for valid base64 (should not contain HTML/text)
+  if (imageBase64.includes('<html') || imageBase64.includes('<!DOCTYPE')) {
+    return { valid: false, error: "Invalid image format. The data appears to be HTML, not an image." };
+  }
+  
+  // Validate mime type
+  const validMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+  if (!validMimeTypes.includes(mimeType.toLowerCase())) {
+    return { valid: false, error: `Unsupported image format: ${mimeType}. Please use JPEG, PNG, or WebP.` };
+  }
+  
+  return { valid: true };
+}
+
 export async function generateInteriorRender(
   imageBase64: string,
   mimeType: string,
@@ -249,10 +397,17 @@ export async function generateInteriorRender(
   console.log("[Gemini] API Key configured:", !!process.env.AI_INTEGRATIONS_GEMINI_API_KEY);
   console.log("[Gemini] Base URL:", process.env.AI_INTEGRATIONS_GEMINI_BASE_URL);
   
+  // Input validation
+  const validation = validateImageInput(imageBase64, mimeType);
+  if (!validation.valid) {
+    console.error("[Gemini] Input validation failed:", validation.error);
+    throw new Error(validation.error);
+  }
+  
   const style = RENDER_STYLES.find(s => s.id === styleId);
   
   if (!style && !customPrompt && (!referenceItems || referenceItems.length === 0)) {
-    throw new Error("Invalid style ID and no custom prompt or reference items provided");
+    throw new Error("Please select a design style, add custom instructions, or choose reference items to continue.");
   }
 
   try {
@@ -705,38 +860,43 @@ Object types:
 Respond ONLY with the JSON object.`;
 
   try {
-    const response = await withTimeout(
-      getAIClient().models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [{
-          role: "user",
-          parts: [
-            { inlineData: { data: imageData, mimeType } },
-            { text: prompt }
-          ]
-        }],
-      }),
-      AI_TIMEOUT_MS,
-      "Object detection"
-    );
+    // Use retry logic for object detection
+    const result = await withRetry(async () => {
+      const response = await withTimeout(
+        getAIClient().models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [{
+            role: "user",
+            parts: [
+              { inlineData: { data: imageData, mimeType } },
+              { text: prompt }
+            ]
+          }],
+        }),
+        AI_TIMEOUT_MS,
+        "Object detection"
+      );
 
-    const candidate = response.candidates?.[0];
-    const textPart = candidate?.content?.parts?.find((part: any) => part.text);
-    
-    if (textPart?.text) {
-      // Parse JSON response
-      const jsonMatch = textPart.text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const result = JSON.parse(jsonMatch[0]);
-        console.log("[Object Detection] Detected:", result.objectType, "with confidence:", result.confidence);
-        return result as ObjectDetectionResult;
+      const candidate = response.candidates?.[0];
+      const textPart = candidate?.content?.parts?.find((part: any) => part.text);
+      
+      if (textPart?.text) {
+        // Parse JSON response
+        const jsonMatch = textPart.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          console.log("[Object Detection] Detected:", parsed.objectType, "with confidence:", parsed.confidence);
+          return parsed as ObjectDetectionResult;
+        }
       }
-    }
+      
+      throw new Error("Failed to parse object detection response");
+    }, "Object detection", 2); // Only 2 retries for detection since it has a fallback
     
-    throw new Error("Failed to parse object detection response");
+    return result;
   } catch (error) {
-    console.error("[Object Detection] Error:", error);
-    // Return default values if detection fails
+    console.error("[Object Detection] Error after retries:", error);
+    // Return default values if detection fails - graceful degradation
     return {
       objectType: 'decor',
       confidence: 0,
@@ -887,36 +1047,41 @@ The object should be cleanly isolated with smooth edges, suitable for compositin
 Maintain the original colors, lighting, and details of the object.`;
 
   try {
-    const response = await withTimeout(
-      getAIClient().models.generateContent({
-        model: "gemini-2.0-flash-exp-image-generation",
-        contents: [{
-          role: "user",
-          parts: [
-            { inlineData: { data: imageData, mimeType } },
-            { text: prompt }
-          ]
-        }],
-        config: {
-          responseModalities: [Modality.TEXT, Modality.IMAGE],
-        },
-      }),
-      AI_TIMEOUT_MS * 2, // Longer timeout for image generation
-      "Background removal"
-    );
+    // Use retry logic for background removal
+    const result = await withRetry(async () => {
+      const response = await withTimeout(
+        getAIClient().models.generateContent({
+          model: "gemini-2.0-flash-exp-image-generation",
+          contents: [{
+            role: "user",
+            parts: [
+              { inlineData: { data: imageData, mimeType } },
+              { text: prompt }
+            ]
+          }],
+          config: {
+            responseModalities: [Modality.TEXT, Modality.IMAGE],
+          },
+        }),
+        AI_TIMEOUT_MS * 2, // Longer timeout for image generation
+        "Background removal"
+      );
 
-    const candidate = response.candidates?.[0];
-    const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
+      const candidate = response.candidates?.[0];
+      const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
+      
+      if (imagePart?.inlineData?.data) {
+        console.log("[Transparency] Successfully generated transparent version");
+        return imagePart.inlineData.data;
+      }
+      
+      throw new Error("No image in response");
+    }, "Background removal", 2);
     
-    if (imagePart?.inlineData?.data) {
-      console.log("[Transparency] Successfully generated transparent version");
-      return imagePart.inlineData.data;
-    }
-    
-    console.log("[Transparency] No image in response, background removal not available");
-    return null;
+    return result;
   } catch (error) {
-    console.error("[Transparency] Error generating transparent version:", error);
+    console.error("[Transparency] Error generating transparent version after retries:", error);
+    // Background removal is optional - return null gracefully
     return null;
   }
 }
@@ -946,47 +1111,51 @@ Important guidelines:
 Please create the edited image now.`;
 
   try {
-    const response = await withTimeout(
-      getAIClient().models.generateContent({
-        model: "gemini-2.0-flash-exp-image-generation",
-        contents: [{
-          role: "user",
-          parts: [
-            { inlineData: { data: imageData, mimeType } },
-            { text: prompt }
-          ]
-        }],
-        config: {
-          responseModalities: [Modality.TEXT, Modality.IMAGE],
-        },
-      }),
-      AI_TIMEOUT_MS * 2, // Longer timeout for image generation
-      "AI image editing"
-    );
+    // Use retry logic for AI editing
+    const result = await withRetry(async () => {
+      const response = await withTimeout(
+        getAIClient().models.generateContent({
+          model: "gemini-2.0-flash-exp-image-generation",
+          contents: [{
+            role: "user",
+            parts: [
+              { inlineData: { data: imageData, mimeType } },
+              { text: prompt }
+            ]
+          }],
+          config: {
+            responseModalities: [Modality.TEXT, Modality.IMAGE],
+          },
+        }),
+        AI_TIMEOUT_MS * 2, // Longer timeout for image generation
+        "AI image editing"
+      );
 
-    const candidate = response.candidates?.[0];
-    const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
-    
-    if (imagePart?.inlineData?.data) {
-      console.log("[AI Edit] Successfully applied processing instructions");
+      const candidate = response.candidates?.[0];
+      const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
       
-      // Get dimensions from the generated image
-      const processedBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
-      const metadata = await sharp(processedBuffer).metadata();
+      if (imagePart?.inlineData?.data) {
+        console.log("[AI Edit] Successfully applied processing instructions");
+        
+        // Get dimensions from the generated image
+        const processedBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
+        const metadata = await sharp(processedBuffer).metadata();
+        
+        return {
+          processedData: imagePart.inlineData.data,
+          dimensions: {
+            width: metadata.width || 0,
+            height: metadata.height || 0
+          }
+        };
+      }
       
-      return {
-        processedData: imagePart.inlineData.data,
-        dimensions: {
-          width: metadata.width || 0,
-          height: metadata.height || 0
-        }
-      };
-    }
+      throw new Error("No image in response");
+    }, "AI image editing", 2);
     
-    console.log("[AI Edit] No image in response, AI editing not available");
-    return { processedData: null, dimensions: null };
+    return result;
   } catch (error) {
-    console.error("[AI Edit] Error applying processing instructions:", error);
+    console.error("[AI Edit] Error applying processing instructions after retries:", error);
     return { processedData: null, dimensions: null };
   }
 }

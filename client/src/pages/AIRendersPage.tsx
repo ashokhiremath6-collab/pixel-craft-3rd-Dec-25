@@ -750,14 +750,29 @@ export default function AIRendersPage() {
         return;
       }
       const message = error.message || "Failed to generate render";
+      
+      // Categorize errors for appropriate messaging
       const isTimeout = message.includes('timed out') || message.includes('90 seconds') || message.includes('timeout');
-      toast({ 
-        title: isTimeout ? "Generation Timed Out" : "Generation Failed", 
-        description: isTimeout 
-          ? "The AI took too long. Try with a smaller image or fewer reference items." 
-          : message,
-        variant: "destructive" 
-      });
+      const isCircuitBreaker = message.includes('temporarily unavailable') || message.includes('Too many recent failures');
+      const isValidationError = message.includes('Please upload') || message.includes('Unsupported image') || 
+                                message.includes('too small') || message.includes('Invalid image') ||
+                                message.includes('Please select') || message.includes('No image data provided');
+      
+      let title = "Generation Failed";
+      let description = message;
+      
+      if (isTimeout) {
+        title = "Generation Timed Out";
+        description = "The AI took too long. Try with a smaller image or fewer reference items.";
+      } else if (isCircuitBreaker) {
+        title = "AI Temporarily Unavailable";
+        description = "The AI service is busy. Please wait a moment and try again.";
+      } else if (isValidationError) {
+        title = "Invalid Input";
+        description = message; // Show the exact validation error
+      }
+      
+      toast({ title, description, variant: "destructive" });
     },
   });
 
@@ -777,14 +792,23 @@ export default function AIRendersPage() {
     },
     onError: (error: any) => {
       const message = error.message || "Failed to generate render";
+      
+      // Categorize errors for appropriate messaging
       const isTimeout = message.includes('timed out') || message.includes('90 seconds') || message.includes('timeout');
-      toast({ 
-        title: isTimeout ? "Generation Timed Out" : "Generation Failed", 
-        description: isTimeout 
-          ? "The AI took too long. Try a simpler description." 
-          : message,
-        variant: "destructive" 
-      });
+      const isCircuitBreaker = message.includes('temporarily unavailable') || message.includes('Too many recent failures');
+      
+      let title = "Generation Failed";
+      let description = message;
+      
+      if (isTimeout) {
+        title = "Generation Timed Out";
+        description = "The AI took too long. Try a simpler description.";
+      } else if (isCircuitBreaker) {
+        title = "AI Temporarily Unavailable";
+        description = "The AI service is busy. Please wait a moment and try again.";
+      }
+      
+      toast({ title, description, variant: "destructive" });
     },
   });
 
