@@ -5258,6 +5258,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const tasks = await storage.getTasksBySchedule(scheduleId);
       
+      // If no tasks in database, redirect to the original uploaded file
+      // This ensures consistency between the "arrow" button and "Open" button
+      if (tasks.length === 0 && schedule.filePath) {
+        // Redirect to download the original file
+        return res.redirect(`/api/objects/download?path=${encodeURIComponent(schedule.filePath)}&filename=${encodeURIComponent(schedule.fileName || 'schedule.xlsx')}`);
+      }
+      
       // Create a new workbook with ExcelJS
       const workbook = new ExcelJS.Workbook();
       workbook.creator = 'PixelCraft Designer';
