@@ -579,3 +579,235 @@ Respond with ONLY the paraphrased text, nothing else.`;
     return brief;
   }
 }
+
+// Object Asset Processing Types
+export interface ObjectDetectionResult {
+  objectType: 'art' | 'furniture' | 'decor' | 'lighting' | 'textile' | 'accessory';
+  confidence: number;
+  boundingBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  description: string;
+  aiPromptHints: string;
+  suggestedCategory: string;
+  suggestedSubcategory: string;
+}
+
+// Detect object type and extract information from an image
+export async function detectObjectInImage(
+  imageData: string,
+  mimeType: string
+): Promise<ObjectDetectionResult> {
+  console.log("[Object Detection] Starting object analysis...");
+  
+  const prompt = `Analyze this image and identify the main object. This is likely a photo of art, furniture, or a decorative item.
+
+Respond with a JSON object containing:
+{
+  "objectType": one of ["art", "furniture", "decor", "lighting", "textile", "accessory"],
+  "confidence": number between 0 and 1,
+  "boundingBox": { "x": number, "y": number, "width": number, "height": number } (percentages of image dimensions, 0-100),
+  "description": a detailed description of the object (2-3 sentences),
+  "aiPromptHints": a short phrase for AI render insertion (e.g., "vintage wooden coffee table with marble top"),
+  "suggestedCategory": suggested main category for cataloguing,
+  "suggestedSubcategory": suggested subcategory for cataloguing
+}
+
+Object type definitions:
+- art: paintings, prints, sculptures, wall art, photographs
+- furniture: sofas, chairs, tables, beds, cabinets, shelving
+- decor: vases, sculptures, decorative objects, plants, mirrors
+- lighting: lamps, chandeliers, pendants, sconces, LED strips
+- textile: rugs, curtains, cushions, throws, upholstery samples
+- accessory: small decorative items, bookends, candles, clocks
+
+Respond ONLY with the JSON object, no additional text.`;
+
+  try {
+    const response = await withTimeout(
+      getAIClient().models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [{
+          role: "user",
+          parts: [
+            { inlineData: { data: imageData, mimeType } },
+            { text: prompt }
+          ]
+        }],
+      }),
+      AI_TIMEOUT_MS,
+      "Object detection"
+    );
+
+    const candidate = response.candidates?.[0];
+    const textPart = candidate?.content?.parts?.find((part: any) => part.text);
+    
+    if (textPart?.text) {
+      // Parse JSON response
+      const jsonMatch = textPart.text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const result = JSON.parse(jsonMatch[0]);
+        console.log("[Object Detection] Detected:", result.objectType, "with confidence:", result.confidence);
+        return result as ObjectDetectionResult;
+      }
+    }
+    
+    throw new Error("Failed to parse object detection response");
+  } catch (error) {
+    console.error("[Object Detection] Error:", error);
+    // Return default values if detection fails
+    return {
+      objectType: 'decor',
+      confidence: 0,
+      description: 'Unable to detect object details',
+      aiPromptHints: 'decorative object',
+      suggestedCategory: 'Decor',
+      suggestedSubcategory: 'General'
+    };
+  }
+}
+
+// Process an object image: crop, enhance, and optionally remove background
+export async function processObjectImage(
+  inputBuffer: Buffer,
+  objectType: string,
+  boundingBox?: { x: number; y: number; width: number; height: number }
+): Promise<{
+  processedBuffer: Buffer;
+  thumbnailBuffer: Buffer;
+  dimensions: { width: number; height: number };
+}> {
+  console.log("[Object Processing] Starting image processing for:", objectType);
+  
+  // Get image metadata
+  const metadata = await sharp(inputBuffer).metadata();
+  const originalWidth = metadata.width || 1000;
+  const originalHeight = metadata.height || 1000;
+  
+  let processedImage = sharp(inputBuffer);
+  
+  // If we have a bounding box, crop to it with some padding
+  if (boundingBox) {
+    const padding = 0.05; // 5% padding around the detected object
+    const x = Math.max(0, Math.floor((boundingBox.x - padding * 100) * originalWidth / 100));
+    const y = Math.max(0, Math.floor((boundingBox.y - padding * 100) * originalHeight / 100));
+    const width = Math.min(originalWidth - x, Math.floor((boundingBox.width + padding * 200) * originalWidth / 100));
+    const height = Math.min(originalHeight - y, Math.floor((boundingBox.height + padding * 200) * originalHeight / 100));
+    
+    if (width > 0 && height > 0) {
+      processedImage = processedImage.extract({ left: x, top: y, width, height });
+      console.log("[Object Processing] Cropped to bounding box:", { x, y, width, height });
+    }
+  }
+  
+  // Apply different processing based on object type
+  switch (objectType) {
+    case 'art':
+      // For art: enhance colors, sharpen, correct perspective
+      processedImage = processedImage
+        .modulate({ saturation: 1.1 }) // Slightly boost saturation
+        .sharpen({ sigma: 1.5 })
+        .normalise(); // Normalize contrast
+      break;
+      
+    case 'furniture':
+    case 'lighting':
+      // For furniture/lighting: enhance details, good contrast
+      processedImage = processedImage
+        .sharpen({ sigma: 1.2 })
+        .modulate({ brightness: 1.05 })
+        .normalise();
+      break;
+      
+    case 'textile':
+      // For textiles: enhance texture visibility
+      processedImage = processedImage
+        .sharpen({ sigma: 2.0 })
+        .modulate({ saturation: 1.05 });
+      break;
+      
+    default:
+      // General enhancement
+      processedImage = processedImage
+        .sharpen({ sigma: 1.0 })
+        .normalise();
+  }
+  
+  // Resize to max 2048px while maintaining aspect ratio
+  const processedBuffer = await processedImage
+    .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+    .png({ quality: 90 })
+    .toBuffer();
+  
+  // Get final dimensions
+  const finalMetadata = await sharp(processedBuffer).metadata();
+  const dimensions = {
+    width: finalMetadata.width || 0,
+    height: finalMetadata.height || 0
+  };
+  
+  // Create thumbnail (256px)
+  const thumbnailBuffer = await sharp(processedBuffer)
+    .resize(256, 256, { fit: 'cover' })
+    .png({ quality: 80 })
+    .toBuffer();
+  
+  console.log("[Object Processing] Complete. Dimensions:", dimensions);
+  
+  return {
+    processedBuffer,
+    thumbnailBuffer,
+    dimensions
+  };
+}
+
+// Generate a transparent version (background removed) using AI
+export async function generateTransparentVersion(
+  imageData: string,
+  mimeType: string,
+  objectDescription: string
+): Promise<string | null> {
+  console.log("[Transparency] Generating transparent version...");
+  
+  const prompt = `Create a version of this ${objectDescription} with a completely transparent background. 
+Keep the object exactly as it appears but remove ALL background elements. 
+The object should be cleanly isolated with smooth edges, suitable for compositing into other images.
+Maintain the original colors, lighting, and details of the object.`;
+
+  try {
+    const response = await withTimeout(
+      getAIClient().models.generateContent({
+        model: "gemini-2.0-flash-exp-image-generation",
+        contents: [{
+          role: "user",
+          parts: [
+            { inlineData: { data: imageData, mimeType } },
+            { text: prompt }
+          ]
+        }],
+        config: {
+          responseModalities: [Modality.TEXT, Modality.IMAGE],
+        },
+      }),
+      AI_TIMEOUT_MS * 2, // Longer timeout for image generation
+      "Background removal"
+    );
+
+    const candidate = response.candidates?.[0];
+    const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
+    
+    if (imagePart?.inlineData?.data) {
+      console.log("[Transparency] Successfully generated transparent version");
+      return imagePart.inlineData.data;
+    }
+    
+    console.log("[Transparency] No image in response, background removal not available");
+    return null;
+  } catch (error) {
+    console.error("[Transparency] Error generating transparent version:", error);
+    return null;
+  }
+}

@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2 } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -100,6 +100,11 @@ const designerOnlyItems: NavigationItem[] = [
     title: "AI Renders",
     url: "/ai-renders",
     icon: Wand2,
+  },
+  {
+    title: "Asset Ingestion",
+    url: "/asset-ingestion",
+    icon: Camera,
   },
   {
     title: "Catalogues",

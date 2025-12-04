@@ -6778,6 +6778,318 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============== Object Assets Routes (Asset Ingestion) ==============
+  // Import object asset processing functions
+  const { detectObjectInImage, processObjectImage, generateTransparentVersion } = await import("./ai/gemini");
+  
+  // Configure multer for object asset uploads
+  const objectAssetUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB limit
+    },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only image files are allowed'));
+      }
+    }
+  });
+
+  // Get all object assets
+  app.get("/api/object-assets", requireAdmin, async (req, res) => {
+    try {
+      const { type, status } = req.query;
+      let assets;
+      
+      if (type) {
+        assets = await storage.getObjectAssetsByType(type as string);
+      } else if (status) {
+        assets = await storage.getObjectAssetsByStatus(status as string);
+      } else {
+        assets = await storage.getAllObjectAssets();
+      }
+      
+      res.json(assets);
+    } catch (error) {
+      console.error('Error fetching object assets:', error);
+      res.status(500).json({ error: "Failed to fetch object assets" });
+    }
+  });
+
+  // Get single object asset
+  app.get("/api/object-assets/:id", requireAdmin, async (req, res) => {
+    try {
+      const asset = await storage.getObjectAsset(req.params.id);
+      if (!asset) {
+        return res.status(404).json({ error: "Object asset not found" });
+      }
+      res.json(asset);
+    } catch (error) {
+      console.error('Error fetching object asset:', error);
+      res.status(500).json({ error: "Failed to fetch object asset" });
+    }
+  });
+
+  // Upload and process object asset
+  app.post("/api/object-assets/upload", requireAdmin, (req, res, next) => {
+    objectAssetUpload.single('file')(req, res, async (err) => {
+      if (err) {
+        console.error('Multer error:', err);
+        return res.status(400).json({ error: err.message });
+      }
+
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: "Image file is required" });
+        }
+
+        const userId = (req.user as any).claims.sub;
+        const userObjectType = req.body.objectType; // Optional: user can pre-select type
+        
+        // Upload original file to object storage
+        const originalPath = await uploadToObjectStorage(
+          req.file.buffer,
+          `original_${req.file.originalname}`,
+          userId,
+          req.file.mimetype
+        );
+
+        // Create initial asset record with pending status
+        const asset = await storage.createObjectAsset({
+          objectType: userObjectType || 'decor', // Default, will be updated by AI
+          originalFileName: req.file.originalname,
+          originalFilePath: originalPath,
+          processingStatus: 'pending',
+          uploadedBy: userId,
+        });
+
+        // Return immediately, processing will happen in background
+        res.json({ 
+          id: asset.id,
+          status: 'pending',
+          message: 'Asset uploaded, processing started'
+        });
+
+        // Start async processing
+        processAssetInBackground(asset.id, req.file.buffer, req.file.mimetype, userObjectType).catch(error => {
+          console.error('Background processing failed:', error);
+        });
+
+      } catch (error) {
+        console.error('Error uploading object asset:', error);
+        res.status(500).json({ error: "Failed to upload object asset" });
+      }
+    });
+  });
+
+  // Background processing function
+  async function processAssetInBackground(assetId: string, buffer: Buffer, mimeType: string, userObjectType?: string) {
+    try {
+      // Update status to processing
+      await storage.updateObjectAssetProcessing(assetId, { processingStatus: 'processing' });
+
+      // Convert buffer to base64 for AI
+      const imageData = buffer.toString('base64');
+
+      // Step 1: Detect object type and get details
+      const detection = await detectObjectInImage(imageData, mimeType);
+      const objectType = userObjectType || detection.objectType;
+
+      // Step 2: Process the image (crop, enhance)
+      const { processedBuffer, thumbnailBuffer, dimensions } = await processObjectImage(
+        buffer,
+        objectType,
+        detection.boundingBox
+      );
+
+      // Step 3: Upload processed images to object storage
+      const asset = await storage.getObjectAsset(assetId);
+      if (!asset) throw new Error('Asset not found');
+
+      const processedPath = await uploadToObjectStorage(
+        processedBuffer,
+        `processed_${asset.originalFileName}`,
+        asset.uploadedBy,
+        'image/png'
+      );
+
+      const thumbnailPath = await uploadToObjectStorage(
+        thumbnailBuffer,
+        `thumb_${asset.originalFileName}`,
+        asset.uploadedBy,
+        'image/png'
+      );
+
+      // Step 4: Try to generate transparent version (optional - may not always work)
+      let transparentPath: string | undefined;
+      try {
+        const processedBase64 = processedBuffer.toString('base64');
+        const transparentData = await generateTransparentVersion(processedBase64, 'image/png', detection.description);
+        if (transparentData) {
+          const transparentBuffer = Buffer.from(transparentData, 'base64');
+          transparentPath = await uploadToObjectStorage(
+            transparentBuffer,
+            `transparent_${asset.originalFileName}`,
+            asset.uploadedBy,
+            'image/png'
+          );
+        }
+      } catch (e) {
+        console.log('Transparent version not generated:', e);
+      }
+
+      // Step 5: Update asset with all processing results
+      await storage.updateObjectAssetProcessing(assetId, {
+        processingStatus: 'completed',
+        processedFilePath: processedPath,
+        thumbnailPath: thumbnailPath,
+        transparentPath: transparentPath,
+        detectedBounds: detection.boundingBox,
+        dimensions: dimensions,
+        aiDescription: detection.description,
+        aiPromptHints: detection.aiPromptHints,
+        processedAt: new Date(),
+      });
+
+      // Also update the object type if it was detected
+      if (!userObjectType) {
+        await storage.updateObjectAsset(assetId, { objectType: detection.objectType });
+      }
+
+      console.log(`[Asset Processing] Completed for asset ${assetId}`);
+    } catch (error) {
+      console.error(`[Asset Processing] Failed for asset ${assetId}:`, error);
+      await storage.updateObjectAssetProcessing(assetId, {
+        processingStatus: 'failed',
+        processingError: error instanceof Error ? error.message : 'Processing failed',
+      });
+    }
+  }
+
+  // Reprocess an asset (retry failed or update)
+  app.post("/api/object-assets/:id/reprocess", requireAdmin, async (req, res) => {
+    try {
+      const asset = await storage.getObjectAsset(req.params.id);
+      if (!asset) {
+        return res.status(404).json({ error: "Object asset not found" });
+      }
+
+      // Download original file from object storage
+      const originalBuffer = await downloadObjectBuffer(asset.originalFilePath);
+
+      // Reset status and start reprocessing
+      await storage.updateObjectAssetProcessing(asset.id, { 
+        processingStatus: 'pending',
+        processingError: undefined
+      });
+
+      res.json({ message: 'Reprocessing started' });
+
+      // Start async processing
+      const mimeType = asset.originalFileName.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+      processAssetInBackground(asset.id, originalBuffer, mimeType, req.body.objectType).catch(error => {
+        console.error('Reprocessing failed:', error);
+      });
+
+    } catch (error) {
+      console.error('Error reprocessing object asset:', error);
+      res.status(500).json({ error: "Failed to reprocess object asset" });
+    }
+  });
+
+  // Update object asset metadata
+  app.put("/api/object-assets/:id", requireAdmin, async (req, res) => {
+    try {
+      const { userDescription, objectType, aiPromptHints } = req.body;
+      
+      const updates: any = {};
+      if (userDescription !== undefined) updates.userDescription = userDescription;
+      if (objectType) updates.objectType = objectType;
+      if (aiPromptHints !== undefined) updates.aiPromptHints = aiPromptHints;
+
+      const asset = await storage.updateObjectAsset(req.params.id, updates);
+      if (!asset) {
+        return res.status(404).json({ error: "Object asset not found" });
+      }
+
+      res.json(asset);
+    } catch (error) {
+      console.error('Error updating object asset:', error);
+      res.status(500).json({ error: "Failed to update object asset" });
+    }
+  });
+
+  // Delete object asset
+  app.delete("/api/object-assets/:id", requireAdmin, async (req, res) => {
+    try {
+      const deleted = await storage.deleteObjectAsset(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Object asset not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting object asset:', error);
+      res.status(500).json({ error: "Failed to delete object asset" });
+    }
+  });
+
+  // Save asset to catalogue
+  app.post("/api/object-assets/:id/save-to-catalogue", requireAdmin, async (req, res) => {
+    try {
+      const asset = await storage.getObjectAsset(req.params.id);
+      if (!asset) {
+        return res.status(404).json({ error: "Object asset not found" });
+      }
+
+      if (asset.processingStatus !== 'completed') {
+        return res.status(400).json({ error: "Asset must be fully processed before saving to catalogue" });
+      }
+
+      const { mainCategory, subcategory, vendorBrand, description, attributes } = req.body;
+
+      if (!mainCategory || !subcategory) {
+        return res.status(400).json({ error: "Category and subcategory are required" });
+      }
+
+      // Create catalogue item with the processed asset
+      const catalogueItem = await storage.createCatalogueItem({
+        mainCategory,
+        subcategory,
+        vendorBrand: vendorBrand || null,
+        description: description || asset.aiDescription || null,
+        attributes: attributes || '',
+        aiImagePath: asset.processedFilePath || asset.originalFilePath,
+        aiPromptHints: asset.aiPromptHints || null,
+      });
+
+      // Link the asset to the catalogue item
+      await storage.linkAssetToCatalogue(asset.id, catalogueItem.id);
+
+      // Log activity
+      const userId = (req.user as any).claims.sub;
+      const user = await storage.getUser(userId);
+      if (user) {
+        await storage.createActivity({
+          userId: user.id,
+          userName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown',
+          userEmail: user.email || '',
+          activityType: 'catalogue_upload',
+          fileName: `${mainCategory} > ${subcategory}`,
+          filePath: asset.processedFilePath || asset.originalFilePath,
+          description: `added object asset to catalogue: ${mainCategory} > ${subcategory}`,
+          metadata: { catalogueItemId: catalogueItem.id, objectAssetId: asset.id }
+        });
+      }
+
+      res.json({ catalogueItem, asset });
+    } catch (error) {
+      console.error('Error saving asset to catalogue:', error);
+      res.status(500).json({ error: "Failed to save asset to catalogue" });
+    }
+  });
+
   // Configure multer for specifications file uploads
   const specificationsUpload = multer({
     storage: multer.memoryStorage(),

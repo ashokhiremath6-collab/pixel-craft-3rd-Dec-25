@@ -47,6 +47,8 @@ import {
   type InsertVendorPayment,
   type CatalogueItem,
   type InsertCatalogueItem,
+  type ObjectAsset,
+  type InsertObjectAsset,
   type Specification,
   type InsertSpecification,
   type MeetingMinutes,
@@ -81,6 +83,7 @@ import {
   vendorInvoices,
   vendorPayments,
   catalogueItems,
+  objectAssets,
   specifications,
   meetingMinutes,
   worksOrderTemplates,
@@ -340,6 +343,29 @@ export interface IStorage {
   // Vendors (with role-based filtering)
   getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
   getProjectVendorsForUser(userId: string, role: string): Promise<ProjectVendor[]>;
+  
+  // Object Assets (photo processing for art, furniture, etc.)
+  getAllObjectAssets(): Promise<ObjectAsset[]>;
+  getObjectAsset(id: string): Promise<ObjectAsset | undefined>;
+  getObjectAssetsByType(objectType: string): Promise<ObjectAsset[]>;
+  getObjectAssetsByStatus(status: string): Promise<ObjectAsset[]>;
+  getObjectAssetsByUser(userId: string): Promise<ObjectAsset[]>;
+  createObjectAsset(asset: InsertObjectAsset): Promise<ObjectAsset>;
+  updateObjectAsset(id: string, updates: Partial<InsertObjectAsset>): Promise<ObjectAsset | undefined>;
+  updateObjectAssetProcessing(id: string, updates: {
+    processingStatus: string;
+    processedFilePath?: string;
+    thumbnailPath?: string;
+    transparentPath?: string;
+    detectedBounds?: any;
+    dimensions?: any;
+    aiDescription?: string;
+    aiPromptHints?: string;
+    processingError?: string;
+    processedAt?: Date;
+  }): Promise<ObjectAsset | undefined>;
+  deleteObjectAsset(id: string): Promise<boolean>;
+  linkAssetToCatalogue(assetId: string, catalogueItemId: string): Promise<ObjectAsset | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -2712,6 +2738,82 @@ export class DBStorage implements IStorage {
       const result = await tx.insert(worksOrderItems).values(items).returning();
       return result;
     });
+  }
+
+  // Object Assets methods for photo processing
+  async getAllObjectAssets(): Promise<ObjectAsset[]> {
+    return await db.select().from(objectAssets).orderBy(desc(objectAssets.createdAt));
+  }
+
+  async getObjectAsset(id: string): Promise<ObjectAsset | undefined> {
+    const result = await db.select().from(objectAssets).where(eq(objectAssets.id, id));
+    return result[0];
+  }
+
+  async getObjectAssetsByType(objectType: string): Promise<ObjectAsset[]> {
+    return await db.select()
+      .from(objectAssets)
+      .where(eq(objectAssets.objectType, objectType))
+      .orderBy(desc(objectAssets.createdAt));
+  }
+
+  async getObjectAssetsByStatus(status: string): Promise<ObjectAsset[]> {
+    return await db.select()
+      .from(objectAssets)
+      .where(eq(objectAssets.processingStatus, status))
+      .orderBy(desc(objectAssets.createdAt));
+  }
+
+  async getObjectAssetsByUser(userId: string): Promise<ObjectAsset[]> {
+    return await db.select()
+      .from(objectAssets)
+      .where(eq(objectAssets.uploadedBy, userId))
+      .orderBy(desc(objectAssets.createdAt));
+  }
+
+  async createObjectAsset(asset: InsertObjectAsset): Promise<ObjectAsset> {
+    const result = await db.insert(objectAssets).values(asset).returning();
+    return result[0];
+  }
+
+  async updateObjectAsset(id: string, updates: Partial<InsertObjectAsset>): Promise<ObjectAsset | undefined> {
+    const result = await db.update(objectAssets)
+      .set(updates)
+      .where(eq(objectAssets.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async updateObjectAssetProcessing(id: string, updates: {
+    processingStatus: string;
+    processedFilePath?: string;
+    thumbnailPath?: string;
+    transparentPath?: string;
+    detectedBounds?: any;
+    dimensions?: any;
+    aiDescription?: string;
+    aiPromptHints?: string;
+    processingError?: string;
+    processedAt?: Date;
+  }): Promise<ObjectAsset | undefined> {
+    const result = await db.update(objectAssets)
+      .set(updates)
+      .where(eq(objectAssets.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteObjectAsset(id: string): Promise<boolean> {
+    const result = await db.delete(objectAssets).where(eq(objectAssets.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async linkAssetToCatalogue(assetId: string, catalogueItemId: string): Promise<ObjectAsset | undefined> {
+    const result = await db.update(objectAssets)
+      .set({ catalogueItemId })
+      .where(eq(objectAssets.id, assetId))
+      .returning();
+    return result[0];
   }
 }
 

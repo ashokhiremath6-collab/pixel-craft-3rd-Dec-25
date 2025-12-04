@@ -1,0 +1,593 @@
+import { useState, useCallback } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { 
+  Upload, 
+  Image as ImageIcon, 
+  Loader2, 
+  CheckCircle, 
+  XCircle, 
+  RefreshCw, 
+  Trash2,
+  BookOpen,
+  Eye,
+  Palette,
+  Sofa,
+  Lamp,
+  Flower2,
+  Shirt,
+  Package
+} from "lucide-react";
+import type { ObjectAsset } from "@shared/schema";
+
+const OBJECT_TYPES = [
+  { value: "art", label: "Art & Wall Decor", icon: Palette, description: "Paintings, prints, sculptures, wall art" },
+  { value: "furniture", label: "Furniture", icon: Sofa, description: "Sofas, chairs, tables, cabinets" },
+  { value: "lighting", label: "Lighting", icon: Lamp, description: "Lamps, chandeliers, pendants" },
+  { value: "decor", label: "Decor Objects", icon: Flower2, description: "Vases, plants, mirrors, decorative items" },
+  { value: "textile", label: "Textiles", icon: Shirt, description: "Rugs, curtains, cushions, throws" },
+  { value: "accessory", label: "Accessories", icon: Package, description: "Small items, candles, clocks" },
+];
+
+function getStatusBadge(status: string) {
+  switch (status) {
+    case 'pending':
+      return <Badge variant="secondary" className="gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Pending</Badge>;
+    case 'processing':
+      return <Badge variant="default" className="gap-1 bg-blue-500"><Loader2 className="w-3 h-3 animate-spin" /> Processing</Badge>;
+    case 'completed':
+      return <Badge variant="default" className="gap-1 bg-green-600"><CheckCircle className="w-3 h-3" /> Completed</Badge>;
+    case 'failed':
+      return <Badge variant="destructive" className="gap-1"><XCircle className="w-3 h-3" /> Failed</Badge>;
+    default:
+      return <Badge variant="outline">{status}</Badge>;
+  }
+}
+
+function getObjectTypeIcon(type: string) {
+  const typeConfig = OBJECT_TYPES.find(t => t.value === type);
+  if (typeConfig) {
+    const Icon = typeConfig.icon;
+    return <Icon className="w-4 h-4" />;
+  }
+  return <Package className="w-4 h-4" />;
+}
+
+export default function AssetIngestionPage() {
+  const { toast } = useToast();
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<ObjectAsset | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [saveToCatalogueDialogOpen, setSaveToCatalogueDialogOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const [selectedObjectType, setSelectedObjectType] = useState<string>("");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+
+  const { data: assets, isLoading } = useQuery<ObjectAsset[]>({
+    queryKey: ['/api/object-assets'],
+    refetchInterval: 5000,
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch('/api/object-assets/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Upload started", description: "Your image is being processed. This may take a minute." });
+      setUploadDialogOpen(false);
+      setUploadFile(null);
+      setUploadPreview(null);
+      setSelectedObjectType("");
+      queryClient.invalidateQueries({ queryKey: ['/api/object-assets'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const reprocessMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('POST', `/api/object-assets/${id}/reprocess`);
+    },
+    onSuccess: () => {
+      toast({ title: "Reprocessing started" });
+      queryClient.invalidateQueries({ queryKey: ['/api/object-assets'] });
+    },
+    onError: () => {
+      toast({ title: "Failed to reprocess", variant: "destructive" });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('DELETE', `/api/object-assets/${id}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Asset deleted" });
+      setDetailDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/object-assets'] });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete", variant: "destructive" });
+    }
+  });
+
+  const saveToCatalogueMutation = useMutation({
+    mutationFn: async (data: { id: string; mainCategory: string; subcategory: string; vendorBrand?: string; description?: string }) => {
+      return apiRequest('POST', `/api/object-assets/${data.id}/save-to-catalogue`, {
+        mainCategory: data.mainCategory,
+        subcategory: data.subcategory,
+        vendorBrand: data.vendorBrand,
+        description: data.description
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Saved to catalogue", description: "Asset has been added to your catalogue" });
+      setSaveToCatalogueDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/object-assets'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/catalogue'] });
+    },
+    onError: () => {
+      toast({ title: "Failed to save", variant: "destructive" });
+    }
+  });
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast({ title: "Invalid file", description: "Please select an image file", variant: "destructive" });
+        return;
+      }
+      setUploadFile(file);
+      const reader = new FileReader();
+      reader.onload = () => setUploadPreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  }, [toast]);
+
+  const handleUpload = () => {
+    if (!uploadFile) return;
+    const formData = new FormData();
+    formData.append('file', uploadFile);
+    if (selectedObjectType) {
+      formData.append('objectType', selectedObjectType);
+    }
+    uploadMutation.mutate(formData);
+  };
+
+  const filteredAssets = assets?.filter(asset => {
+    if (filterType !== 'all' && asset.objectType !== filterType) return false;
+    if (filterStatus !== 'all' && asset.processingStatus !== filterStatus) return false;
+    return true;
+  }) || [];
+
+  const [catalogueForm, setCatalogueForm] = useState({
+    mainCategory: '',
+    subcategory: '',
+    vendorBrand: '',
+    description: ''
+  });
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border-b">
+        <div>
+          <h1 className="text-2xl font-bold">Asset Ingestion</h1>
+          <p className="text-muted-foreground">Upload photos of art, furniture, and objects to process for use in renders</p>
+        </div>
+        <Button onClick={() => setUploadDialogOpen(true)} data-testid="button-upload-asset">
+          <Upload className="w-4 h-4 mr-2" />
+          Upload Photo
+        </Button>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-4 p-4 border-b">
+        <div className="flex-1">
+          <Label className="text-sm mb-1 block">Filter by Type</Label>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger data-testid="select-filter-type">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {OBJECT_TYPES.map(type => (
+                <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex-1">
+          <Label className="text-sm mb-1 block">Filter by Status</Label>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger data-testid="select-filter-status">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="processing">Processing</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="failed">Failed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto p-4">
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <Card key={i}>
+                <CardContent className="p-4">
+                  <Skeleton className="aspect-square w-full rounded-lg mb-3" />
+                  <Skeleton className="h-4 w-3/4 mb-2" />
+                  <Skeleton className="h-4 w-1/2" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : filteredAssets.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
+            <ImageIcon className="w-12 h-12 mb-4" />
+            <p className="text-lg font-medium">No assets yet</p>
+            <p className="text-sm">Upload a photo to get started</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredAssets.map(asset => (
+              <Card 
+                key={asset.id} 
+                className="cursor-pointer hover-elevate transition-all"
+                onClick={() => {
+                  setSelectedAsset(asset);
+                  setDetailDialogOpen(true);
+                }}
+                data-testid={`card-asset-${asset.id}`}
+              >
+                <CardContent className="p-4">
+                  <div className="aspect-square w-full rounded-lg mb-3 bg-muted overflow-hidden">
+                    {asset.thumbnailPath || asset.processedFilePath ? (
+                      <img 
+                        src={`/api/objects/download?path=${encodeURIComponent(asset.thumbnailPath || asset.processedFilePath || '')}`}
+                        alt={asset.originalFileName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : asset.originalFilePath ? (
+                      <img 
+                        src={`/api/objects/download?path=${encodeURIComponent(asset.originalFilePath)}`}
+                        alt={asset.originalFileName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    {getObjectTypeIcon(asset.objectType)}
+                    <span className="text-sm font-medium truncate">{asset.originalFileName}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    {getStatusBadge(asset.processingStatus)}
+                    {asset.catalogueItemId && (
+                      <Badge variant="outline" className="gap-1">
+                        <BookOpen className="w-3 h-3" />
+                        In Catalogue
+                      </Badge>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Upload Photo</DialogTitle>
+            <DialogDescription>
+              Upload a photo of art, furniture, or any object. We'll automatically detect the type and process it for use in renders.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="border-2 border-dashed rounded-lg p-6 text-center">
+              {uploadPreview ? (
+                <div className="space-y-4">
+                  <img 
+                    src={uploadPreview} 
+                    alt="Preview" 
+                    className="max-h-48 mx-auto rounded-lg object-contain"
+                  />
+                  <p className="text-sm text-muted-foreground">{uploadFile?.name}</p>
+                  <Button variant="outline" size="sm" onClick={() => {
+                    setUploadFile(null);
+                    setUploadPreview(null);
+                  }}>
+                    Remove
+                  </Button>
+                </div>
+              ) : (
+                <label className="cursor-pointer block">
+                  <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground mb-2">Click to select or drag and drop</p>
+                  <p className="text-xs text-muted-foreground">PNG, JPG up to 50MB</p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                    data-testid="input-file-upload"
+                  />
+                </label>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="objectType">Object Type (Optional)</Label>
+              <Select value={selectedObjectType} onValueChange={setSelectedObjectType}>
+                <SelectTrigger id="objectType" data-testid="select-object-type">
+                  <SelectValue placeholder="Auto-detect" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Auto-detect</SelectItem>
+                  {OBJECT_TYPES.map(type => (
+                    <SelectItem key={type.value} value={type.value}>
+                      <div className="flex items-center gap-2">
+                        <type.icon className="w-4 h-4" />
+                        {type.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Leave empty to let AI detect the object type automatically
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setUploadDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUpload} 
+              disabled={!uploadFile || uploadMutation.isPending}
+              data-testid="button-confirm-upload"
+            >
+              {uploadMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Upload & Process
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedAsset && getObjectTypeIcon(selectedAsset.objectType)}
+              {selectedAsset?.originalFileName}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedAsset && getStatusBadge(selectedAsset.processingStatus)}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAsset && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm mb-1 block">Original</Label>
+                  <div className="aspect-square w-full rounded-lg bg-muted overflow-hidden">
+                    <img 
+                      src={`/api/objects/download?path=${encodeURIComponent(selectedAsset.originalFilePath)}`}
+                      alt="Original"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                </div>
+                {selectedAsset.processedFilePath && (
+                  <div>
+                    <Label className="text-sm mb-1 block">Processed</Label>
+                    <div className="aspect-square w-full rounded-lg bg-muted overflow-hidden">
+                      <img 
+                        src={`/api/objects/download?path=${encodeURIComponent(selectedAsset.processedFilePath)}`}
+                        alt="Processed"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {selectedAsset.transparentPath && (
+                <div>
+                  <Label className="text-sm mb-1 block">Transparent (Background Removed)</Label>
+                  <div className="h-32 rounded-lg overflow-hidden" style={{ background: 'repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 20px 20px' }}>
+                    <img 
+                      src={`/api/objects/download?path=${encodeURIComponent(selectedAsset.transparentPath)}`}
+                      alt="Transparent"
+                      className="h-full object-contain mx-auto"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {selectedAsset.aiDescription && (
+                <div>
+                  <Label className="text-sm mb-1 block">AI Description</Label>
+                  <p className="text-sm text-muted-foreground">{selectedAsset.aiDescription}</p>
+                </div>
+              )}
+
+              {selectedAsset.aiPromptHints && (
+                <div>
+                  <Label className="text-sm mb-1 block">AI Prompt Hints (for renders)</Label>
+                  <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{selectedAsset.aiPromptHints}</p>
+                </div>
+              )}
+
+              {selectedAsset.processingError && (
+                <div className="p-3 bg-destructive/10 rounded-lg">
+                  <Label className="text-sm text-destructive">Processing Error</Label>
+                  <p className="text-sm text-destructive">{selectedAsset.processingError}</p>
+                </div>
+              )}
+
+              {selectedAsset.dimensions && (
+                <div>
+                  <Label className="text-sm mb-1 block">Dimensions</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {(selectedAsset.dimensions as any).width} x {(selectedAsset.dimensions as any).height} px
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="destructive" 
+              onClick={() => selectedAsset && deleteMutation.mutate(selectedAsset.id)}
+              disabled={deleteMutation.isPending}
+              data-testid="button-delete-asset"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete
+            </Button>
+            {selectedAsset?.processingStatus === 'failed' && (
+              <Button 
+                variant="outline"
+                onClick={() => reprocessMutation.mutate(selectedAsset.id)}
+                disabled={reprocessMutation.isPending}
+                data-testid="button-reprocess-asset"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry Processing
+              </Button>
+            )}
+            {selectedAsset?.processingStatus === 'completed' && !selectedAsset.catalogueItemId && (
+              <Button 
+                onClick={() => {
+                  setSaveToCatalogueDialogOpen(true);
+                  setCatalogueForm({
+                    mainCategory: '',
+                    subcategory: '',
+                    vendorBrand: '',
+                    description: selectedAsset.aiDescription || ''
+                  });
+                }}
+                data-testid="button-save-to-catalogue"
+              >
+                <BookOpen className="w-4 h-4 mr-2" />
+                Save to Catalogue
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={saveToCatalogueDialogOpen} onOpenChange={setSaveToCatalogueDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Save to Catalogue</DialogTitle>
+            <DialogDescription>
+              Add this processed asset to your catalogue for use in renders
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="mainCategory">Main Category *</Label>
+              <Input
+                id="mainCategory"
+                value={catalogueForm.mainCategory}
+                onChange={(e) => setCatalogueForm(f => ({ ...f, mainCategory: e.target.value }))}
+                placeholder="e.g., Furniture, Art, Lighting"
+                data-testid="input-main-category"
+              />
+            </div>
+            <div>
+              <Label htmlFor="subcategory">Subcategory *</Label>
+              <Input
+                id="subcategory"
+                value={catalogueForm.subcategory}
+                onChange={(e) => setCatalogueForm(f => ({ ...f, subcategory: e.target.value }))}
+                placeholder="e.g., Sofas, Wall Art, Ceiling Lights"
+                data-testid="input-subcategory"
+              />
+            </div>
+            <div>
+              <Label htmlFor="vendorBrand">Vendor / Brand</Label>
+              <Input
+                id="vendorBrand"
+                value={catalogueForm.vendorBrand}
+                onChange={(e) => setCatalogueForm(f => ({ ...f, vendorBrand: e.target.value }))}
+                placeholder="Optional"
+                data-testid="input-vendor-brand"
+              />
+            </div>
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={catalogueForm.description}
+                onChange={(e) => setCatalogueForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Optional description"
+                data-testid="input-description"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setSaveToCatalogueDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                if (selectedAsset && catalogueForm.mainCategory && catalogueForm.subcategory) {
+                  saveToCatalogueMutation.mutate({
+                    id: selectedAsset.id,
+                    ...catalogueForm
+                  });
+                }
+              }}
+              disabled={!catalogueForm.mainCategory || !catalogueForm.subcategory || saveToCatalogueMutation.isPending}
+              data-testid="button-confirm-save-catalogue"
+            >
+              {saveToCatalogueMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Save to Catalogue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
