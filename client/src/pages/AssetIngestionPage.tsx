@@ -482,15 +482,15 @@ export default function AssetIngestionPage() {
               <Trash2 className="w-4 h-4 mr-2" />
               Delete
             </Button>
-            {selectedAsset?.processingStatus === 'failed' && (
+            {selectedAsset && (selectedAsset.processingStatus === 'failed' || selectedAsset.processingStatus === 'completed') && (
               <Button 
                 variant="outline"
                 onClick={() => reprocessMutation.mutate(selectedAsset.id)}
                 disabled={reprocessMutation.isPending}
                 data-testid="button-reprocess-asset"
               >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Retry Processing
+                <RefreshCw className={`w-4 h-4 mr-2 ${reprocessMutation.isPending ? 'animate-spin' : ''}`} />
+                {selectedAsset.processingStatus === 'failed' ? 'Retry Processing' : 'Reprocess'}
               </Button>
             )}
             {selectedAsset?.processingStatus === 'completed' && !selectedAsset.catalogueItemId && (
