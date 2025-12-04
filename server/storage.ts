@@ -51,6 +51,8 @@ import {
   type InsertObjectAsset,
   type Specification,
   type InsertSpecification,
+  type SavedAsset,
+  type InsertSavedAsset,
   type MeetingMinutes,
   type InsertMeetingMinutes,
   type WorksOrderTemplate,
@@ -85,6 +87,7 @@ import {
   catalogueItems,
   objectAssets,
   specifications,
+  savedAssets,
   meetingMinutes,
   worksOrderTemplates,
   worksOrders,
@@ -293,6 +296,14 @@ export interface IStorage {
   createSpecification(spec: InsertSpecification): Promise<Specification>;
   updateSpecification(id: string, spec: Partial<InsertSpecification>): Promise<Specification | undefined>;
   deleteSpecification(id: string): Promise<boolean>;
+  
+  // Saved Assets
+  getAllSavedAssets(): Promise<SavedAsset[]>;
+  getSavedAsset(id: string): Promise<SavedAsset | undefined>;
+  getSavedAssetsByUser(userId: string): Promise<SavedAsset[]>;
+  createSavedAsset(asset: InsertSavedAsset): Promise<SavedAsset>;
+  updateSavedAsset(id: string, asset: Partial<InsertSavedAsset>): Promise<SavedAsset | undefined>;
+  deleteSavedAsset(id: string): Promise<boolean>;
   
   // Meeting Minutes
   getAllMeetingMinutes(): Promise<MeetingMinutes[]>;
@@ -2396,6 +2407,41 @@ export class DBStorage implements IStorage {
 
   async deleteSpecification(id: string): Promise<boolean> {
     const result = await db.delete(specifications).where(eq(specifications.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Saved Assets methods
+  async getAllSavedAssets(): Promise<SavedAsset[]> {
+    return await db.select().from(savedAssets).orderBy(desc(savedAssets.savedAt));
+  }
+
+  async getSavedAsset(id: string): Promise<SavedAsset | undefined> {
+    const result = await db.select().from(savedAssets).where(eq(savedAssets.id, id));
+    return result[0];
+  }
+
+  async getSavedAssetsByUser(userId: string): Promise<SavedAsset[]> {
+    return await db.select()
+      .from(savedAssets)
+      .where(eq(savedAssets.savedBy, userId))
+      .orderBy(desc(savedAssets.savedAt));
+  }
+
+  async createSavedAsset(asset: InsertSavedAsset): Promise<SavedAsset> {
+    const result = await db.insert(savedAssets).values(asset).returning();
+    return result[0];
+  }
+
+  async updateSavedAsset(id: string, asset: Partial<InsertSavedAsset>): Promise<SavedAsset | undefined> {
+    const result = await db.update(savedAssets)
+      .set(asset)
+      .where(eq(savedAssets.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteSavedAsset(id: string): Promise<boolean> {
+    const result = await db.delete(savedAssets).where(eq(savedAssets.id, id));
     return result.rowCount !== null && result.rowCount > 0;
   }
 
