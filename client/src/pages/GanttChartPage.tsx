@@ -877,12 +877,13 @@ export default function GanttChartPage() {
                             <Button 
                               size="sm" 
                               variant="ghost"
-                              asChild
+                              onClick={() => {
+                                window.open(`/api/schedules/${schedule.id}/download-original`, '_blank');
+                              }}
+                              title="Download original uploaded file"
                               data-testid={`button-view-schedule-${schedule.id}`}
                             >
-                              <a href={schedule.filePath} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
+                              <ExternalLink className="h-4 w-4" />
                             </Button>
                             <Button 
                               size="sm" 

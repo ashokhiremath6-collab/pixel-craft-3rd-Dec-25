@@ -5238,6 +5238,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Download original schedule file
+  app.get("/api/schedules/:scheduleId/download-original", requireAuth, async (req, res) => {
+    try {
+      const { scheduleId } = req.params;
+      const userId = (req.user as any).claims.sub;
+      
+      const schedule = await storage.getProjectSchedule(scheduleId);
+      if (!schedule) {
+        return res.status(404).json({ error: "Schedule not found" });
+      }
+      
+      if (!schedule.filePath) {
+        return res.status(404).json({ error: "No file associated with this schedule" });
+      }
+      
+      // Authorization check
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role;
+      const isPrivilegedRole = role === 'admin' || role === 'designer';
+      
+      if (!isPrivilegedRole && schedule.projectId) {
+        const assignments = await storage.getUserProjectAssignments(userId);
+        const hasAccess = assignments.some(a => a.projectId === schedule.projectId);
+        if (!hasAccess) {
+          return res.status(403).json({ error: "Not authorized to access this schedule" });
+        }
+      }
+      
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(schedule.filePath);
+      
+      // Set content disposition for download with original filename
+      const filename = schedule.fileName || 'schedule.xlsx';
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      return objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error('Error downloading original schedule:', error);
+      return res.status(500).json({ error: "Failed to download schedule" });
+    }
+  });
+
   // Designer Excel Export - Formatted schedule with colors and styling
   app.get("/api/schedules/:scheduleId/designer-export", requireAuth, async (req, res) => {
     try {
