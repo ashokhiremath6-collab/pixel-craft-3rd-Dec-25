@@ -6985,26 +6985,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req.file.mimetype
         );
 
-        // Create initial asset record with pending status
+        // Create initial asset record with pending status - NO auto-processing
         const asset = await storage.createObjectAsset({
-          objectType: userObjectType || 'decor', // Default, will be updated by AI
+          objectType: userObjectType || 'decor', // Default, will be updated by AI when processed
           originalFileName: req.file.originalname,
           originalFilePath: originalPath,
-          processingStatus: 'pending',
+          processingStatus: 'pending', // Stays pending until user triggers processing
           uploadedBy: userId,
         });
 
-        // Return immediately, processing will happen in background
+        // Return immediately - user can trigger processing separately
         res.json({ 
           id: asset.id,
           status: 'pending',
-          message: 'Asset uploaded, processing started'
+          message: 'Asset uploaded successfully. Click "Process" to start AI processing.'
         });
-
-        // Start async processing
-        processAssetInBackground(asset.id, req.file.buffer, req.file.mimetype, userObjectType).catch(error => {
-          console.error('Background processing failed:', error);
-        });
+        
+        // NOTE: Processing is now triggered separately via POST /api/object-assets/:id/process
 
       } catch (error) {
         console.error('Error uploading object asset:', error);
@@ -7161,6 +7158,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   }
+
+  // Process a pending asset (initial processing after upload)
+  app.post("/api/object-assets/:id/process", requireAdmin, async (req, res) => {
+    try {
+      const asset = await storage.getObjectAsset(req.params.id);
+      if (!asset) {
+        return res.status(404).json({ error: "Object asset not found" });
+      }
+
+      if (asset.processingStatus !== 'pending') {
+        return res.status(400).json({ error: "Asset is not in pending state. Use reprocess for completed or failed assets." });
+      }
+
+      // Download original file from object storage
+      const originalBuffer = await downloadObjectBuffer(asset.originalFilePath);
+
+      // Update status to processing
+      await storage.updateObjectAssetProcessing(asset.id, { 
+        processingStatus: 'processing'
+      });
+
+      res.json({ message: 'Processing started' });
+
+      // Start async processing
+      const mimeType = asset.originalFileName.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+      processAssetInBackground(
+        asset.id, 
+        originalBuffer, 
+        mimeType, 
+        req.body.objectType
+      ).catch(error => {
+        console.error('Processing failed:', error);
+      });
+
+    } catch (error) {
+      console.error('Error processing object asset:', error);
+      res.status(500).json({ error: "Failed to process object asset" });
+    }
+  });
 
   // Reprocess an asset (retry failed or update)
   app.post("/api/object-assets/:id/reprocess", requireAdmin, async (req, res) => {

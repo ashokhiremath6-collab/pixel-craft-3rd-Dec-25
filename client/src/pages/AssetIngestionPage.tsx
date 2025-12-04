@@ -107,6 +107,19 @@ export default function AssetIngestionPage() {
     }
   });
 
+  const processMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('POST', `/api/object-assets/${id}/process`);
+    },
+    onSuccess: () => {
+      toast({ title: "Processing started", description: "AI is analyzing your image..." });
+      queryClient.invalidateQueries({ queryKey: ['/api/object-assets'] });
+    },
+    onError: () => {
+      toast({ title: "Failed to start processing", variant: "destructive" });
+    }
+  });
+
   const reprocessMutation = useMutation({
     mutationFn: async (id: string) => {
       return apiRequest('POST', `/api/object-assets/${id}/reprocess`);
@@ -351,6 +364,30 @@ export default function AssetIngestionPage() {
                       </Badge>
                     )}
                   </div>
+                  {asset.processingStatus === 'pending' && (
+                    <Button
+                      size="sm"
+                      className="w-full mt-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        processMutation.mutate(asset.id);
+                      }}
+                      disabled={processMutation.isPending}
+                      data-testid={`button-process-${asset.id}`}
+                    >
+                      {processMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          Starting...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-3 h-3 mr-1" />
+                          Process with AI
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -363,7 +400,7 @@ export default function AssetIngestionPage() {
           <DialogHeader>
             <DialogTitle>Upload Photo</DialogTitle>
             <DialogDescription>
-              Upload a photo of art, furniture, or any object. We'll automatically detect the type and process it for use in renders.
+              Upload a photo of art, furniture, or any object. After uploading, click "Process with AI" to analyze and enhance the image.
             </DialogDescription>
           </DialogHeader>
 
@@ -636,6 +673,16 @@ export default function AssetIngestionPage() {
               <Trash2 className="w-4 h-4 mr-2" />
               Delete
             </Button>
+            {selectedAsset?.processingStatus === 'pending' && (
+              <Button 
+                onClick={() => processMutation.mutate(selectedAsset.id)}
+                disabled={processMutation.isPending}
+                data-testid="button-process-asset"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${processMutation.isPending ? 'animate-spin' : ''}`} />
+                {processMutation.isPending ? 'Starting...' : 'Process with AI'}
+              </Button>
+            )}
             {selectedAsset && (selectedAsset.processingStatus === 'failed' || selectedAsset.processingStatus === 'completed' || selectedAsset.processingStatus === 'processing') && (
               <Button 
                 variant="outline"
