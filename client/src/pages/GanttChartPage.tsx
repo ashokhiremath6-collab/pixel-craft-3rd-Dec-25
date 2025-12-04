@@ -92,7 +92,6 @@ export default function GanttChartPage() {
     endDate: true,
     assigned: false, // Hidden by default - designers may not need
     progress: true,
-    approval: true,
   });
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
 
@@ -1082,7 +1081,6 @@ export default function GanttChartPage() {
                             endDate: 'End Date',
                             assigned: 'Assigned',
                             progress: 'Status',
-                            approval: 'Approval',
                           };
                           return (
                             <div key={key} className="flex items-center gap-2">
@@ -1179,7 +1177,6 @@ export default function GanttChartPage() {
                         {visibleColumns.endDate && <th className="text-left py-3 px-2 font-medium">End</th>}
                         {visibleColumns.assigned && <th className="text-left py-3 px-2 font-medium">Assigned</th>}
                         {visibleColumns.progress && <th className="text-center py-3 px-2 font-medium" title="Click badges to toggle status">Status</th>}
-                        {visibleColumns.approval && <th className="text-center py-3 px-2 font-medium">Approval</th>}
                         <th className="text-center py-3 px-2 font-medium w-16"></th>
                       </tr>
                     </thead>
@@ -1351,17 +1348,6 @@ export default function GanttChartPage() {
                                             <Clock className="h-3 w-3 mr-1" />
                                             Incomplete
                                           </Badge>
-                                        )}
-                                      </td>
-                                    )}
-                                    {visibleColumns.approval && (
-                                      <td className="py-2.5 px-2 text-center">
-                                        {task.approvalRequired ? (
-                                          <Badge className="text-xs bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900 dark:text-purple-300">
-                                            Required
-                                          </Badge>
-                                        ) : (
-                                          <span className="text-muted-foreground text-xs">-</span>
                                         )}
                                       </td>
                                     )}
