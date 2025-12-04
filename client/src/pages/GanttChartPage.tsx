@@ -878,7 +878,12 @@ export default function GanttChartPage() {
                               size="sm" 
                               variant="ghost"
                               onClick={() => {
-                                window.open(`/api/schedules/${schedule.id}/download-original`, '_blank');
+                                const link = document.createElement('a');
+                                link.href = `/api/schedules/${schedule.id}/download-original`;
+                                link.style.display = 'none';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
                               }}
                               title="Download original uploaded file"
                               data-testid={`button-view-schedule-${schedule.id}`}
@@ -889,7 +894,12 @@ export default function GanttChartPage() {
                               size="sm" 
                               variant="outline"
                               onClick={() => {
-                                window.open(`/api/schedules/${schedule.id}/designer-export`, '_blank');
+                                const link = document.createElement('a');
+                                link.href = `/api/schedules/${schedule.id}/designer-export`;
+                                link.style.display = 'none';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
                               }}
                               title="Open Designer-Formatted Excel (editable)"
                               data-testid={`button-designer-export-${schedule.id}`}
