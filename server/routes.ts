@@ -7442,6 +7442,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Saved Assets Routes - Admin/Designer only
+  app.get("/api/saved-assets", requireAdmin, async (req, res) => {
+    try {
+      const assets = await storage.getAllSavedAssets();
+      res.json(assets);
+    } catch (error) {
+      console.error('Error fetching saved assets:', error);
+      res.status(500).json({ error: "Failed to fetch saved assets" });
+    }
+  });
+
+  app.get("/api/saved-assets/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const asset = await storage.getSavedAsset(id);
+      if (!asset) {
+        return res.status(404).json({ error: "Saved asset not found" });
+      }
+      res.json(asset);
+    } catch (error) {
+      console.error('Error fetching saved asset:', error);
+      res.status(500).json({ error: "Failed to fetch saved asset" });
+    }
+  });
+
+  app.post("/api/saved-assets", requireAdmin, async (req, res) => {
+    try {
+      const userId = (req.user as any).claims.sub;
+      const { displayName, description, tags, filePath, thumbnailPath, sourceType, objectAssetId, catalogueItemId, aiPromptHints } = req.body;
+      
+      if (!displayName || !filePath || !sourceType) {
+        return res.status(400).json({ error: "displayName, filePath, and sourceType are required" });
+      }
+
+      const asset = await storage.createSavedAsset({
+        displayName,
+        description: description || null,
+        tags: tags || null,
+        filePath,
+        thumbnailPath: thumbnailPath || null,
+        sourceType,
+        objectAssetId: objectAssetId || null,
+        catalogueItemId: catalogueItemId || null,
+        aiPromptHints: aiPromptHints || null,
+        savedBy: userId,
+      });
+
+      res.status(201).json(asset);
+    } catch (error) {
+      console.error('Error creating saved asset:', error);
+      res.status(500).json({ error: "Failed to create saved asset" });
+    }
+  });
+
+  app.patch("/api/saved-assets/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { displayName, description, tags, aiPromptHints } = req.body;
+      
+      const asset = await storage.updateSavedAsset(id, {
+        displayName,
+        description,
+        tags,
+        aiPromptHints,
+      });
+
+      if (!asset) {
+        return res.status(404).json({ error: "Saved asset not found" });
+      }
+
+      res.json(asset);
+    } catch (error) {
+      console.error('Error updating saved asset:', error);
+      res.status(500).json({ error: "Failed to update saved asset" });
+    }
+  });
+
+  app.delete("/api/saved-assets/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteSavedAsset(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Saved asset not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting saved asset:', error);
+      res.status(500).json({ error: "Failed to delete saved asset" });
+    }
+  });
+
   // Configure multer for meeting minutes file uploads
   const meetingMinutesUpload = multer({
     storage: multer.memoryStorage(),
