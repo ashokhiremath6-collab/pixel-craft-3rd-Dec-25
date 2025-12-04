@@ -289,6 +289,31 @@ export const catalogueItems = pgTable("catalogue_items", {
   mainCategoryIdx: index("catalogue_main_category_idx").on(table.mainCategory),
 }));
 
+// Object Assets table for uploaded photos of art, furniture, etc.
+export const objectAssets = pgTable("object_assets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  objectType: text("object_type").notNull(), // art, furniture, decor, lighting, textile, accessory
+  originalFileName: text("original_file_name").notNull(),
+  originalFilePath: text("original_file_path").notNull(), // Original uploaded image in object storage
+  processedFilePath: text("processed_file_path"), // Enhanced/cropped version
+  thumbnailPath: text("thumbnail_path"), // Small thumbnail for previews
+  transparentPath: text("transparent_path"), // Background-removed version for renders
+  processingStatus: text("processing_status").notNull().default("pending"), // pending, processing, completed, failed
+  processingError: text("processing_error"), // Error message if processing failed
+  detectedBounds: jsonb("detected_bounds"), // {x, y, width, height} for detected object region
+  dimensions: jsonb("dimensions"), // {width, height} of processed image
+  aiDescription: text("ai_description"), // AI-generated description of the object
+  aiPromptHints: text("ai_prompt_hints"), // Hints for using in AI render generation
+  userDescription: text("user_description"), // User-provided description
+  catalogueItemId: varchar("catalogue_item_id").references(() => catalogueItems.id), // Link if saved to catalogue
+  uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  processedAt: timestamp("processed_at"), // When processing completed
+}, (table) => ({
+  objectTypeIdx: index("object_assets_type_idx").on(table.objectType),
+  statusIdx: index("object_assets_status_idx").on(table.processingStatus),
+}));
+
 // Specifications table for category-wise technical specifications
 export const specifications = pgTable("specifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -535,6 +560,15 @@ export const insertCatalogueItemSchema = createInsertSchema(catalogueItems).omit
   attributes: z.string(), // Can be empty
 });
 
+export const insertObjectAssetSchema = createInsertSchema(objectAssets).omit({
+  id: true,
+  createdAt: true,
+  processedAt: true,
+}).extend({
+  objectType: z.enum(["art", "furniture", "decor", "lighting", "textile", "accessory"]),
+  processingStatus: z.enum(["pending", "processing", "completed", "failed"]).default("pending"),
+});
+
 export const insertSpecificationSchema = createInsertSchema(specifications).omit({
   id: true,
   uploadedAt: true,
@@ -632,6 +666,9 @@ export type VendorPayment = typeof vendorPayments.$inferSelect;
 
 export type InsertCatalogueItem = z.infer<typeof insertCatalogueItemSchema>;
 export type CatalogueItem = typeof catalogueItems.$inferSelect;
+
+export type InsertObjectAsset = z.infer<typeof insertObjectAssetSchema>;
+export type ObjectAsset = typeof objectAssets.$inferSelect;
 
 export type InsertSpecification = z.infer<typeof insertSpecificationSchema>;
 export type Specification = typeof specifications.$inferSelect;
