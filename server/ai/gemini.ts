@@ -522,57 +522,48 @@ export async function generateInteriorRender(
       // Check if there are reference photos to add special handling
       const hasReferencePhotos = referencePhotos && referencePhotos.length > 0;
       
-      prompt = `You are an expert interior design visualization assistant. Your task is to make targeted modifications to this room image while preserving the overall design.
+      prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text. Do NOT explain what you cannot do. Just generate the best possible image based on the request.
 
-TASK: ${customPrompt}
+You are an expert interior design visualization assistant. Generate a modified version of this room image.
 
-GUIDELINES FOR THIS MODIFICATION:
-- Keep the overall room layout, walls, floor, and ceiling as similar as possible
-- Maintain the same camera angle and perspective
-- Focus on making the specific change requested
-- Ensure photorealistic quality in the output
-${hasReferencePhotos ? `
-REFERENCE PHOTOS PROVIDED:
-- Use the reference photos to understand what the new item/element should look like
-- Match the style, color, and design details from the reference
-- Blend the new element naturally with the existing room
-` : ''}${referenceInstructions}
-
-OUTPUT REQUIREMENTS:
-- Generate a HIGH RESOLUTION photorealistic interior image
-- Apply professional lighting and realistic shadows
-- Ensure sharp details and crisp textures
-- The result should look like a professional interior design photograph`;
-    } else if (style) {
-      prompt = `Transform this interior space image into a photorealistic ${style.name} interior design render. 
-Apply the following design style: ${style.prompt}
-Keep the same room layout and dimensions, but update the furniture, materials, lighting, and decor to match the ${style.name} style.${referenceInstructions}
-
-OUTPUT QUALITY REQUIREMENTS:
-- Generate a HIGH RESOLUTION image with maximum detail and clarity
-- Create sharp, crisp textures on all surfaces (wood grain, fabric weave, marble veining)
-- Apply professional architectural photography lighting with realistic shadows
-- Include fine details: realistic reflections, accurate material properties, subtle ambient occlusion
-- When inserting reference items, match their appearance as closely as possible
-- The render should be suitable for large format printing and professional client presentations
-- Ensure photorealistic quality that looks indistinguishable from a real photograph`;
-    } else if (referenceItems && referenceItems.length > 0) {
-      // Reference items only mode
-      prompt = `You are an interior design assistant. Modify this interior image by inserting specific materials and items as described below.
-${referenceInstructions}
+REQUESTED CHANGE: ${customPrompt}
 
 IMPORTANT RULES:
-- Insert each reference item according to its placement instruction
-- Match the appearance of reference images as closely as possible
-- Maintain realistic lighting, shadows, and perspective
-- Blend the new items naturally with the existing room
-- Keep other elements of the room unchanged unless necessary for the insertion
+- ALWAYS generate an image output - never refuse or explain limitations
+- If the exact request isn't possible, make the closest reasonable interpretation
+- Apply the requested changes as best you can to the existing room
+- Maintain photorealistic quality
+${hasReferencePhotos ? `
+REFERENCE PHOTOS:
+- Use the reference photos as visual guides for style and appearance
+- Match colors and design details from the references
+` : ''}${referenceInstructions}
 
-OUTPUT QUALITY:
-- Generate a HIGH RESOLUTION, photorealistic image with maximum detail
-- Use sharp textures, realistic materials, and professional lighting
-- Ensure crisp edges and fine details are preserved
-- The final image should be suitable for large format printing and professional presentations`;
+OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with professional lighting and sharp details.`;
+    } else if (style) {
+      prompt = `CRITICAL: You MUST generate an image. Do NOT respond with text explanations.
+
+Transform this interior space into a ${style.name} style interior design render.
+
+STYLE TO APPLY: ${style.prompt}
+
+Keep the same room layout but update furniture, materials, lighting, and decor to match the ${style.name} aesthetic.${referenceInstructions}
+
+OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with sharp textures, professional lighting, and realistic materials.`;
+    } else if (referenceItems && referenceItems.length > 0) {
+      // Reference items only mode
+      prompt = `CRITICAL: You MUST generate an image. Do NOT respond with text.
+
+Modify this interior image by inserting the following items:
+${referenceInstructions}
+
+RULES:
+- Insert each item according to its placement instruction
+- Match reference image appearances closely
+- Maintain realistic lighting and perspective
+- Blend new items naturally with the existing room
+
+OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image.`;
     } else {
       throw new Error("Either a style, custom prompt, or reference items must be provided");
     }
@@ -670,18 +661,13 @@ export async function generateConceptRender(
     throw new Error("Invalid style ID");
   }
 
-  const prompt = `Create a photorealistic interior design render of the following space:
-${description}
+  const prompt = `CRITICAL: You MUST generate an image. Do NOT respond with text.
 
-Apply the ${style.name} design style with these characteristics: ${style.prompt}
+Create a photorealistic interior design render of: ${description}
 
-OUTPUT QUALITY REQUIREMENTS:
-- Generate a HIGH RESOLUTION image with maximum detail and clarity
-- Create sharp, crisp textures on all surfaces (wood grain, fabric weave, marble veining)
-- Apply professional architectural photography lighting with realistic shadows
-- Include fine details: realistic reflections, accurate material properties, subtle ambient occlusion
-- The render should be suitable for large format printing and professional client presentations
-- Ensure photorealistic quality that looks indistinguishable from a real photograph`;
+Apply ${style.name} style: ${style.prompt}
+
+OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with sharp textures, professional lighting, and realistic materials.`;
 
   console.log("[Gemini] Calling AI API for concept render...");
   console.log("[Gemini] Timeout set to:", AI_TIMEOUT_MS / 1000, "seconds");
