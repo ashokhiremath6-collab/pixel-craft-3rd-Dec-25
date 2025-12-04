@@ -27,7 +27,8 @@ import {
   Flower2,
   Shirt,
   Package,
-  Save
+  Save,
+  Clock
 } from "lucide-react";
 import type { ObjectAsset } from "@shared/schema";
 
@@ -43,7 +44,7 @@ const OBJECT_TYPES = [
 function getStatusBadge(status: string) {
   switch (status) {
     case 'pending':
-      return <Badge variant="secondary" className="gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Pending</Badge>;
+      return <Badge variant="secondary" className="gap-1"><Clock className="w-3 h-3" /> Pending</Badge>;
     case 'processing':
       return <Badge variant="default" className="gap-1 bg-blue-500"><Loader2 className="w-3 h-3 animate-spin" /> Processing</Badge>;
     case 'completed':
