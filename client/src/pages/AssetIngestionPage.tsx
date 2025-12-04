@@ -26,7 +26,8 @@ import {
   Lamp,
   Flower2,
   Shirt,
-  Package
+  Package,
+  Save
 } from "lucide-react";
 import type { ObjectAsset } from "@shared/schema";
 
@@ -147,6 +148,37 @@ export default function AssetIngestionPage() {
       setSaveToCatalogueDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ['/api/object-assets'] });
       queryClient.invalidateQueries({ queryKey: ['/api/catalogue'] });
+    },
+    onError: () => {
+      toast({ title: "Failed to save", variant: "destructive" });
+    }
+  });
+
+  const [saveToSavedAssetsDialogOpen, setSaveToSavedAssetsDialogOpen] = useState(false);
+  const [savedAssetForm, setSavedAssetForm] = useState({
+    displayName: '',
+    description: '',
+    tags: ''
+  });
+
+  const saveToSavedAssetsMutation = useMutation({
+    mutationFn: async (data: { displayName: string; description?: string; tags?: string; filePath: string; thumbnailPath?: string; objectAssetId: string; aiPromptHints?: string }) => {
+      return apiRequest('POST', `/api/saved-assets`, {
+        displayName: data.displayName,
+        description: data.description,
+        tags: data.tags,
+        filePath: data.filePath,
+        thumbnailPath: data.thumbnailPath,
+        sourceType: 'object_asset',
+        objectAssetId: data.objectAssetId,
+        aiPromptHints: data.aiPromptHints
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Saved to Saved Assets", description: "Asset has been added to your saved assets collection" });
+      setSaveToSavedAssetsDialogOpen(false);
+      setSavedAssetForm({ displayName: '', description: '', tags: '' });
+      queryClient.invalidateQueries({ queryKey: ['/api/saved-assets'] });
     },
     onError: () => {
       toast({ title: "Failed to save", variant: "destructive" });
@@ -633,6 +665,23 @@ export default function AssetIngestionPage() {
                 Save to Catalogue
               </Button>
             )}
+            {selectedAsset?.processingStatus === 'completed' && selectedAsset.processedPath && (
+              <Button 
+                variant="secondary"
+                onClick={() => {
+                  setSaveToSavedAssetsDialogOpen(true);
+                  setSavedAssetForm({
+                    displayName: selectedAsset.aiDescription?.split('.')[0]?.substring(0, 50) || 'Untitled Asset',
+                    description: selectedAsset.aiDescription || '',
+                    tags: selectedAsset.objectType || ''
+                  });
+                }}
+                data-testid="button-save-to-saved-assets"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                Save to Saved Assets
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -707,6 +756,77 @@ export default function AssetIngestionPage() {
             >
               {saveToCatalogueMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Save to Catalogue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={saveToSavedAssetsDialogOpen} onOpenChange={setSaveToSavedAssetsDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Save to Saved Assets</DialogTitle>
+            <DialogDescription>
+              Save this processed image to your Saved Assets collection for use in AI renders
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="savedAssetName">Display Name *</Label>
+              <Input
+                id="savedAssetName"
+                value={savedAssetForm.displayName}
+                onChange={(e) => setSavedAssetForm(f => ({ ...f, displayName: e.target.value }))}
+                placeholder="e.g., Blue Velvet Armchair"
+                data-testid="input-saved-asset-name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="savedAssetDescription">Description</Label>
+              <Textarea
+                id="savedAssetDescription"
+                value={savedAssetForm.description}
+                onChange={(e) => setSavedAssetForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Optional description of the asset"
+                data-testid="input-saved-asset-description"
+              />
+            </div>
+            <div>
+              <Label htmlFor="savedAssetTags">Tags</Label>
+              <Input
+                id="savedAssetTags"
+                value={savedAssetForm.tags}
+                onChange={(e) => setSavedAssetForm(f => ({ ...f, tags: e.target.value }))}
+                placeholder="e.g., furniture, blue, velvet"
+                data-testid="input-saved-asset-tags"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Comma-separated tags to help find this asset</p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setSaveToSavedAssetsDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                if (selectedAsset && savedAssetForm.displayName && selectedAsset.processedPath) {
+                  saveToSavedAssetsMutation.mutate({
+                    displayName: savedAssetForm.displayName,
+                    description: savedAssetForm.description || undefined,
+                    tags: savedAssetForm.tags || undefined,
+                    filePath: selectedAsset.processedPath,
+                    thumbnailPath: selectedAsset.thumbnailPath || undefined,
+                    objectAssetId: selectedAsset.id,
+                    aiPromptHints: selectedAsset.aiPromptHints || undefined
+                  });
+                }
+              }}
+              disabled={!savedAssetForm.displayName || saveToSavedAssetsMutation.isPending}
+              data-testid="button-confirm-save-saved-assets"
+            >
+              {saveToSavedAssetsMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Save to Saved Assets
             </Button>
           </DialogFooter>
         </DialogContent>
