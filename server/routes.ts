@@ -5178,8 +5178,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const durationValue = row.Duration || row.duration || null;
           const durationString = durationValue ? String(parseInt(String(durationValue).replace(/[^\d]/g, '')) || 0) : null;
           
-          const progressValue = row['% Complete'] || row.progress || 0;
+          // Read Status column - normalize to check for completion
+          const statusValue = row.Status || row.status || '';
+          const statusLower = String(statusValue).toLowerCase().trim();
+          const isCompleted = statusLower === 'completed' || statusLower === 'complete' || statusLower === 'done';
+          const isInProgress = statusLower === 'in progress' || statusLower === 'in-progress' || statusLower === 'incomplete';
+          
+          // Progress: if Status is "Completed", set to 100; otherwise use % Complete column
+          let progressValue = row['% Complete'] || row.progress || 0;
+          if (isCompleted) {
+            progressValue = 100;
+          }
           const progressString = String(progressValue || 0);
+          
+          // Map status to internal status field
+          let taskStatus = 'not_started';
+          if (isCompleted) {
+            taskStatus = 'completed';
+          } else if (isInProgress) {
+            taskStatus = 'in_progress';
+          } else if (progressValue > 0 && progressValue < 100) {
+            taskStatus = 'in_progress';
+          }
           
           // Parse dates
           let startDate = parseDate(row.Start || row.start);
@@ -5201,7 +5221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             endDate,
             duration: durationString,
             assignedTo: null, // Don't import resource names as user IDs - set manually later
-            status: 'not_started',
+            status: taskStatus,
             priority: 'medium',
             progressPercentage: progressString,
             approvalRequired: (row['Approval Required'] || row.approvalRequired || 'N') === 'Y',
