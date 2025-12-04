@@ -95,7 +95,7 @@ export default function AssetIngestionPage() {
       return response.json();
     },
     onSuccess: () => {
-      toast({ title: "Upload started", description: "Your image is being processed. This may take a minute." });
+      toast({ title: "Upload complete", description: "Click 'Process with AI' when ready to analyze the image." });
       setUploadDialogOpen(false);
       setUploadFile(null);
       setUploadPreview(null);
