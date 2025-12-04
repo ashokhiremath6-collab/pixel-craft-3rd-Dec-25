@@ -2353,9 +2353,18 @@ export class DBStorage implements IStorage {
   async getCategoriesWithImageCounts(): Promise<{ category: string; imageCount: number }[]> {
     const allItems = await db.select().from(catalogueItems);
     const categoryCounts = new Map<string, number>();
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'];
     
     for (const item of allItems) {
-      const hasImage = item.aiImagePath || (item.filePath && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(item.filePath.split('.').pop()?.toLowerCase() || ''));
+      // Check for AI image path first
+      let hasImage = !!item.aiImagePath;
+      
+      // If no AI image, check fileName for image extensions (filePath stores UUID path without extension)
+      if (!hasImage && item.fileName && item.filePath) {
+        const ext = item.fileName.split('.').pop()?.toLowerCase() || '';
+        hasImage = imageExtensions.includes(ext);
+      }
+      
       const currentCount = categoryCounts.get(item.mainCategory) || 0;
       if (hasImage) {
         categoryCounts.set(item.mainCategory, currentCount + 1);

@@ -4200,6 +4200,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/ai-renders/catalogue-references", requireAdmin, async (req, res) => {
     try {
       const { mainCategory, subcategory, search } = req.query;
+      const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'];
       
       // Get catalogue items - filter for those that might have usable images
       let items = await storage.getCatalogueItems(
@@ -4212,10 +4213,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Check if has dedicated AI image
         if (item.aiImagePath) return true;
         
-        // Check if filePath is an image (not a PDF/doc)
-        if (item.filePath) {
-          const ext = item.filePath.split('.').pop()?.toLowerCase();
-          return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '');
+        // Check if fileName indicates an image file (filePath stores UUID path without extension)
+        if (item.fileName && item.filePath) {
+          const ext = item.fileName.split('.').pop()?.toLowerCase();
+          return imageExtensions.includes(ext || '');
         }
         
         return false;
