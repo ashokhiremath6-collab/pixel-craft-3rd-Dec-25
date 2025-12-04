@@ -123,6 +123,7 @@ export default function AIRendersPage() {
   const referencePhotoInputRef = useRef<HTMLInputElement>(null);
   
   const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [showAssetPickerForMaterials, setShowAssetPickerForMaterials] = useState(false);
   
   const [showGrid, setShowGrid] = useState(false);
   const [gridSize, setGridSize] = useState(50);
@@ -608,6 +609,66 @@ export default function AIRendersPage() {
     }
   };
 
+  const handleAssetPickerSelectForMaterials = async (asset: SelectedAsset) => {
+    if (referenceItems.length >= 3) {
+      toast({
+        title: "Limit Reached",
+        description: "Maximum 3 reference materials allowed",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      let imagePath = asset.previewUrl;
+      let imageData: string | undefined;
+      let imageMimeType: string | undefined;
+      
+      if (asset.previewUrl) {
+        const response = await fetch(asset.previewUrl);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+        const base64 = await base64Promise;
+        const [header, data] = base64.split(',');
+        imageData = data;
+        imageMimeType = header.match(/data:(.*);/)?.[1] || 'image/jpeg';
+      }
+
+      const newItem: ReferenceItem = {
+        id: asset.id || Date.now().toString(),
+        name: asset.displayName,
+        category: 'Saved Assets',
+        subcategory: asset.tags?.join(', ') || '',
+        vendorBrand: undefined,
+        description: asset.description || undefined,
+        aiPromptHints: asset.aiPromptHints || undefined,
+        placementInstruction: "",
+        imageData,
+        imageMimeType,
+        imagePath: imagePath || undefined,
+      };
+
+      setReferenceItems(prev => [...prev, newItem]);
+      setShowAssetPickerForMaterials(false);
+      
+      toast({
+        title: "Material Added",
+        description: `${asset.displayName} has been added as a reference material`
+      });
+    } catch (error) {
+      console.error('Error adding asset as reference material:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add asset as reference material",
+        variant: "destructive"
+      });
+    }
+  };
+
   const generateFromImageMutation = useMutation({
     mutationFn: async (data: { file: File; styleId: string; customPrompt?: string; referenceItems?: ReferenceItem[]; referencePhotos?: ReferencePhoto[] }) => {
       abortControllerRef.current = new AbortController();
@@ -1079,19 +1140,31 @@ export default function AIRendersPage() {
                       <Label className="text-sm font-medium">Reference Materials</Label>
                       <Badge variant="outline" className="text-xs">{referenceItems.length}/3</Badge>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowCatalogueBrowser(true)}
-                      disabled={referenceItems.length >= 3}
-                      data-testid="button-add-reference"
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowCatalogueBrowser(true)}
+                        disabled={referenceItems.length >= 3}
+                        data-testid="button-add-from-catalogue"
+                      >
+                        <Palette className="h-4 w-4 mr-1" />
+                        Catalogue
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAssetPickerForMaterials(true)}
+                        disabled={referenceItems.length >= 3}
+                        data-testid="button-add-from-saved-assets"
+                      >
+                        <FolderOpen className="h-4 w-4 mr-1" />
+                        Saved Assets
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Select furniture, finishes, or materials from your catalogue to insert into the render
+                    Select furniture, finishes, or materials from your catalogue or saved assets
                   </p>
                   
                   {referenceItems.length === 0 ? (
@@ -2009,6 +2082,14 @@ export default function AIRendersPage() {
         onSelect={handleAssetPickerSelect}
         title="Select Reference Asset"
         description="Choose an asset from your saved collection, catalogue, or upload a new file"
+      />
+
+      <AssetPicker
+        open={showAssetPickerForMaterials}
+        onOpenChange={setShowAssetPickerForMaterials}
+        onSelect={handleAssetPickerSelectForMaterials}
+        title="Select Reference Material"
+        description="Choose furniture, finishes, or materials from your saved assets"
       />
     </div>
   );
