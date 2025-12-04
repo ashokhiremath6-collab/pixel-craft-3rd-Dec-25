@@ -331,6 +331,25 @@ export const specifications = pgTable("specifications", {
   categoryIdx: index("specifications_category_idx").on(table.category),
 }));
 
+// Saved Assets table for finalized processed images ready for use in renders
+export const savedAssets = pgTable("saved_assets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  displayName: text("display_name").notNull(), // User-provided name for the asset
+  description: text("description"), // Optional description
+  tags: text("tags"), // Comma-separated tags for search/filter
+  filePath: text("file_path").notNull(), // Object storage path to the saved image
+  thumbnailPath: text("thumbnail_path"), // Optional thumbnail for faster loading
+  sourceType: text("source_type").notNull().default("object_asset"), // object_asset, upload, catalogue
+  objectAssetId: varchar("object_asset_id").references(() => objectAssets.id), // Link to source object asset if any
+  catalogueItemId: varchar("catalogue_item_id").references(() => catalogueItems.id), // Link to source catalogue item if any
+  aiPromptHints: text("ai_prompt_hints"), // Hints for using in AI render generation
+  savedBy: varchar("saved_by").notNull().references(() => users.id),
+  savedAt: timestamp("saved_at").notNull().default(sql`now()`),
+}, (table) => ({
+  sourceTypeIdx: index("saved_assets_source_type_idx").on(table.sourceType),
+  savedByIdx: index("saved_assets_saved_by_idx").on(table.savedBy),
+}));
+
 // Works Order Templates table for reusable templates (file-based)
 export const worksOrderTemplates = pgTable("works_order_templates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -576,6 +595,11 @@ export const insertSpecificationSchema = createInsertSchema(specifications).omit
   uploadedAt: true,
 });
 
+export const insertSavedAssetSchema = createInsertSchema(savedAssets).omit({
+  id: true,
+  savedAt: true,
+});
+
 export const insertWorksOrderTemplateSchema = createInsertSchema(worksOrderTemplates).omit({
   id: true,
   createdAt: true,
@@ -674,6 +698,9 @@ export type ObjectAsset = typeof objectAssets.$inferSelect;
 
 export type InsertSpecification = z.infer<typeof insertSpecificationSchema>;
 export type Specification = typeof specifications.$inferSelect;
+
+export type InsertSavedAsset = z.infer<typeof insertSavedAssetSchema>;
+export type SavedAsset = typeof savedAssets.$inferSelect;
 
 export type InsertWorksOrderTemplate = z.infer<typeof insertWorksOrderTemplateSchema>;
 export type WorksOrderTemplate = typeof worksOrderTemplates.$inferSelect;
