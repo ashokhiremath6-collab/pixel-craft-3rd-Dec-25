@@ -5253,6 +5253,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "No file associated with this schedule" });
       }
       
+      // Get project name for consistent filename
+      let projectName = 'Project';
+      if (schedule.projectId) {
+        const project = await storage.getProject(schedule.projectId);
+        if (project) {
+          projectName = project.projectName;
+        }
+      }
+      
       // Authorization check
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role;
@@ -5269,8 +5278,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const objectStorageService = new ObjectStorageService();
       const objectFile = await objectStorageService.getObjectEntityFile(schedule.filePath);
       
-      // Set content disposition for download with original filename
-      const filename = schedule.fileName || 'schedule.xlsx';
+      // Set content disposition with consistent project-based filename
+      const date = new Date().toISOString().split('T')[0];
+      const filename = `${projectName.replace(/[^a-zA-Z0-9]/g, '_')}-Designer_Schedule_${date}.xlsx`;
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       
       return objectStorageService.downloadObject(objectFile, res);
@@ -5327,8 +5337,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const objectStorageService = new ObjectStorageService();
           const objectFile = await objectStorageService.getObjectEntityFile(schedule.filePath);
           
-          // Set content disposition for download with original filename
-          const filename = schedule.fileName || 'schedule.xlsx';
+          // Set content disposition with consistent project-based filename
+          const projectName = project?.projectName || 'Project';
+          const date = new Date().toISOString().split('T')[0];
+          const filename = `${projectName.replace(/[^a-zA-Z0-9]/g, '_')}-Designer_Schedule_${date}.xlsx`;
           res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
           
           return objectStorageService.downloadObject(objectFile, res);
@@ -5624,10 +5636,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
       
-      // Generate filename
+      // Generate filename with consistent pattern (ProjectName-Designer_Schedule_date.xlsx)
       const projectName = project?.projectName || 'Project';
       const date = new Date().toISOString().split('T')[0];
-      const filename = `${projectName.replace(/[^a-zA-Z0-9]/g, '_')}_Designer_Schedule_${date}.xlsx`;
+      const filename = `${projectName.replace(/[^a-zA-Z0-9]/g, '_')}-Designer_Schedule_${date}.xlsx`;
       
       // Set response headers
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
