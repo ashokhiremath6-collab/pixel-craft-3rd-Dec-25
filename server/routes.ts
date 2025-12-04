@@ -5278,11 +5278,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const tasks = await storage.getTasksBySchedule(scheduleId);
       
-      // If no tasks in database, redirect to the original uploaded file
+      // If no tasks in database, serve the original uploaded file directly
       // This ensures consistency between the "arrow" button and "Open" button
       if (tasks.length === 0 && schedule.filePath) {
-        // Redirect to download the original file
-        return res.redirect(`/api/objects/download?path=${encodeURIComponent(schedule.filePath)}&filename=${encodeURIComponent(schedule.fileName || 'schedule.xlsx')}`);
+        try {
+          const objectStorageService = new ObjectStorageService();
+          const objectFile = await objectStorageService.getObjectEntityFile(schedule.filePath);
+          
+          // Set content disposition for download with original filename
+          const filename = schedule.fileName || 'schedule.xlsx';
+          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+          
+          return objectStorageService.downloadObject(objectFile, res);
+        } catch (error) {
+          console.error('Error downloading original schedule file:', error);
+          return res.status(404).json({ error: "Original schedule file not found" });
+        }
       }
       
       // Create a new workbook with ExcelJS
