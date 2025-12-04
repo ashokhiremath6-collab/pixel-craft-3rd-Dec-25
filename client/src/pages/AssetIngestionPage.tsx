@@ -434,15 +434,19 @@ export default function AssetIngestionPage() {
                 </div>
                 {selectedAsset.processedFilePath && (
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Label className="text-sm">Processed</Label>
-                      {selectedAsset.reprocessCount > 0 && (
-                        <Badge variant="secondary" className="text-xs">
-                          <RefreshCw className="w-3 h-3 mr-1" />
-                          Reprocessed {selectedAsset.reprocessCount}x
-                        </Badge>
-                      )}
-                    </div>
+                    <Label className="text-sm mb-1 block">Processed</Label>
+                    {selectedAsset.reprocessCount > 0 && (
+                      <Badge variant="secondary" className="text-xs mb-2 inline-flex">
+                        <RefreshCw className={`w-3 h-3 mr-1 ${selectedAsset.processingStatus === 'processing' ? 'animate-spin' : ''}`} />
+                        Reprocessed {selectedAsset.reprocessCount}x
+                      </Badge>
+                    )}
+                    {selectedAsset.processingStatus === 'processing' && selectedAsset.reprocessCount === 0 && (
+                      <Badge variant="default" className="text-xs mb-2 inline-flex bg-blue-500">
+                        <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                        Processing...
+                      </Badge>
+                    )}
                     <div className="aspect-square w-full rounded-lg bg-muted overflow-hidden">
                       <img 
                         src={selectedAsset.processedFilePath}
@@ -550,15 +554,16 @@ export default function AssetIngestionPage() {
               <Trash2 className="w-4 h-4 mr-2" />
               Delete
             </Button>
-            {selectedAsset && (selectedAsset.processingStatus === 'failed' || selectedAsset.processingStatus === 'completed') && (
+            {selectedAsset && (selectedAsset.processingStatus === 'failed' || selectedAsset.processingStatus === 'completed' || selectedAsset.processingStatus === 'processing') && (
               <Button 
                 variant="outline"
                 onClick={() => reprocessMutation.mutate(selectedAsset.id)}
-                disabled={reprocessMutation.isPending}
+                disabled={reprocessMutation.isPending || selectedAsset.processingStatus === 'processing'}
                 data-testid="button-reprocess-asset"
               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${reprocessMutation.isPending ? 'animate-spin' : ''}`} />
-                {selectedAsset.processingStatus === 'failed' ? 'Retry Processing' : 'Reprocess'}
+                <RefreshCw className={`w-4 h-4 mr-2 ${reprocessMutation.isPending || selectedAsset.processingStatus === 'processing' ? 'animate-spin' : ''}`} />
+                {selectedAsset.processingStatus === 'processing' ? 'Processing...' : 
+                 selectedAsset.processingStatus === 'failed' ? 'Retry Processing' : 'Reprocess'}
               </Button>
             )}
             {selectedAsset?.processingStatus === 'completed' && !selectedAsset.catalogueItemId && (
