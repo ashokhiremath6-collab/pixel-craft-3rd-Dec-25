@@ -320,15 +320,15 @@ export default function AssetIngestionPage() {
               >
                 <CardContent className="p-4">
                   <div className="aspect-square w-full rounded-lg mb-3 bg-muted overflow-hidden">
-                    {asset.thumbnailPath || asset.processedFilePath ? (
+                    {asset.originalFilePath ? (
                       <img 
-                        src={asset.thumbnailPath || asset.processedFilePath || ''}
+                        src={asset.originalFilePath}
                         alt={asset.originalFileName}
                         className="w-full h-full object-cover"
                       />
-                    ) : asset.originalFilePath ? (
+                    ) : asset.thumbnailPath || asset.processedFilePath ? (
                       <img 
-                        src={asset.originalFilePath}
+                        src={asset.thumbnailPath || asset.processedFilePath || ''}
                         alt={asset.originalFileName}
                         className="w-full h-full object-cover"
                       />
