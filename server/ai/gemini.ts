@@ -713,16 +713,20 @@ export async function processObjectImage(
   
   let processedImage = sharp(rotatedBuffer);
   
-  // If we have a bounding box, crop to it with minimal padding for tight cropping
-  if (boundingBox && boundingBox.width > 0 && boundingBox.height > 0) {
-    // Use very minimal padding (2%) for tighter cropping
-    const padding = 0.02;
+  // Skip cropping for art objects - frames are important and should be preserved
+  // Also skip for decor objects which may have important context
+  const skipCropTypes = ['art', 'decor'];
+  
+  // If we have a bounding box, crop to it (but skip for certain object types)
+  if (boundingBox && boundingBox.width > 0 && boundingBox.height > 0 && !skipCropTypes.includes(objectType)) {
+    // Use moderate padding (5%) to ensure nothing important is cut off
+    const padding = 0.05;
     
     // Calculate crop coordinates
     const cropX = Math.max(0, Math.floor((boundingBox.x / 100 - padding) * originalWidth));
     const cropY = Math.max(0, Math.floor((boundingBox.y / 100 - padding) * originalHeight));
     
-    // Calculate crop dimensions with minimal padding
+    // Calculate crop dimensions with padding
     let cropWidth = Math.floor((boundingBox.width / 100 + padding * 2) * originalWidth);
     let cropHeight = Math.floor((boundingBox.height / 100 + padding * 2) * originalHeight);
     
@@ -732,7 +736,7 @@ export async function processObjectImage(
     
     // Only crop if the bounding box is meaningful (not the whole image)
     const boxCoverage = (boundingBox.width * boundingBox.height) / 10000; // As fraction of total
-    if (cropWidth > 50 && cropHeight > 50 && boxCoverage < 0.95) {
+    if (cropWidth > 50 && cropHeight > 50 && boxCoverage < 0.90) {
       processedImage = processedImage.extract({ 
         left: cropX, 
         top: cropY, 
@@ -743,6 +747,8 @@ export async function processObjectImage(
     } else {
       console.log("[Object Processing] Skipping crop - bounding box covers entire image or too small");
     }
+  } else if (skipCropTypes.includes(objectType)) {
+    console.log("[Object Processing] Skipping crop for", objectType, "- preserving full image including frames");
   }
   
   // Apply different processing based on object type
