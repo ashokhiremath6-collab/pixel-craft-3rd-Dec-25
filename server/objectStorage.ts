@@ -116,10 +116,13 @@ export class ObjectStorageService {
       const aclPolicy = await getObjectAclPolicy(file);
       const isPublic = aclPolicy?.visibility === "public";
       
+      // Preserve any Content-Disposition header already set by the caller
+      const existingContentDisposition = res.getHeader('Content-Disposition');
+      
       res.set({
         "Content-Type": metadata.contentType || "application/octet-stream",
         "Content-Length": metadata.size,
-        "Content-Disposition": "inline",
+        "Content-Disposition": existingContentDisposition || "inline",
         "Cache-Control": `${
           isPublic ? "public" : "private"
         }, max-age=${cacheTtlSec}`,
