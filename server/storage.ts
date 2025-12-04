@@ -95,7 +95,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, inArray, isNull, and, desc, sql } from "drizzle-orm";
+import { eq, inArray, isNull, and, or, desc, sql } from "drizzle-orm";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -2134,6 +2134,24 @@ export class DBStorage implements IStorage {
   }
 
   async deleteProjectSchedule(id: string): Promise<boolean> {
+    // First get all task IDs for this schedule
+    const scheduleTasks = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.scheduleId, id));
+    const taskIds = scheduleTasks.map(t => t.id);
+    
+    // Delete task dependencies referencing these tasks
+    if (taskIds.length > 0) {
+      await db.delete(taskDependencies).where(
+        or(
+          inArray(taskDependencies.fromTaskId, taskIds),
+          inArray(taskDependencies.toTaskId, taskIds)
+        )
+      );
+    }
+    
+    // Delete all tasks for this schedule
+    await db.delete(tasks).where(eq(tasks.scheduleId, id));
+    
+    // Finally delete the schedule
     const result = await db.delete(projectSchedules).where(eq(projectSchedules.id, id));
     return result.rowCount !== null && result.rowCount > 0;
   }
