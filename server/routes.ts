@@ -5179,10 +5179,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const durationString = durationValue ? String(parseInt(String(durationValue).replace(/[^\d]/g, '')) || 0) : null;
           
           // Read Status column - normalize to check for completion
+          // Strip non-breaking spaces (NBSP \u00A0) and other whitespace from Excel
           const statusValue = row.Status || row.status || '';
-          const statusLower = String(statusValue).toLowerCase().trim();
-          const isCompleted = statusLower === 'completed' || statusLower === 'complete' || statusLower === 'done';
-          const isInProgress = statusLower === 'in progress' || statusLower === 'in-progress' || statusLower === 'incomplete';
+          const statusNormalized = String(statusValue).replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+          const isCompleted = statusNormalized === 'completed' || statusNormalized === 'complete' || statusNormalized === 'done';
+          const isInProgress = statusNormalized === 'in progress' || statusNormalized === 'in-progress' || statusNormalized === 'incomplete';
           
           // Progress: if Status is "Completed", set to 100; otherwise use % Complete column
           let progressValue = row['% Complete'] || row.progress || 0;
