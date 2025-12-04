@@ -211,6 +211,9 @@ export default function DashboardPage() {
       const taskName = task.name?.toUpperCase() || '';
       if (taskName.startsWith('PHASE') || taskName.startsWith('PACKAGE') || taskName.startsWith('EXECUTE')) return;
       
+      // Skip tasks with placeholder dates (2099-12-31) used for header rows without real dates
+      if (task.startDate === '2099-12-31' || task.endDate === '2099-12-31') return;
+      
       // Skip rows where startDate = endDate and duration is null (likely header rows without real dates)
       if (task.startDate && task.endDate && !task.duration) {
         const startDate = startOfDay(new Date(task.startDate));

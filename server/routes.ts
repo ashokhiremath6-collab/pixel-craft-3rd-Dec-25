@@ -5071,21 +5071,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (fileExtension === 'xlsx' || fileExtension === 'xls') {
         const workbook = XLSX.read(req.file.buffer);
-        // Try multiple common sheet names, then fall back to first sheet (excluding Instructions)
-        const sheetNames = ['Gantt', 'Schedule', 'Tasks', 'Project Schedule', 'Timeline'];
+        console.log(`Excel file sheets: ${workbook.SheetNames.join(', ')}`);
+        
+        // Try multiple common sheet names (case-insensitive), then fall back to first sheet (excluding Instructions)
+        const commonSheetPatterns = ['gantt', 'schedule', 'tasks', 'project schedule', 'timeline', 'data', 'sheet1'];
         let targetSheet = null;
         let usedSheetName = '';
         
-        // First try common sheet names
-        for (const name of sheetNames) {
-          if (workbook.Sheets[name]) {
-            targetSheet = workbook.Sheets[name];
-            usedSheetName = name;
-            break;
+        // First try exact case-insensitive match
+        for (const pattern of commonSheetPatterns) {
+          for (const sheetName of workbook.SheetNames) {
+            if (sheetName.toLowerCase() === pattern) {
+              targetSheet = workbook.Sheets[sheetName];
+              usedSheetName = sheetName;
+              break;
+            }
+          }
+          if (targetSheet) break;
+        }
+        
+        // If no exact match, try partial match (sheet name contains pattern)
+        if (!targetSheet) {
+          for (const pattern of commonSheetPatterns) {
+            for (const sheetName of workbook.SheetNames) {
+              if (sheetName.toLowerCase().includes(pattern)) {
+                targetSheet = workbook.Sheets[sheetName];
+                usedSheetName = sheetName;
+                break;
+              }
+            }
+            if (targetSheet) break;
           }
         }
         
-        // If no common name found, use the first sheet that's not "Instructions"
+        // If still no match, use the first sheet that's not "Instructions"
         if (!targetSheet && workbook.SheetNames.length > 0) {
           for (const name of workbook.SheetNames) {
             if (name.toLowerCase() !== 'instructions') {
@@ -5100,6 +5119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`Using sheet: "${usedSheetName}" from Excel file`);
           // Use raw: false to convert Excel date serial numbers to date strings
           taskData = XLSX.utils.sheet_to_json(targetSheet, { defval: null, raw: false });
+          console.log(`Parsed ${taskData.length} rows from Excel sheet`);
         } else {
           console.log('No suitable sheet found in Excel file. Available sheets:', workbook.SheetNames);
         }

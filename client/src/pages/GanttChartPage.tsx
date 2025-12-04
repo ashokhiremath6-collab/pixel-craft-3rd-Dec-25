@@ -966,6 +966,11 @@ export default function GanttChartPage() {
         const isTaskOverdue = (task: Task) => {
           if (task.status === 'completed') return false;
           if (!task.endDate) return false;
+          // Skip placeholder dates (2099-12-31) used for header rows without real dates
+          if (task.endDate === '2099-12-31') return false;
+          // Skip header rows (PHASE, PACKAGE, EXECUTE)
+          const name = (task.name || '').toUpperCase();
+          if (name.startsWith('PHASE') || name.startsWith('PACKAGE') || name.startsWith('EXECUTE')) return false;
           const endDate = parseLocalDate(task.endDate);
           return endDate && endDate < new Date();
         };
