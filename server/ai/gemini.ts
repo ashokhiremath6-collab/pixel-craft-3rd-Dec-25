@@ -5,12 +5,58 @@ import * as fs from "fs";
 let aiClient: GoogleGenAI | null = null;
 
 const AI_TIMEOUT_MS = 90000; // 90 seconds timeout for AI generation
+const MAX_RETRIES = 3; // Maximum retry attempts for AI operations
+const RETRY_DELAY_MS = 2000; // Base delay between retries (will be exponentially increased)
 
 class TimeoutError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'TimeoutError';
   }
+}
+
+// Sleep helper for retry delays
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Retry wrapper for AI operations with exponential backoff
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  operationName: string,
+  maxRetries: number = MAX_RETRIES
+): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[Retry] ${operationName} - Attempt ${attempt}/${maxRetries}`);
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      console.error(`[Retry] ${operationName} failed on attempt ${attempt}:`, error.message);
+      
+      // Don't retry on timeout errors (already waited too long)
+      if (error instanceof TimeoutError) {
+        throw error;
+      }
+      
+      // Don't retry on configuration errors
+      if (error.message?.includes('not configured')) {
+        throw error;
+      }
+      
+      // Wait before retrying (exponential backoff)
+      if (attempt < maxRetries) {
+        const delay = RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+        console.log(`[Retry] Waiting ${delay}ms before retry...`);
+        await sleep(delay);
+      }
+    }
+  }
+  
+  console.error(`[Retry] ${operationName} failed after ${maxRetries} attempts`);
+  throw lastError || new Error(`${operationName} failed after ${maxRetries} attempts`);
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T> {
@@ -379,40 +425,47 @@ OUTPUT QUALITY:
       ...referenceImageParts
     ];
     
-    const response = await withTimeout(
-      getAIClient().models.generateContent({
-        model: "gemini-2.5-flash-image",
-        contents: [
-          {
-            role: "user",
-            parts: parts
-          }
-        ],
-        config: {
-          responseModalities: [Modality.TEXT, Modality.IMAGE],
-        },
-      }),
-      AI_TIMEOUT_MS,
-      "AI render generation"
-    );
+    // Use retry logic for the AI API call to handle transient failures
+    const result = await withRetry(async () => {
+      const response = await withTimeout(
+        getAIClient().models.generateContent({
+          model: "gemini-2.5-flash-image",
+          contents: [
+            {
+              role: "user",
+              parts: parts
+            }
+          ],
+          config: {
+            responseModalities: [Modality.TEXT, Modality.IMAGE],
+          },
+        }),
+        AI_TIMEOUT_MS,
+        "AI render generation"
+      );
 
-    console.log("[Gemini] API response received");
-    console.log("[Gemini] Candidates count:", response.candidates?.length || 0);
-    
-    const candidate = response.candidates?.[0];
-    const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
-    
-    if (!imagePart?.inlineData?.data) {
-      console.error("[Gemini] No image data in response. Full response:", JSON.stringify(response, null, 2));
-      throw new Error("No image data in response. The AI may not have been able to process the image.");
-    }
+      console.log("[Gemini] API response received");
+      console.log("[Gemini] Candidates count:", response.candidates?.length || 0);
+      
+      const candidate = response.candidates?.[0];
+      const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
+      
+      if (!imagePart?.inlineData?.data) {
+        console.error("[Gemini] No image data in response. Full response:", JSON.stringify(response, null, 2));
+        throw new Error("No image data in response. The AI may not have been able to process the image.");
+      }
 
-    console.log("[Gemini] Raw generated image size:", imagePart.inlineData.data.length);
+      console.log("[Gemini] Raw generated image size:", imagePart.inlineData.data.length);
+      return {
+        data: imagePart.inlineData.data,
+        mimeType: imagePart.inlineData.mimeType || "image/png"
+      };
+    }, "Render generation");
     
     console.log("[Gemini] Enhancing output resolution...");
     const enhanced = await enhanceOutputImage(
-      imagePart.inlineData.data, 
-      imagePart.inlineData.mimeType || "image/png"
+      result.data, 
+      result.mimeType
     );
     
     console.log("[Gemini] Successfully generated and enhanced render");
@@ -455,29 +508,37 @@ OUTPUT QUALITY REQUIREMENTS:
   console.log("[Gemini] Calling AI API for concept render...");
   console.log("[Gemini] Timeout set to:", AI_TIMEOUT_MS / 1000, "seconds");
   
-  const response = await withTimeout(
-    getAIClient().models.generateContent({
-      model: "gemini-2.5-flash-image",
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: {
-        responseModalities: [Modality.TEXT, Modality.IMAGE],
-      },
-    }),
-    AI_TIMEOUT_MS,
-    "AI concept render generation"
-  );
+  // Use retry logic for the AI API call
+  const result = await withRetry(async () => {
+    const response = await withTimeout(
+      getAIClient().models.generateContent({
+        model: "gemini-2.5-flash-image",
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        config: {
+          responseModalities: [Modality.TEXT, Modality.IMAGE],
+        },
+      }),
+      AI_TIMEOUT_MS,
+      "AI concept render generation"
+    );
 
-  const candidate = response.candidates?.[0];
-  const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
-  
-  if (!imagePart?.inlineData?.data) {
-    throw new Error("No image data in response");
-  }
+    const candidate = response.candidates?.[0];
+    const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
+    
+    if (!imagePart?.inlineData?.data) {
+      throw new Error("No image data in response");
+    }
+    
+    return {
+      data: imagePart.inlineData.data,
+      mimeType: imagePart.inlineData.mimeType || "image/png"
+    };
+  }, "Concept render generation");
 
   console.log("[Gemini] Enhancing concept render output resolution...");
   const enhanced = await enhanceOutputImage(
-    imagePart.inlineData.data, 
-    imagePart.inlineData.mimeType || "image/png"
+    result.data, 
+    result.mimeType
   );
 
   return {
