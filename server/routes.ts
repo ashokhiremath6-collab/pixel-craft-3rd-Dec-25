@@ -5171,9 +5171,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const row: any = taskData[i];
         
         try {
-          const taskId = String(row.ID || row.id || '');
-          const name = row.Name || row.name || '';
-          if (!name || !taskId) continue;
+          // Support multiple column name formats:
+          // ID column: ID, id, #
+          // Name column: Name, name, Task Name
+          const taskId = String(row.ID || row.id || row['#'] || (i + 1));
+          const name = row.Name || row.name || row['Task Name'] || '';
+          if (!name) continue;
 
           const durationValue = row.Duration || row.duration || null;
           const durationString = durationValue ? String(parseInt(String(durationValue).replace(/[^\d]/g, '')) || 0) : null;
@@ -5202,9 +5205,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             taskStatus = 'in_progress';
           }
           
-          // Parse dates
-          let startDate = parseDate(row.Start || row.start);
-          let endDate = parseDate(row.Finish || row.finish || row.End);
+          // Parse dates - support multiple column name formats
+          // Start column: Start, start, Start Date
+          // End column: Finish, finish, End, End Date
+          let startDate = parseDate(row.Start || row.start || row['Start Date']);
+          let endDate = parseDate(row.Finish || row.finish || row.End || row['End Date']);
           
           // For any row without dates, use placeholder
           // This satisfies NOT NULL constraint but won't trigger false "due today" alerts
