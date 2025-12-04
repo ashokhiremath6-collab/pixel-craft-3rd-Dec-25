@@ -304,8 +304,8 @@ export default function AIRendersPage() {
     enabled: showCatalogueBrowser,
   });
 
-  const { data: catalogueCategories = [] } = useQuery<string[]>({
-    queryKey: ['/api/catalogue/categories'],
+  const { data: catalogueCategoryData = [] } = useQuery<{ category: string; imageCount: number }[]>({
+    queryKey: ['/api/catalogue/categories-with-image-counts'],
     enabled: showCatalogueBrowser,
   });
 
@@ -1907,9 +1907,13 @@ export default function AIRendersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  {catalogueCategories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
+                  {catalogueCategoryData.map((cat) => (
+                    <SelectItem 
+                      key={cat.category} 
+                      value={cat.category}
+                      disabled={cat.imageCount === 0}
+                    >
+                      {cat.category} {cat.imageCount > 0 ? `(${cat.imageCount})` : '(no images)'}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1923,7 +1927,23 @@ export default function AIRendersPage() {
                 <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
                   <ImageIcon className="h-12 w-12 mb-4 opacity-50" />
                   <p className="text-sm">No catalogue items with images found</p>
-                  <p className="text-xs mt-1">Add images to catalogue items to use them as references</p>
+                  <p className="text-xs mt-1">
+                    {selectedCategory !== 'all' 
+                      ? 'Try selecting "All Categories" or a category with items' 
+                      : 'Add images to catalogue items to use them as references'
+                    }
+                  </p>
+                  {selectedCategory !== 'all' && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-3"
+                      onClick={() => setSelectedCategory('all')}
+                      data-testid="button-show-all-categories"
+                    >
+                      Show All Categories
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 pr-4">

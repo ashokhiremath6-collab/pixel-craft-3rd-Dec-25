@@ -6608,6 +6608,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/catalogue/categories-with-image-counts", requireAdmin, async (req, res) => {
+    try {
+      const counts = await storage.getCategoriesWithImageCounts();
+      res.json(counts);
+    } catch (error) {
+      console.error('Error fetching categories with counts:', error);
+      res.status(500).json({ error: "Failed to fetch categories with counts" });
+    }
+  });
+
   // Admin endpoint to populate catalogue with initial data
   app.post("/api/catalogue/populate", requireAdmin, async (req, res) => {
     try {

@@ -281,6 +281,7 @@ export interface IStorage {
   getAllCatalogueItems(): Promise<CatalogueItem[]>;
   getCatalogueItem(id: string): Promise<CatalogueItem | undefined>;
   getMainCategories(): Promise<string[]>;
+  getCategoriesWithImageCounts(): Promise<{ category: string; imageCount: number }[]>;
   getCatalogueItemsByCategory(mainCategory?: string, subcategory?: string): Promise<CatalogueItem[]>;
   getCatalogueItemsCount(): Promise<number>;
   createCatalogueItem(item: InsertCatalogueItem): Promise<CatalogueItem>;
@@ -2347,6 +2348,25 @@ export class DBStorage implements IStorage {
       .from(catalogueItems)
       .orderBy(catalogueItems.mainCategory);
     return result.map(r => r.mainCategory);
+  }
+
+  async getCategoriesWithImageCounts(): Promise<{ category: string; imageCount: number }[]> {
+    const allItems = await db.select().from(catalogueItems);
+    const categoryCounts = new Map<string, number>();
+    
+    for (const item of allItems) {
+      const hasImage = item.aiImagePath || (item.filePath && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(item.filePath.split('.').pop()?.toLowerCase() || ''));
+      const currentCount = categoryCounts.get(item.mainCategory) || 0;
+      if (hasImage) {
+        categoryCounts.set(item.mainCategory, currentCount + 1);
+      } else if (!categoryCounts.has(item.mainCategory)) {
+        categoryCounts.set(item.mainCategory, 0);
+      }
+    }
+    
+    return Array.from(categoryCounts.entries())
+      .map(([category, imageCount]) => ({ category, imageCount }))
+      .sort((a, b) => a.category.localeCompare(b.category));
   }
 
   async getCatalogueItemsByCategory(mainCategory?: string, subcategory?: string): Promise<CatalogueItem[]> {
