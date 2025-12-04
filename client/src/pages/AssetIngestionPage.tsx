@@ -270,13 +270,13 @@ export default function AssetIngestionPage() {
                   <div className="aspect-square w-full rounded-lg mb-3 bg-muted overflow-hidden">
                     {asset.thumbnailPath || asset.processedFilePath ? (
                       <img 
-                        src={`/api/objects/download?path=${encodeURIComponent(asset.thumbnailPath || asset.processedFilePath || '')}`}
+                        src={asset.thumbnailPath || asset.processedFilePath || ''}
                         alt={asset.originalFileName}
                         className="w-full h-full object-cover"
                       />
                     ) : asset.originalFilePath ? (
                       <img 
-                        src={`/api/objects/download?path=${encodeURIComponent(asset.originalFilePath)}`}
+                        src={asset.originalFilePath}
                         alt={asset.originalFileName}
                         className="w-full h-full object-cover"
                       />
@@ -407,7 +407,7 @@ export default function AssetIngestionPage() {
                   <Label className="text-sm mb-1 block">Original</Label>
                   <div className="aspect-square w-full rounded-lg bg-muted overflow-hidden">
                     <img 
-                      src={`/api/objects/download?path=${encodeURIComponent(selectedAsset.originalFilePath)}`}
+                      src={selectedAsset.originalFilePath}
                       alt="Original"
                       className="w-full h-full object-contain"
                     />
@@ -418,7 +418,7 @@ export default function AssetIngestionPage() {
                     <Label className="text-sm mb-1 block">Processed</Label>
                     <div className="aspect-square w-full rounded-lg bg-muted overflow-hidden">
                       <img 
-                        src={`/api/objects/download?path=${encodeURIComponent(selectedAsset.processedFilePath)}`}
+                        src={selectedAsset.processedFilePath}
                         alt="Processed"
                         className="w-full h-full object-contain"
                       />
@@ -432,7 +432,7 @@ export default function AssetIngestionPage() {
                   <Label className="text-sm mb-1 block">Transparent (Background Removed)</Label>
                   <div className="h-32 rounded-lg overflow-hidden" style={{ background: 'repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 20px 20px' }}>
                     <img 
-                      src={`/api/objects/download?path=${encodeURIComponent(selectedAsset.transparentPath)}`}
+                      src={selectedAsset.transparentPath}
                       alt="Transparent"
                       className="h-full object-contain mx-auto"
                     />
