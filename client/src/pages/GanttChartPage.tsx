@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette, ArrowUpDown } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useForm } from "react-hook-form";
@@ -75,6 +75,7 @@ export default function GanttChartPage() {
   // Task table filters and settings
   const [taskSearchQuery, setTaskSearchQuery] = useState("");
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  const [taskSortMode, setTaskSortMode] = useState<'date' | 'category'>('date');
   
   // Inline editing for progress
   const [editingProgressTaskId, setEditingProgressTaskId] = useState<string | null>(null);
@@ -991,7 +992,21 @@ export default function GanttChartPage() {
           return upperName.includes('PHASE') || upperName.includes('PACKAGE') || upperName.includes('EXECUTE');
         };
 
-        // Filter and group tasks
+        // Helper to extract category from task name (e.g., "Civil: RFQs Issued" -> "Civil")
+        const extractCategory = (name: string): string => {
+          if (!name) return 'Other';
+          // Check for colon-separated category (e.g., "Civil: RFQs Issued")
+          const colonMatch = name.match(/^([^:]+):/);
+          if (colonMatch) return colonMatch[1].trim();
+          // Check for common prefixes
+          const upperName = name.toUpperCase();
+          if (upperName.startsWith('PHASE') || upperName.startsWith('PACKAGE') || upperName.startsWith('EXECUTE')) {
+            return 'Headers';
+          }
+          return 'General';
+        };
+
+        // Filter tasks
         const filteredTasks = tasks.filter(task => {
           // Search filter
           if (taskSearchQuery && !(task.name || '').toLowerCase().includes(taskSearchQuery.toLowerCase())) {
@@ -1004,12 +1019,31 @@ export default function GanttChartPage() {
           return true;
         });
 
-        // Group tasks by phase
+        // Sort tasks based on mode
+        const sortedTasks = [...filteredTasks].sort((a, b) => {
+          if (taskSortMode === 'category') {
+            // Sort by category first, then by start date within category
+            const catA = extractCategory(a.name || '');
+            const catB = extractCategory(b.name || '');
+            if (catA !== catB) return catA.localeCompare(catB);
+            // Within same category, sort by start date
+            const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+            const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+            return dateA - dateB;
+          } else {
+            // Sort by start date (chronological)
+            const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+            const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+            return dateA - dateB;
+          }
+        });
+
+        // Group tasks by phase (or category when sorting by category)
         const groupedTasks: { phase: string; tasks: Task[] }[] = [];
         let currentPhase = 'General Tasks';
         let currentGroup: Task[] = [];
 
-        filteredTasks.forEach(task => {
+        sortedTasks.forEach(task => {
           const taskName = task.name || 'Untitled Task';
           if (isPhaseHeader(taskName)) {
             if (currentGroup.length > 0) {
@@ -1145,6 +1179,16 @@ export default function GanttChartPage() {
                     <AlertTriangle className="h-4 w-4" />
                     {showOverdueOnly ? "Showing Overdue" : "Show Overdue"}
                   </Button>
+                  <Button
+                    variant={taskSortMode === 'category' ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setTaskSortMode(taskSortMode === 'date' ? 'category' : 'date')}
+                    className="gap-2"
+                    data-testid="button-sort-mode"
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                    {taskSortMode === 'category' ? "By Category" : "By Date"}
+                  </Button>
                   {(taskSearchQuery || showOverdueOnly) && (
                     <Button
                       variant="ghost"
@@ -1269,7 +1313,7 @@ export default function GanttChartPage() {
                                             data-testid={`button-edit-startdate-${task.id}`}
                                           >
                                             <span>
-                                              {task.startDate ? parseLocalDate(task.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '-'}
+                                              {task.startDate ? parseLocalDate(task.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
                                             </span>
                                             <CalendarIcon className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                                           </button>
@@ -1307,7 +1351,7 @@ export default function GanttChartPage() {
                                             data-testid={`button-edit-enddate-${task.id}`}
                                           >
                                             <span>
-                                              {task.endDate ? parseLocalDate(task.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '-'}
+                                              {task.endDate ? parseLocalDate(task.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
                                             </span>
                                             <CalendarIcon className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                                           </button>
