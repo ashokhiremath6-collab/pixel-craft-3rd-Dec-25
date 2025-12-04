@@ -153,6 +153,21 @@ export default function AssetIngestionPage() {
     }
   });
 
+  const updateAssetMutation = useMutation({
+    mutationFn: async (data: { id: string; aiPromptHints?: string; userDescription?: string; objectType?: string }) => {
+      return apiRequest('PUT', `/api/object-assets/${data.id}`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Asset updated" });
+      queryClient.invalidateQueries({ queryKey: ['/api/object-assets'] });
+    },
+    onError: () => {
+      toast({ title: "Failed to update", variant: "destructive" });
+    }
+  });
+
+  const [editingPromptHints, setEditingPromptHints] = useState<string | null>(null);
+
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -447,12 +462,53 @@ export default function AssetIngestionPage() {
                 </div>
               )}
 
-              {selectedAsset.aiPromptHints && (
-                <div>
-                  <Label className="text-sm mb-1 block">AI Prompt Hints (for renders)</Label>
-                  <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{selectedAsset.aiPromptHints}</p>
-                </div>
-              )}
+              <div>
+                <Label className="text-sm mb-1 block">AI Prompt Hints (for renders)</Label>
+                {editingPromptHints !== null ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={editingPromptHints}
+                      onChange={(e) => setEditingPromptHints(e.target.value)}
+                      className="text-sm font-mono min-h-[80px]"
+                      placeholder="e.g., vintage wooden coffee table with marble top"
+                      data-testid="textarea-ai-prompt-hints"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          updateAssetMutation.mutate({ 
+                            id: selectedAsset.id, 
+                            aiPromptHints: editingPromptHints 
+                          });
+                          setEditingPromptHints(null);
+                        }}
+                        disabled={updateAssetMutation.isPending}
+                        data-testid="button-save-prompt-hints"
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingPromptHints(null)}
+                        data-testid="button-cancel-prompt-hints"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div 
+                    className="text-sm font-mono bg-muted px-2 py-1 rounded cursor-pointer hover:bg-muted/80 transition-colors"
+                    onClick={() => setEditingPromptHints(selectedAsset.aiPromptHints || '')}
+                    title="Click to edit"
+                    data-testid="text-ai-prompt-hints"
+                  >
+                    {selectedAsset.aiPromptHints || <span className="text-muted-foreground italic">Click to add prompt hints...</span>}
+                  </div>
+                )}
+              </div>
 
               {selectedAsset.processingError && (
                 <div className="p-3 bg-destructive/10 rounded-lg">
