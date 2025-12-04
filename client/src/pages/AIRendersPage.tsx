@@ -17,6 +17,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { AssetPicker, type SelectedAsset } from "@/components/AssetPicker";
 import type { Project, Moodboard } from "@shared/schema";
 import { 
   Upload, 
@@ -120,6 +121,8 @@ export default function AIRendersPage() {
   
   const [referencePhotos, setReferencePhotos] = useState<ReferencePhoto[]>([]);
   const referencePhotoInputRef = useRef<HTMLInputElement>(null);
+  
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
   
   const [showGrid, setShowGrid] = useState(false);
   const [gridSize, setGridSize] = useState(50);
@@ -534,7 +537,7 @@ export default function AIRendersPage() {
   const removeReferencePhoto = (id: string) => {
     setReferencePhotos(prev => {
       const photo = prev.find(p => p.id === id);
-      if (photo) {
+      if (photo && photo.previewUrl.startsWith('blob:')) {
         URL.revokeObjectURL(photo.previewUrl);
       }
       return prev.filter(p => p.id !== id);
@@ -547,6 +550,62 @@ export default function AIRendersPage() {
         photo.id === id ? { ...photo, description } : photo
       )
     );
+  };
+
+  const handleAssetPickerSelect = async (asset: SelectedAsset) => {
+    if (referencePhotos.length >= 5) {
+      toast({
+        title: "Limit Reached",
+        description: "Maximum 5 reference photos allowed",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      let file: File;
+      let previewUrl: string;
+
+      if (asset.type === 'external' && asset.file) {
+        file = asset.file;
+        previewUrl = asset.previewUrl || URL.createObjectURL(asset.file);
+      } else if (asset.previewUrl) {
+        const response = await fetch(asset.previewUrl);
+        const blob = await response.blob();
+        file = new File([blob], `${asset.displayName}.jpg`, { type: blob.type || 'image/jpeg' });
+        previewUrl = asset.previewUrl;
+      } else {
+        toast({
+          title: "Error",
+          description: "Could not load the selected asset",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const newPhoto: ReferencePhoto = {
+        id: Date.now().toString(),
+        file,
+        previewUrl,
+        type: 'inspiration',
+        description: asset.description || asset.displayName
+      };
+
+      setReferencePhotos(prev => [...prev, newPhoto]);
+      setShowAssetPicker(false);
+      
+      toast({
+        title: "Asset Added",
+        description: `${asset.displayName} has been added as a reference photo`
+      });
+    } catch (error) {
+      console.error('Error adding asset as reference:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add asset as reference photo",
+        variant: "destructive"
+      });
+    }
   };
 
   const generateFromImageMutation = useMutation({
@@ -863,7 +922,11 @@ export default function AIRendersPage() {
     setCustomPrompt("");
     setTextDescription("");
     setReferenceItems([]);
-    referencePhotos.forEach(photo => URL.revokeObjectURL(photo.previewUrl));
+    referencePhotos.forEach(photo => {
+      if (photo.previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(photo.previewUrl);
+      }
+    });
     setReferencePhotos([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -1120,10 +1183,20 @@ export default function AIRendersPage() {
                         <Camera className="h-4 w-4 mr-1" />
                         Existing
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAssetPicker(true)}
+                        disabled={referencePhotos.length >= 5}
+                        data-testid="button-add-saved-asset"
+                      >
+                        <FolderOpen className="h-4 w-4 mr-1" />
+                        Saved Assets
+                      </Button>
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Add inspiration photos or existing space photos to guide the AI
+                    Add inspiration photos, existing space photos, or select from your saved assets
                   </p>
                   
                   {referencePhotos.length === 0 ? (
@@ -1909,6 +1982,14 @@ export default function AIRendersPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <AssetPicker
+        open={showAssetPicker}
+        onOpenChange={setShowAssetPicker}
+        onSelect={handleAssetPickerSelect}
+        title="Select Reference Asset"
+        description="Choose an asset from your saved collection, catalogue, or upload a new file"
+      />
     </div>
   );
 }

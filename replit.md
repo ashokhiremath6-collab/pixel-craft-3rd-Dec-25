@@ -130,6 +130,23 @@ Preferred communication style: Simple, everyday language.
   - Reference items stored in reference_metadata column
   - Links to projects for organization
 
+### Saved Assets System
+- **Purpose**: Central repository for processed images that can be reused across AI renders
+- **Data Model**: savedAssets table with display name, description, tags, file paths, source type tracking
+- **Source Types**: object_asset (from Asset Ingestion), catalogue (from Catalogue Items), external (direct uploads)
+- **Integration Points**:
+  - Asset Ingestion: "Save to Saved Assets" button for completed processed images
+  - AI Renders: "Saved Assets" button in Reference Photos section for selecting assets
+- **Asset Picker Component**: Unified dialog with three tabs
+  - Saved Assets: Browse and select from saved collection
+  - Catalogue: Browse items with images from the catalogue
+  - External Upload: Upload new images directly
+- **Features**:
+  - Search filtering by name, description, and tags
+  - Thumbnail previews for quick visual identification
+  - AI prompt hints carried over from source assets
+  - Full integration with AI render generation workflow
+
 ### Advanced Project Scheduling
 - **Gantt Chart Template**: 250-row Excel template with Instructions sheet
   - 18 columns: ID, Name, Start, Finish, Duration, % Complete, Predecessors, Resource Names, Status, Priority, Approval Required, Materials, Owner, Target Start/Finish, Remarks, Outline Level, Color
