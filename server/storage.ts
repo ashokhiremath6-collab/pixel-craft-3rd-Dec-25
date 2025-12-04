@@ -363,6 +363,7 @@ export interface IStorage {
     aiPromptHints?: string;
     processingError?: string;
     processedAt?: Date;
+    reprocessCount?: number;
   }): Promise<ObjectAsset | undefined>;
   deleteObjectAsset(id: string): Promise<boolean>;
   linkAssetToCatalogue(assetId: string, catalogueItemId: string): Promise<ObjectAsset | undefined>;
@@ -2795,6 +2796,7 @@ export class DBStorage implements IStorage {
     aiPromptHints?: string;
     processingError?: string;
     processedAt?: Date;
+    reprocessCount?: number;
   }): Promise<ObjectAsset | undefined> {
     const result = await db.update(objectAssets)
       .set(updates)

@@ -7083,13 +7083,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Download original file from object storage
       const originalBuffer = await downloadObjectBuffer(asset.originalFilePath);
 
-      // Reset status and start reprocessing
+      // Reset status, increment reprocess count, and start reprocessing
+      const currentCount = asset.reprocessCount || 0;
       await storage.updateObjectAssetProcessing(asset.id, { 
         processingStatus: 'pending',
-        processingError: undefined
+        processingError: undefined,
+        reprocessCount: currentCount + 1
       });
 
-      res.json({ message: 'Reprocessing started' });
+      res.json({ message: 'Reprocessing started', reprocessCount: currentCount + 1 });
 
       // Start async processing - preserve user-edited hints if they exist
       const mimeType = asset.originalFileName.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';

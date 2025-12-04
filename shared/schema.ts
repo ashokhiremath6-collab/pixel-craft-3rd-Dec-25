@@ -309,6 +309,7 @@ export const objectAssets = pgTable("object_assets", {
   uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   processedAt: timestamp("processed_at"), // When processing completed
+  reprocessCount: integer("reprocess_count").notNull().default(0), // Number of times reprocessed
 }, (table) => ({
   objectTypeIdx: index("object_assets_type_idx").on(table.objectType),
   statusIdx: index("object_assets_status_idx").on(table.processingStatus),

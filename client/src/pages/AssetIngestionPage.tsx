@@ -434,7 +434,15 @@ export default function AssetIngestionPage() {
                 </div>
                 {selectedAsset.processedFilePath && (
                   <div>
-                    <Label className="text-sm mb-1 block">Processed</Label>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Label className="text-sm">Processed</Label>
+                      {selectedAsset.reprocessCount > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          <RefreshCw className="w-3 h-3 mr-1" />
+                          Reprocessed {selectedAsset.reprocessCount}x
+                        </Badge>
+                      )}
+                    </div>
                     <div className="aspect-square w-full rounded-lg bg-muted overflow-hidden">
                       <img 
                         src={selectedAsset.processedFilePath}
