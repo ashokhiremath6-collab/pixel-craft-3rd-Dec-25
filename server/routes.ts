@@ -6982,16 +6982,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update status to processing
       await storage.updateObjectAssetProcessing(assetId, { processingStatus: 'processing' });
 
-      // Convert buffer to base64 for AI
-      const imageData = buffer.toString('base64');
+      // Step 0: Auto-rotate based on EXIF orientation BEFORE AI analysis
+      // This is critical for mobile photos which often have orientation metadata
+      const sharp = (await import('sharp')).default;
+      const rotatedBuffer = await sharp(buffer)
+        .rotate() // Auto-rotate based on EXIF orientation
+        .jpeg({ quality: 95 }) // Convert to standard format for consistent AI analysis
+        .toBuffer();
+      
+      console.log('[Asset Processing] Auto-rotated image based on EXIF orientation');
+
+      // Convert rotated buffer to base64 for AI
+      const imageData = rotatedBuffer.toString('base64');
+      const correctedMimeType = 'image/jpeg'; // Use JPEG for AI analysis
 
       // Step 1: Detect object type and get details
-      const detection = await detectObjectInImage(imageData, mimeType);
+      const detection = await detectObjectInImage(imageData, correctedMimeType);
       const objectType = userObjectType || detection.objectType;
 
-      // Step 2: Process the image (crop, enhance)
+      // Step 2: Process the image (crop, enhance) - using rotated buffer
       const { processedBuffer, thumbnailBuffer, dimensions } = await processObjectImage(
-        buffer,
+        rotatedBuffer, // Use the already-rotated buffer
         objectType,
         detection.boundingBox
       );

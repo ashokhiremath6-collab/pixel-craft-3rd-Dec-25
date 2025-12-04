@@ -603,28 +603,45 @@ export async function detectObjectInImage(
 ): Promise<ObjectDetectionResult> {
   console.log("[Object Detection] Starting object analysis...");
   
-  const prompt = `Analyze this image and identify the main object. This is likely a photo of art, furniture, or a decorative item.
+  const prompt = `You are an expert at identifying objects in product photography. Analyze this image carefully.
 
-Respond with a JSON object containing:
+IMPORTANT: The image may have been taken with a phone camera and could appear rotated or upside down due to EXIF orientation. Analyze the actual visual content regardless of orientation.
+
+Your task:
+1. Identify the MAIN object/product in the image (ignore backgrounds, surfaces, hands, rulers, papers)
+2. Provide a TIGHT bounding box that crops closely around ONLY the main object
+
+Respond with a JSON object:
 {
   "objectType": one of ["art", "furniture", "decor", "lighting", "textile", "accessory"],
   "confidence": number between 0 and 1,
-  "boundingBox": { "x": number, "y": number, "width": number, "height": number } (percentages of image dimensions, 0-100),
-  "description": a detailed description of the object (2-3 sentences),
-  "aiPromptHints": a short phrase for AI render insertion (e.g., "vintage wooden coffee table with marble top"),
+  "boundingBox": {
+    "x": number (percentage from left edge where object STARTS, 0-100),
+    "y": number (percentage from top edge where object STARTS, 0-100),  
+    "width": number (percentage of image width the object spans, 0-100),
+    "height": number (percentage of image height the object spans, 0-100)
+  },
+  "description": detailed description of the object (2-3 sentences),
+  "aiPromptHints": short phrase for AI render insertion (e.g., "vintage wooden coffee table with marble top"),
   "suggestedCategory": suggested main category for cataloguing,
   "suggestedSubcategory": suggested subcategory for cataloguing
 }
 
-Object type definitions:
-- art: paintings, prints, sculptures, wall art, photographs
-- furniture: sofas, chairs, tables, beds, cabinets, shelving
-- decor: vases, sculptures, decorative objects, plants, mirrors
-- lighting: lamps, chandeliers, pendants, sconces, LED strips
-- textile: rugs, curtains, cushions, throws, upholstery samples
-- accessory: small decorative items, bookends, candles, clocks
+BOUNDING BOX RULES:
+- Be PRECISE - crop tightly around the object edges
+- EXCLUDE: tables/surfaces the object sits on, rulers, measurement tools, hands, papers, background clutter
+- INCLUDE: the complete object including any attached parts (e.g., for a lamp, include the shade AND base)
+- Example: If an artwork frame occupies the center 60% of width and 70% of height, with 20% margin on left and 15% on top, boundingBox would be {"x": 20, "y": 15, "width": 60, "height": 70}
 
-Respond ONLY with the JSON object, no additional text.`;
+Object types:
+- art: paintings, prints, sculptures, wall art, photographs, frames
+- furniture: sofas, chairs, tables, beds, cabinets, shelving units
+- decor: vases, sculptures, decorative objects, plants, mirrors, clocks
+- lighting: lamps, chandeliers, pendants, sconces, light fixtures
+- textile: rugs, curtains, cushions, throws, fabric samples
+- accessory: small items, bookends, candles, trinkets, hardware
+
+Respond ONLY with the JSON object.`;
 
   try {
     const response = await withTimeout(
@@ -671,6 +688,7 @@ Respond ONLY with the JSON object, no additional text.`;
 }
 
 // Process an object image: crop, enhance, and optionally remove background
+// Note: inputBuffer should already be EXIF-rotated from the calling function
 export async function processObjectImage(
   inputBuffer: Buffer,
   objectType: string,
@@ -682,24 +700,48 @@ export async function processObjectImage(
 }> {
   console.log("[Object Processing] Starting image processing for:", objectType);
   
+  // Ensure EXIF rotation is applied (safe to call again, will be no-op if already rotated)
+  const rotatedBuffer = await sharp(inputBuffer)
+    .rotate() // Auto-rotate based on EXIF orientation (no-op if already correct)
+    .toBuffer();
+  
   // Get image metadata
-  const metadata = await sharp(inputBuffer).metadata();
+  const metadata = await sharp(rotatedBuffer).metadata();
   const originalWidth = metadata.width || 1000;
   const originalHeight = metadata.height || 1000;
+  console.log("[Object Processing] Image dimensions:", originalWidth, "x", originalHeight);
   
-  let processedImage = sharp(inputBuffer);
+  let processedImage = sharp(rotatedBuffer);
   
-  // If we have a bounding box, crop to it with some padding
-  if (boundingBox) {
-    const padding = 0.05; // 5% padding around the detected object
-    const x = Math.max(0, Math.floor((boundingBox.x - padding * 100) * originalWidth / 100));
-    const y = Math.max(0, Math.floor((boundingBox.y - padding * 100) * originalHeight / 100));
-    const width = Math.min(originalWidth - x, Math.floor((boundingBox.width + padding * 200) * originalWidth / 100));
-    const height = Math.min(originalHeight - y, Math.floor((boundingBox.height + padding * 200) * originalHeight / 100));
+  // If we have a bounding box, crop to it with minimal padding for tight cropping
+  if (boundingBox && boundingBox.width > 0 && boundingBox.height > 0) {
+    // Use very minimal padding (2%) for tighter cropping
+    const padding = 0.02;
     
-    if (width > 0 && height > 0) {
-      processedImage = processedImage.extract({ left: x, top: y, width, height });
-      console.log("[Object Processing] Cropped to bounding box:", { x, y, width, height });
+    // Calculate crop coordinates
+    const cropX = Math.max(0, Math.floor((boundingBox.x / 100 - padding) * originalWidth));
+    const cropY = Math.max(0, Math.floor((boundingBox.y / 100 - padding) * originalHeight));
+    
+    // Calculate crop dimensions with minimal padding
+    let cropWidth = Math.floor((boundingBox.width / 100 + padding * 2) * originalWidth);
+    let cropHeight = Math.floor((boundingBox.height / 100 + padding * 2) * originalHeight);
+    
+    // Ensure we don't exceed image bounds
+    cropWidth = Math.min(cropWidth, originalWidth - cropX);
+    cropHeight = Math.min(cropHeight, originalHeight - cropY);
+    
+    // Only crop if the bounding box is meaningful (not the whole image)
+    const boxCoverage = (boundingBox.width * boundingBox.height) / 10000; // As fraction of total
+    if (cropWidth > 50 && cropHeight > 50 && boxCoverage < 0.95) {
+      processedImage = processedImage.extract({ 
+        left: cropX, 
+        top: cropY, 
+        width: cropWidth, 
+        height: cropHeight 
+      });
+      console.log("[Object Processing] Cropped to bounding box:", { x: cropX, y: cropY, width: cropWidth, height: cropHeight });
+    } else {
+      console.log("[Object Processing] Skipping crop - bounding box covers entire image or too small");
     }
   }
   
