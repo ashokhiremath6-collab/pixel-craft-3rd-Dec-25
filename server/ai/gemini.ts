@@ -1,5 +1,26 @@
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import sharp from "sharp";
+
+// Safety settings for interior design content - allow most content through
+// since we're dealing with legitimate architectural/design imagery
+const SAFETY_SETTINGS = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+];
 import * as fs from "fs";
 
 let aiClient: GoogleGenAI | null = null;
@@ -579,6 +600,7 @@ OUTPUT QUALITY:
           ],
           config: {
             responseModalities: [Modality.TEXT, Modality.IMAGE],
+            safetySettings: SAFETY_SETTINGS,
           },
         }),
         AI_TIMEOUT_MS,
@@ -672,6 +694,7 @@ OUTPUT QUALITY REQUIREMENTS:
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         config: {
           responseModalities: [Modality.TEXT, Modality.IMAGE],
+          safetySettings: SAFETY_SETTINGS,
         },
       }),
       AI_TIMEOUT_MS,
@@ -884,6 +907,9 @@ Respond ONLY with the JSON object.`;
               { text: prompt }
             ]
           }],
+          config: {
+            safetySettings: SAFETY_SETTINGS,
+          },
         }),
         AI_TIMEOUT_MS,
         "Object detection"
@@ -1073,6 +1099,7 @@ Maintain the original colors, lighting, and details of the object.`;
           }],
           config: {
             responseModalities: [Modality.TEXT, Modality.IMAGE],
+            safetySettings: SAFETY_SETTINGS,
           },
         }),
         AI_TIMEOUT_MS * 2, // Longer timeout for image generation
@@ -1137,6 +1164,7 @@ Please create the edited image now.`;
           }],
           config: {
             responseModalities: [Modality.TEXT, Modality.IMAGE],
+            safetySettings: SAFETY_SETTINGS,
           },
         }),
         AI_TIMEOUT_MS * 2, // Longer timeout for image generation
