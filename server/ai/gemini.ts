@@ -501,41 +501,27 @@ export async function generateInteriorRender(
       // Check if there are reference photos to add special handling
       const hasReferencePhotos = referencePhotos && referencePhotos.length > 0;
       
-      prompt = `STOP. READ THESE CONSTRAINTS FIRST BEFORE LOOKING AT ANY IMAGES:
+      prompt = `You are an expert interior design visualization assistant. Your task is to make targeted modifications to this room image while preserving the overall design.
 
-===== ABSOLUTE CONSTRAINTS (VIOLATION = FAILURE) =====
-- You MUST NOT change the wall colors
-- You MUST NOT change the floor
-- You MUST NOT change the ceiling  
-- You MUST NOT change the windows
-- You MUST NOT change the lighting style
-- You MUST NOT move or modify ANY furniture except the ONE item specified below
-- You MUST NOT add new decor items
-- You MUST NOT remove existing items (except the one being replaced)
-- You MUST NOT apply any style transformation to the room
-- The camera angle MUST remain exactly the same
-- The room layout MUST remain exactly the same
-================================================
+TASK: ${customPrompt}
 
-YOUR SINGLE TASK:
-${customPrompt}
-
-${hasReferencePhotos ? `HOW TO USE THE REFERENCE PHOTO(S):
-- The reference photo shows what the NEW item should look like
-- EXTRACT ONLY: the specific piece of furniture/item from the reference
-- IGNORE COMPLETELY: the room, walls, floor, other furniture, and styling in the reference photo
-- Copy the item's: shape, color, material, and design details
-- Place it in the EXACT same position as the item it replaces in the original room
+GUIDELINES FOR THIS MODIFICATION:
+- Keep the overall room layout, walls, floor, and ceiling as similar as possible
+- Maintain the same camera angle and perspective
+- Focus on making the specific change requested
+- Ensure photorealistic quality in the output
+${hasReferencePhotos ? `
+REFERENCE PHOTOS PROVIDED:
+- Use the reference photos to understand what the new item/element should look like
+- Match the style, color, and design details from the reference
+- Blend the new element naturally with the existing room
 ` : ''}${referenceInstructions}
 
-VERIFICATION CHECKLIST (mentally confirm before generating):
-[ ] Wall colors: UNCHANGED from original
-[ ] Floor: UNCHANGED from original
-[ ] All other furniture: UNCHANGED from original
-[ ] Lighting: UNCHANGED from original
-[ ] Only the specified item is different
-
-OUTPUT: High resolution photorealistic image with sharp details.`;
+OUTPUT REQUIREMENTS:
+- Generate a HIGH RESOLUTION photorealistic interior image
+- Apply professional lighting and realistic shadows
+- Ensure sharp details and crisp textures
+- The result should look like a professional interior design photograph`;
     } else if (style) {
       prompt = `Transform this interior space image into a photorealistic ${style.name} interior design render. 
 Apply the following design style: ${style.prompt}
@@ -604,10 +590,25 @@ OUTPUT QUALITY:
       
       const candidate = response.candidates?.[0];
       const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
+      const textPart = candidate?.content?.parts?.find((part: any) => part.text);
+      
+      // Check if AI refused to generate (returned text instead of image)
+      if (textPart?.text && !imagePart?.inlineData?.data) {
+        const refusalText = textPart.text.toLowerCase();
+        console.error("[Gemini] AI returned text instead of image:", textPart.text);
+        
+        // Detect common refusal patterns
+        if (refusalText.includes('cannot') || refusalText.includes('unable') || refusalText.includes('sorry')) {
+          throw new Error("The AI couldn't generate this image. Try simplifying your request or using a different reference photo.");
+        }
+        if (refusalText.includes('violates') || refusalText.includes('policy') || refusalText.includes('guidelines')) {
+          throw new Error("The request couldn't be processed. Try rephrasing your instructions or using different images.");
+        }
+      }
       
       if (!imagePart?.inlineData?.data) {
         console.error("[Gemini] No image data in response. Full response:", JSON.stringify(response, null, 2));
-        throw new Error("No image data in response. The AI may not have been able to process the image.");
+        throw new Error("The AI didn't return an image. Try a simpler request or different input image.");
       }
 
       console.log("[Gemini] Raw generated image size:", imagePart.inlineData.data.length);
@@ -679,9 +680,20 @@ OUTPUT QUALITY REQUIREMENTS:
 
     const candidate = response.candidates?.[0];
     const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
+    const textPart = candidate?.content?.parts?.find((part: any) => part.text);
+    
+    // Check if AI refused to generate (returned text instead of image)
+    if (textPart?.text && !imagePart?.inlineData?.data) {
+      const refusalText = textPart.text.toLowerCase();
+      console.error("[Gemini] AI returned text instead of image:", textPart.text);
+      
+      if (refusalText.includes('cannot') || refusalText.includes('unable') || refusalText.includes('sorry')) {
+        throw new Error("The AI couldn't generate this concept. Try a different description or style.");
+      }
+    }
     
     if (!imagePart?.inlineData?.data) {
-      throw new Error("No image data in response");
+      throw new Error("The AI didn't return an image. Try a different description.");
     }
     
     return {
