@@ -471,7 +471,7 @@ export default function AssetIngestionPage() {
               data-testid="button-confirm-upload"
             >
               {uploadMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Upload & Process
+              Upload
             </Button>
           </DialogFooter>
         </DialogContent>
