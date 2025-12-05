@@ -2028,9 +2028,9 @@ export class DBStorage implements IStorage {
   // Moodboards
   async getAllMoodboards(assetType?: string): Promise<Moodboard[]> {
     if (assetType) {
-      return await db.select().from(moodboards).where(eq(moodboards.assetType, assetType)).orderBy(moodboards.uploadedAt);
+      return await db.select().from(moodboards).where(eq(moodboards.assetType, assetType)).orderBy(desc(moodboards.uploadedAt));
     }
-    return await db.select().from(moodboards).orderBy(moodboards.uploadedAt);
+    return await db.select().from(moodboards).orderBy(desc(moodboards.uploadedAt));
   }
 
   async getMoodboardsByProject(projectId: string, assetType?: string): Promise<Moodboard[]> {
@@ -2038,7 +2038,7 @@ export class DBStorage implements IStorage {
     if (assetType) {
       conditions.push(eq(moodboards.assetType, assetType));
     }
-    return await db.select().from(moodboards).where(and(...conditions)).orderBy(moodboards.uploadedAt);
+    return await db.select().from(moodboards).where(and(...conditions)).orderBy(desc(moodboards.uploadedAt));
   }
 
   async getGeneralMoodboards(assetType?: string): Promise<Moodboard[]> {
@@ -2046,7 +2046,7 @@ export class DBStorage implements IStorage {
     if (assetType) {
       conditions.push(eq(moodboards.assetType, assetType));
     }
-    return await db.select().from(moodboards).where(and(...conditions)).orderBy(moodboards.uploadedAt);
+    return await db.select().from(moodboards).where(and(...conditions)).orderBy(desc(moodboards.uploadedAt));
   }
 
   async getMoodboard(id: string): Promise<Moodboard | undefined> {
@@ -2083,9 +2083,9 @@ export class DBStorage implements IStorage {
       }
       
       if (conditions.length > 0) {
-        return await db.select().from(moodboards).where(and(...conditions)).orderBy(moodboards.uploadedAt);
+        return await db.select().from(moodboards).where(and(...conditions)).orderBy(desc(moodboards.uploadedAt));
       }
-      return await db.select().from(moodboards).orderBy(moodboards.uploadedAt);
+      return await db.select().from(moodboards).orderBy(desc(moodboards.uploadedAt));
     } else {
       // Clients can only access moodboards for their accessible projects
       const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
@@ -2105,7 +2105,7 @@ export class DBStorage implements IStorage {
         conditions.push(eq(moodboards.assetType, assetType));
       }
       
-      return await db.select().from(moodboards).where(and(...conditions)).orderBy(moodboards.uploadedAt);
+      return await db.select().from(moodboards).where(and(...conditions)).orderBy(desc(moodboards.uploadedAt));
     }
   }
 
