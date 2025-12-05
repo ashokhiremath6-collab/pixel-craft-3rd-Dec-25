@@ -522,7 +522,53 @@ export async function generateInteriorRender(
       // Check if there are reference photos to add special handling
       const hasReferencePhotos = referencePhotos && referencePhotos.length > 0;
       
-      prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text. Do NOT explain what you cannot do. Just generate the best possible image based on the request.
+      // Detect if user wants minimal/surgical changes (preserve everything else)
+      const lowerPrompt = customPrompt.toLowerCase();
+      const wantsMinimalChanges = 
+        lowerPrompt.includes('only') ||
+        lowerPrompt.includes('just') ||
+        lowerPrompt.includes('do not change') ||
+        lowerPrompt.includes('don\'t change') ||
+        lowerPrompt.includes('do not make other') ||
+        lowerPrompt.includes('don\'t make other') ||
+        lowerPrompt.includes('keep everything') ||
+        lowerPrompt.includes('preserve') ||
+        lowerPrompt.includes('no other changes') ||
+        lowerPrompt.includes('undo') ||
+        lowerPrompt.includes('replace the') ||
+        lowerPrompt.includes('swap the') ||
+        lowerPrompt.includes('change the') && !lowerPrompt.includes('change the style') && !lowerPrompt.includes('change the room');
+      
+      if (wantsMinimalChanges) {
+        // SURGICAL EDIT MODE - preserve everything except the specific change
+        prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text.
+
+You are performing a SURGICAL EDIT on this room image. Make ONLY the specific change requested - NOTHING ELSE.
+
+USER REQUEST: ${customPrompt}
+
+⚠️ STRICT PRESERVATION RULES - THESE ARE ABSOLUTE:
+1. PRESERVE EXACTLY: Room layout, walls, floors, ceiling, windows, doors
+2. PRESERVE EXACTLY: All furniture positions, shapes, colors, and styles EXCEPT what the user specifically asks to change
+3. PRESERVE EXACTLY: Lighting fixtures, decorations, rugs, plants EXCEPT what is mentioned
+4. PRESERVE EXACTLY: Camera angle, perspective, and overall composition
+5. DO NOT add any new items unless specifically requested
+6. DO NOT remove any items unless specifically requested
+7. DO NOT change colors or materials of anything not mentioned
+8. DO NOT change the lighting, shadows, or time of day
+9. The ONLY difference between input and output should be the specific item(s) mentioned
+
+${hasReferencePhotos ? `
+REFERENCE PHOTOS - USE ONLY FOR THE SPECIFIC ITEM BEING REPLACED:
+- Match the appearance from the reference photo for the item being swapped
+- Apply it ONLY to the item mentioned in the request
+- Do NOT let the reference influence any other part of the room
+` : ''}${referenceInstructions}
+
+OUTPUT: Generate the SAME room with ONLY the requested change. Everything else must be IDENTICAL to the input.`;
+      } else {
+        // CREATIVE MODE - more freedom for redesigns
+        prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text. Do NOT explain what you cannot do. Just generate the best possible image based on the request.
 
 You are an expert interior design visualization assistant. Generate a modified version of this room image.
 
@@ -540,6 +586,7 @@ REFERENCE PHOTOS:
 ` : ''}${referenceInstructions}
 
 OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with professional lighting and sharp details.`;
+      }
     } else if (style) {
       prompt = `CRITICAL: You MUST generate an image. Do NOT respond with text explanations.
 
