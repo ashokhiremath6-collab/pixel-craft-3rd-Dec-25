@@ -55,7 +55,7 @@ interface ComparativeQuotesProps {
 }
 
 export default function ComparativeQuotes({ projects, categories, quotations, onStatusChange, hideValueColumns = false }: ComparativeQuotesProps) {
-  const [selectedProject, setSelectedProject] = useState<string>("");
+  const [selectedProject, setSelectedProject] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isExporting, setIsExporting] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
@@ -600,12 +600,12 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
                   {projects.map(project => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.projectName}
                     </SelectItem>
                   ))}
-                  <SelectItem value="all">All Projects</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -637,21 +637,25 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
         </CardContent>
       </Card>
 
-      {/* Empty state when no project selected */}
-      {!selectedProject && (
+      {/* Empty state when no regular quotes found */}
+      {Object.keys(groupedData).length === 0 && (
         <Card>
           <CardContent className="text-center py-12">
             <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Select a project to begin</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {selectedProject === "all" ? "No regular quotes found" : "No quotes for this project"}
+            </h3>
             <p className="text-muted-foreground">
-              Choose a project from the dropdown above to view comparative quotes
+              {selectedProject === "all" 
+                ? "Import unit rate quotes or select a specific project to view quotes"
+                : "This project has no regular unit rate quotes yet"}
             </p>
           </CardContent>
         </Card>
       )}
 
       {/* Comparison Groups */}
-      {selectedProject && Object.entries(groupedData)
+      {Object.keys(groupedData).length > 0 && Object.entries(groupedData)
         .sort((a, b) => a[1].category.localeCompare(b[1].category, undefined, { sensitivity: 'base' }))
         .map(([key, group]) => {
         const lowestQuote = getLowestQuote(group.quotations);
