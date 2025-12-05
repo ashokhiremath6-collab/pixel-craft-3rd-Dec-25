@@ -405,7 +405,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       <Badge variant="destructive" className="flex-shrink-0">
-                        {task.daysOverdue}d overdue
+                        {task.daysOverdue} day{task.daysOverdue !== 1 ? 's' : ''} overdue
                       </Badge>
                     </div>
                   ))}
