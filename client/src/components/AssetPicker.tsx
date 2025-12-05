@@ -19,10 +19,10 @@ import {
   Loader2,
   X
 } from "lucide-react";
-import type { CatalogueItem, SavedAsset } from "@shared/schema";
+import type { CatalogueItem, SavedAsset, ObjectAsset } from "@shared/schema";
 
 export interface SelectedAsset {
-  type: 'external' | 'catalogue' | 'saved_asset';
+  type: 'external' | 'catalogue' | 'saved_asset' | 'ingestion';
   id?: string;
   file?: File;
   filePath?: string;
@@ -62,6 +62,11 @@ export function AssetPicker({
   const { data: savedAssets, isLoading: savedAssetsLoading } = useQuery<SavedAsset[]>({
     queryKey: ['/api/saved-assets'],
     enabled: activeTab === 'saved'
+  });
+
+  const { data: objectAssets, isLoading: objectAssetsLoading } = useQuery<ObjectAsset[]>({
+    queryKey: ['/api/object-assets'],
+    enabled: activeTab === 'ingestion'
   });
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,6 +124,22 @@ export function AssetPicker({
     onOpenChange(false);
   };
 
+  const handleIngestionAssetSelect = (asset: ObjectAsset) => {
+    const imagePath = asset.processedFilePath || asset.originalFilePath;
+    onSelect({
+      type: 'ingestion',
+      id: asset.id,
+      filePath: imagePath,
+      thumbnailPath: asset.thumbnailPath || undefined,
+      displayName: asset.aiDescription?.split('.')[0]?.substring(0, 50) || asset.originalFileName,
+      description: asset.aiDescription || undefined,
+      aiPromptHints: asset.aiPromptHints || undefined,
+      previewUrl: asset.thumbnailPath ? `/objects/${asset.thumbnailPath.replace('/objects/', '')}` 
+        : imagePath ? `/objects/${imagePath.replace('/objects/', '')}` : undefined
+    });
+    onOpenChange(false);
+  };
+
   const filteredCatalogueItems = catalogueItems?.filter(item => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
@@ -140,6 +161,20 @@ export function AssetPicker({
     );
   }) || [];
 
+  // Show completed assets (both analyze-only and AI-processed)
+  // Assets are usable once they have been analyzed, even without AI processing
+  const filteredIngestionAssets = objectAssets?.filter(asset => {
+    // Include completed assets (analyzed or processed)
+    if (asset.processingStatus !== 'completed') return false;
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      asset.originalFileName.toLowerCase().includes(query) ||
+      asset.aiDescription?.toLowerCase().includes(query) ||
+      asset.objectType?.toLowerCase().includes(query)
+    );
+  }) || [];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
@@ -149,10 +184,14 @@ export function AssetPicker({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="ingestion" className="gap-2" data-testid="tab-ingestion">
+              <ImageIcon className="w-4 h-4" />
+              Ingestion
+            </TabsTrigger>
             <TabsTrigger value="saved" className="gap-2" data-testid="tab-saved-assets">
               <Save className="w-4 h-4" />
-              Saved Assets
+              Saved
             </TabsTrigger>
             <TabsTrigger value="catalogue" className="gap-2" data-testid="tab-catalogue">
               <FolderOpen className="w-4 h-4" />
@@ -160,12 +199,12 @@ export function AssetPicker({
             </TabsTrigger>
             <TabsTrigger value="external" className="gap-2" data-testid="tab-external">
               <Upload className="w-4 h-4" />
-              Upload New
+              Upload
             </TabsTrigger>
           </TabsList>
 
           <div className="py-3">
-            {(activeTab === 'saved' || activeTab === 'catalogue') && (
+            {(activeTab === 'saved' || activeTab === 'catalogue' || activeTab === 'ingestion') && (
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -178,6 +217,65 @@ export function AssetPicker({
               </div>
             )}
           </div>
+
+          <TabsContent value="ingestion" className="flex-1 min-h-0 mt-0">
+            <ScrollArea className="h-[400px]">
+              {objectAssetsLoading ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-1">
+                  {[1, 2, 3, 4, 5, 6].map(i => (
+                    <Card key={i}>
+                      <CardContent className="p-3">
+                        <Skeleton className="aspect-square w-full rounded-lg mb-2" />
+                        <Skeleton className="h-4 w-3/4" />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : filteredIngestionAssets.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
+                  <ImageIcon className="w-12 h-12 mb-4 opacity-50" />
+                  <p className="text-lg font-medium">No processed assets</p>
+                  <p className="text-sm">Upload and process images in Asset Ingestion</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-1">
+                  {filteredIngestionAssets.map(asset => (
+                    <Card 
+                      key={asset.id} 
+                      className="cursor-pointer hover-elevate transition-all"
+                      onClick={() => handleIngestionAssetSelect(asset)}
+                      data-testid={`card-ingestion-asset-${asset.id}`}
+                    >
+                      <CardContent className="p-3">
+                        <div className="aspect-square relative rounded-lg overflow-hidden bg-muted mb-2">
+                          {asset.thumbnailPath || asset.processedFilePath || asset.originalFilePath ? (
+                            <img
+                              src={`/objects/${(asset.thumbnailPath || asset.processedFilePath || asset.originalFilePath).replace('/objects/', '')}`}
+                              alt={asset.originalFileName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                            </div>
+                          )}
+                          <Badge 
+                            variant="default" 
+                            className={`absolute top-1 right-1 text-xs ${asset.processedFilePath ? 'bg-green-600' : 'bg-blue-600'}`}
+                          >
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            {asset.processedFilePath ? 'Processed' : 'Analyzed'}
+                          </Badge>
+                        </div>
+                        <p className="font-medium text-sm truncate">{asset.originalFileName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{asset.objectType}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </TabsContent>
 
           <TabsContent value="saved" className="flex-1 min-h-0 mt-0">
             <ScrollArea className="h-[400px]">

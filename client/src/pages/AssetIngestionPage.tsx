@@ -762,7 +762,7 @@ export default function AssetIngestionPage() {
                 )}
               </>
             )}
-            {selectedAsset?.processingStatus === 'completed' && !selectedAsset.catalogueItemId && (
+            {selectedAsset?.processingStatus === 'completed' && selectedAsset.processedFilePath && !selectedAsset.catalogueItemId && (
               <Button 
                 onClick={() => {
                   setSaveToCatalogueDialogOpen(true);
@@ -777,41 +777,6 @@ export default function AssetIngestionPage() {
               >
                 <BookOpen className="w-4 h-4 mr-2" />
                 Save to Catalogue
-              </Button>
-            )}
-            {selectedAsset?.processingStatus === 'completed' && selectedAsset.processedFilePath && (
-              <Button 
-                variant="secondary"
-                onClick={() => {
-                  setSaveToSavedAssetsDialogOpen(true);
-                  setSavedAssetForm({
-                    displayName: selectedAsset.aiDescription?.split('.')[0]?.substring(0, 50) || 'Untitled Asset',
-                    description: selectedAsset.aiDescription || '',
-                    tags: selectedAsset.objectType || ''
-                  });
-                }}
-                data-testid="button-save-to-saved-assets"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                Save to Saved Assets
-              </Button>
-            )}
-            {selectedAsset?.processingStatus === 'completed' && (
-              <Button 
-                variant="default"
-                onClick={() => {
-                  setProcessAndSaveDialogOpen(true);
-                  setProcessAndSaveForm({
-                    processingInstructions: '',
-                    displayName: selectedAsset.aiDescription?.split('.')[0]?.substring(0, 50) || 'Processed Asset',
-                    description: selectedAsset.aiDescription || '',
-                    tags: selectedAsset.objectType || ''
-                  });
-                }}
-                data-testid="button-process-and-save"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Apply AI & Save New
               </Button>
             )}
           </DialogFooter>
@@ -893,156 +858,6 @@ export default function AssetIngestionPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={saveToSavedAssetsDialogOpen} onOpenChange={setSaveToSavedAssetsDialogOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Save to Saved Assets</DialogTitle>
-            <DialogDescription>
-              Save this processed image to your Saved Assets collection for use in AI renders
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="savedAssetName">Display Name *</Label>
-              <Input
-                id="savedAssetName"
-                value={savedAssetForm.displayName}
-                onChange={(e) => setSavedAssetForm(f => ({ ...f, displayName: e.target.value }))}
-                placeholder="e.g., Blue Velvet Armchair"
-                data-testid="input-saved-asset-name"
-              />
-            </div>
-            <div>
-              <Label htmlFor="savedAssetDescription">Description</Label>
-              <Textarea
-                id="savedAssetDescription"
-                value={savedAssetForm.description}
-                onChange={(e) => setSavedAssetForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Optional description of the asset"
-                data-testid="input-saved-asset-description"
-              />
-            </div>
-            <div>
-              <Label htmlFor="savedAssetTags">Tags</Label>
-              <Input
-                id="savedAssetTags"
-                value={savedAssetForm.tags}
-                onChange={(e) => setSavedAssetForm(f => ({ ...f, tags: e.target.value }))}
-                placeholder="e.g., furniture, blue, velvet"
-                data-testid="input-saved-asset-tags"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Comma-separated tags to help find this asset</p>
-            </div>
-          </div>
-
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setSaveToSavedAssetsDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={() => {
-                if (selectedAsset && savedAssetForm.displayName && selectedAsset.processedFilePath) {
-                  saveToSavedAssetsMutation.mutate({
-                    displayName: savedAssetForm.displayName,
-                    description: savedAssetForm.description || undefined,
-                    tags: savedAssetForm.tags || undefined,
-                    filePath: selectedAsset.processedFilePath,
-                    thumbnailPath: selectedAsset.thumbnailPath || undefined,
-                    objectAssetId: selectedAsset.id,
-                    aiPromptHints: selectedAsset.aiPromptHints || undefined
-                  });
-                }
-              }}
-              disabled={!savedAssetForm.displayName || saveToSavedAssetsMutation.isPending}
-              data-testid="button-confirm-save-saved-assets"
-            >
-              {saveToSavedAssetsMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Save to Saved Assets
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={processAndSaveDialogOpen} onOpenChange={setProcessAndSaveDialogOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Apply AI Processing & Save</DialogTitle>
-            <DialogDescription>
-              Process this image with AI instructions and save the result as a new asset. The original image will remain unchanged.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="processInstructions">AI Processing Instructions *</Label>
-              <Textarea
-                id="processInstructions"
-                value={processAndSaveForm.processingInstructions}
-                onChange={(e) => setProcessAndSaveForm(f => ({ ...f, processingInstructions: e.target.value }))}
-                placeholder="e.g., Remove background, center the object, make it brighter, add a subtle shadow"
-                className="min-h-[100px]"
-                data-testid="input-process-instructions"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Tell the AI how to modify this image</p>
-            </div>
-            <div>
-              <Label htmlFor="processDisplayName">Save As (Display Name) *</Label>
-              <Input
-                id="processDisplayName"
-                value={processAndSaveForm.displayName}
-                onChange={(e) => setProcessAndSaveForm(f => ({ ...f, displayName: e.target.value }))}
-                placeholder="e.g., Artwork - White Background"
-                data-testid="input-process-display-name"
-              />
-            </div>
-            <div>
-              <Label htmlFor="processDescription">Description</Label>
-              <Textarea
-                id="processDescription"
-                value={processAndSaveForm.description}
-                onChange={(e) => setProcessAndSaveForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Optional description"
-                data-testid="input-process-description"
-              />
-            </div>
-            <div>
-              <Label htmlFor="processTags">Tags</Label>
-              <Input
-                id="processTags"
-                value={processAndSaveForm.tags}
-                onChange={(e) => setProcessAndSaveForm(f => ({ ...f, tags: e.target.value }))}
-                placeholder="e.g., processed, white-bg, artwork"
-                data-testid="input-process-tags"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setProcessAndSaveDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={() => {
-                if (selectedAsset && processAndSaveForm.processingInstructions && processAndSaveForm.displayName) {
-                  processAndSaveMutation.mutate({
-                    id: selectedAsset.id,
-                    processingInstructions: processAndSaveForm.processingInstructions,
-                    displayName: processAndSaveForm.displayName,
-                    description: processAndSaveForm.description || undefined,
-                    tags: processAndSaveForm.tags || undefined
-                  });
-                }
-              }}
-              disabled={!processAndSaveForm.processingInstructions || !processAndSaveForm.displayName || processAndSaveMutation.isPending}
-              data-testid="button-confirm-process-and-save"
-            >
-              {processAndSaveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {processAndSaveMutation.isPending ? 'Processing...' : 'Apply AI & Save'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
