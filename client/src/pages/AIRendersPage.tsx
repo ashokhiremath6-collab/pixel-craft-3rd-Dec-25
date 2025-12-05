@@ -18,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { AssetPicker, type SelectedAsset } from "@/components/AssetPicker";
+import { MaskingCanvas } from "@/components/MaskingCanvas";
 import type { Project, Moodboard } from "@shared/schema";
 import { 
   Upload, 
@@ -135,6 +136,11 @@ export default function AIRendersPage() {
   
   const [showModifyTools, setShowModifyTools] = useState(false);
   const [modificationPrompt, setModificationPrompt] = useState("");
+  
+  const [editMode, setEditMode] = useState<'creative' | 'precision'>('creative');
+  const [maskData, setMaskData] = useState<string | null>(null);
+  const [precisionPrompt, setPrecisionPrompt] = useState("");
+  const [searchObject, setSearchObject] = useState("");
   
   const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -847,6 +853,114 @@ export default function AIRendersPage() {
     },
   });
 
+  const precisionEditMutation = useMutation({
+    mutationFn: async (data: { file: File; maskData?: string; prompt: string; searchPrompt?: string }) => {
+      abortControllerRef.current = new AbortController();
+      
+      const compressedBlob = await compressImageOnClient(data.file);
+      const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
+      
+      const formData = new FormData();
+      formData.append('image', compressedFile);
+      formData.append('prompt', data.prompt);
+      
+      if (data.maskData) {
+        formData.append('maskData', data.maskData);
+      }
+      if (data.searchPrompt) {
+        formData.append('searchPrompt', data.searchPrompt);
+      }
+      
+      const response = await fetch('/api/ai-renders/inpaint', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+        signal: abortControllerRef.current.signal,
+      });
+      
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const error = await response.json();
+          if (error.needsApiKey) {
+            throw new Error('API_KEY_REQUIRED');
+          }
+          throw new Error(error.error || 'Failed to process precision edit');
+        }
+        throw new Error(`Server error (${response.status}). Please try again.`);
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setGeneratedRender({
+        imageData: data.imageData,
+        mimeType: data.mimeType,
+        styleId: 'precision_edit',
+        styleName: 'Precision Edit'
+      });
+      toast({ title: "Precision Edit Complete", description: "Your image has been precisely edited!" });
+    },
+    onError: (error: any) => {
+      if (error.name === 'AbortError') {
+        return;
+      }
+      
+      if (error.message === 'API_KEY_REQUIRED') {
+        toast({ 
+          title: "Stability AI Not Configured", 
+          description: "Precision Edit requires a Stability AI API key. Please add STABILITY_API_KEY in the Secrets tab.",
+          variant: "destructive" 
+        });
+        return;
+      }
+      
+      toast({ 
+        title: "Precision Edit Failed", 
+        description: error.message || "Failed to process precision edit",
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const handlePrecisionEdit = () => {
+    if (!selectedFile) {
+      toast({ 
+        title: "Missing Image", 
+        description: "Please select an image to edit",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (!precisionPrompt) {
+      toast({ 
+        title: "Missing Prompt", 
+        description: "Please describe what you want to add or change in the masked area",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    const trimmedSearchObject = searchObject?.trim();
+    
+    if (!maskData && !trimmedSearchObject) {
+      toast({ 
+        title: "Missing Selection", 
+        description: "Please either paint a mask on the image or describe what object to find and replace",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    precisionEditMutation.mutate({
+      file: selectedFile,
+      maskData: maskData || undefined,
+      prompt: precisionPrompt,
+      searchPrompt: trimmedSearchObject || undefined,
+    });
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -1027,7 +1141,8 @@ export default function AIRendersPage() {
 
   const isGenerating = generateFromImageMutation.isPending || generateFromDescriptionMutation.isPending;
   const isModifying = modifyRenderMutation.isPending;
-  const isAnyAIWorking = isGenerating || isModifying;
+  const isPrecisionEditing = precisionEditMutation.isPending;
+  const isAnyAIWorking = isGenerating || isModifying || isPrecisionEditing;
 
   useEffect(() => {
     if (isAnyAIWorking && !generationStartTime) {
@@ -1081,15 +1196,149 @@ export default function AIRendersPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wand2 className="h-5 w-5 text-primary" />
-              Generate Render
-            </CardTitle>
-            <CardDescription>
-              Upload a room photo or describe your space to generate styled renders
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Wand2 className="h-5 w-5 text-primary" />
+                  {editMode === 'creative' ? 'Generate Render' : 'Precision Edit'}
+                </CardTitle>
+                <CardDescription>
+                  {editMode === 'creative' 
+                    ? 'Upload a room photo or describe your space to generate styled renders'
+                    : 'Paint a mask over the area you want to edit for pixel-perfect changes'
+                  }
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-1 border rounded-lg p-1 bg-muted/50">
+                <Button
+                  variant={editMode === 'creative' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setEditMode('creative')}
+                  data-testid="button-creative-mode"
+                >
+                  <Sparkles className="h-4 w-4 mr-1" />
+                  Creative
+                </Button>
+                <Button
+                  variant={editMode === 'precision' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setEditMode('precision')}
+                  data-testid="button-precision-mode"
+                >
+                  <Edit3 className="h-4 w-4 mr-1" />
+                  Precision
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {editMode === 'precision' ? (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="precision-image-upload">Source Image</Label>
+                  <div className="mt-2 flex gap-2">
+                    <Input
+                      id="precision-image-upload"
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      className="cursor-pointer flex-1"
+                      data-testid="input-precision-image-upload"
+                    />
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowSavedRendersDialog(true)}
+                      disabled={savedRenders.length === 0}
+                      data-testid="button-select-saved-render-precision"
+                    >
+                      <FolderOpen className="h-4 w-4 mr-2" />
+                      Saved
+                    </Button>
+                  </div>
+                </div>
+
+                {previewUrl && (
+                  <div className="border rounded-lg p-3 bg-muted/30">
+                    <Label className="text-sm font-medium mb-2 block">
+                      Paint the area to edit (brush over what you want to change)
+                    </Label>
+                    <MaskingCanvas
+                      sourceImage={previewUrl}
+                      onMaskChange={setMaskData}
+                    />
+                  </div>
+                )}
+
+                <div className="border rounded-lg p-3 bg-muted/30">
+                  <Label className="text-sm font-medium mb-2 block">Or: Auto-find object to replace</Label>
+                  <Input
+                    placeholder="e.g., 'the painting on the wall' or 'the sofa'"
+                    value={searchObject}
+                    onChange={(e) => setSearchObject(e.target.value)}
+                    className="mt-1"
+                    data-testid="input-search-object"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    The AI will automatically find and select this object for replacement
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="precision-prompt">What to put in its place</Label>
+                  <Textarea
+                    id="precision-prompt"
+                    placeholder="Describe what should appear in the selected area, e.g.:
+• A modern abstract painting with blue and gold colors
+• A large monstera plant in a white ceramic pot
+• A minimalist floor lamp with brass finish"
+                    value={precisionPrompt}
+                    onChange={(e) => setPrecisionPrompt(e.target.value)}
+                    className="mt-2 min-h-[100px]"
+                    data-testid="input-precision-prompt"
+                  />
+                </div>
+
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                    <strong>Precision Edit</strong> uses Stability AI to modify only the selected area while keeping everything else pixel-perfect. Requires a Stability AI API key in Secrets.
+                  </p>
+                </div>
+
+                <Button 
+                  onClick={handlePrecisionEdit}
+                  disabled={isPrecisionEditing || !selectedFile || !precisionPrompt || (!maskData && !searchObject?.trim())}
+                  className="w-full"
+                  data-testid="button-precision-edit"
+                >
+                  {isPrecisionEditing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing Precision Edit...
+                      {elapsedTime > 0 && ` (${formatElapsedTime(elapsedTime)})`}
+                    </>
+                  ) : (
+                    <>
+                      <Edit3 className="h-4 w-4 mr-2" />
+                      Apply Precision Edit
+                    </>
+                  )}
+                </Button>
+
+                {isPrecisionEditing && (
+                  <Button 
+                    variant="outline" 
+                    onClick={cancelGeneration}
+                    className="w-full"
+                    data-testid="button-cancel-precision"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            ) : (
+            <>
             <Tabs defaultValue="image" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="image" data-testid="tab-image-upload">
@@ -1424,6 +1673,8 @@ export default function AIRendersPage() {
               <p className="text-xs text-muted-foreground text-center">
                 AI generation can take up to 90 seconds. Click Cancel to stop and try again.
               </p>
+            )}
+            </>
             )}
           </CardContent>
         </Card>
