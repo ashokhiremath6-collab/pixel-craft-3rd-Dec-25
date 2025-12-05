@@ -198,11 +198,23 @@ export default function DashboardPage() {
     return 'performed';
   };
 
+  // Helper to parse dates consistently (same as GanttChartPage)
+  const parseLocalDate = (dateStr: string | Date | null) => {
+    if (!dateStr) return null;
+    if (dateStr instanceof Date) return dateStr;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    }
+    return new Date(dateStr);
+  };
+
   // Calculate task alerts - Starting Today, Completion Countdown, and Overdue
   const getTaskAlerts = () => {
     if (!allTasksData || !quotationsData) return { startingToday: [], completionCountdown: [], overdue: [] };
     
-    const today = startOfDay(new Date());
+    const now = new Date();
+    const today = startOfDay(now);
     const startingToday: Array<Task & { projectName: string }> = [];
     const completionCountdown: Array<Task & { projectName: string, daysToGo: number }> = [];
     const overdue: Array<Task & { projectName: string, daysOverdue: number }> = [];
@@ -232,15 +244,20 @@ export default function DashboardPage() {
         }
       }
       
-      // Check for completion countdown (5 days or less before end date) or overdue
+      // Check for overdue first (matches GanttChartPage logic: endDate < now)
+      // Then check for completion countdown
       if (task.endDate) {
-        const endDate = startOfDay(new Date(task.endDate));
-        const daysToGo = differenceInDays(endDate, today);
-        if (daysToGo >= 1 && daysToGo <= 5) {
-          completionCountdown.push({ ...task, projectName, daysToGo });
-        } else if (daysToGo < 0) {
-          // Task is overdue
-          overdue.push({ ...task, projectName, daysOverdue: Math.abs(daysToGo) });
+        const endDate = parseLocalDate(task.endDate);
+        if (endDate && endDate < now) {
+          // Task is overdue - end date has passed
+          const daysOverdue = Math.max(1, differenceInDays(today, startOfDay(endDate)));
+          overdue.push({ ...task, projectName, daysOverdue });
+        } else if (endDate) {
+          // Check for completion countdown (5 days or less before end date)
+          const daysToGo = differenceInDays(startOfDay(endDate), today);
+          if (daysToGo >= 1 && daysToGo <= 5) {
+            completionCountdown.push({ ...task, projectName, daysToGo });
+          }
         }
       }
     });
