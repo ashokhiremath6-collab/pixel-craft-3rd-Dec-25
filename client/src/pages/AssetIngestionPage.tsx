@@ -207,6 +207,35 @@ export default function AssetIngestionPage() {
     }
   });
 
+  // New: Process with AI and save directly to saved assets
+  const [processAndSaveDialogOpen, setProcessAndSaveDialogOpen] = useState(false);
+  const [processAndSaveForm, setProcessAndSaveForm] = useState({
+    processingInstructions: '',
+    displayName: '',
+    description: '',
+    tags: ''
+  });
+
+  const processAndSaveMutation = useMutation({
+    mutationFn: async (data: { id: string; processingInstructions: string; displayName: string; description?: string; tags?: string }) => {
+      return apiRequest('POST', `/api/object-assets/${data.id}/process-and-save`, {
+        processingInstructions: data.processingInstructions,
+        displayName: data.displayName,
+        description: data.description,
+        tags: data.tags
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Processed & Saved", description: "AI-processed version saved to your assets collection. Original unchanged." });
+      setProcessAndSaveDialogOpen(false);
+      setProcessAndSaveForm({ processingInstructions: '', displayName: '', description: '', tags: '' });
+      queryClient.invalidateQueries({ queryKey: ['/api/saved-assets'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Processing failed", description: error.message, variant: "destructive" });
+    }
+  });
+
   const updateAssetMutation = useMutation({
     mutationFn: async (data: { id: string; aiPromptHints?: string; userDescription?: string; objectType?: string; processingInstructions?: string }) => {
       return apiRequest('PUT', `/api/object-assets/${data.id}`, data);
@@ -767,6 +796,24 @@ export default function AssetIngestionPage() {
                 Save to Saved Assets
               </Button>
             )}
+            {selectedAsset?.processingStatus === 'completed' && (
+              <Button 
+                variant="default"
+                onClick={() => {
+                  setProcessAndSaveDialogOpen(true);
+                  setProcessAndSaveForm({
+                    processingInstructions: '',
+                    displayName: selectedAsset.aiDescription?.split('.')[0]?.substring(0, 50) || 'Processed Asset',
+                    description: selectedAsset.aiDescription || '',
+                    tags: selectedAsset.objectType || ''
+                  });
+                }}
+                data-testid="button-process-and-save"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Apply AI & Save New
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -912,6 +959,86 @@ export default function AssetIngestionPage() {
             >
               {saveToSavedAssetsMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Save to Saved Assets
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={processAndSaveDialogOpen} onOpenChange={setProcessAndSaveDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Apply AI Processing & Save</DialogTitle>
+            <DialogDescription>
+              Process this image with AI instructions and save the result as a new asset. The original image will remain unchanged.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="processInstructions">AI Processing Instructions *</Label>
+              <Textarea
+                id="processInstructions"
+                value={processAndSaveForm.processingInstructions}
+                onChange={(e) => setProcessAndSaveForm(f => ({ ...f, processingInstructions: e.target.value }))}
+                placeholder="e.g., Remove background, center the object, make it brighter, add a subtle shadow"
+                className="min-h-[100px]"
+                data-testid="input-process-instructions"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Tell the AI how to modify this image</p>
+            </div>
+            <div>
+              <Label htmlFor="processDisplayName">Save As (Display Name) *</Label>
+              <Input
+                id="processDisplayName"
+                value={processAndSaveForm.displayName}
+                onChange={(e) => setProcessAndSaveForm(f => ({ ...f, displayName: e.target.value }))}
+                placeholder="e.g., Artwork - White Background"
+                data-testid="input-process-display-name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="processDescription">Description</Label>
+              <Textarea
+                id="processDescription"
+                value={processAndSaveForm.description}
+                onChange={(e) => setProcessAndSaveForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Optional description"
+                data-testid="input-process-description"
+              />
+            </div>
+            <div>
+              <Label htmlFor="processTags">Tags</Label>
+              <Input
+                id="processTags"
+                value={processAndSaveForm.tags}
+                onChange={(e) => setProcessAndSaveForm(f => ({ ...f, tags: e.target.value }))}
+                placeholder="e.g., processed, white-bg, artwork"
+                data-testid="input-process-tags"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setProcessAndSaveDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                if (selectedAsset && processAndSaveForm.processingInstructions && processAndSaveForm.displayName) {
+                  processAndSaveMutation.mutate({
+                    id: selectedAsset.id,
+                    processingInstructions: processAndSaveForm.processingInstructions,
+                    displayName: processAndSaveForm.displayName,
+                    description: processAndSaveForm.description || undefined,
+                    tags: processAndSaveForm.tags || undefined
+                  });
+                }
+              }}
+              disabled={!processAndSaveForm.processingInstructions || !processAndSaveForm.displayName || processAndSaveMutation.isPending}
+              data-testid="button-confirm-process-and-save"
+            >
+              {processAndSaveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {processAndSaveMutation.isPending ? 'Processing...' : 'Apply AI & Save'}
             </Button>
           </DialogFooter>
         </DialogContent>

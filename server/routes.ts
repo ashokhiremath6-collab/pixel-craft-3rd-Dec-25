@@ -7342,6 +7342,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Process with AI and save directly to saved assets (without modifying original)
+  // This creates a new saved asset from the AI-processed result while keeping original unchanged
+  app.post("/api/object-assets/:id/process-and-save", requireAdmin, async (req, res) => {
+    try {
+      const asset = await storage.getObjectAsset(req.params.id);
+      if (!asset) {
+        return res.status(404).json({ error: "Object asset not found" });
+      }
+
+      const { processingInstructions, displayName, description, tags } = req.body;
+      
+      if (!processingInstructions || !processingInstructions.trim()) {
+        return res.status(400).json({ error: "Processing instructions are required" });
+      }
+
+      if (!displayName || !displayName.trim()) {
+        return res.status(400).json({ error: "Display name is required" });
+      }
+
+      // Download original file from object storage
+      const originalBuffer = await downloadObjectBuffer(asset.originalFilePath);
+
+      // Auto-rotate based on EXIF orientation
+      const sharp = (await import('sharp')).default;
+      const rotatedBuffer = await sharp(originalBuffer)
+        .rotate()
+        .jpeg({ quality: 95 })
+        .toBuffer();
+
+      const imageData = rotatedBuffer.toString('base64');
+      const mimeType = 'image/jpeg';
+
+      // Apply AI processing
+      const aiResult = await applyProcessingInstructions(
+        imageData,
+        mimeType,
+        processingInstructions,
+        asset.aiDescription || ''
+      );
+
+      if (!aiResult.processedData || !aiResult.dimensions) {
+        return res.status(500).json({ error: "AI processing failed - please try different instructions" });
+      }
+
+      // Upload processed image
+      const processedBuffer = Buffer.from(aiResult.processedData, 'base64');
+      const processedPath = await uploadToObjectStorage(
+        processedBuffer,
+        `saved_${Date.now()}_${asset.originalFileName}`,
+        asset.uploadedBy,
+        'image/png'
+      );
+
+      // Generate thumbnail
+      const thumbnailBuffer = await sharp(processedBuffer)
+        .resize(256, 256, { fit: 'cover' })
+        .png({ quality: 80 })
+        .toBuffer();
+      
+      const thumbnailPath = await uploadToObjectStorage(
+        thumbnailBuffer,
+        `saved_thumb_${Date.now()}_${asset.originalFileName}`,
+        asset.uploadedBy,
+        'image/png'
+      );
+
+      // Create saved asset
+      const savedAsset = await storage.createSavedAsset({
+        displayName: displayName.trim(),
+        description: description || asset.aiDescription,
+        tags: tags,
+        filePath: processedPath,
+        thumbnailPath: thumbnailPath,
+        sourceType: 'object_asset',
+        objectAssetId: asset.id,
+        aiPromptHints: asset.aiPromptHints,
+        createdBy: asset.uploadedBy
+      });
+
+      res.json({ 
+        message: 'Processed and saved successfully',
+        savedAsset 
+      });
+
+    } catch (error) {
+      console.error('Error in process-and-save:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to process and save" });
+    }
+  });
+
   // Save asset to catalogue
   app.post("/api/object-assets/:id/save-to-catalogue", requireAdmin, async (req, res) => {
     try {
