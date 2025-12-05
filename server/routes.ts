@@ -81,7 +81,10 @@ const requireAdmin = async (req: express.Request, res: express.Response, next: e
   try {
     const userId = (req.user as any).claims.sub;
     const userRole = await storage.getUserRole(userId);
-    if (!userRole || (userRole.role !== 'designer' && userRole.role !== 'admin')) {
+    // Normalize role to lowercase for case-insensitive comparison
+    const role = userRole?.role?.toLowerCase();
+    if (!userRole || (role !== 'designer' && role !== 'admin')) {
+      console.log(`🔒 Access denied for user ${userId}: role='${userRole?.role}' (normalized: '${role}')`);
       return res.status(403).json({ error: "Admin or designer access required" });
     }
     next();
@@ -100,7 +103,9 @@ const requireAdminOnly = async (req: express.Request, res: express.Response, nex
   try {
     const userId = (req.user as any).claims.sub;
     const userRole = await storage.getUserRole(userId);
-    if (!userRole || userRole.role !== 'admin') {
+    // Normalize role to lowercase for case-insensitive comparison
+    const role = userRole?.role?.toLowerCase();
+    if (!userRole || role !== 'admin') {
       return res.status(403).json({ error: "Admin access required" });
     }
     next();
