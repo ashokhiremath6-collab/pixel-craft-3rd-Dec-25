@@ -198,13 +198,14 @@ export default function DashboardPage() {
     return 'performed';
   };
 
-  // Calculate task alerts - Starting Today and Completion Countdown (5 days before)
+  // Calculate task alerts - Starting Today, Completion Countdown, and Overdue
   const getTaskAlerts = () => {
-    if (!allTasksData || !quotationsData) return { startingToday: [], completionCountdown: [] };
+    if (!allTasksData || !quotationsData) return { startingToday: [], completionCountdown: [], overdue: [] };
     
     const today = startOfDay(new Date());
     const startingToday: Array<Task & { projectName: string }> = [];
     const completionCountdown: Array<Task & { projectName: string, daysToGo: number }> = [];
+    const overdue: Array<Task & { projectName: string, daysOverdue: number }> = [];
     
     allTasksData.forEach(task => {
       // Skip PHASE, PACKAGE, and EXECUTE header rows - these are grouping headers, not actual tasks
@@ -237,12 +238,15 @@ export default function DashboardPage() {
         }
       }
       
-      // Check for completion countdown (5 days or less before end date)
+      // Check for completion countdown (5 days or less before end date) or overdue
       if (task.endDate) {
         const endDate = startOfDay(new Date(task.endDate));
         const daysToGo = differenceInDays(endDate, today);
         if (daysToGo >= 1 && daysToGo <= 5) {
           completionCountdown.push({ ...task, projectName, daysToGo });
+        } else if (daysToGo < 0) {
+          // Task is overdue
+          overdue.push({ ...task, projectName, daysOverdue: Math.abs(daysToGo) });
         }
       }
     });
@@ -250,11 +254,14 @@ export default function DashboardPage() {
     // Sort completion countdown by days remaining (ascending)
     completionCountdown.sort((a, b) => a.daysToGo - b.daysToGo);
     
-    return { startingToday, completionCountdown };
+    // Sort overdue by most overdue first (descending)
+    overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
+    
+    return { startingToday, completionCountdown, overdue };
   };
 
   const taskAlerts = getTaskAlerts();
-  const hasAlerts = taskAlerts.startingToday.length > 0 || taskAlerts.completionCountdown.length > 0;
+  const hasAlerts = taskAlerts.startingToday.length > 0 || taskAlerts.completionCountdown.length > 0 || taskAlerts.overdue.length > 0;
 
   return (
     <div className="space-y-4">
@@ -343,6 +350,51 @@ export default function DashboardPage() {
                         }`}
                       >
                         {task.daysToGo} day{task.daysToGo !== 1 ? 's' : ''}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Overdue Tasks */}
+            {taskAlerts.overdue.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="destructive" className="font-semibold">
+                    Overdue
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {taskAlerts.overdue.length} task{taskAlerts.overdue.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {taskAlerts.overdue.map(task => (
+                    <div
+                      key={task.id}
+                      className="flex items-center justify-between gap-3 p-3 rounded-md bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30"
+                      data-testid={`alert-overdue-${task.id}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm" data-testid={`text-task-name-${task.id}`}>
+                          <span className="truncate">{task.name}</span>
+                          <span className="text-red-700 dark:text-red-300 ml-2">
+                            - {task.daysOverdue} day{task.daysOverdue !== 1 ? 's' : ''} overdue
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          <span data-testid={`text-project-${task.id}`}>{task.projectName}</span>
+                          {task.endDate && (
+                            <>
+                              <span>•</span>
+                              <span>Due: {format(new Date(task.endDate), "MMM d, yyyy")}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <Badge variant="destructive" className="flex-shrink-0">
+                        {task.daysOverdue}d overdue
                       </Badge>
                     </div>
                   ))}

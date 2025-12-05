@@ -975,7 +975,10 @@ export default function GanttChartPage() {
       {selectedProjectId && tasks.length > 0 && (() => {
         // Helper functions for task table
         const isTaskOverdue = (task: Task) => {
+          // Check both status field AND progressPercentage (which is what the UI shows)
           if (task.status === 'completed') return false;
+          const progress = Number(task.progressPercentage || 0);
+          if (progress >= 100) return false; // Task is completed based on progress percentage
           if (!task.endDate) return false;
           // Skip placeholder dates (2099-12-31) used for header rows without real dates
           if (task.endDate === '2099-12-31') return false;
