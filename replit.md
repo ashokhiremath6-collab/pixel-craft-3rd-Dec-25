@@ -130,6 +130,23 @@ Preferred communication style: Simple, everyday language.
   - Reference items stored in reference_metadata column
   - Links to projects for organization
 
+### Asset Ingestion System
+- **Two-Mode Workflow**:
+  - **Analyze-Only Mode**: Default mode when no processing instructions provided
+    - Preserves original image unchanged
+    - Runs AI detection to get object type, description, and prompt hints
+    - Generates thumbnail for display
+    - Sets processedFilePath to null (original is not modified)
+    - Users can later add instructions and reprocess
+  - **AI-Edit Mode**: Activated when processing instructions provided
+    - Applies AI-based image editing using Gemini
+    - Creates new processed image file separate from original
+    - Supports instructions like "remove background", "center object", "increase brightness"
+    - Transparent version generated only when instructions include "transparent"
+    - On AI failure: Error thrown, status set to 'failed', no partial updates
+- **Error Handling**: AI edit failures throw errors to prevent confusion, status marked as 'failed'
+- **UI Feedback**: Clear distinction between analyzed vs processed states
+
 ### Saved Assets System
 - **Purpose**: Central repository for processed images that can be reused across AI renders
 - **Data Model**: savedAssets table with display name, description, tags, file paths, source type tracking

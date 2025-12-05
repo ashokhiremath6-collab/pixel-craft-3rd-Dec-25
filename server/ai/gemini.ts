@@ -1120,20 +1120,26 @@ export async function applyProcessingInstructions(
 ): Promise<{ processedData: string | null; dimensions: { width: number; height: number } | null }> {
   console.log("[AI Edit] Applying processing instructions:", instructions);
   
-  const prompt = `Edit this image according to these specific instructions:
+  const prompt = `You are an expert photo editor. Edit this image following EXACTLY these instructions:
 
+USER INSTRUCTIONS:
 ${instructions}
 
-This is an image of: ${objectDescription}
+CONTEXT: This is an image of: ${objectDescription}
 
-Important guidelines:
-- Apply ONLY the changes described in the instructions above
-- Maintain the integrity and quality of the original image
-- Keep the same subject/object in focus
-- Preserve important details while making the requested adjustments
-- Output a high-quality edited version of the image
+CRITICAL RULES - YOU MUST FOLLOW THESE PRECISELY:
+1. DO EXACTLY what the user requested - nothing more, nothing less
+2. If user says "remove background" → ONLY remove background, keep everything else identical
+3. If user says "crop to object" → ONLY crop, do not change colors or add effects
+4. If user says "adjust brightness" → ONLY adjust brightness, don't modify anything else
+5. PRESERVE the original image quality and resolution as much as possible
+6. DO NOT add any artistic effects, filters, or enhancements unless specifically requested
+7. DO NOT change colors, contrast, or saturation unless specifically requested
+8. DO NOT crop or resize unless specifically requested
+9. The output should look like a professional photo edit, not an AI-generated image
+10. Keep all original details, textures, and characteristics of the object
 
-Please create the edited image now.`;
+OUTPUT: Generate the edited image now, following the user's instructions precisely.`;
 
   try {
     // Use retry logic for AI editing

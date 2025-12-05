@@ -7040,7 +7040,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Import AI editing function
   const { applyProcessingInstructions } = await import("./ai/gemini");
 
-  // Background processing function
+  // Background processing function - supports two modes:
+  // 1. Analyze-only (no instructions): Just detect metadata, use original image
+  // 2. AI-edit mode (with instructions): Apply AI-based edits following user instructions
   async function processAssetInBackground(
     assetId: string, 
     buffer: Buffer, 
@@ -7067,7 +7069,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const imageData = rotatedBuffer.toString('base64');
       const correctedMimeType = 'image/jpeg'; // Use JPEG for AI analysis
 
-      // Step 1: Detect object type and get details
+      // Step 1: Detect object type and get details (always happens)
       const detection = await detectObjectInImage(imageData, correctedMimeType);
       const objectType = userObjectType || detection.objectType;
 
@@ -7077,8 +7079,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let processedBuffer: Buffer;
       let thumbnailBuffer: Buffer;
       let dimensions: { width: number; height: number };
+      let processedPath: string | null = null;
 
       // Check if user has provided processing instructions for AI-based editing
+      let aiEditingFailed = false;
+      
       if (processingInstructions && processingInstructions.trim()) {
         console.log('[Asset Processing] Using AI-based editing with instructions:', processingInstructions);
         
@@ -7095,43 +7100,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
           processedBuffer = Buffer.from(aiResult.processedData, 'base64');
           dimensions = aiResult.dimensions;
           console.log('[Asset Processing] AI editing successful');
-        } else {
-          // Fallback to standard processing if AI editing fails
-          console.log('[Asset Processing] AI editing failed, falling back to standard processing');
-          const standardResult = await processObjectImage(
-            rotatedBuffer,
-            objectType,
-            detection.boundingBox
+          
+          // Upload the AI-processed image
+          processedPath = await uploadToObjectStorage(
+            processedBuffer,
+            `processed_${asset.originalFileName}`,
+            asset.uploadedBy,
+            'image/png'
           );
-          processedBuffer = standardResult.processedBuffer;
-          dimensions = standardResult.dimensions;
+        } else {
+          // If AI editing fails, mark as failed so user knows
+          console.log('[Asset Processing] AI editing failed - will report error to user');
+          aiEditingFailed = true;
+          throw new Error('AI editing failed - please try again with different instructions');
         }
 
-        // Create thumbnail
+        // Create thumbnail from the processed image
         thumbnailBuffer = await sharp(processedBuffer)
           .resize(256, 256, { fit: 'cover' })
           .png({ quality: 80 })
           .toBuffer();
       } else {
-        // Step 2: Standard processing (crop, enhance) - using rotated buffer
-        const standardResult = await processObjectImage(
-          rotatedBuffer,
-          objectType,
-          detection.boundingBox
-        );
-        processedBuffer = standardResult.processedBuffer;
-        thumbnailBuffer = standardResult.thumbnailBuffer;
-        dimensions = standardResult.dimensions;
+        // ANALYZE-ONLY MODE: No processing instructions provided
+        // Keep the original image as-is, just get metadata and create thumbnail
+        console.log('[Asset Processing] Analyze-only mode - preserving original image');
+        
+        // Get dimensions from the rotated buffer
+        const metadata = await sharp(rotatedBuffer).metadata();
+        dimensions = { width: metadata.width || 0, height: metadata.height || 0 };
+        
+        // processedPath stays null - originalFilePath already contains the uploaded image
+        // We don't modify the image at all in analyze-only mode
+        processedBuffer = rotatedBuffer; // Only used for thumbnail generation
+        
+        // Create thumbnail from original image
+        thumbnailBuffer = await sharp(rotatedBuffer)
+          .resize(256, 256, { fit: 'cover' })
+          .png({ quality: 80 })
+          .toBuffer();
       }
 
-      // Step 3: Upload processed images to object storage
-      const processedPath = await uploadToObjectStorage(
-        processedBuffer,
-        `processed_${asset.originalFileName}`,
-        asset.uploadedBy,
-        'image/png'
-      );
-
+      // Upload thumbnail
       const thumbnailPath = await uploadToObjectStorage(
         thumbnailBuffer,
         `thumb_${asset.originalFileName}`,
@@ -7139,37 +7148,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'image/png'
       );
 
-      // Step 4: Try to generate transparent version (optional - may not always work)
+      // Step 4: Try to generate transparent version only if AI editing was used AND instructions included transparent
+      // This only runs in AI-edit mode (when processedPath is set), not in analyze-only mode
       let transparentPath: string | undefined;
-      try {
-        const processedBase64 = processedBuffer.toString('base64');
-        const transparentData = await generateTransparentVersion(processedBase64, 'image/png', detection.description);
-        if (transparentData) {
-          const transparentBuffer = Buffer.from(transparentData, 'base64');
-          transparentPath = await uploadToObjectStorage(
-            transparentBuffer,
-            `transparent_${asset.originalFileName}`,
-            asset.uploadedBy,
-            'image/png'
-          );
+      if (processedPath && processingInstructions && processingInstructions.toLowerCase().includes('transparent')) {
+        try {
+          const processedBase64 = processedBuffer.toString('base64');
+          const transparentData = await generateTransparentVersion(processedBase64, 'image/png', detection.description);
+          if (transparentData) {
+            const transparentBuffer = Buffer.from(transparentData, 'base64');
+            transparentPath = await uploadToObjectStorage(
+              transparentBuffer,
+              `transparent_${asset.originalFileName}`,
+              asset.uploadedBy,
+              'image/png'
+            );
+          }
+        } catch (e) {
+          console.log('Transparent version not generated:', e);
         }
-      } catch (e) {
-        console.log('Transparent version not generated:', e);
       }
 
       // Step 5: Update asset with all processing results
       // If preserveHints is provided (user edited), keep it; otherwise use AI-generated hints
-      await storage.updateObjectAssetProcessing(assetId, {
+      const updateData: any = {
         processingStatus: 'completed',
-        processedFilePath: processedPath,
         thumbnailPath: thumbnailPath,
-        transparentPath: transparentPath,
         detectedBounds: detection.boundingBox,
         dimensions: dimensions,
         aiDescription: detection.description,
         aiPromptHints: preserveHints || detection.aiPromptHints,
         processedAt: new Date(),
-      });
+      };
+      
+      // Only set processedFilePath if we actually processed the image (not analyze-only)
+      if (processedPath) {
+        updateData.processedFilePath = processedPath;
+      }
+      if (transparentPath) {
+        updateData.transparentPath = transparentPath;
+      }
+      
+      await storage.updateObjectAssetProcessing(assetId, updateData);
 
       // Also update the object type if it was detected
       if (!userObjectType) {
@@ -7187,6 +7207,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Process a pending asset (initial processing after upload)
+  // Body can include: { objectType?, processingInstructions? }
+  // If no processingInstructions provided, just analyzes the image without modifying it
   app.post("/api/object-assets/:id/process", requireAdmin, async (req, res) => {
     try {
       const asset = await storage.getObjectAsset(req.params.id);
@@ -7201,12 +7223,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Download original file from object storage
       const originalBuffer = await downloadObjectBuffer(asset.originalFilePath);
 
+      // Get processing instructions from request body
+      const processingInstructions = req.body.processingInstructions || undefined;
+
       // Update status to processing
       await storage.updateObjectAssetProcessing(asset.id, { 
         processingStatus: 'processing'
       });
 
-      res.json({ message: 'Processing started' });
+      const hasInstructions = !!processingInstructions;
+      res.json({ 
+        message: hasInstructions ? 'AI processing started with instructions' : 'Analysis started (original image preserved)',
+        mode: hasInstructions ? 'ai-edit' : 'analyze-only'
+      });
 
       // Start async processing
       const mimeType = asset.originalFileName.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
@@ -7214,7 +7243,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         asset.id, 
         originalBuffer, 
         mimeType, 
-        req.body.objectType
+        req.body.objectType,
+        undefined,
+        processingInstructions
       ).catch(error => {
         console.error('Processing failed:', error);
       });
@@ -7225,7 +7256,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Reprocess an asset (retry failed or update)
+  // Reprocess an asset (retry failed or update with new instructions)
+  // Body can include: { objectType?, processingInstructions? }
   app.post("/api/object-assets/:id/reprocess", requireAdmin, async (req, res) => {
     try {
       const asset = await storage.getObjectAsset(req.params.id);
@@ -7236,6 +7268,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Download original file from object storage
       const originalBuffer = await downloadObjectBuffer(asset.originalFilePath);
 
+      // Get processing instructions from request body (priority) or stored in asset
+      const processingInstructions = req.body.processingInstructions || (asset as any).processingInstructions || undefined;
+
       // Reset status, increment reprocess count, and start reprocessing
       const currentCount = asset.reprocessCount || 0;
       await storage.updateObjectAssetProcessing(asset.id, { 
@@ -7244,11 +7279,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         reprocessCount: currentCount + 1
       });
 
-      res.json({ message: 'Reprocessing started', reprocessCount: currentCount + 1 });
+      const hasInstructions = !!processingInstructions;
+      res.json({ 
+        message: hasInstructions ? 'Reprocessing started with AI instructions' : 'Reprocessing started (original image preserved)', 
+        reprocessCount: currentCount + 1,
+        mode: hasInstructions ? 'ai-edit' : 'analyze-only'
+      });
 
-      // Start async processing - preserve user-edited hints and use processing instructions if provided
+      // Start async processing - preserve user-edited hints
       const mimeType = asset.originalFileName.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-      const processingInstructions = (asset as any).processingInstructions || undefined;
       processAssetInBackground(
         asset.id, 
         originalBuffer, 

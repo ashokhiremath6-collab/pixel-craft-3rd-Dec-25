@@ -96,7 +96,7 @@ export default function AssetIngestionPage() {
       return response.json();
     },
     onSuccess: () => {
-      toast({ title: "Upload complete", description: "Click 'Process with AI' when ready to analyze the image." });
+      toast({ title: "Upload complete", description: "Click 'Analyze' to detect object type and get AI descriptions. Original image is preserved." });
       setUploadDialogOpen(false);
       setUploadFile(null);
       setUploadPreview(null);
@@ -109,11 +109,15 @@ export default function AssetIngestionPage() {
   });
 
   const processMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return apiRequest('POST', `/api/object-assets/${id}/process`);
+    mutationFn: async ({ id, processingInstructions }: { id: string; processingInstructions?: string }) => {
+      return apiRequest('POST', `/api/object-assets/${id}/process`, { processingInstructions });
     },
-    onSuccess: () => {
-      toast({ title: "Processing started", description: "AI is analyzing your image..." });
+    onSuccess: (_, variables) => {
+      const hasInstructions = !!variables.processingInstructions;
+      toast({ 
+        title: hasInstructions ? "AI Processing started" : "Analysis started", 
+        description: hasInstructions ? "AI is editing your image based on instructions..." : "Analyzing image metadata (original preserved)..." 
+      });
       queryClient.invalidateQueries({ queryKey: ['/api/object-assets'] });
     },
     onError: () => {
@@ -122,11 +126,15 @@ export default function AssetIngestionPage() {
   });
 
   const reprocessMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return apiRequest('POST', `/api/object-assets/${id}/reprocess`);
+    mutationFn: async ({ id, processingInstructions }: { id: string; processingInstructions?: string }) => {
+      return apiRequest('POST', `/api/object-assets/${id}/reprocess`, { processingInstructions });
     },
-    onSuccess: () => {
-      toast({ title: "Reprocessing started" });
+    onSuccess: (_, variables) => {
+      const hasInstructions = !!variables.processingInstructions;
+      toast({ 
+        title: hasInstructions ? "AI Reprocessing started" : "Reanalysis started",
+        description: hasInstructions ? "AI is editing your image based on instructions..." : "Reanalyzing image metadata (original preserved)..."
+      });
       queryClient.invalidateQueries({ queryKey: ['/api/object-assets'] });
     },
     onError: () => {
@@ -200,7 +208,7 @@ export default function AssetIngestionPage() {
   });
 
   const updateAssetMutation = useMutation({
-    mutationFn: async (data: { id: string; aiPromptHints?: string; userDescription?: string; objectType?: string }) => {
+    mutationFn: async (data: { id: string; aiPromptHints?: string; userDescription?: string; objectType?: string; processingInstructions?: string }) => {
       return apiRequest('PUT', `/api/object-assets/${data.id}`, data);
     },
     onSuccess: (updatedAsset: ObjectAsset, variables) => {
@@ -371,7 +379,7 @@ export default function AssetIngestionPage() {
                       className="w-full mt-2"
                       onClick={(e) => {
                         e.stopPropagation();
-                        processMutation.mutate(asset.id);
+                        processMutation.mutate({ id: asset.id });
                       }}
                       disabled={processMutation.isPending}
                       data-testid={`button-process-${asset.id}`}
@@ -383,8 +391,8 @@ export default function AssetIngestionPage() {
                         </>
                       ) : (
                         <>
-                          <RefreshCw className="w-3 h-3 mr-1" />
-                          Process with AI
+                          <Eye className="w-3 h-3 mr-1" />
+                          Analyze
                         </>
                       )}
                     </Button>
@@ -401,7 +409,7 @@ export default function AssetIngestionPage() {
           <DialogHeader>
             <DialogTitle>Upload Photo</DialogTitle>
             <DialogDescription>
-              Upload a photo of art, furniture, or any object. After uploading, click "Process with AI" to analyze and enhance the image.
+              Upload a photo of art, furniture, or any object. After uploading, click "Analyze" to detect the object type and get AI-generated descriptions. The original image is always preserved.
             </DialogDescription>
           </DialogHeader>
 
@@ -494,7 +502,7 @@ export default function AssetIngestionPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm mb-1 block">Original</Label>
+                  <Label className="text-sm mb-1 block">Original Image</Label>
                   <div className="aspect-square w-full rounded-lg bg-muted overflow-hidden">
                     <img 
                       src={selectedAsset.originalFilePath}
@@ -502,10 +510,15 @@ export default function AssetIngestionPage() {
                       className="w-full h-full object-contain"
                     />
                   </div>
+                  {selectedAsset.processingStatus === 'completed' && !selectedAsset.processedFilePath && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Analyzed only - original preserved. Add processing instructions and click "Apply AI Instructions" to modify.
+                    </p>
+                  )}
                 </div>
-                {selectedAsset.processedFilePath && (
+                {selectedAsset.processedFilePath ? (
                   <div>
-                    <Label className="text-sm mb-1 block">Processed</Label>
+                    <Label className="text-sm mb-1 block">AI Processed</Label>
                     {selectedAsset.reprocessCount > 0 && (
                       <Badge variant="secondary" className="text-xs mb-2 inline-flex">
                         <RefreshCw className={`w-3 h-3 mr-1 ${selectedAsset.processingStatus === 'processing' ? 'animate-spin' : ''}`} />
@@ -524,6 +537,13 @@ export default function AssetIngestionPage() {
                         alt="Processed"
                         className="w-full h-full object-contain"
                       />
+                    </div>
+                  </div>
+                ) : selectedAsset.processingStatus === 'processing' && (
+                  <div>
+                    <Label className="text-sm mb-1 block">Processing...</Label>
+                    <div className="aspect-square w-full rounded-lg bg-muted overflow-hidden flex items-center justify-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                     </div>
                   </div>
                 )}
@@ -550,8 +570,11 @@ export default function AssetIngestionPage() {
               )}
 
               <div>
-                <Label className="text-sm mb-1 block">Processing Instructions</Label>
-                <p className="text-xs text-muted-foreground mb-2">Enter instructions for AI to apply when reprocessing (e.g., "center the image", "increase brightness")</p>
+                <Label className="text-sm mb-1 block">AI Processing Instructions (Optional)</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Add instructions for AI to modify the image (e.g., "remove background", "center the object", "increase brightness"). 
+                  <strong> Leave empty to keep the original image unchanged.</strong> Click "Apply AI Instructions" to process.
+                </p>
                 {editingProcessingInstructions !== null ? (
                   <div className="space-y-2">
                     <Textarea
@@ -676,25 +699,39 @@ export default function AssetIngestionPage() {
             </Button>
             {selectedAsset?.processingStatus === 'pending' && (
               <Button 
-                onClick={() => processMutation.mutate(selectedAsset.id)}
+                onClick={() => processMutation.mutate({ id: selectedAsset.id })}
                 disabled={processMutation.isPending}
                 data-testid="button-process-asset"
               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${processMutation.isPending ? 'animate-spin' : ''}`} />
-                {processMutation.isPending ? 'Starting...' : 'Process with AI'}
+                <Eye className={`w-4 h-4 mr-2 ${processMutation.isPending ? 'animate-spin' : ''}`} />
+                {processMutation.isPending ? 'Starting...' : 'Analyze (Keep Original)'}
               </Button>
             )}
             {selectedAsset && (selectedAsset.processingStatus === 'failed' || selectedAsset.processingStatus === 'completed' || selectedAsset.processingStatus === 'processing') && (
-              <Button 
-                variant="outline"
-                onClick={() => reprocessMutation.mutate(selectedAsset.id)}
-                disabled={reprocessMutation.isPending || selectedAsset.processingStatus === 'processing'}
-                data-testid="button-reprocess-asset"
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${reprocessMutation.isPending || selectedAsset.processingStatus === 'processing' ? 'animate-spin' : ''}`} />
-                {selectedAsset.processingStatus === 'processing' ? 'Processing...' : 
-                 selectedAsset.processingStatus === 'failed' ? 'Retry Processing' : 'Reprocess'}
-              </Button>
+              <>
+                <Button 
+                  variant="outline"
+                  onClick={() => reprocessMutation.mutate({ id: selectedAsset.id })}
+                  disabled={reprocessMutation.isPending || selectedAsset.processingStatus === 'processing'}
+                  data-testid="button-reanalyze-asset"
+                >
+                  <Eye className={`w-4 h-4 mr-2 ${reprocessMutation.isPending || selectedAsset.processingStatus === 'processing' ? 'animate-spin' : ''}`} />
+                  {selectedAsset.processingStatus === 'processing' ? 'Processing...' : 'Reanalyze'}
+                </Button>
+                {(selectedAsset as any).processingInstructions && (
+                  <Button 
+                    onClick={() => reprocessMutation.mutate({ 
+                      id: selectedAsset.id, 
+                      processingInstructions: (selectedAsset as any).processingInstructions 
+                    })}
+                    disabled={reprocessMutation.isPending || selectedAsset.processingStatus === 'processing'}
+                    data-testid="button-reprocess-asset"
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${reprocessMutation.isPending || selectedAsset.processingStatus === 'processing' ? 'animate-spin' : ''}`} />
+                    {selectedAsset.processingStatus === 'processing' ? 'Processing...' : 'Apply AI Instructions'}
+                  </Button>
+                )}
+              </>
             )}
             {selectedAsset?.processingStatus === 'completed' && !selectedAsset.catalogueItemId && (
               <Button 
@@ -713,7 +750,7 @@ export default function AssetIngestionPage() {
                 Save to Catalogue
               </Button>
             )}
-            {selectedAsset?.processingStatus === 'completed' && selectedAsset.processedPath && (
+            {selectedAsset?.processingStatus === 'completed' && selectedAsset.processedFilePath && (
               <Button 
                 variant="secondary"
                 onClick={() => {
@@ -858,12 +895,12 @@ export default function AssetIngestionPage() {
             </Button>
             <Button 
               onClick={() => {
-                if (selectedAsset && savedAssetForm.displayName && selectedAsset.processedPath) {
+                if (selectedAsset && savedAssetForm.displayName && selectedAsset.processedFilePath) {
                   saveToSavedAssetsMutation.mutate({
                     displayName: savedAssetForm.displayName,
                     description: savedAssetForm.description || undefined,
                     tags: savedAssetForm.tags || undefined,
-                    filePath: selectedAsset.processedPath,
+                    filePath: selectedAsset.processedFilePath,
                     thumbnailPath: selectedAsset.thumbnailPath || undefined,
                     objectAssetId: selectedAsset.id,
                     aiPromptHints: selectedAsset.aiPromptHints || undefined
