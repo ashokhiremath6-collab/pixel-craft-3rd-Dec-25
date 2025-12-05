@@ -19,6 +19,7 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { RENDER_STYLES, generateInteriorRender, generateConceptRender, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
+import { inpaintImage, searchAndReplace } from "./ai/stability";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
@@ -4378,6 +4379,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('Error generating AI render:', error);
       res.status(500).json({ error: error.message || "Failed to generate render" });
+    }
+  });
+
+  // Precision inpainting endpoint - uses Stability AI for mask-based editing
+  // Extended timeout for AI generation (5 minutes)
+  app.post("/api/ai-renders/inpaint", requireAdmin, uploadAIRender.single('image'), async (req, res) => {
+    req.setTimeout(300000);
+    res.setTimeout(300000);
+    
+    try {
+      const imageFile = req.file;
+      
+      if (!imageFile) {
+        return res.status(400).json({ error: "No image uploaded" });
+      }
+
+      const { maskData, prompt, negativePrompt, searchPrompt } = req.body;
+      
+      if (!prompt) {
+        return res.status(400).json({ error: "Prompt is required" });
+      }
+
+      // Check if STABILITY_API_KEY is configured
+      if (!process.env.STABILITY_API_KEY) {
+        return res.status(400).json({ 
+          error: "Stability AI is not configured. Please add STABILITY_API_KEY in the Secrets tab to use Precision Edit mode.",
+          needsApiKey: true
+        });
+      }
+      
+      const imageBase64 = imageFile.buffer.toString('base64');
+      const mimeType = imageFile.mimetype;
+      
+      let result;
+      
+      if (maskData) {
+        // Mask-based inpainting
+        console.log("[Inpaint] Using mask-based inpainting");
+        result = await inpaintImage(
+          imageBase64,
+          mimeType,
+          maskData,
+          prompt,
+          negativePrompt
+        );
+      } else if (searchPrompt) {
+        // Search and replace mode (auto-detect what to change)
+        console.log("[Inpaint] Using search-and-replace mode");
+        result = await searchAndReplace(
+          imageBase64,
+          mimeType,
+          searchPrompt,
+          prompt
+        );
+      } else {
+        return res.status(400).json({ error: "Either maskData or searchPrompt is required" });
+      }
+      
+      res.json({
+        success: true,
+        imageData: result.imageData,
+        mimeType: result.mimeType
+      });
+    } catch (error: any) {
+      console.error('Error in precision inpaint:', error);
+      res.status(500).json({ error: error.message || "Failed to process inpaint request" });
     }
   });
 
