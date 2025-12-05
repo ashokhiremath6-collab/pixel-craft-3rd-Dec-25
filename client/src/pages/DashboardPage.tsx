@@ -208,6 +208,11 @@ export default function DashboardPage() {
     const overdue: Array<Task & { projectName: string, daysOverdue: number }> = [];
     
     allTasksData.forEach(task => {
+      // Skip completed tasks (check both status field AND progressPercentage to match GanttChartPage)
+      if (task.status === 'completed') return;
+      const progress = Number(task.progressPercentage) || 0;
+      if (progress >= 100) return;
+      
       // Skip PHASE, PACKAGE, and EXECUTE header rows - these are grouping headers, not actual tasks
       const taskName = task.name?.toUpperCase() || '';
       if (taskName.startsWith('PHASE') || taskName.startsWith('PACKAGE') || taskName.startsWith('EXECUTE')) return;
@@ -215,19 +220,8 @@ export default function DashboardPage() {
       // Skip tasks with placeholder dates (2099-12-31) used for header rows without real dates
       if (task.startDate === '2099-12-31' || task.endDate === '2099-12-31') return;
       
-      // Skip rows where startDate = endDate and duration is null (likely header rows without real dates)
-      if (task.startDate && task.endDate && !task.duration) {
-        const startDate = startOfDay(new Date(task.startDate));
-        const endDate = startOfDay(new Date(task.endDate));
-        if (differenceInDays(endDate, startDate) === 0) return;
-      }
-      
       const project = quotationsData.projects.find(p => p.id === task.projectId);
       const projectName = project?.projectName || 'Unknown Project';
-      
-      // Skip tasks that have been manually marked as complete
-      const progress = Number(task.progressPercentage) || 0;
-      if (progress >= 100) return;
       
       // Check for tasks starting today
       if (task.startDate) {
