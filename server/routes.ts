@@ -3951,6 +3951,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all moodboards (with optional project and assetType filters)
   app.get("/api/moodboards", requireAuth, async (req, res) => {
     try {
+      // Prevent browser caching to ensure fresh data after saves
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      
       const userId = (req.user as any).claims.sub;
       const userRole = await storage.getUserRole(userId);
       const { projectId, assetType } = req.query;
@@ -3960,8 +3965,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If no role found, treat as 'client' (users without designer/admin role)
       const role = userRole?.role || 'client';
       
+      console.log('[Moodboards Fetch] Query params:', { projectId: validProjectId, assetType: validAssetType, role });
+      
       // Use role-based helper method for consistent access control
       const moodboards = await storage.getMoodboardsForUser(userId, role, validProjectId, validAssetType);
+      
+      console.log('[Moodboards Fetch] Returning', moodboards.length, 'moodboards');
+      if (validAssetType === 'render') {
+        console.log('[Moodboards Fetch] Render IDs:', moodboards.map(m => ({ id: m.id, name: m.name, assetType: m.assetType })).slice(0, 5));
+      }
+      
       res.json(moodboards);
     } catch (error) {
       console.error('Error fetching moodboards:', error);
@@ -4506,7 +4519,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         referenceMetadata: referenceMetadataForStorage,
       };
 
+      console.log('[AI Render Save] Creating moodboard with data:', {
+        projectId: moodboardData.projectId,
+        assetType: moodboardData.assetType,
+        name: moodboardData.name,
+        fileName: moodboardData.fileName,
+        roomType: moodboardData.roomType,
+      });
+      
       const moodboard = await storage.createMoodboard(moodboardData);
+      
+      console.log('[AI Render Save] Moodboard created successfully:', {
+        id: moodboard.id,
+        assetType: moodboard.assetType,
+        name: moodboard.name,
+      });
 
       // Log activity with structured metadata for reference items
       const user = await storage.getUser(userId);
