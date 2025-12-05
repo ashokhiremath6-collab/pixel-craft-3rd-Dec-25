@@ -518,10 +518,49 @@ export async function generateInteriorRender(
 
     let prompt: string;
     
-    if (customPrompt && customPrompt.trim()) {
-      // Check if there are reference photos to add special handling
-      const hasReferencePhotos = referencePhotos && referencePhotos.length > 0;
+    // Check if there are reference photos to add special handling
+    const hasReferencePhotos = referencePhotos && referencePhotos.length > 0;
+    const hasReferenceItems = referenceItems && referenceItems.length > 0;
+    
+    // IMPORTANT: When reference items (catalogue assets) are present, ALWAYS use surgical mode
+    // This ensures the room stays intact and only the specified items are added/changed
+    if (hasReferenceItems) {
+      console.log("[Gemini] Using ASSET INSERTION mode - preserving room while adding catalogue items");
       
+      // Build a description of what items are being inserted
+      const itemList = referenceItems.map((item, i) => 
+        `${i + 1}. ${item.name} - ${item.placementInstruction}`
+      ).join('\n');
+      
+      prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text.
+
+You are performing PRECISE ASSET INSERTION into this room. Your job is to ADD the specified catalogue items while keeping EVERYTHING ELSE in the room EXACTLY the same.
+
+ITEMS TO INSERT:
+${itemList}
+
+${referenceInstructions}
+
+⚠️ ABSOLUTE PRESERVATION RULES - DO NOT VIOLATE:
+1. PRESERVE EXACTLY: The room layout, walls, floors, ceiling, windows, doors - NO CHANGES
+2. PRESERVE EXACTLY: ALL existing furniture that is NOT being replaced - same positions, colors, styles
+3. PRESERVE EXACTLY: ALL decorations, rugs, plants, lighting fixtures NOT mentioned - NO CHANGES
+4. PRESERVE EXACTLY: Camera angle, perspective, lighting conditions, and overall composition
+5. The ONLY visual difference should be the newly inserted items at their specified locations
+6. DO NOT redesign the room
+7. DO NOT change the style of existing furniture
+8. DO NOT add items that weren't specified
+9. DO NOT remove any existing items unless specifically told to replace them
+
+HOW TO INSERT ITEMS:
+- Look at the reference image for each item to match its exact appearance, color, and style
+- Place each item EXACTLY where the placement instruction indicates
+- Scale items appropriately for the room
+- Match the room's lighting and perspective so items look natural
+${customPrompt ? `\nADDITIONAL USER NOTES: ${customPrompt}` : ''}
+
+OUTPUT: Generate the SAME room with ONLY the specified items added. Everything else must remain IDENTICAL to the input image.`;
+    } else if (customPrompt && customPrompt.trim()) {
       // Detect if user wants minimal/surgical changes (preserve everything else)
       const lowerPrompt = customPrompt.toLowerCase();
       const wantsMinimalChanges = 
@@ -597,20 +636,6 @@ STYLE TO APPLY: ${style.prompt}
 Keep the same room layout but update furniture, materials, lighting, and decor to match the ${style.name} aesthetic.${referenceInstructions}
 
 OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with sharp textures, professional lighting, and realistic materials.`;
-    } else if (referenceItems && referenceItems.length > 0) {
-      // Reference items only mode
-      prompt = `CRITICAL: You MUST generate an image. Do NOT respond with text.
-
-Modify this interior image by inserting the following items:
-${referenceInstructions}
-
-RULES:
-- Insert each item according to its placement instruction
-- Match reference image appearances closely
-- Maintain realistic lighting and perspective
-- Blend new items naturally with the existing room
-
-OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image.`;
     } else {
       throw new Error("Either a style, custom prompt, or reference items must be provided");
     }
