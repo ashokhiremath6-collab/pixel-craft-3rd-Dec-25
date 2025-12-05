@@ -54,11 +54,20 @@ export default function VendorsPage() {
         description: "Vendor deleted successfully",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Failed to delete vendor:', error);
+      // Extract server error message - format is "400: {\"error\":\"message\"}"
+      let errorMessage = "Failed to delete vendor. Please try again.";
+      try {
+        const match = error?.message?.match(/\d+:\s*(.+)/);
+        if (match) {
+          const jsonPart = JSON.parse(match[1]);
+          errorMessage = jsonPart.error || errorMessage;
+        }
+      } catch { /* use default message */ }
       toast({
-        title: "Error", 
-        description: "Failed to delete vendor. Please try again.",
+        title: "Cannot Delete Vendor", 
+        description: errorMessage,
         variant: "destructive",
       });
     },

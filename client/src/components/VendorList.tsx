@@ -264,11 +264,20 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
         description: "Vendor created successfully",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Failed to create vendor:', error);
+      // Extract server error message - format is "400: {\"error\":\"message\"}"
+      let errorMessage = "Failed to create vendor. Please try again.";
+      try {
+        const match = error?.message?.match(/\d+:\s*(.+)/);
+        if (match) {
+          const jsonPart = JSON.parse(match[1]);
+          errorMessage = jsonPart.error || errorMessage;
+        }
+      } catch { /* use default message */ }
       toast({
-        title: "Error",
-        description: "Failed to create vendor. Please try again.",
+        title: "Cannot Create Vendor",
+        description: errorMessage,
         variant: "destructive",
       });
     },
