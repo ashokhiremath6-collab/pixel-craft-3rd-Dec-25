@@ -521,10 +521,9 @@ export default function AIRendersPage() {
         item.id === id 
           ? { 
               ...item, 
-              gridPosition: { row, col, label },
-              placementInstruction: item.placementInstruction 
-                ? `${item.placementInstruction} (position: ${label})`
-                : `Place in the ${label}`
+              gridPosition: { row, col, label }
+              // Don't modify placementInstruction - grid position is stored separately
+              // and will be formatted at request time
             } 
           : item
       )
@@ -538,13 +537,19 @@ export default function AIRendersPage() {
   };
 
   const openPlacementPicker = (itemId: string) => {
-    if (!previewUrl) {
+    // Check if we have an image to show in the placement picker
+    if (!previewUrl && !selectedFile) {
       toast({
-        title: "No Image",
-        description: "Please select a source image first to set placement position",
+        title: "No Image Selected",
+        description: "Please select or upload a source image first to set placement position",
         variant: "destructive"
       });
       return;
+    }
+    // If we have a file but no previewUrl, create one
+    if (!previewUrl && selectedFile) {
+      const url = URL.createObjectURL(selectedFile);
+      setPreviewUrl(url);
     }
     setPlacementPickerItemId(itemId);
     setShowPlacementPicker(true);
@@ -1069,24 +1074,35 @@ export default function AIRendersPage() {
       return;
     }
 
+    // Items are valid if they have either text instruction or grid position
     const validReferenceItems = referenceItems.filter(item => 
-      item.placementInstruction && item.placementInstruction.trim()
+      (item.placementInstruction && item.placementInstruction.trim()) || item.gridPosition
     );
 
     if (referenceItems.length > 0 && validReferenceItems.length < referenceItems.length) {
       toast({ 
         title: "Missing Instructions", 
-        description: "Please add placement instructions for all reference items",
+        description: "Please add placement instructions or select a grid position for all reference items",
         variant: "destructive" 
       });
       return;
     }
     
+    // Format reference items with grid position for the API call
+    const formattedReferenceItems = validReferenceItems.map(item => ({
+      ...item,
+      placementInstruction: item.gridPosition 
+        ? (item.placementInstruction 
+            ? `${item.placementInstruction} (position: ${item.gridPosition.label})`
+            : `Place in the ${item.gridPosition.label}`)
+        : item.placementInstruction || 'Place naturally in the scene',
+    }));
+    
     generateFromImageMutation.mutate({
       file: selectedFile,
       styleId: selectedStyle,
       customPrompt: customPrompt || undefined,
-      referenceItems: validReferenceItems.length > 0 ? validReferenceItems : undefined,
+      referenceItems: formattedReferenceItems.length > 0 ? formattedReferenceItems : undefined,
       referencePhotos: referencePhotos.length > 0 ? referencePhotos : undefined,
     });
   };
@@ -1137,7 +1153,12 @@ export default function AIRendersPage() {
         description: item.description,
         aiPromptHints: item.aiPromptHints,
         imagePath: item.imagePath,
-        placementInstruction: item.placementInstruction,
+        // Format placement instruction with grid position at request time
+        placementInstruction: item.gridPosition 
+          ? (item.placementInstruction 
+              ? `${item.placementInstruction} (position: ${item.gridPosition.label})`
+              : `Place in the ${item.gridPosition.label}`)
+          : item.placementInstruction || 'Place naturally in the scene',
       })),
     });
   };
