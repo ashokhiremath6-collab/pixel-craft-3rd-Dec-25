@@ -648,7 +648,7 @@ export default function AIRendersPage() {
         id: asset.id || Date.now().toString(),
         name: asset.displayName,
         category: 'Saved Assets',
-        subcategory: asset.tags?.join(', ') || '',
+        subcategory: '',
         vendorBrand: undefined,
         description: asset.description || undefined,
         aiPromptHints: asset.aiPromptHints || undefined,
@@ -1507,42 +1507,15 @@ export default function AIRendersPage() {
                         size="sm"
                         onClick={() => referencePhotoInputRef.current?.click()}
                         disabled={referencePhotos.length >= 5}
-                        data-testid="button-add-inspiration-photo"
+                        data-testid="button-add-reference-photo"
                       >
                         <ImagePlus className="h-4 w-4 mr-1" />
-                        Inspiration
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const input = document.createElement('input');
-                          input.type = 'file';
-                          input.accept = 'image/*';
-                          input.multiple = true;
-                          input.onchange = (e) => handleReferencePhotoUpload(e as any, 'existing_space');
-                          input.click();
-                        }}
-                        disabled={referencePhotos.length >= 5}
-                        data-testid="button-add-existing-photo"
-                      >
-                        <Camera className="h-4 w-4 mr-1" />
-                        Existing
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowAssetPicker(true)}
-                        disabled={referencePhotos.length >= 5}
-                        data-testid="button-add-saved-asset"
-                      >
-                        <FolderOpen className="h-4 w-4 mr-1" />
-                        Saved Assets
+                        Add Photo
                       </Button>
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Add inspiration photos, existing space photos, or select from your saved assets
+                    Add reference photos to guide the AI render generation
                   </p>
                   
                   {referencePhotos.length === 0 ? (
