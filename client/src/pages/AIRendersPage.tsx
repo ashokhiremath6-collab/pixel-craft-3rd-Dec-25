@@ -93,7 +93,7 @@ interface ReferencePhoto {
   id: string;
   file: File;
   previewUrl: string;
-  type: 'inspiration' | 'existing_space';
+  type: 'existing_space';
   description: string;
 }
 
@@ -120,7 +120,6 @@ export default function AIRendersPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   
   const [referencePhotos, setReferencePhotos] = useState<ReferencePhoto[]>([]);
-  const referencePhotoInputRef = useRef<HTMLInputElement>(null);
   
   const [showAssetPicker, setShowAssetPicker] = useState(false);
   const [showAssetPickerForMaterials, setShowAssetPickerForMaterials] = useState(false);
@@ -486,7 +485,7 @@ export default function AIRendersPage() {
     );
   };
 
-  const handleReferencePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, photoType: 'inspiration' | 'existing_space') => {
+  const handleReferencePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, photoType: 'existing_space') => {
     const files = e.target.files;
     if (!files) return;
 
@@ -530,9 +529,8 @@ export default function AIRendersPage() {
       });
     }
 
-    if (referencePhotoInputRef.current) {
-      referencePhotoInputRef.current.value = '';
-    }
+    // Reset input value via event target
+    e.target.value = '';
   };
 
   const removeReferencePhoto = (id: string) => {
@@ -588,7 +586,7 @@ export default function AIRendersPage() {
         id: Date.now().toString(),
         file,
         previewUrl,
-        type: 'inspiration',
+        type: 'existing_space',
         description: asset.description || asset.displayName
       };
 
@@ -1016,9 +1014,6 @@ export default function AIRendersPage() {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-    if (referencePhotoInputRef.current) {
-      referencePhotoInputRef.current.value = "";
-    }
   };
 
   const getCatalogueItemImageUrl = (item: CatalogueItem) => {
@@ -1147,7 +1142,7 @@ export default function AIRendersPage() {
                   <Textarea
                     id="custom-prompt"
                     placeholder="Describe specific changes you want, e.g.:
-• Replace the sofa with the one from the inspiration photo
+• Replace the sofa with the one from the reference photo
 • Change the coffee table to a round marble one
 • Add a floor lamp in the corner"
                     value={customPrompt}
@@ -1244,25 +1239,6 @@ export default function AIRendersPage() {
                       <Badge variant="outline" className="text-xs">{referencePhotos.length}/5</Badge>
                     </div>
                     <div className="flex gap-1">
-                      <input
-                        type="file"
-                        ref={referencePhotoInputRef}
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => handleReferencePhotoUpload(e, 'inspiration')}
-                        data-testid="input-reference-photos"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => referencePhotoInputRef.current?.click()}
-                        disabled={referencePhotos.length >= 5}
-                        data-testid="button-add-inspiration-photo"
-                      >
-                        <ImagePlus className="h-4 w-4 mr-1" />
-                        Inspiration
-                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -1293,7 +1269,7 @@ export default function AIRendersPage() {
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Add inspiration photos, existing space photos, or select from your saved assets
+                    Add existing space photos or select from your saved assets
                   </p>
                   
                   {referencePhotos.length === 0 ? (
@@ -1312,9 +1288,9 @@ export default function AIRendersPage() {
                             />
                             <Badge 
                               className="absolute -top-1 -left-1 text-[10px] px-1 py-0"
-                              variant={photo.type === 'inspiration' ? 'default' : 'secondary'}
+                              variant="secondary"
                             >
-                              {photo.type === 'inspiration' ? 'Insp' : 'Exist'}
+                              Ref
                             </Badge>
                           </div>
                           <div className="flex-1 flex flex-col min-w-0">
