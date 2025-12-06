@@ -52,6 +52,12 @@ import {
   RotateCcw
 } from "lucide-react";
 
+interface GridPosition {
+  row: number;
+  col: number;
+  label: string; // e.g., "center", "top-left", "bottom-right"
+}
+
 interface ReferenceItem {
   id: string;
   name: string;
@@ -61,6 +67,7 @@ interface ReferenceItem {
   description?: string;
   aiPromptHints?: string;
   placementInstruction: string;
+  gridPosition?: GridPosition;
   imageData?: string;
   imageMimeType?: string;
   imagePath?: string;
@@ -141,6 +148,9 @@ export default function AIRendersPage() {
   const [maskData, setMaskData] = useState<string | null>(null);
   const [precisionPrompt, setPrecisionPrompt] = useState("");
   const [searchObject, setSearchObject] = useState("");
+  
+  const [showPlacementPicker, setShowPlacementPicker] = useState(false);
+  const [placementPickerItemId, setPlacementPickerItemId] = useState<string | null>(null);
   
   const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -490,6 +500,54 @@ export default function AIRendersPage() {
         item.id === id ? { ...item, placementInstruction: instruction } : item
       )
     );
+  };
+
+  // Get descriptive label for 3x3 grid position
+  const getGridPositionLabel = (row: number, col: number): string => {
+    const rowLabels = ['top', 'center', 'bottom'];
+    const colLabels = ['left', 'center', 'right'];
+    const rowLabel = rowLabels[row] || 'center';
+    const colLabel = colLabels[col] || 'center';
+    if (rowLabel === 'center' && colLabel === 'center') return 'center of the room';
+    if (rowLabel === 'center') return `${colLabel} side of the room`;
+    if (colLabel === 'center') return `${rowLabel} area of the room`;
+    return `${rowLabel}-${colLabel} area of the room`;
+  };
+
+  const updateReferenceGridPosition = (id: string, row: number, col: number) => {
+    const label = getGridPositionLabel(row, col);
+    setReferenceItems(prev => 
+      prev.map(item => 
+        item.id === id 
+          ? { 
+              ...item, 
+              gridPosition: { row, col, label },
+              placementInstruction: item.placementInstruction 
+                ? `${item.placementInstruction} (position: ${label})`
+                : `Place in the ${label}`
+            } 
+          : item
+      )
+    );
+    setShowPlacementPicker(false);
+    setPlacementPickerItemId(null);
+    toast({
+      title: "Position Set",
+      description: `Item will be placed in the ${label}`
+    });
+  };
+
+  const openPlacementPicker = (itemId: string) => {
+    if (!previewUrl) {
+      toast({
+        title: "No Image",
+        description: "Please select a source image first to set placement position",
+        variant: "destructive"
+      });
+      return;
+    }
+    setPlacementPickerItemId(itemId);
+    setShowPlacementPicker(true);
   };
 
   const handleReferencePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, photoType: 'inspiration' | 'existing_space') => {
@@ -1470,13 +1528,30 @@ export default function AIRendersPage() {
                                 </Button>
                               </div>
                               <span className="text-xs text-muted-foreground">{item.category}</span>
-                              <Input
-                                placeholder="Placement instruction (e.g., 'on the main floor area')"
-                                value={item.placementInstruction}
-                                onChange={(e) => updateReferenceInstruction(item.id, e.target.value)}
-                                className="mt-1 h-7 text-xs"
-                                data-testid={`input-placement-${item.id}`}
-                              />
+                              <div className="flex items-center gap-1 mt-1">
+                                <Input
+                                  placeholder="Placement instruction"
+                                  value={item.placementInstruction}
+                                  onChange={(e) => updateReferenceInstruction(item.id, e.target.value)}
+                                  className="h-7 text-xs flex-1"
+                                  data-testid={`input-placement-${item.id}`}
+                                />
+                                <Button
+                                  variant={item.gridPosition ? "default" : "outline"}
+                                  size="icon"
+                                  className="h-7 w-7 shrink-0"
+                                  onClick={() => openPlacementPicker(item.id)}
+                                  title="Set precise position on grid"
+                                  data-testid={`button-grid-position-${item.id}`}
+                                >
+                                  <Grid3X3 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              {item.gridPosition && (
+                                <span className="text-xs text-primary mt-0.5 block">
+                                  Position: {item.gridPosition.label}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1599,6 +1674,43 @@ export default function AIRendersPage() {
                 </p>
               )}
             </div>
+
+            {/* Generation Preview Summary */}
+            {(referenceItems.length > 0 || referencePhotos.length > 0) && selectedStyle && (
+              <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg space-y-2">
+                <div className="flex items-center gap-2">
+                  <Wand2 className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Generation Preview</span>
+                </div>
+                
+                {referenceItems.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">Items to Insert:</p>
+                    {referenceItems.map((item) => (
+                      <div key={item.id} className="flex items-center gap-2 text-xs">
+                        <Check className="h-3 w-3 text-primary" />
+                        <span className="font-medium">{item.name}</span>
+                        {item.gridPosition && (
+                          <Badge variant="outline" className="text-[10px] h-5">
+                            {item.gridPosition.label}
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {referencePhotos.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">Reference Photos: {referencePhotos.length}</p>
+                  </div>
+                )}
+                
+                <p className="text-xs text-muted-foreground">
+                  Style: <span className="font-medium">{styles.find(s => s.id === selectedStyle)?.name}</span>
+                </p>
+              </div>
+            )}
 
             <div className="flex gap-2">
               {isGenerating ? (
@@ -2339,6 +2451,88 @@ export default function AIRendersPage() {
         title="Select Reference Material"
         description="Choose furniture, finishes, or materials from your saved assets"
       />
+
+      {/* Grid Placement Picker Dialog */}
+      <Dialog open={showPlacementPicker} onOpenChange={(open) => {
+        setShowPlacementPicker(open);
+        if (!open) setPlacementPickerItemId(null);
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Grid3X3 className="h-5 w-5" />
+              Select Placement Position
+            </DialogTitle>
+            <DialogDescription>
+              Click on the grid to specify where this item should be placed in the render
+            </DialogDescription>
+          </DialogHeader>
+          
+          {previewUrl && placementPickerItemId && (
+            <div className="space-y-4">
+              {/* Show item being placed */}
+              {(() => {
+                const item = referenceItems.find(i => i.id === placementPickerItemId);
+                if (!item) return null;
+                return (
+                  <div className="flex items-center gap-3 p-2 bg-muted rounded-lg">
+                    {item.imagePath && (
+                      <img src={item.imagePath} alt={item.name} className="w-10 h-10 object-cover rounded" />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.category}</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Grid overlay on source image */}
+              <div className="relative w-full aspect-[4/3] bg-muted rounded-lg overflow-hidden">
+                <img
+                  src={previewUrl}
+                  alt="Source"
+                  className="absolute inset-0 w-full h-full object-contain"
+                />
+                
+                {/* 3x3 Grid Overlay */}
+                <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
+                  {[0, 1, 2].map(row => (
+                    [0, 1, 2].map(col => {
+                      const currentItem = referenceItems.find(i => i.id === placementPickerItemId);
+                      const isCurrentPosition = currentItem?.gridPosition?.row === row && currentItem?.gridPosition?.col === col;
+                      const label = getGridPositionLabel(row, col);
+                      
+                      return (
+                        <button
+                          key={`${row}-${col}`}
+                          onClick={() => updateReferenceGridPosition(placementPickerItemId, row, col)}
+                          className={`
+                            border border-white/30 hover:bg-primary/40 transition-colors
+                            flex items-center justify-center text-white text-xs font-medium
+                            ${isCurrentPosition ? 'bg-primary/60 border-primary' : 'hover:border-white/60'}
+                          `}
+                          title={`Place in ${label}`}
+                          data-testid={`grid-cell-${row}-${col}`}
+                        >
+                          <span className="bg-black/50 px-2 py-1 rounded text-[10px] leading-tight text-center">
+                            {label.split(' ').slice(0, 2).join(' ')}
+                            {isCurrentPosition && <Check className="inline-block h-3 w-3 ml-1" />}
+                          </span>
+                        </button>
+                      );
+                    })
+                  ))}
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground text-center">
+                Click a cell to set the placement position. The AI will attempt to place the item in that area of the room.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
