@@ -1392,7 +1392,7 @@ export default function AIRendersPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="custom-prompt">Custom Instructions (Optional)</Label>
+                  <Label htmlFor="custom-prompt">Custom Instructions</Label>
                   <Textarea
                     id="custom-prompt"
                     placeholder="Describe specific changes you want, e.g.:
