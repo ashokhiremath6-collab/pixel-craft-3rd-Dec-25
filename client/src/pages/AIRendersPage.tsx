@@ -1734,35 +1734,21 @@ export default function AIRendersPage() {
                         
                         {/* Display modify reference items */}
                         {modifyReferenceItems.length > 0 && (
-                          <div className="space-y-1">
+                          <div className="flex flex-wrap gap-1">
                             {modifyReferenceItems.map((item) => (
-                              <div key={item.id} className="bg-background rounded-md border p-2 text-xs">
-                                <div className="flex items-start gap-2">
-                                  {item.imagePath && (
-                                    <img src={item.imagePath} alt={item.name} className="w-10 h-10 object-cover rounded" />
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium truncate">{item.name}</p>
-                                    <Input
-                                      placeholder="Where to place this?"
-                                      value={item.placementInstruction}
-                                      onChange={(e) => {
-                                        setModifyReferenceItems(items =>
-                                          items.map(i => i.id === item.id ? { ...i, placementInstruction: e.target.value } : i)
-                                        );
-                                      }}
-                                      className="h-6 text-xs mt-1"
-                                    />
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-5 w-5"
-                                    onClick={() => setModifyReferenceItems(items => items.filter(i => i.id !== item.id))}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </div>
+                              <div key={item.id} className="flex items-center gap-1 bg-background rounded border px-2 py-1">
+                                {item.imagePath && (
+                                  <img src={item.imagePath} alt={item.name} className="w-6 h-6 object-cover rounded" />
+                                )}
+                                <span className="text-xs truncate max-w-[80px]">{item.name}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-4 w-4"
+                                  onClick={() => setModifyReferenceItems(items => items.filter(i => i.id !== item.id))}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
                               </div>
                             ))}
                           </div>
@@ -1770,36 +1756,22 @@ export default function AIRendersPage() {
                         
                         {/* Display modify reference photos */}
                         {modifyReferencePhotos.length > 0 && (
-                          <div className="space-y-1">
+                          <div className="flex flex-wrap gap-1">
                             {modifyReferencePhotos.map((photo) => (
-                              <div key={photo.id} className="bg-background rounded-md border p-2 text-xs">
-                                <div className="flex items-start gap-2">
-                                  <img src={photo.previewUrl} alt="Reference" className="w-10 h-10 object-cover rounded" />
-                                  <div className="flex-1 min-w-0">
-                                    <Badge variant="secondary" className="text-xs mb-1">Ref</Badge>
-                                    <Input
-                                      placeholder="Describe this reference..."
-                                      value={photo.description}
-                                      onChange={(e) => {
-                                        setModifyReferencePhotos(photos =>
-                                          photos.map(p => p.id === photo.id ? { ...p, description: e.target.value } : p)
-                                        );
-                                      }}
-                                      className="h-6 text-xs"
-                                    />
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-5 w-5"
-                                    onClick={() => {
-                                      URL.revokeObjectURL(photo.previewUrl);
-                                      setModifyReferencePhotos(photos => photos.filter(p => p.id !== photo.id));
-                                    }}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </div>
+                              <div key={photo.id} className="flex items-center gap-1 bg-background rounded border px-2 py-1">
+                                <img src={photo.previewUrl} alt="Reference" className="w-6 h-6 object-cover rounded" />
+                                <span className="text-xs">Ref</span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-4 w-4"
+                                  onClick={() => {
+                                    URL.revokeObjectURL(photo.previewUrl);
+                                    setModifyReferencePhotos(photos => photos.filter(p => p.id !== photo.id));
+                                  }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
                               </div>
                             ))}
                           </div>
@@ -1828,22 +1800,10 @@ export default function AIRendersPage() {
                         ) : (
                           <Button
                             onClick={() => {
-                              // Validate reference items have placement instructions
-                              const validRefItems = modifyReferenceItems.filter(item => 
-                                item.placementInstruction && item.placementInstruction.trim()
-                              );
-                              if (modifyReferenceItems.length > 0 && validRefItems.length < modifyReferenceItems.length) {
-                                toast({ 
-                                  title: "Missing Instructions", 
-                                  description: "Please add placement instructions for all reference items",
-                                  variant: "destructive" 
-                                });
-                                return;
-                              }
                               modifyRenderMutation.mutate({ 
                                 prompt: modificationPrompt, 
                                 gridCell: selectedGridCell,
-                                referenceItems: validRefItems.length > 0 ? validRefItems : undefined,
+                                referenceItems: modifyReferenceItems.length > 0 ? modifyReferenceItems : undefined,
                                 referencePhotos: modifyReferencePhotos.length > 0 ? modifyReferencePhotos : undefined
                               });
                             }}
