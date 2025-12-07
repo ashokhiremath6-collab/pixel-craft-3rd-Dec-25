@@ -134,6 +134,10 @@ export default function AIRendersPage() {
   
   const [showModifyTools, setShowModifyTools] = useState(false);
   const [modificationPrompt, setModificationPrompt] = useState("");
+  const [modifyReferenceItems, setModifyReferenceItems] = useState<ReferenceItem[]>([]);
+  const [modifyReferencePhotos, setModifyReferencePhotos] = useState<ReferencePhoto[]>([]);
+  const [showModifyAssetPicker, setShowModifyAssetPicker] = useState(false);
+  const modifyPhotoInputRef = useRef<HTMLInputElement>(null);
   
   const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -180,7 +184,12 @@ export default function AIRendersPage() {
     };
   };
   const modifyRenderMutation = useMutation({
-    mutationFn: async (params: { prompt: string; gridCell?: { col: number; row: number } | null }) => {
+    mutationFn: async (params: { 
+      prompt: string; 
+      gridCell?: { col: number; row: number } | null;
+      referenceItems?: ReferenceItem[];
+      referencePhotos?: ReferencePhoto[];
+    }) => {
       if (!generatedRender) throw new Error("No render to modify");
       
       abortControllerRef.current = new AbortController();
@@ -208,6 +217,30 @@ export default function AIRendersPage() {
       formData.append('image', compressedFile);
       formData.append('styleId', 'custom');
       formData.append('customPrompt', finalPrompt);
+      
+      // Include reference items if provided
+      if (params.referenceItems && params.referenceItems.length > 0) {
+        formData.append('referenceItems', JSON.stringify(params.referenceItems));
+      }
+      
+      // Include reference photos if provided
+      if (params.referencePhotos && params.referencePhotos.length > 0) {
+        const compressedRefPhotos = await Promise.all(
+          params.referencePhotos.map(async (photo) => {
+            const refCompressed = await compressImageOnClient(photo.file);
+            return new File([refCompressed], photo.file.name, { type: 'image/jpeg' });
+          })
+        );
+        compressedRefPhotos.forEach((photo) => {
+          formData.append(`referencePhotos`, photo);
+        });
+        
+        const refPhotoMeta = params.referencePhotos.map(p => ({
+          type: p.type,
+          description: p.description
+        }));
+        formData.append('referencePhotosMeta', JSON.stringify(refPhotoMeta));
+      }
       
       const response = await fetch('/api/ai-renders/generate', {
         method: 'POST',
@@ -640,7 +673,7 @@ export default function AIRendersPage() {
         id: asset.id || Date.now().toString(),
         name: asset.displayName,
         category: 'Saved Assets',
-        subcategory: asset.tags?.join(', ') || '',
+        subcategory: asset.type || '',
         vendorBrand: undefined,
         description: asset.description || undefined,
         aiPromptHints: asset.aiPromptHints || undefined,
@@ -1650,6 +1683,129 @@ export default function AIRendersPage() {
                         />
                       </div>
                       
+                      {/* Reference items and photos for modifications */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">Reference Items</Label>
+                          <Badge variant="outline" className="text-xs">{modifyReferenceItems.length}/3</Badge>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowModifyAssetPicker(true)}
+                            disabled={modifyReferenceItems.length >= 3}
+                            data-testid="button-modify-saved-assets"
+                          >
+                            <FolderOpen className="h-4 w-4 mr-1" />
+                            Saved Assets
+                          </Button>
+                          <input
+                            type="file"
+                            ref={modifyPhotoInputRef}
+                            className="hidden"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file && modifyReferencePhotos.length < 3) {
+                                const newPhoto: ReferencePhoto = {
+                                  id: `modify-photo-${Date.now()}`,
+                                  file,
+                                  previewUrl: URL.createObjectURL(file),
+                                  type: 'existing_space',
+                                  description: ''
+                                };
+                                setModifyReferencePhotos([...modifyReferencePhotos, newPhoto]);
+                              }
+                              e.target.value = '';
+                            }}
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => modifyPhotoInputRef.current?.click()}
+                            disabled={modifyReferencePhotos.length >= 3}
+                            data-testid="button-modify-existing-photo"
+                          >
+                            <ImageIcon className="h-4 w-4 mr-1" />
+                            Existing
+                          </Button>
+                        </div>
+                        
+                        {/* Display modify reference items */}
+                        {modifyReferenceItems.length > 0 && (
+                          <div className="space-y-1">
+                            {modifyReferenceItems.map((item) => (
+                              <div key={item.id} className="bg-background rounded-md border p-2 text-xs">
+                                <div className="flex items-start gap-2">
+                                  {item.imagePath && (
+                                    <img src={item.imagePath} alt={item.name} className="w-10 h-10 object-cover rounded" />
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium truncate">{item.name}</p>
+                                    <Input
+                                      placeholder="Where to place this?"
+                                      value={item.placementInstruction}
+                                      onChange={(e) => {
+                                        setModifyReferenceItems(items =>
+                                          items.map(i => i.id === item.id ? { ...i, placementInstruction: e.target.value } : i)
+                                        );
+                                      }}
+                                      className="h-6 text-xs mt-1"
+                                    />
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5"
+                                    onClick={() => setModifyReferenceItems(items => items.filter(i => i.id !== item.id))}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {/* Display modify reference photos */}
+                        {modifyReferencePhotos.length > 0 && (
+                          <div className="space-y-1">
+                            {modifyReferencePhotos.map((photo) => (
+                              <div key={photo.id} className="bg-background rounded-md border p-2 text-xs">
+                                <div className="flex items-start gap-2">
+                                  <img src={photo.previewUrl} alt="Reference" className="w-10 h-10 object-cover rounded" />
+                                  <div className="flex-1 min-w-0">
+                                    <Badge variant="secondary" className="text-xs mb-1">Ref</Badge>
+                                    <Input
+                                      placeholder="Describe this reference..."
+                                      value={photo.description}
+                                      onChange={(e) => {
+                                        setModifyReferencePhotos(photos =>
+                                          photos.map(p => p.id === photo.id ? { ...p, description: e.target.value } : p)
+                                        );
+                                      }}
+                                      className="h-6 text-xs"
+                                    />
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5"
+                                    onClick={() => {
+                                      URL.revokeObjectURL(photo.previewUrl);
+                                      setModifyReferencePhotos(photos => photos.filter(p => p.id !== photo.id));
+                                    }}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      
                       <div className="flex gap-2">
                         {modifyRenderMutation.isPending ? (
                           <>
@@ -1671,8 +1827,27 @@ export default function AIRendersPage() {
                           </>
                         ) : (
                           <Button
-                            onClick={() => modifyRenderMutation.mutate({ prompt: modificationPrompt, gridCell: selectedGridCell })}
-                            disabled={!modificationPrompt.trim()}
+                            onClick={() => {
+                              // Validate reference items have placement instructions
+                              const validRefItems = modifyReferenceItems.filter(item => 
+                                item.placementInstruction && item.placementInstruction.trim()
+                              );
+                              if (modifyReferenceItems.length > 0 && validRefItems.length < modifyReferenceItems.length) {
+                                toast({ 
+                                  title: "Missing Instructions", 
+                                  description: "Please add placement instructions for all reference items",
+                                  variant: "destructive" 
+                                });
+                                return;
+                              }
+                              modifyRenderMutation.mutate({ 
+                                prompt: modificationPrompt, 
+                                gridCell: selectedGridCell,
+                                referenceItems: validRefItems.length > 0 ? validRefItems : undefined,
+                                referencePhotos: modifyReferencePhotos.length > 0 ? modifyReferencePhotos : undefined
+                              });
+                            }}
+                            disabled={!modificationPrompt.trim() && modifyReferenceItems.length === 0}
                             className="w-full"
                             data-testid="button-apply-modification"
                           >
@@ -2090,6 +2265,46 @@ export default function AIRendersPage() {
         onSelect={handleAssetPickerSelectForMaterials}
         title="Select Reference Material"
         description="Choose furniture, finishes, or materials from your saved assets"
+      />
+
+      {/* Asset picker for modification mode */}
+      <AssetPicker
+        open={showModifyAssetPicker}
+        onOpenChange={setShowModifyAssetPicker}
+        onSelect={(asset: SelectedAsset) => {
+          if (modifyReferenceItems.length >= 3) {
+            toast({
+              title: "Limit Reached",
+              description: "Maximum 3 reference items allowed",
+              variant: "destructive"
+            });
+            return;
+          }
+          const assetId = asset.id || `modify-asset-${Date.now()}`;
+          if (modifyReferenceItems.find(r => r.id === assetId)) {
+            toast({
+              title: "Already Added",
+              description: "This item is already in your references",
+              variant: "destructive"
+            });
+            return;
+          }
+          const newItem: ReferenceItem = {
+            id: assetId,
+            name: asset.displayName,
+            category: 'Reference',
+            subcategory: asset.type,
+            vendorBrand: undefined,
+            description: asset.description,
+            imagePath: asset.previewUrl || asset.filePath || asset.thumbnailPath,
+            aiPromptHints: asset.aiPromptHints,
+            placementInstruction: ''
+          };
+          setModifyReferenceItems([...modifyReferenceItems, newItem]);
+          setShowModifyAssetPicker(false);
+        }}
+        title="Select Reference Asset for Modification"
+        description="Choose an asset to add to your modification"
       />
     </div>
   );
