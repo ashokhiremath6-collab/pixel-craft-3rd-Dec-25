@@ -122,7 +122,7 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
               {vendors.length}
             </div>
             <p className="text-xs text-muted-foreground">
-              Across {Object.keys(vendorsByCategory).length} categories
+              In your database
             </p>
           </CardContent>
         </Card>
@@ -157,19 +157,17 @@ export default function Dashboard({ vendors, projects, recentQuotations, allQuot
           </CardContent>
         </Card>
 
-        <Card className="hover-elevate">
+        <Card className="hover-elevate cursor-pointer" onClick={() => handleNavigate('/vendors')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+            <CardTitle className="text-sm font-medium">Categories</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="stat-success-rate">
-              {recentQuotations.length > 0 
-                ? Math.round((selectedVendors / recentQuotations.length) * 100)
-                : 0}%
+            <div className="text-2xl font-bold" data-testid="stat-categories">
+              {Object.keys(vendorsByCategory).length}
             </div>
             <p className="text-xs text-muted-foreground">
-              Vendor selection rate
+              Vendor categories
             </p>
           </CardContent>
         </Card>
