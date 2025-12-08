@@ -134,6 +134,11 @@ const projectManagerItems: NavigationItem[] = [
     url: "/works-orders",
     icon: FileSignature,
   },
+  {
+    title: "Meeting Minutes",
+    url: "/meeting-minutes",
+    icon: Calendar,
+  },
 ];
 
 export function AppSidebar() {
