@@ -117,6 +117,7 @@ export interface IStorage {
   
   // User Project Assignments - for project managers
   getUserProjectAssignments(userId: string): Promise<UserProjectAssignment[]>;
+  getAllUserProjectAssignments(): Promise<UserProjectAssignment[]>;
   assignUserToProject(assignment: InsertUserProjectAssignment): Promise<UserProjectAssignment>;
   removeUserFromProject(userId: string, projectId: string): Promise<boolean>;
   getUsersAssignedToProject(projectId: string): Promise<UserProjectAssignment[]>;
@@ -474,6 +475,11 @@ export class MemStorage implements IStorage {
 
   // User Project Assignments - for project manager role (MemStorage stubs)
   async getUserProjectAssignments(userId: string): Promise<UserProjectAssignment[]> {
+    // Stub implementation for MemStorage
+    return [];
+  }
+
+  async getAllUserProjectAssignments(): Promise<UserProjectAssignment[]> {
     // Stub implementation for MemStorage
     return [];
   }
@@ -1270,6 +1276,10 @@ export class DBStorage implements IStorage {
   // User Project Assignments - for project manager role
   async getUserProjectAssignments(userId: string): Promise<UserProjectAssignment[]> {
     return await db.select().from(userProjectAssignments).where(eq(userProjectAssignments.userId, userId));
+  }
+
+  async getAllUserProjectAssignments(): Promise<UserProjectAssignment[]> {
+    return await db.select().from(userProjectAssignments);
   }
 
   async assignUserToProject(assignment: InsertUserProjectAssignment): Promise<UserProjectAssignment> {

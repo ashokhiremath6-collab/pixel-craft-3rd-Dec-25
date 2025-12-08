@@ -717,6 +717,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // User Project Assignments routes (admin only) - for project_manager role
+  // Get all project assignments (for Settings page)
+  app.get("/api/user-project-assignments", requireAdminOnly, async (req, res) => {
+    try {
+      const assignments = await storage.getAllUserProjectAssignments();
+      res.json(assignments);
+    } catch (error) {
+      console.error('Get all user project assignments error:', error);
+      res.status(500).json({ error: "Failed to fetch user project assignments" });
+    }
+  });
+  
   app.get("/api/user-project-assignments/:userId", requireAdminOnly, async (req, res) => {
     try {
       const { userId } = req.params;
