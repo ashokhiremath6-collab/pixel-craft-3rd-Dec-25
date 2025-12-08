@@ -75,24 +75,64 @@ async function upsertUser(
 
     console.log('[AUTH] User upserted successfully:', user.id, user.email);
 
-    // Auto-assign roles to new users
+    // Auto-assign and sync roles based on manager status in Client Access
     if (claims["email"]) {
+      // First, check if user is a manager in any project (via Client Access)
+      const managerProjects = await storage.getManagerProjectsByEmail(claims["email"]);
+      console.log('[AUTH] Manager projects found:', managerProjects.length);
+      
       // Check if user already has a role
       const existingRole = await storage.getUserRole(user.id);
       console.log('[AUTH] Existing role:', existingRole);
       
-      if (!existingRole) {
-        // Check if user should have designer role based on email allowlist
+      if (managerProjects.length > 0) {
+        // User is a project manager - ensure they have project_manager role
+        if (!existingRole || existingRole.role !== 'project_manager') {
+          if (existingRole) {
+            // Upgrade existing role to project_manager
+            await storage.updateUserRole(user.id, 'project_manager');
+            console.log('[AUTH] Upgraded role to project_manager for:', user.email);
+          } else {
+            // Create new project_manager role
+            await storage.createUserRole({
+              userId: user.id,
+              role: 'project_manager',
+              isActive: true,
+              assignedBy: user.id,
+            });
+            console.log('[AUTH] Auto-assigned project_manager role to:', user.email);
+          }
+        }
+        
+        // Sync project assignments - get existing and add any missing ones
+        const existingAssignments = await storage.getUserProjectAssignments(user.id);
+        const existingProjectIds = new Set(existingAssignments.map(a => a.projectId));
+        
+        for (const mp of managerProjects) {
+          if (!existingProjectIds.has(mp.projectId)) {
+            try {
+              await storage.assignUserToProject({
+                userId: user.id,
+                projectId: mp.projectId,
+                assignedBy: user.id,
+              });
+              console.log('[AUTH] Auto-assigned project:', mp.projectId, 'to:', user.email);
+            } catch (assignError) {
+              console.log('[AUTH] Project already assigned or error:', assignError);
+            }
+          }
+        }
+      } else if (!existingRole) {
+        // No manager projects and no existing role - assign based on allowlist
         const isDesigner = await storage.isDesignerEmail(claims["email"]);
         console.log('[AUTH] Is designer email?', claims["email"], isDesigner);
         
-        // Assign appropriate role: designer if allowlisted, otherwise client
         const roleToAssign = isDesigner ? 'designer' : 'client';
         await storage.createUserRole({
           userId: user.id,
           role: roleToAssign,
           isActive: true,
-          assignedBy: user.id, // self-assigned during signup
+          assignedBy: user.id,
         });
         console.log('[AUTH] Auto-assigned role:', roleToAssign, 'to:', user.email);
       }
