@@ -172,6 +172,7 @@ export interface IStorage {
   getProjectClients(projectId: string): Promise<ProjectClient[]>;
   addProjectClient(client: InsertProjectClient): Promise<ProjectClient>;
   removeProjectClient(id: string): Promise<boolean>;
+  getManagerProjectsByEmail(email: string): Promise<ProjectClient[]>;
   getProjectsByClientEmail(clientEmail: string): Promise<Project[]>;
   
   // Project Vendors
@@ -771,6 +772,10 @@ export class MemStorage implements IStorage {
 
   async removeProjectClient(id: string): Promise<boolean> {
     return false; // Not implemented in MemStorage - using DBStorage
+  }
+
+  async getManagerProjectsByEmail(email: string): Promise<ProjectClient[]> {
+    return []; // Not implemented in MemStorage - using DBStorage
   }
 
   async getProjectsByClientEmail(clientEmail: string): Promise<Project[]> {
@@ -1558,6 +1563,15 @@ export class DBStorage implements IStorage {
   async removeProjectClient(id: string): Promise<boolean> {
     const result = await db.delete(projectClients).where(eq(projectClients.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async getManagerProjectsByEmail(email: string): Promise<ProjectClient[]> {
+    return await db.select().from(projectClients).where(
+      and(
+        eq(projectClients.clientEmail, email),
+        eq(projectClients.role, 'manager')
+      )
+    );
   }
 
   async getProjectsByClientEmail(clientEmail: string): Promise<Project[]> {
