@@ -115,6 +115,28 @@ const requireAdminOnly = async (req: express.Request, res: express.Response, nex
   }
 };
 
+// Middleware for admin, designer, or project_manager access (works orders, meeting minutes)
+const requireProjectAccess = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  
+  try {
+    const userId = (req.user as any).claims.sub;
+    const userRole = await storage.getUserRole(userId);
+    // Normalize role to lowercase for case-insensitive comparison
+    const role = userRole?.role?.toLowerCase();
+    if (!userRole || (role !== 'designer' && role !== 'admin' && role !== 'project_manager')) {
+      console.log(`🔒 Access denied for user ${userId}: role='${userRole?.role}' (normalized: '${role}')`);
+      return res.status(403).json({ error: "Admin, designer, or project manager access required" });
+    }
+    next();
+  } catch (error) {
+    console.error('Error checking user role:', error);
+    return res.status(500).json({ error: "Failed to check authorization" });
+  }
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup real Replit Auth (handles session configuration internally)
   await setupAuth(app);
@@ -7775,8 +7797,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   });
 
-  // Meeting Minutes Routes - Admin/Designer only
-  app.get("/api/meeting-minutes", requireAdmin, async (req, res) => {
+  // Meeting Minutes Routes - Admin/Designer/Project Manager
+  app.get("/api/meeting-minutes", requireProjectAccess, async (req, res) => {
     try {
       const { projectId, startDate, endDate } = req.query;
       
@@ -7796,7 +7818,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/meeting-minutes", requireAdmin, (req, res, next) => {
+  app.post("/api/meeting-minutes", requireProjectAccess, (req, res, next) => {
     meetingMinutesUpload.single('file')(req, res, async (err) => {
       if (err) {
         console.error('Multer error:', err);
@@ -7876,7 +7898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  app.put("/api/meeting-minutes/:id", requireAdmin, meetingMinutesUpload.single('file'), async (req, res) => {
+  app.put("/api/meeting-minutes/:id", requireProjectAccess, meetingMinutesUpload.single('file'), async (req, res) => {
     try {
       const { id } = req.params;
       const updates: any = {};
@@ -7915,7 +7937,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/meeting-minutes/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/meeting-minutes/:id", requireProjectAccess, async (req, res) => {
     try {
       const { id } = req.params;
       
@@ -8262,7 +8284,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Export works orders to Excel (admin/designer only) - MUST come before /:id route
-  app.get("/api/works-orders/export", requireAdmin, async (req, res) => {
+  app.get("/api/works-orders/export", requireProjectAccess, async (req, res) => {
     try {
       const orders = await storage.getAllWorksOrders();
       
@@ -8336,7 +8358,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create works order (admin/designer only)
-  app.post("/api/works-orders", requireAdmin, async (req, res) => {
+  app.post("/api/works-orders", requireProjectAccess, async (req, res) => {
     try {
       const userId = (req.user as any).claims.sub;
       
@@ -8393,7 +8415,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update works order (admin/designer only)
-  app.put("/api/works-orders/:id", requireAdmin, async (req, res) => {
+  app.put("/api/works-orders/:id", requireProjectAccess, async (req, res) => {
     try {
       const validated = insertWorksOrderSchema.partial().parse(req.body);
       const order = await storage.updateWorksOrder(req.params.id, validated);
@@ -8413,7 +8435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Send works order (mark as sent, admin/designer only)
-  app.post("/api/works-orders/:id/send", requireAdmin, async (req, res) => {
+  app.post("/api/works-orders/:id/send", requireProjectAccess, async (req, res) => {
     try {
       const userId = (req.user as any).claims.sub;
       const order = await storage.getWorksOrder(req.params.id);
@@ -8471,7 +8493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Void works order (admin/designer only)
-  app.post("/api/works-orders/:id/void", requireAdmin, async (req, res) => {
+  app.post("/api/works-orders/:id/void", requireProjectAccess, async (req, res) => {
     try {
       const userId = (req.user as any).claims.sub;
       const { reason } = req.body;
@@ -8525,7 +8547,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete works order (admin/designer only)
-  app.delete("/api/works-orders/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/works-orders/:id", requireProjectAccess, async (req, res) => {
     try {
       const userId = (req.user as any).claims.sub;
       const order = await storage.getWorksOrder(req.params.id);
@@ -8683,7 +8705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Import works order
-  app.post("/api/works-orders/import", requireAdmin, multer().array('files'), async (req, res) => {
+  app.post("/api/works-orders/import", requireProjectAccess, multer().array('files'), async (req, res) => {
     try {
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) {
