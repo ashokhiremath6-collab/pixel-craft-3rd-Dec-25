@@ -352,7 +352,7 @@ export default function SettingsPage() {
                                 htmlFor={`${pm.id}-${project.id}`}
                                 className="text-sm cursor-pointer flex-1"
                               >
-                                {project.name}
+                                {project.projectName}
                               </label>
                             </div>
                           );
