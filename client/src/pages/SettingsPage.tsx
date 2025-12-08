@@ -25,9 +25,9 @@ export default function SettingsPage() {
     queryKey: ["/api/users"],
   });
 
-  // Fetch all projects
+  // Fetch all projects (admin-only endpoint for assignments)
   const { data: projects, isLoading: projectsLoading, isError: projectsError } = useQuery<Project[]>({
-    queryKey: ["/api/projects"],
+    queryKey: ["/api/projects/all"],
   });
 
   // Fetch all project assignments

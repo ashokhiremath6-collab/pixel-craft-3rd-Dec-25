@@ -1154,6 +1154,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Projects Routes (protected)
+  // Get all projects (admin only) - for Settings page project assignments
+  app.get("/api/projects/all", requireAdminOnly, async (req, res) => {
+    try {
+      const projects = await storage.getAllProjects();
+      res.json(projects);
+    } catch (error) {
+      console.error('Get all projects error:', error);
+      res.status(500).json({ error: "Failed to fetch all projects" });
+    }
+  });
+
   app.get("/api/projects", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).claims.sub;
