@@ -2661,8 +2661,8 @@ export class DBStorage implements IStorage {
       return this.getAllWorksOrders();
     }
 
-    if (role === 'client') {
-      // Clients only see orders for their assigned projects
+    if (role === 'client' || role === 'project_manager') {
+      // Clients and project managers only see orders for their assigned projects
       const userProjects = await this.getProjectsForUser(userId, role);
       const projectIds = userProjects.map(p => p.id);
       
