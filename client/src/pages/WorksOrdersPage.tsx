@@ -838,11 +838,11 @@ export default function WorksOrdersPage() {
                                 <span className="text-sm text-muted-foreground" data-testid={`text-order-number-${order.id}`}>
                                   {order.orderNumber}
                                 </span>
-                                {order.sentAt && (
+                                {(order.sentAt || order.createdAt) && (
                                   <>
                                     <span className="text-muted-foreground">•</span>
                                     <span className="text-sm text-muted-foreground" data-testid={`text-released-${order.id}`}>
-                                      Released: {format(new Date(order.sentAt), 'MMM d, yyyy')}
+                                      {order.sentAt ? 'Released' : 'Created'}: {format(new Date(order.sentAt || order.createdAt), 'MMM d, yyyy')}
                                     </span>
                                   </>
                                 )}
