@@ -1777,6 +1777,26 @@ export class DBStorage implements IStorage {
           await deleteWithinTransaction(child.id);
         }
         
+        // Delete all works order items that reference this project vendor as source
+        await tx.delete(worksOrderItems).where(eq(worksOrderItems.sourceProjectVendorId, deleteId));
+        
+        // Delete all works orders that reference this project vendor
+        // First get the works orders to delete their related files, items, and signatures
+        const relatedWorksOrders = await tx.select().from(worksOrders)
+          .where(eq(worksOrders.projectVendorId, deleteId));
+        
+        for (const wo of relatedWorksOrders) {
+          // Delete works order files
+          await tx.delete(worksOrderFiles).where(eq(worksOrderFiles.worksOrderId, wo.id));
+          // Delete works order items
+          await tx.delete(worksOrderItems).where(eq(worksOrderItems.worksOrderId, wo.id));
+          // Delete works order signatures
+          await tx.delete(worksOrderSignatures).where(eq(worksOrderSignatures.worksOrderId, wo.id));
+        }
+        
+        // Now delete the works orders themselves
+        await tx.delete(worksOrders).where(eq(worksOrders.projectVendorId, deleteId));
+        
         // Delete all BOQ entries that reference this project vendor
         await tx.delete(boq).where(eq(boq.projectVendorId, deleteId));
         
