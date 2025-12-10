@@ -32,7 +32,8 @@ import {
   Upload,
   Download,
   Eye,
-  X
+  X,
+  Loader2
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -131,6 +132,7 @@ export default function WorksOrdersPage() {
   
   // Import state
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [importFormData, setImportFormData] = useState({
     projectId: "",
     categoryId: "",
@@ -565,6 +567,10 @@ export default function WorksOrdersPage() {
       return;
     }
 
+    // Prevent double-clicks
+    if (isImporting) return;
+    setIsImporting(true);
+
     const formData = new FormData();
     formData.append('projectId', importFormData.projectId);
     formData.append('categoryId', importFormData.categoryId);
@@ -600,6 +606,8 @@ export default function WorksOrdersPage() {
         description: error instanceof Error ? error.message : "Failed to import works order",
         variant: "destructive",
       });
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -1606,8 +1614,15 @@ export default function WorksOrdersPage() {
             <Button variant="outline" onClick={() => setImportDialogOpen(false)} data-testid="button-cancel-import">
               Cancel
             </Button>
-            <Button onClick={handleImportSubmit} data-testid="button-submit-import">
-              Import
+            <Button onClick={handleImportSubmit} disabled={isImporting} data-testid="button-submit-import">
+              {isImporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                "Import"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
