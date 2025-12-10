@@ -8798,17 +8798,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: userId,
       });
 
-      // Upload all files and create file records
-      const uploadedFiles = [];
-      for (const file of files) {
+      // Upload all files in parallel for better performance
+      const uploadPromises = files.map(async (file) => {
         const objectPath = await uploadToObjectStorage(
           file.buffer,
           file.originalname,
           userId,
           file.mimetype
         );
-
-        // Create works order file record
+        return { file, objectPath };
+      });
+      
+      const uploadResults = await Promise.all(uploadPromises);
+      
+      // Create file records after all uploads complete
+      const uploadedFiles = [];
+      for (const { file, objectPath } of uploadResults) {
         const fileExtension = file.originalname.split('.').pop() || 'unknown';
         await db.insert(worksOrderFiles).values({
           worksOrderId: worksOrder.id,
