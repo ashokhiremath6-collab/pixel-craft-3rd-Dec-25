@@ -85,9 +85,6 @@ const mainItems: NavigationItem[] = [
     url: "/accounts",
     icon: Wallet,
   },
-];
-
-const settingsItems: NavigationItem[] = [
   {
     title: "Settings",
     url: "/settings",
@@ -251,27 +248,6 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Configuration</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {settingsItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild
-                    data-active={location === item.url}
-                    data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    <Link href={item.url} onClick={handleLinkClick}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
     </Sidebar>
   );
