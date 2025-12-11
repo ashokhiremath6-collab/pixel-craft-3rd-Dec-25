@@ -2,6 +2,7 @@ import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, Use
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -85,6 +86,9 @@ const mainItems: NavigationItem[] = [
     url: "/accounts",
     icon: Wallet,
   },
+];
+
+const settingsItems: NavigationItem[] = [
   {
     title: "Settings",
     url: "/settings",
@@ -249,6 +253,24 @@ export function AppSidebar() {
         )}
 
       </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          {settingsItems.map((item) => (
+            <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton 
+                asChild
+                data-active={location === item.url}
+                data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                <Link href={item.url} onClick={handleLinkClick}>
+                  <item.icon />
+                  <span>{item.title}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   );
 }
