@@ -205,7 +205,10 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
-                {projectManagerItems.map((item) => (
+                {/* Filter out items already in designerOnlyItems to avoid duplicates */}
+                {projectManagerItems
+                  .filter(item => !designerOnlyItems.some(d => d.url === item.url))
+                  .map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton 
                       asChild
