@@ -641,7 +641,7 @@ export default function MoodboardsPage() {
                               {moodboard.description}
                             </h4>
                           )}
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <div className={`flex items-center gap-2 text-sm ${moodboard.description ? 'text-muted-foreground' : 'font-medium'}`}>
                             <span>{moodboard.fileName || labels.listMetadataText}</span>
                             <span>•</span>
                             <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
