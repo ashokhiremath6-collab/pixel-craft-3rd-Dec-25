@@ -164,7 +164,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar data-testid="sidebar-main">
-      <SidebarContent>
+      <SidebarContent className="pb-4">
         <SidebarGroup>
           <SidebarGroupLabel>PixelCraft Designer</SidebarGroupLabel>
           <SidebarGroupContent>
