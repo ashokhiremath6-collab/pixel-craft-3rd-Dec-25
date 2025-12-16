@@ -636,14 +636,16 @@ export default function MoodboardsPage() {
                       <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate" data-testid={`drawing-item-${moodboard.id}`}>
                         {/* Info */}
                         <div className="flex-1 min-w-0">
-                          {moodboard.description && (
-                            <h4 className="font-semibold text-base truncate mb-1" title={moodboard.description}>
-                              {moodboard.description}
-                            </h4>
-                          )}
-                          <div className={`flex items-center gap-2 text-sm ${moodboard.description ? 'text-muted-foreground' : 'font-medium'}`}>
-                            <span>{moodboard.fileName || labels.listMetadataText}</span>
-                            <span>•</span>
+                          <h4 className="font-medium text-base truncate mb-1" title={moodboard.description || moodboard.fileName || ''}>
+                            {moodboard.description || moodboard.fileName || labels.listMetadataText}
+                          </h4>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            {moodboard.description && moodboard.fileName && (
+                              <>
+                                <span>{moodboard.fileName}</span>
+                                <span>•</span>
+                              </>
+                            )}
                             <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
                           </div>
                           
