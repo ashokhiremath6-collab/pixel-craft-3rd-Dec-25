@@ -31,6 +31,11 @@ export function getSession() {
     ttl: sessionTtl,
     tableName: "sessions",
   });
+  
+  // Get the primary domain for cookie scope
+  const domains = process.env.REPLIT_DOMAINS?.split(",") || [];
+  const primaryDomain = domains[0];
+  
   return session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
@@ -38,8 +43,11 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // Only secure in production
+      secure: true, // Always secure since Replit uses HTTPS
+      sameSite: "lax", // Allows cookies for same-site navigation
       maxAge: sessionTtl,
+      // Domain is intentionally omitted to let the browser use the exact host
+      // This prevents issues with multiple subdomains
     },
   });
 }
