@@ -1210,64 +1210,66 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
           
           <Card>
             <CardContent className="p-0 overflow-x-auto">
-              <Table className="table-fixed w-full">
-                <colgroup>
-                  <col className="w-[18%]" />
-                  <col className="w-[16%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[22%]" />
-                  <col className="w-[12%]" />
-                </colgroup>
+              <Table className="w-full">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="truncate">Vendor Name</TableHead>
-                    <TableHead className="truncate">Contact Person</TableHead>
-                    <TableHead className="truncate">Phone</TableHead>
-                    <TableHead className="truncate">Email</TableHead>
-                    <TableHead className="truncate">Projects</TableHead>
+                    <TableHead>Vendor Name</TableHead>
+                    <TableHead className="hidden sm:table-cell">Contact</TableHead>
+                    <TableHead className="hidden md:table-cell">Phone</TableHead>
+                    <TableHead className="hidden lg:table-cell">Email</TableHead>
+                    <TableHead className="hidden lg:table-cell">Projects</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {categoryVendors.map((vendor: VendorListProps['vendors'][0]) => (
                     <TableRow key={vendor.id} data-testid={`vendor-row-${vendor.id}`} className="h-12">
-                      <TableCell className="font-medium py-2 truncate">
-                        <div className="truncate">
-                          <span data-testid="text-vendor-name" className="truncate block">{vendor.name}</span>
-                          <div className="text-xs text-muted-foreground truncate">
+                      <TableCell className="font-medium py-2">
+                        <div>
+                          <span data-testid="text-vendor-name" className="block">{vendor.name}</span>
+                          <div className="text-xs text-muted-foreground">
                             {categoryMap[vendor.categoryId]?.name || 'Unknown Category'}
+                          </div>
+                          <div className="sm:hidden mt-1 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              <span>{vendor.contactPerson}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              <span>{vendor.phone}</span>
+                            </div>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="py-2 truncate">
-                        <div className="flex items-center gap-1 truncate min-w-0">
+                      <TableCell className="py-2 hidden sm:table-cell">
+                        <div className="flex items-center gap-1">
                           <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                          <span data-testid="text-contact-person" className="truncate">{vendor.contactPerson}</span>
+                          <span data-testid="text-contact-person">{vendor.contactPerson}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="py-2 truncate">
-                        <div className="flex items-center gap-1 truncate min-w-0">
+                      <TableCell className="py-2 hidden md:table-cell">
+                        <div className="flex items-center gap-1">
                           <Phone className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                          <span data-testid="text-phone" className="truncate">{vendor.phone}</span>
+                          <span data-testid="text-phone">{vendor.phone}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="py-2 truncate">
-                        <div className="flex items-center gap-1 truncate min-w-0">
+                      <TableCell className="py-2 hidden lg:table-cell">
+                        <div className="flex items-center gap-1">
                           <Mail className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                          <span data-testid="text-email" className="text-sm truncate">{vendor.email || '-'}</span>
+                          <span data-testid="text-email" className="text-sm">{vendor.email || '-'}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="py-2 max-h-12 overflow-hidden">
+                      <TableCell className="py-2 hidden lg:table-cell">
                         {vendor.projects && vendor.projects.length > 0 ? (
-                          <div className="space-y-1 max-h-10 overflow-hidden">
+                          <div className="space-y-1">
                             {vendor.projects.slice(0, 1).map((project: any, index: number) => {
                               const projectCount = vendor.projects?.length ?? 0;
                               return (
-                                <div key={`${vendor.id}-${project.projectId}-${index}`} className="text-sm truncate">
-                                  <div className="flex items-center gap-1 truncate min-w-0">
+                                <div key={`${vendor.id}-${project.projectId}-${index}`} className="text-sm">
+                                  <div className="flex items-center gap-1">
                                     <Building2 className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                    <span className="font-medium truncate" data-testid={`text-project-name-${index}`}>
+                                    <span className="font-medium" data-testid={`text-project-name-${index}`}>
                                       {project.projectName}
                                     </span>
                                     {projectCount > 1 && (
