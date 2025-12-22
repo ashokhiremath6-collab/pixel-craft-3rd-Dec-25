@@ -203,7 +203,6 @@ export async function setupAuth(app: Express) {
     const strategyName = `replitauth:${primaryDomain}`;
     console.log('[AUTH] Using strategy:', strategyName);
     passport.authenticate(strategyName, {
-      prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
   });
