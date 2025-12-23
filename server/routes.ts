@@ -5813,10 +5813,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Process rows and update tasks
-      const updates: { id: string; changes: any }[] = [];
-      const errors: string[] = [];
-      
       // Helper to safely get cell value
       const safeGetCell = (row: any, colIndex: number | undefined) => {
         if (!colIndex || colIndex < 1) return { value: null };
@@ -5827,140 +5823,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
       
+      // Parse dates - handle Date objects, Excel serial numbers, and formatted strings
+      const parseExcelDate = (cell: any): string | null => {
+        const value = cell.value;
+        if (!value) return null;
+        
+        if (value instanceof Date) {
+          if (isNaN(value.getTime())) return null;
+          return value.toISOString().split('T')[0];
+        }
+        
+        if (typeof value === 'number') {
+          const excelEpoch = new Date(1899, 11, 30);
+          const date = new Date(excelEpoch.getTime() + value * 86400 * 1000);
+          if (isNaN(date.getTime())) return null;
+          return date.toISOString().split('T')[0];
+        }
+        
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          if (!trimmed) return null;
+          
+          const parsed = new Date(trimmed);
+          if (!isNaN(parsed.getTime())) {
+            return parsed.toISOString().split('T')[0];
+          }
+          
+          const ddMmmYyyy = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/);
+          if (ddMmmYyyy) {
+            const months: Record<string, number> = {
+              jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+              jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+            };
+            const month = months[ddMmmYyyy[2].toLowerCase()];
+            if (month !== undefined) {
+              const date = new Date(parseInt(ddMmmYyyy[3]), month, parseInt(ddMmmYyyy[1]));
+              if (!isNaN(date.getTime())) {
+                return date.toISOString().split('T')[0];
+              }
+            }
+          }
+        }
+        
+        return null;
+      };
+      
+      // Parse progress - handle "Completed"/"Incomplete" text format
+      const parseProgress = (cell: any): number | null => {
+        const value = cell.value;
+        if (value === null || value === undefined || value === '') return null;
+        
+        if (typeof value === 'string') {
+          const trimmed = value.trim().toLowerCase();
+          if (trimmed === 'completed' || trimmed === 'complete' || trimmed === 'done') return 100;
+          if (trimmed === 'incomplete' || trimmed === 'pending' || trimmed === 'not started') return 0;
+          
+          const cleanValue = value.trim().replace('%', '');
+          const num = parseFloat(cleanValue);
+          if (!isNaN(num)) {
+            if (num >= 0 && num <= 1) return Math.round(num * 100);
+            return Math.min(100, Math.max(0, Math.round(num)));
+          }
+        }
+        
+        if (typeof value === 'number') {
+          if (value >= 0 && value <= 1) return Math.round(value * 100);
+          return Math.min(100, Math.max(0, Math.round(value)));
+        }
+        
+        return null;
+      };
+      
+      // Process rows and update tasks
+      const updates: { id: string; changes: any }[] = [];
+      const errors: string[] = [];
+      
       worksheet.eachRow((row, rowNumber) => {
         try {
-          if (rowNumber === 1) return; // Skip header
+          if (rowNumber === 1) return;
           
           const dbIdCell = safeGetCell(row, columnMap.dbId);
           const dbId = dbIdCell.value?.toString();
           const rowScheduleId = safeGetCell(row, columnMap.scheduleId).value?.toString();
           
-          // Skip rows without DB ID (summary rows, blank rows)
           if (!dbId || dbId === '') return;
           
-          // Validate schedule ID matches
           if (rowScheduleId && rowScheduleId !== scheduleId) {
             errors.push(`Row ${rowNumber}: Task belongs to a different schedule`);
             return;
           }
           
-          // Extract values safely
           const startDateCell = safeGetCell(row, columnMap.startDate);
           const endDateCell = safeGetCell(row, columnMap.endDate);
           const progressCell = safeGetCell(row, columnMap.progress);
           const remarksCell = safeGetCell(row, columnMap.remarks);
-        
-        // Parse dates - handle Date objects, Excel serial numbers, and formatted strings
-        const parseExcelDate = (cell: any): string | null => {
-          const value = cell.value;
-          if (!value) return null;
           
-          // Handle Date object
-          if (value instanceof Date) {
-            if (isNaN(value.getTime())) return null;
-            return value.toISOString().split('T')[0];
+          const startDate = parseExcelDate(startDateCell);
+          const endDate = parseExcelDate(endDateCell);
+          const progressPercentage = parseProgress(progressCell);
+          const remarks = remarksCell.value?.toString() || null;
+          
+          const changes: any = {};
+          if (startDate) changes.startDate = startDate;
+          if (endDate) changes.endDate = endDate;
+          if (progressPercentage !== null) changes.progressPercentage = progressPercentage;
+          if (remarks !== null) changes.remarks = remarks;
+          
+          if (Object.keys(changes).length > 0) {
+            updates.push({ id: dbId, changes });
           }
-          
-          // Handle Excel serial date number
-          if (typeof value === 'number') {
-            // Excel serial date: days since 1900-01-01 (with a bug for 1900 leap year)
-            // Convert to JavaScript timestamp
-            const excelEpoch = new Date(1899, 11, 30); // Excel epoch is Dec 30, 1899
-            const date = new Date(excelEpoch.getTime() + value * 86400 * 1000);
-            if (isNaN(date.getTime())) return null;
-            return date.toISOString().split('T')[0];
-          }
-          
-          // Handle string dates
-          if (typeof value === 'string') {
-            const trimmed = value.trim();
-            if (!trimmed) return null;
-            
-            // Try parsing various date formats
-            const parsed = new Date(trimmed);
-            if (!isNaN(parsed.getTime())) {
-              return parsed.toISOString().split('T')[0];
-            }
-            
-            // Try DD MMM YYYY format (e.g., "15 Nov 2025")
-            const ddMmmYyyy = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/);
-            if (ddMmmYyyy) {
-              const months: Record<string, number> = {
-                jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-                jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
-              };
-              const month = months[ddMmmYyyy[2].toLowerCase()];
-              if (month !== undefined) {
-                const date = new Date(parseInt(ddMmmYyyy[3]), month, parseInt(ddMmmYyyy[1]));
-                if (!isNaN(date.getTime())) {
-                  return date.toISOString().split('T')[0];
-                }
-              }
-            }
-          }
-          
-          return null;
-        };
-        
-        // Parse progress - handle "Completed"/"Incomplete" text format
-        const parseProgress = (cell: any): number | null => {
-          const value = cell.value;
-          
-          // Null/undefined/empty = leave unchanged (for headers)
-          if (value === null || value === undefined || value === '') return null;
-          
-          if (typeof value === 'string') {
-            const trimmed = value.trim().toLowerCase();
-            
-            // Handle text status values
-            if (trimmed === 'completed' || trimmed === 'complete' || trimmed === 'done') {
-              return 100;
-            }
-            if (trimmed === 'incomplete' || trimmed === 'pending' || trimmed === 'not started') {
-              return 0;
-            }
-            
-            // Also support legacy percentage format for backwards compatibility
-            const cleanValue = value.trim().replace('%', '');
-            const num = parseFloat(cleanValue);
-            if (!isNaN(num)) {
-              // If parsed value is <= 1, treat as decimal
-              if (num >= 0 && num <= 1) {
-                return Math.round(num * 100);
-              }
-              return Math.min(100, Math.max(0, Math.round(num)));
-            }
-          }
-          
-          if (typeof value === 'number') {
-            // Excel stores percentages as decimals (0.75 = 75%)
-            // If value is <= 1, it's likely a decimal percentage
-            if (value >= 0 && value <= 1) {
-              return Math.round(value * 100);
-            }
-            // If value is > 1, it's already in 0-100 format
-            return Math.min(100, Math.max(0, Math.round(value)));
-          }
-          
-          return null;
-        };
-        
-        const startDate = parseExcelDate(startDateCell);
-        const endDate = parseExcelDate(endDateCell);
-        const progressPercentage = parseProgress(progressCell);
-        const remarks = remarksCell.value?.toString() || null;
-        
-        // Build changes object - only include fields that have valid values
-        const changes: any = {};
-        if (startDate) changes.startDate = startDate;
-        if (endDate) changes.endDate = endDate;
-        if (progressPercentage !== null) changes.progressPercentage = progressPercentage;
-        if (remarks !== null) changes.remarks = remarks;
-        
-        // Only add update if there are actual changes
-        if (Object.keys(changes).length > 0) {
-          updates.push({ id: dbId, changes });
-        }
         } catch (rowError) {
           console.error(`Error processing row ${rowNumber}:`, rowError);
           errors.push(`Row ${rowNumber}: Error processing row data`);
