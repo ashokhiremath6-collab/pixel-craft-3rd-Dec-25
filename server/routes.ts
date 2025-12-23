@@ -5817,26 +5817,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates: { id: string; changes: any }[] = [];
       const errors: string[] = [];
       
-      worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return; // Skip header
-        
-        const dbId = row.getCell(columnMap.dbId).value?.toString();
-        const rowScheduleId = row.getCell(columnMap.scheduleId).value?.toString();
-        
-        // Skip rows without DB ID (summary rows, blank rows)
-        if (!dbId || dbId === '') return;
-        
-        // Validate schedule ID matches
-        if (rowScheduleId && rowScheduleId !== scheduleId) {
-          errors.push(`Row ${rowNumber}: Task belongs to a different schedule`);
-          return;
+      // Helper to safely get cell value
+      const safeGetCell = (row: any, colIndex: number | undefined) => {
+        if (!colIndex || colIndex < 1) return { value: null };
+        try {
+          return row.getCell(colIndex);
+        } catch (e) {
+          return { value: null };
         }
-        
-        // Extract values
-        const startDateCell = row.getCell(columnMap.startDate);
-        const endDateCell = row.getCell(columnMap.endDate);
-        const progressCell = row.getCell(columnMap.progress);
-        const remarksCell = row.getCell(columnMap.remarks);
+      };
+      
+      worksheet.eachRow((row, rowNumber) => {
+        try {
+          if (rowNumber === 1) return; // Skip header
+          
+          const dbIdCell = safeGetCell(row, columnMap.dbId);
+          const dbId = dbIdCell.value?.toString();
+          const rowScheduleId = safeGetCell(row, columnMap.scheduleId).value?.toString();
+          
+          // Skip rows without DB ID (summary rows, blank rows)
+          if (!dbId || dbId === '') return;
+          
+          // Validate schedule ID matches
+          if (rowScheduleId && rowScheduleId !== scheduleId) {
+            errors.push(`Row ${rowNumber}: Task belongs to a different schedule`);
+            return;
+          }
+          
+          // Extract values safely
+          const startDateCell = safeGetCell(row, columnMap.startDate);
+          const endDateCell = safeGetCell(row, columnMap.endDate);
+          const progressCell = safeGetCell(row, columnMap.progress);
+          const remarksCell = safeGetCell(row, columnMap.remarks);
         
         // Parse dates - handle Date objects, Excel serial numbers, and formatted strings
         const parseExcelDate = (cell: any): string | null => {
@@ -5948,6 +5960,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Only add update if there are actual changes
         if (Object.keys(changes).length > 0) {
           updates.push({ id: dbId, changes });
+        }
+        } catch (rowError) {
+          console.error(`Error processing row ${rowNumber}:`, rowError);
+          errors.push(`Row ${rowNumber}: Error processing row data`);
         }
       });
       
