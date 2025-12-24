@@ -177,6 +177,28 @@ export default function MoodboardsPage() {
     return project ? project.projectName : "Unknown Project";
   };
 
+  // Helper function to strip project name prefix from display title
+  const getDisplayTitle = (moodboard: Moodboard) => {
+    const title = moodboard.description || moodboard.fileName || '';
+    if (!moodboard.projectId || !title) return title;
+    
+    const projectName = getProjectName(moodboard.projectId);
+    if (!projectName || projectName === "General" || projectName === "Unknown Project") return title;
+    
+    // Remove project name prefix (case-insensitive, with optional separators)
+    const patterns = [
+      new RegExp(`^${projectName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[-–—:]?\\s*`, 'i'),
+      new RegExp(`^${projectName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+`, 'i'),
+    ];
+    
+    for (const pattern of patterns) {
+      if (pattern.test(title)) {
+        return title.replace(pattern, '').trim();
+      }
+    }
+    return title;
+  };
+
   // Room type order for sorting
   const roomTypeOrder = [
     "Living Room", "Bedroom", "Kitchen", "Dining Room", "Bathroom", 
@@ -636,8 +658,8 @@ export default function MoodboardsPage() {
                       <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate" data-testid={`drawing-item-${moodboard.id}`}>
                         {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-base truncate mb-1" title={moodboard.description || moodboard.fileName || ''}>
-                            {moodboard.description || moodboard.fileName || labels.listMetadataText}
+                          <h4 className="font-medium text-base truncate mb-1" title={getDisplayTitle(moodboard)}>
+                            {getDisplayTitle(moodboard) || labels.listMetadataText}
                           </h4>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             {moodboard.description && moodboard.fileName && (
