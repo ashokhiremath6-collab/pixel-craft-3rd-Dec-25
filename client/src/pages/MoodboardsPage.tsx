@@ -185,15 +185,21 @@ export default function MoodboardsPage() {
     const projectName = getProjectName(moodboard.projectId);
     if (!projectName || projectName === "General" || projectName === "Unknown Project") return title;
     
-    // Remove project name prefix (case-insensitive, with optional separators)
-    const patterns = [
-      new RegExp(`^${projectName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[-–—:]?\\s*`, 'i'),
-      new RegExp(`^${projectName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+`, 'i'),
-    ];
+    // Get all project names to check against (including the current one)
+    const allProjectNames = projects.map(p => p.projectName).filter(Boolean);
     
-    for (const pattern of patterns) {
-      if (pattern.test(title)) {
-        return title.replace(pattern, '').trim();
+    // Try to match any project name prefix and remove it
+    for (const name of allProjectNames) {
+      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const patterns = [
+        new RegExp(`^${escapedName}\\s*[-–—:]?\\s*`, 'i'),
+        new RegExp(`^${escapedName}\\s+`, 'i'),
+      ];
+      
+      for (const pattern of patterns) {
+        if (pattern.test(title)) {
+          return title.replace(pattern, '').trim();
+        }
       }
     }
     return title;
