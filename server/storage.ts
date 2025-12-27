@@ -92,6 +92,8 @@ import {
   worksOrderTemplates,
   worksOrders,
   worksOrderSignatures,
+  worksOrderItems,
+  worksOrderFiles,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
