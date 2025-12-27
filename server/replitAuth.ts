@@ -198,20 +198,26 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/login", (req, res, next) => {
     console.log('[AUTH] Login endpoint hit, hostname:', req.hostname);
-    // Use primary domain for authentication instead of req.hostname
-    // This fixes the issue when accessed via localhost or other domains
-    const strategyName = `replitauth:${primaryDomain}`;
-    console.log('[AUTH] Using strategy:', strategyName);
+    // Use the request's hostname to select the matching strategy
+    // This ensures the session cookie is set on the same domain the user is accessing
+    const hostname = req.hostname;
+    const matchingDomain = domains.find(d => d === hostname || hostname.endsWith(`.${d}`));
+    const strategyDomain = matchingDomain || primaryDomain;
+    const strategyName = `replitauth:${strategyDomain}`;
+    console.log('[AUTH] Using strategy:', strategyName, 'for hostname:', hostname);
     passport.authenticate(strategyName, {
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
   });
 
   app.get("/api/callback", (req, res, next) => {
-    console.log('[AUTH] Callback endpoint hit, query:', req.query);
-    // Use primary domain for authentication instead of req.hostname
-    const strategyName = `replitauth:${primaryDomain}`;
-    console.log('[AUTH] Using strategy:', strategyName);
+    console.log('[AUTH] Callback endpoint hit, hostname:', req.hostname, 'query:', req.query);
+    // Use the request's hostname to select the matching strategy
+    const hostname = req.hostname;
+    const matchingDomain = domains.find(d => d === hostname || hostname.endsWith(`.${d}`));
+    const strategyDomain = matchingDomain || primaryDomain;
+    const strategyName = `replitauth:${strategyDomain}`;
+    console.log('[AUTH] Using strategy:', strategyName, 'for hostname:', hostname);
     passport.authenticate(strategyName, {
       successReturnToOrRedirect: "/",
       failureRedirect: "/api/login",
