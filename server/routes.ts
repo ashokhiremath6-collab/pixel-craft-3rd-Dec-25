@@ -4097,6 +4097,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
 
+      const userId = (req.user as any).claims.sub;
       const moodboardData = isLinkOnly ? {
         projectId: validatedProjectId,
         assetType: assetType || 'moodboard',
@@ -4107,7 +4108,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileType: null,
         fileSize: null,
         tags: parsedTags,
-        canvaLink: canvaLink.trim()
+        canvaLink: canvaLink.trim(),
+        savedBy: userId,
       } : {
         projectId: validatedProjectId,
         assetType: assetType || 'moodboard',
@@ -4118,7 +4120,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileType: path.extname(req.file!.originalname).toLowerCase().substring(1), // Remove dot
         fileSize: req.file!.size.toString(), // Convert number to string for decimal schema
         tags: parsedTags,
-        canvaLink: canvaLink && typeof canvaLink === 'string' ? canvaLink.trim() : null
+        canvaLink: canvaLink && typeof canvaLink === 'string' ? canvaLink.trim() : null,
+        savedBy: userId,
       };
 
       // Validate with Zod schema
@@ -4566,6 +4569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         canvaLink: null,
         roomType: roomTypeForGrouping,
         referenceMetadata: referenceMetadataForStorage,
+        savedBy: userId,
       };
 
       console.log('[AI Render Save] Creating moodboard with data:', {

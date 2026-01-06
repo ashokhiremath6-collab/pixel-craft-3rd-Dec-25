@@ -13,7 +13,8 @@ import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, Exter
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
-import type { Moodboard, Project } from "@shared/schema";
+import type { Moodboard, Project, User } from "@shared/schema";
+import { User as UserIcon } from "lucide-react";
 
 export default function MoodboardsPage() {
   const { toast } = useToast();
@@ -147,6 +148,29 @@ export default function MoodboardsPage() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
   });
+
+  // Fetch users to display who saved each render
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+  });
+
+  // Create a lookup map for users
+  const userMap = useMemo(() => {
+    const map = new Map<string, string>();
+    users.forEach((user: User) => {
+      const name = user.firstName && user.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user.email || 'Unknown';
+      map.set(user.id, name);
+    });
+    return map;
+  }, [users]);
+
+  // Helper function to get user name by ID
+  const getSavedByName = (userId: string | null | undefined) => {
+    if (!userId) return null;
+    return userMap.get(userId) || null;
+  };
 
   // Fetch moodboards from backend (with optional project and assetType filters)
   // For working drawings/renders, require explicit project selection
@@ -608,8 +632,17 @@ export default function MoodboardsPage() {
                                 <h4 className="font-semibold text-base truncate mb-1" title={moodboard.name}>
                                   {moodboard.name}
                                 </h4>
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                                   <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+                                  {(moodboard as any).savedBy && getSavedByName((moodboard as any).savedBy) && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="flex items-center gap-1">
+                                        <UserIcon className="h-3 w-3" />
+                                        {getSavedByName((moodboard as any).savedBy)}
+                                      </span>
+                                    </>
+                                  )}
                                 </div>
                                 {moodboard.canvaLink && (
                                   <a
@@ -667,7 +700,7 @@ export default function MoodboardsPage() {
                           <h4 className="font-medium text-base truncate mb-1" title={getDisplayTitle(moodboard)}>
                             {getDisplayTitle(moodboard) || labels.listMetadataText}
                           </h4>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                             {moodboard.description && moodboard.fileName && (
                               <>
                                 <span>{moodboard.fileName}</span>
@@ -675,6 +708,15 @@ export default function MoodboardsPage() {
                               </>
                             )}
                             <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+                            {(moodboard as any).savedBy && getSavedByName((moodboard as any).savedBy) && (
+                              <>
+                                <span>•</span>
+                                <span className="flex items-center gap-1">
+                                  <UserIcon className="h-3 w-3" />
+                                  {getSavedByName((moodboard as any).savedBy)}
+                                </span>
+                              </>
+                            )}
                           </div>
                           
                           {moodboard.canvaLink && (
