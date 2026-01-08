@@ -209,13 +209,13 @@ export default function DashboardPage() {
     return new Date(dateStr);
   };
 
-  // Calculate task alerts - Starting Today, Completion Countdown, and Overdue
+  // Calculate task alerts - Starting in Next 30 Days, Completion Countdown, and Overdue
   const getTaskAlerts = () => {
-    if (!allTasksData || !quotationsData) return { startingToday: [], completionCountdown: [], overdue: [] };
+    if (!allTasksData || !quotationsData) return { upcomingStart: [], completionCountdown: [], overdue: [] };
     
     const now = new Date();
     const today = startOfDay(now);
-    const startingToday: Array<Task & { projectName: string }> = [];
+    const upcomingStart: Array<Task & { projectName: string, daysUntilStart: number }> = [];
     const completionCountdown: Array<Task & { projectName: string, daysToGo: number }> = [];
     const overdue: Array<Task & { projectName: string, daysOverdue: number }> = [];
     
@@ -235,12 +235,12 @@ export default function DashboardPage() {
       const project = quotationsData.projects.find(p => p.id === task.projectId);
       const projectName = project?.projectName || 'Unknown Project';
       
-      // Check for tasks starting today
+      // Check for tasks starting in the next 30 days (including today)
       if (task.startDate) {
         const startDate = startOfDay(new Date(task.startDate));
         const daysUntilStart = differenceInDays(startDate, today);
-        if (daysUntilStart === 0) {
-          startingToday.push({ ...task, projectName });
+        if (daysUntilStart >= 0 && daysUntilStart <= 30) {
+          upcomingStart.push({ ...task, projectName, daysUntilStart });
         }
       }
       
@@ -262,17 +262,20 @@ export default function DashboardPage() {
       }
     });
     
+    // Sort upcoming start by soonest first (ascending)
+    upcomingStart.sort((a, b) => a.daysUntilStart - b.daysUntilStart);
+    
     // Sort completion countdown by days remaining (ascending)
     completionCountdown.sort((a, b) => a.daysToGo - b.daysToGo);
     
     // Sort overdue by most overdue first (descending)
     overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
     
-    return { startingToday, completionCountdown, overdue };
+    return { upcomingStart, completionCountdown, overdue };
   };
 
   const taskAlerts = getTaskAlerts();
-  const hasAlerts = taskAlerts.startingToday.length > 0 || taskAlerts.completionCountdown.length > 0 || taskAlerts.overdue.length > 0;
+  const hasAlerts = taskAlerts.upcomingStart.length > 0 || taskAlerts.completionCountdown.length > 0 || taskAlerts.overdue.length > 0;
 
   return (
     <div className="space-y-4">
@@ -286,19 +289,19 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Tasks Starting Today */}
-            {taskAlerts.startingToday.length > 0 && (
+            {/* Tasks Starting in Next 30 Days */}
+            {taskAlerts.upcomingStart.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Badge className="bg-blue-600 hover:bg-blue-700 font-semibold">
-                    Starting Today
+                    Starting in Next 30 Days
                   </Badge>
                   <span className="text-sm text-muted-foreground">
-                    {taskAlerts.startingToday.length} task{taskAlerts.startingToday.length !== 1 ? 's' : ''}
+                    {taskAlerts.upcomingStart.length} task{taskAlerts.upcomingStart.length !== 1 ? 's' : ''}
                   </span>
                 </div>
                 <div className="space-y-2">
-                  {taskAlerts.startingToday.map(task => (
+                  {taskAlerts.upcomingStart.map(task => (
                     <div
                       key={task.id}
                       className="flex items-center justify-between gap-3 p-3 rounded-md bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900/30"
@@ -311,10 +314,16 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                           <Calendar className="h-3 w-3" />
                           <span data-testid={`text-project-${task.id}`}>{task.projectName}</span>
+                          {task.startDate && (
+                            <>
+                              <span>•</span>
+                              <span>{format(new Date(task.startDate), 'dd MMM yyyy')}</span>
+                            </>
+                          )}
                         </div>
                       </div>
-                      <Badge className="bg-blue-600 hover:bg-blue-700 flex-shrink-0">
-                        Starts Today
+                      <Badge className={`flex-shrink-0 ${task.daysUntilStart === 0 ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'}`}>
+                        {task.daysUntilStart === 0 ? 'Today' : task.daysUntilStart === 1 ? 'Tomorrow' : `In ${task.daysUntilStart} days`}
                       </Badge>
                     </div>
                   ))}
