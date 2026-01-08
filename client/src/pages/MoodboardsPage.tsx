@@ -26,8 +26,8 @@ export default function MoodboardsPage() {
   const [tags, setTags] = useState("");
   const [canvaLink, setCanvaLink] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
-  // All asset types start blank - require project selection first
-  const [filterProjectId, setFilterProjectId] = useState<string>("");
+  // For renders, default to "all" to show all renders immediately
+  const [filterProjectId, setFilterProjectId] = useState<string>("all");
   const [previewImage, setPreviewImage] = useState<Moodboard | null>(null);
   
   // Determine asset type based on route
