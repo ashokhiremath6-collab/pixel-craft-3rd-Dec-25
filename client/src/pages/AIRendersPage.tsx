@@ -107,7 +107,7 @@ export default function AIRendersPage() {
   const [selectedStyle, setSelectedStyle] = useState<string>("");
   const [customPrompt, setCustomPrompt] = useState("");
   const [textDescription, setTextDescription] = useState("");
-  const [selectedProject, setSelectedProject] = useState<string>("general");
+  const [selectedProject, setSelectedProject] = useState<string>("");
   const [generatedRender, setGeneratedRender] = useState<GeneratedRender | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showFullSize, setShowFullSize] = useState(false);
@@ -1928,7 +1928,6 @@ export default function AIRendersPage() {
                       <SelectValue placeholder="Select a project" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="general">General (No Project)</SelectItem>
                       {projects.map((project) => (
                         <SelectItem key={project.id} value={project.id}>
                           {project.projectName}
@@ -1941,7 +1940,7 @@ export default function AIRendersPage() {
                 <div className="flex gap-2">
                   <Button 
                     onClick={handleSaveRender}
-                    disabled={saveRenderMutation.isPending}
+                    disabled={saveRenderMutation.isPending || !selectedProject}
                     className="flex-1"
                     data-testid="button-save-render"
                   >
