@@ -162,10 +162,14 @@ export default function AIRendersPage() {
     });
   };
 
+  // Flag to track if auto-retry should trigger
+  const [shouldAutoRetry, setShouldAutoRetry] = useState(false);
+  
   // Start auto-retry countdown (30 seconds)
   const startRetryCountdown = (formData: { file: File | null; style: string; prompt: string }) => {
     setLastFormData(formData);
     setRetryCountdown(30);
+    setShouldAutoRetry(false);
     
     if (retryIntervalRef.current) {
       clearInterval(retryIntervalRef.current);
@@ -178,6 +182,8 @@ export default function AIRendersPage() {
             clearInterval(retryIntervalRef.current);
             retryIntervalRef.current = null;
           }
+          // Signal that auto-retry should happen
+          setShouldAutoRetry(true);
           return 0;
         }
         return prev - 1;
@@ -193,6 +199,7 @@ export default function AIRendersPage() {
     }
     setRetryCountdown(0);
     setLastFormData(null);
+    setShouldAutoRetry(false);
   };
 
   // Cleanup on unmount
@@ -944,6 +951,24 @@ export default function AIRendersPage() {
       });
     },
   });
+
+  // Auto-retry effect - triggers when countdown completes
+  useEffect(() => {
+    if (shouldAutoRetry && lastFormData?.file && !generateFromImageMutation.isPending) {
+      setShouldAutoRetry(false);
+      toast({
+        title: "Auto-retrying...",
+        description: "Attempting to generate render again.",
+      });
+      generateFromImageMutation.mutate({
+        file: lastFormData.file,
+        styleId: lastFormData.style,
+        customPrompt: lastFormData.prompt,
+        referenceItems: referenceItems,
+        referencePhotos: referencePhotos
+      });
+    }
+  }, [shouldAutoRetry, lastFormData, generateFromImageMutation.isPending, referenceItems, referencePhotos]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
