@@ -4424,7 +4424,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Error generating AI render:', error);
-      res.status(500).json({ error: error.message || "Failed to generate render" });
+      
+      // Check for circuit breaker or service unavailable errors
+      const isServiceUnavailable = error.name === 'CircuitBreakerError' || 
+        error.message?.includes('temporarily unavailable') ||
+        error.message?.includes('Too many recent failures') ||
+        error.message?.includes('503') ||
+        error.message?.includes('overloaded');
+      
+      if (isServiceUnavailable) {
+        res.status(503).json({ 
+          error: "AI service is temporarily busy. Please wait a moment and try again.",
+          retryAfter: 60
+        });
+      } else {
+        res.status(500).json({ error: error.message || "Failed to generate render" });
+      }
     }
   });
 
@@ -4456,7 +4471,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Error generating concept render:', error);
-      res.status(500).json({ error: error.message || "Failed to generate render" });
+      
+      // Check for circuit breaker or service unavailable errors
+      const isServiceUnavailable = error.name === 'CircuitBreakerError' || 
+        error.message?.includes('temporarily unavailable') ||
+        error.message?.includes('Too many recent failures') ||
+        error.message?.includes('503') ||
+        error.message?.includes('overloaded');
+      
+      if (isServiceUnavailable) {
+        res.status(503).json({ 
+          error: "AI service is temporarily busy. Please wait a moment and try again.",
+          retryAfter: 60
+        });
+      } else {
+        res.status(500).json({ error: error.message || "Failed to generate render" });
+      }
     }
   });
 
