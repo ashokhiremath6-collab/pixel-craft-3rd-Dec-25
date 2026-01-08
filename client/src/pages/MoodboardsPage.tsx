@@ -26,8 +26,8 @@ export default function MoodboardsPage() {
   const [tags, setTags] = useState("");
   const [canvaLink, setCanvaLink] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
-  // For renders, default to "all" to show all renders immediately
-  const [filterProjectId, setFilterProjectId] = useState<string>("all");
+  // Require project selection - no "all" option
+  const [filterProjectId, setFilterProjectId] = useState<string>("");
   const [previewImage, setPreviewImage] = useState<Moodboard | null>(null);
   
   // Determine asset type based on route
@@ -566,7 +566,6 @@ export default function MoodboardsPage() {
                       {project.projectName} - {project.clientName}
                     </SelectItem>
                   ))}
-                  <SelectItem value="all">All Projects</SelectItem>
                 </SelectContent>
               </Select>
             </div>
