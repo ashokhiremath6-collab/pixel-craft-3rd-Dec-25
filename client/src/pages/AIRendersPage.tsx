@@ -372,6 +372,9 @@ export default function AIRendersPage() {
       if (!response.ok) throw new Error('Failed to fetch saved renders');
       return response.json();
     },
+    staleTime: 30000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 
   const { data: catalogueItems = [] } = useQuery<CatalogueItem[]>({

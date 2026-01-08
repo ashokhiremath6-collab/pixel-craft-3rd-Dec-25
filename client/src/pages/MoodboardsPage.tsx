@@ -192,6 +192,9 @@ export default function MoodboardsPage() {
       if (!response.ok) throw new Error("Failed to fetch moodboards");
       return response.json();
     },
+    staleTime: 30000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 
   // Helper function to get project name
