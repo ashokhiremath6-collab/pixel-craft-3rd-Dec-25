@@ -108,6 +108,7 @@ export default function AIRendersPage() {
   const [customPrompt, setCustomPrompt] = useState("");
   const [textDescription, setTextDescription] = useState("");
   const [selectedProject, setSelectedProject] = useState<string>("");
+  const [customRenderName, setCustomRenderName] = useState<string>("");
   const [generatedRender, setGeneratedRender] = useState<GeneratedRender | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showFullSize, setShowFullSize] = useState(false);
@@ -928,6 +929,7 @@ export default function AIRendersPage() {
       styleId: string;
       description?: string;
       originalFilename?: string;
+      customName?: string;
       referenceItems?: Array<{
         id: string;
         name: string;
@@ -1082,6 +1084,7 @@ export default function AIRendersPage() {
       styleId: generatedRender.styleId,
       description: customPrompt || textDescription || "",
       originalFilename: selectedFile?.name || textDescription || "",
+      customName: customRenderName.trim() || undefined,
       referenceItems: referenceItems.map(item => ({
         id: item.id,
         name: item.name,
@@ -1935,6 +1938,21 @@ export default function AIRendersPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="render-name">Render Name (Optional)</Label>
+                  <Input
+                    id="render-name"
+                    className="mt-2"
+                    placeholder="Enter a custom name for this render"
+                    value={customRenderName}
+                    onChange={(e) => setCustomRenderName(e.target.value)}
+                    data-testid="input-render-name"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Leave blank to use auto-generated name
+                  </p>
                 </div>
 
                 <div className="flex gap-2">

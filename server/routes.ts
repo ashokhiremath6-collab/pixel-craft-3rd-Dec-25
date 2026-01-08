@@ -4493,7 +4493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Save generated render to project moodboards
   app.post("/api/ai-renders/save", requireAdmin, async (req, res) => {
     try {
-      const { imageData, mimeType, projectId, name, description, styleId, originalFilename, referenceItems } = req.body;
+      const { imageData, mimeType, projectId, name, description, styleId, originalFilename, customName, referenceItems } = req.body;
       
       if (!imageData) {
         return res.status(400).json({ error: "Image data is required" });
@@ -4519,11 +4519,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paraphrasedDescription = await paraphraseBrief(description, styleName);
       }
       
-      // Create new naming format: "{Room Name} - {Style} - {Paraphrased Brief}"
-      // Uses the specific room name (e.g., "Chitra's Bedroom") for display
-      const displayName = description && description.trim() 
-        ? `${roomName} - ${styleName} - ${paraphrasedDescription}`
-        : `${roomName} - ${styleName}`;
+      // Use custom name if provided, otherwise generate display name
+      // Custom name format: just use as-is
+      // Auto-generated format: "{Room Name} - {Style} - {Paraphrased Brief}"
+      let displayName: string;
+      if (customName && customName.trim()) {
+        displayName = customName.trim();
+      } else if (description && description.trim()) {
+        displayName = `${roomName} - ${styleName} - ${paraphrasedDescription}`;
+      } else {
+        displayName = `${roomName} - ${styleName}`;
+      }
       
       // Convert base64 to buffer and upload to object storage
       const buffer = Buffer.from(imageData, 'base64');
