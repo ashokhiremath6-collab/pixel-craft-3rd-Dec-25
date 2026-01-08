@@ -142,6 +142,11 @@ export default function AIRendersPage() {
   const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   
+  // Retry state for 503 errors
+  const [retryCountdown, setRetryCountdown] = useState<number>(0);
+  const [lastFormData, setLastFormData] = useState<{ file: File | null; style: string; prompt: string } | null>(null);
+  const retryIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
   const abortControllerRef = useRef<AbortController | null>(null);
   
   const cancelGeneration = () => {
@@ -156,6 +161,48 @@ export default function AIRendersPage() {
       description: "Your image is still selected - click Generate to try again."
     });
   };
+
+  // Start auto-retry countdown (30 seconds)
+  const startRetryCountdown = (formData: { file: File | null; style: string; prompt: string }) => {
+    setLastFormData(formData);
+    setRetryCountdown(30);
+    
+    if (retryIntervalRef.current) {
+      clearInterval(retryIntervalRef.current);
+    }
+    
+    retryIntervalRef.current = setInterval(() => {
+      setRetryCountdown(prev => {
+        if (prev <= 1) {
+          if (retryIntervalRef.current) {
+            clearInterval(retryIntervalRef.current);
+            retryIntervalRef.current = null;
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // Cancel retry countdown
+  const cancelRetryCountdown = () => {
+    if (retryIntervalRef.current) {
+      clearInterval(retryIntervalRef.current);
+      retryIntervalRef.current = null;
+    }
+    setRetryCountdown(0);
+    setLastFormData(null);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (retryIntervalRef.current) {
+        clearInterval(retryIntervalRef.current);
+      }
+    };
+  }, []);
   
   // Helper function to convert column index to letter (0=A, 1=B, etc.)
   const columnToLetter = (col: number): string => {
@@ -755,6 +802,9 @@ export default function AIRendersPage() {
           if (response.status === 504 || response.status === 502) {
             throw new Error('Request timed out. The AI generation is taking longer than expected. Please try again with a smaller image.');
           }
+          if (response.status === 503) {
+            throw new Error('SERVICE_TEMPORARILY_BUSY');
+          }
           throw new Error(`Server error (${response.status}). Please try again.`);
         }
       }
@@ -782,9 +832,29 @@ export default function AIRendersPage() {
       }
       const message = error.message || "Failed to generate render";
       
-      // Categorize errors for appropriate messaging
+      // Check for 503 service busy error - offer auto-retry
+      const isServiceBusy = message === 'SERVICE_TEMPORARILY_BUSY' || 
+                            message.includes('temporarily busy') ||
+                            message.includes('temporarily unavailable') || 
+                            message.includes('Too many recent failures');
+      
+      if (isServiceBusy) {
+        // Start retry countdown
+        startRetryCountdown({
+          file: selectedFile,
+          style: selectedStyle,
+          prompt: customPrompt
+        });
+        toast({ 
+          title: "AI Service Busy", 
+          description: "The AI is temporarily busy. Auto-retry will be available in 30 seconds.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+      
+      // Categorize other errors for appropriate messaging
       const isTimeout = message.includes('timed out') || message.includes('90 seconds') || message.includes('timeout');
-      const isCircuitBreaker = message.includes('temporarily unavailable') || message.includes('Too many recent failures');
       const isValidationError = message.includes('Please upload') || message.includes('Unsupported image') || 
                                 message.includes('too small') || message.includes('Invalid image') ||
                                 message.includes('Please select') || message.includes('No image data provided');
@@ -795,9 +865,6 @@ export default function AIRendersPage() {
       if (isTimeout) {
         title = "Generation Timed Out";
         description = "The AI took too long. Try with a smaller image or fewer reference items.";
-      } else if (isCircuitBreaker) {
-        title = "AI Temporarily Unavailable";
-        description = "The AI service is busy. Please wait a moment and try again.";
       } else if (isValidationError) {
         title = "Invalid Input";
         description = message; // Show the exact validation error
@@ -1872,6 +1939,46 @@ export default function AIRendersPage() {
                   </Button>
                 </div>
               </>
+            ) : lastFormData ? (
+              <div className="flex flex-col items-center justify-center h-64 text-muted-foreground border-2 border-dashed rounded-lg border-orange-300 bg-orange-50 dark:bg-orange-900/10">
+                <RefreshCw className="h-12 w-12 mb-4 text-orange-500 animate-pulse" />
+                <p className="text-center font-medium text-orange-700 dark:text-orange-300">
+                  AI Service Temporarily Busy
+                </p>
+                <p className="text-sm text-center mt-2 text-orange-600 dark:text-orange-400">
+                  {retryCountdown > 0 
+                    ? `Auto-retry available in ${retryCountdown} seconds` 
+                    : 'Ready to retry - click below'}
+                </p>
+                <div className="flex gap-3 mt-4">
+                  <Button 
+                    onClick={() => {
+                      cancelRetryCountdown();
+                      if (lastFormData?.file) {
+                        generateFromImageMutation.mutate({
+                          file: lastFormData.file,
+                          styleId: lastFormData.style,
+                          customPrompt: lastFormData.prompt,
+                          referenceItems: referenceItems,
+                          referencePhotos: referencePhotos
+                        });
+                      }
+                    }}
+                    disabled={generateFromImageMutation.isPending}
+                    data-testid="button-retry-now"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${retryCountdown > 0 ? '' : 'animate-spin'}`} />
+                    {retryCountdown > 0 ? `Wait ${retryCountdown}s to Retry` : 'Retry Now'}
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={cancelRetryCountdown}
+                    data-testid="button-cancel-retry"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-64 text-muted-foreground border-2 border-dashed rounded-lg">
                 <Sparkles className="h-12 w-12 mb-4 opacity-50" />
