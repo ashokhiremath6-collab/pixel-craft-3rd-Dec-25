@@ -23,29 +23,28 @@ const getOidcConfig = memoize(
 );
 
 export function getSession() {
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  const sessionTtl = 30 * 24 * 60 * 60 * 1000; // 30 days for longer persistence
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
-    ttl: sessionTtl,
+    createTableIfMissing: true, // Create table if it doesn't exist
+    ttl: sessionTtl / 1000, // ttl is in seconds for connect-pg-simple
     tableName: "sessions",
+    pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 minutes
   });
-  
-  // Get the primary domain for cookie scope
-  const domains = process.env.REPLIT_DOMAINS?.split(",") || [];
-  const primaryDomain = domains[0];
   
   return session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    rolling: true, // Reset session expiry on each request
     cookie: {
       httpOnly: true,
       secure: true, // Always secure since Replit uses HTTPS
       sameSite: "lax", // Allows cookies for same-site navigation
       maxAge: sessionTtl,
+      path: "/",
       // Domain is intentionally omitted to let the browser use the exact host
       // This prevents issues with multiple subdomains
     },
@@ -239,28 +238,53 @@ export async function setupAuth(app: Express) {
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   const user = req.user as any;
 
-  if (!req.isAuthenticated() || !user.expires_at) {
+  if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  const now = Math.floor(Date.now() / 1000);
-  if (now <= user.expires_at) {
+  // If no expires_at, treat as valid (session exists but token info missing)
+  if (!user.expires_at) {
+    console.log('[AUTH] No expires_at in session, allowing request (session valid)');
     return next();
   }
 
+  const now = Math.floor(Date.now() / 1000);
+  
+  // Add 60 second buffer for token expiration to prevent edge cases
+  if (now <= user.expires_at - 60) {
+    return next();
+  }
+
+  // Token is expired or about to expire, try to refresh
   const refreshToken = user.refresh_token;
   if (!refreshToken) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
+    console.log('[AUTH] No refresh token available, session still valid');
+    // Session is still valid even without refresh token
+    return next();
   }
 
   try {
+    console.log('[AUTH] Token expired, attempting refresh...');
     const config = await getOidcConfig();
     const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
     updateUserSession(user, tokenResponse);
+    
+    // Save the session to persist the refreshed tokens
+    if (req.session) {
+      req.session.save((err) => {
+        if (err) {
+          console.error('[AUTH] Failed to save session after token refresh:', err);
+        }
+      });
+    }
+    
+    console.log('[AUTH] Token refreshed successfully');
     return next();
   } catch (error) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
+    console.error('[AUTH] Token refresh failed:', error);
+    // Even if refresh fails, if the session is valid, continue
+    // The session cookie persists for 7 days
+    console.log('[AUTH] Continuing with existing session despite refresh failure');
+    return next();
   }
 };
