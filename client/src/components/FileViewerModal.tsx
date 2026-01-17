@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X, ExternalLink, Download, ZoomIn, ZoomOut, RotateCcw, Maximize2, Minimize2 } from "lucide-react";
 
@@ -10,135 +11,203 @@ interface FileViewerModalProps {
 }
 
 export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileViewerModalProps) {
-  const [zoomPercent, setZoomPercent] = useState(100);
+  const [zoom, setZoom] = useState(100);
   const [cleanView, setCleanView] = useState(false);
-  const [initialZoom, setInitialZoom] = useState(100);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const reset = () => {
-    setZoomPercent(100);
-    setCleanView(false);
-    setInitialZoom(100);
-    setDimensions({ width: 0, height: 0 });
+  
+  const handleDownload = () => {
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.download = fileName || 'download';
+    link.click();
   };
 
-  useEffect(() => {
-    if (!isOpen) reset();
-  }, [isOpen]);
+  const handleOpenExternal = () => {
+    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+  };
 
-  useEffect(() => {
-    document.body.style.overflow = isOpen ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
+  const handleZoomIn = () => {
+    setZoom(prev => Math.min(prev + 25, 300));
+  };
 
-  // Load image and calculate fit zoom
-  useEffect(() => {
-    if (!isOpen || !fileUrl) return;
-    
-    const isImg = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
-                  /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
-    if (!isImg) return;
+  const handleZoomOut = () => {
+    setZoom(prev => Math.max(prev - 25, 25));
+  };
 
-    const img = new Image();
-    img.onload = () => {
-      const container = containerRef.current;
-      if (!container) return;
-      
-      const cw = container.clientWidth - 64;
-      const ch = container.clientHeight - 64;
-      const fit = Math.min(cw / img.naturalWidth, ch / img.naturalHeight, 1) * 100;
-      const roundedFit = Math.round(fit);
-      
-      setDimensions({ width: img.naturalWidth, height: img.naturalHeight });
-      setInitialZoom(roundedFit);
-      setZoomPercent(roundedFit);
-    };
-    img.src = fileUrl;
-  }, [isOpen, fileUrl, fileName]);
+  const handleResetZoom = () => {
+    setZoom(100);
+  };
 
-  if (!isOpen) return null;
+  const handleClose = () => {
+    setZoom(100);
+    setCleanView(false);
+    onClose();
+  };
 
   const isPdf = fileName?.toLowerCase().endsWith('.pdf') || fileUrl.includes('.pdf');
   const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
                   /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
 
-  const scaledWidth = Math.round(dimensions.width * zoomPercent / 100);
-  const scaledHeight = Math.round(dimensions.height * zoomPercent / 100);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/80" onClick={onClose} />
-      <div className="relative bg-background rounded-lg shadow-lg flex flex-col" style={{ width: '95vw', height: '95vh' }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
+      <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0">
         {!cleanView ? (
-          <div className="p-4 border-b shrink-0">
+          <DialogHeader className="p-4 border-b">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold truncate flex-1">{fileName || 'File Viewer'}</h2>
+              <DialogTitle className="text-sm truncate flex-1" data-testid="viewer-file-name">
+                {fileName || 'File Viewer'}
+              </DialogTitle>
               <div className="flex items-center gap-1">
                 {(isPdf || isImage) && (
                   <>
-                    <Button type="button" variant="ghost" size="icon" onClick={() => setZoomPercent(z => Math.max(z - 25, 25))} disabled={zoomPercent <= 25}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleZoomOut}
+                      title="Zoom out"
+                      disabled={zoom <= 25}
+                      data-testid="button-zoom-out"
+                    >
                       <ZoomOut className="w-4 h-4" />
                     </Button>
-                    <span className="text-xs text-muted-foreground min-w-[3rem] text-center">{zoomPercent}%</span>
-                    <Button type="button" variant="ghost" size="icon" onClick={() => setZoomPercent(z => Math.min(z + 25, 300))} disabled={zoomPercent >= 300}>
+                    <span className="text-xs text-muted-foreground min-w-[3rem] text-center">
+                      {zoom}%
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleZoomIn}
+                      title="Zoom in"
+                      disabled={zoom >= 300}
+                      data-testid="button-zoom-in"
+                    >
                       <ZoomIn className="w-4 h-4" />
                     </Button>
-                    <Button type="button" variant="ghost" size="icon" onClick={() => setZoomPercent(initialZoom)} title="Fit to screen">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleResetZoom}
+                      title="Reset zoom"
+                      data-testid="button-reset-zoom"
+                    >
                       <RotateCcw className="w-4 h-4" />
                     </Button>
                     <div className="w-px h-6 bg-border mx-1" />
                   </>
                 )}
-                <Button type="button" variant="ghost" size="icon" onClick={() => setCleanView(true)} title="Clean view">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCleanView(true)}
+                  title="Clean view (hide controls)"
+                  data-testid="button-clean-view"
+                >
                   <Maximize2 className="w-4 h-4" />
                 </Button>
-                <Button type="button" variant="ghost" size="icon" onClick={() => window.open(fileUrl, '_blank')} title="Open in new tab">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleOpenExternal}
+                  title="Open in new tab"
+                  data-testid="button-open-external"
+                >
                   <ExternalLink className="w-4 h-4" />
                 </Button>
-                <Button type="button" variant="ghost" size="icon" onClick={() => { const a = document.createElement('a'); a.href = fileUrl; a.download = fileName || 'download'; a.click(); }} title="Download">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleDownload}
+                  title="Download file"
+                  data-testid="button-download-file"
+                >
                   <Download className="w-4 h-4" />
                 </Button>
-                <Button type="button" variant="ghost" size="icon" onClick={onClose}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleClose}
+                  data-testid="button-close-viewer"
+                >
                   <X className="w-4 h-4" />
                 </Button>
               </div>
             </div>
-          </div>
+          </DialogHeader>
         ) : (
           <div className="absolute top-2 right-2 z-50 flex gap-1 bg-background/80 backdrop-blur-sm rounded-md p-1">
-            <Button type="button" variant="ghost" size="icon" onClick={() => setCleanView(false)}><Minimize2 className="w-4 h-4" /></Button>
-            <Button type="button" variant="ghost" size="icon" onClick={onClose}><X className="w-4 h-4" /></Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setCleanView(false)}
+              title="Show controls"
+              data-testid="button-exit-clean-view"
+            >
+              <Minimize2 className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleClose}
+              data-testid="button-close-clean-view"
+            >
+              <X className="w-4 h-4" />
+            </Button>
           </div>
         )}
-        
-        <div ref={containerRef} className="flex-1 overflow-auto bg-muted/30">
+        <div 
+          className="flex-1 overflow-auto bg-muted/30" 
+          style={{ height: cleanView ? '95vh' : 'calc(95vh - 60px)' }}
+        >
           {isPdf ? (
-            <div className="w-full h-full p-4">
-              <iframe src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1`} className="w-full border-0 rounded bg-white" style={{ minHeight: '600px', height: 'calc(95vh - 100px)' }} title={fileName || 'PDF'} />
+            <div 
+              className="min-h-full flex items-start justify-center p-4"
+              style={{ 
+                transform: `scale(${zoom / 100})`,
+                transformOrigin: 'top center',
+                width: `${10000 / zoom}%`,
+                marginLeft: zoom > 100 ? `${(zoom - 100) / 2}%` : 0,
+              }}
+            >
+              <object
+                data={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&zoom=${zoom}`}
+                type="application/pdf"
+                className="w-full"
+                style={{ height: 'calc(95vh - 100px)', minHeight: '600px' }}
+                title={fileName || 'File viewer'}
+                data-testid="file-viewer-object"
+              >
+                <embed
+                  src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&zoom=${zoom}`}
+                  type="application/pdf"
+                  className="w-full"
+                  style={{ height: 'calc(95vh - 100px)', minHeight: '600px' }}
+                />
+              </object>
             </div>
           ) : isImage ? (
-            <div className="p-4">
-              <div className="mb-2 text-xs text-muted-foreground">
-                Debug: zoom={zoomPercent}%, natural={dimensions.width}x{dimensions.height}, scaled={scaledWidth}x{scaledHeight}
-              </div>
-              {dimensions.width === 0 ? (
-                <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>
-              ) : (
-                <div style={{ width: `${scaledWidth}px`, height: `${scaledHeight}px`, border: '1px solid red' }}>
-                  <img
-                    src={fileUrl}
-                    alt={fileName || 'Image'}
-                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                  />
-                </div>
-              )}
+            <div 
+              className="min-h-full flex items-start justify-center p-4 overflow-auto"
+            >
+              <img
+                src={fileUrl}
+                alt={fileName || 'Image viewer'}
+                style={{ 
+                  width: `${zoom}%`,
+                  maxWidth: 'none',
+                  height: 'auto',
+                }}
+                data-testid="file-viewer-image"
+              />
             </div>
           ) : (
-            <iframe src={fileUrl} className="w-full h-full border-0" style={{ minHeight: '600px' }} title={fileName || 'File'} />
+            <iframe
+              src={fileUrl}
+              className="w-full h-full border-0"
+              title={fileName || 'File viewer'}
+              data-testid="file-viewer-iframe"
+            />
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
