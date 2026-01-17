@@ -10,85 +10,69 @@ interface FileViewerModalProps {
 }
 
 export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileViewerModalProps) {
-  const [scale, setScale] = useState(1);
+  const [zoomPercent, setZoomPercent] = useState(100);
   const [cleanView, setCleanView] = useState(false);
-  const [baseScale, setBaseScale] = useState(1);
-  const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
-  const [ready, setReady] = useState(false);
-  const boxRef = useRef<HTMLDivElement>(null);
-  
-  function download(e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
+  const [initialZoom, setInitialZoom] = useState(100);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+
+  const handleZoomIn = () => {
+    setZoomPercent(prev => Math.min(prev + 25, 300));
+  };
+
+  const handleZoomOut = () => {
+    setZoomPercent(prev => Math.max(prev - 25, 25));
+  };
+
+  const handleResetZoom = () => {
+    setZoomPercent(initialZoom);
+  };
+
+  const handleClose = () => {
+    setZoomPercent(100);
+    setCleanView(false);
+    setImageLoaded(false);
+    setInitialZoom(100);
+    onClose();
+  };
+
+  const handleDownload = () => {
     const a = document.createElement('a');
     a.href = fileUrl;
     a.download = fileName || 'download';
     a.click();
-  }
+  };
 
-  function openNew(e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleOpenExternal = () => {
     window.open(fileUrl, '_blank', 'noopener,noreferrer');
-  }
+  };
 
-  function zoomIn(e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    setScale(s => {
-      const newScale = Math.min(s + 0.25, 3);
-      console.log('Zoom in:', s, '->', newScale);
-      return newScale;
-    });
-  }
-
-  function zoomOut(e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    setScale(s => {
-      const newScale = Math.max(s - 0.25, 0.25);
-      console.log('Zoom out:', s, '->', newScale);
-      return newScale;
-    });
-  }
-
-  function resetZoom(e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    setScale(baseScale);
-  }
-
-  function close() {
-    setScale(1);
-    setCleanView(false);
-    setReady(false);
-    setBaseScale(1);
-    setImgSize({ w: 0, h: 0 });
-    onClose();
-  }
-
-  function onImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
-    const img = e.currentTarget;
-    const box = boxRef.current;
-    if (!box || !img.naturalWidth || !img.naturalHeight) return;
+  const handleImageLoad = () => {
+    const img = imageRef.current;
+    const container = containerRef.current;
     
-    const boxW = box.clientWidth - 64;
-    const boxH = box.clientHeight - 64;
-    const fitScale = Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight, 1);
-    
-    setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
-    setBaseScale(fitScale);
-    setScale(fitScale);
-    setReady(true);
-  }
+    if (img && container) {
+      const containerWidth = container.clientWidth - 64;
+      const containerHeight = container.clientHeight - 64;
+      
+      const widthRatio = containerWidth / img.naturalWidth;
+      const heightRatio = containerHeight / img.naturalHeight;
+      const fitZoom = Math.min(widthRatio, heightRatio, 1) * 100;
+      
+      const roundedFitZoom = Math.round(fitZoom);
+      setInitialZoom(roundedFitZoom);
+      setZoomPercent(roundedFitZoom);
+      setImageLoaded(true);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) {
-      setScale(1);
+      setZoomPercent(100);
       setCleanView(false);
-      setReady(false);
-      setBaseScale(1);
-      setImgSize({ w: 0, h: 0 });
+      setImageLoaded(false);
+      setInitialZoom(100);
     }
   }, [isOpen]);
 
@@ -106,17 +90,16 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   if (!isOpen) return null;
 
   const isPdf = fileName?.toLowerCase().endsWith('.pdf') || fileUrl.includes('.pdf');
-  const isImg = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
-                /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
-
-  const pct = Math.round(scale * 100);
-  const w = imgSize.w * scale;
-  const h = imgSize.h * scale;
+  const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
+                  /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/80" onClick={close} />
-      <div className="relative bg-background rounded-lg shadow-lg flex flex-col" style={{ width: '95vw', height: '95vh', maxWidth: '95vw', maxHeight: '95vh' }}>
+      <div className="absolute inset-0 bg-black/80" onClick={handleClose} />
+      <div 
+        className="relative bg-background rounded-lg shadow-lg flex flex-col"
+        style={{ width: '95vw', height: '95vh' }}
+      >
         {!cleanView ? (
           <div className="p-4 border-b shrink-0">
             <div className="flex items-center justify-between gap-2">
@@ -124,31 +107,74 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                 {fileName || 'File Viewer'}
               </h2>
               <div className="flex items-center gap-1">
-                {(isPdf || isImg) && (
+                {(isPdf || isImage) && (
                   <>
-                    <Button type="button" variant="ghost" size="icon" onClick={zoomOut} disabled={scale <= 0.25}>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={handleZoomOut} 
+                      disabled={zoomPercent <= 25}
+                    >
                       <ZoomOut className="w-4 h-4" />
                     </Button>
-                    <span className="text-xs text-muted-foreground min-w-[3rem] text-center">{pct}%</span>
-                    <Button type="button" variant="ghost" size="icon" onClick={zoomIn} disabled={scale >= 3}>
+                    <span className="text-xs text-muted-foreground min-w-[3rem] text-center">
+                      {zoomPercent}%
+                    </span>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={handleZoomIn} 
+                      disabled={zoomPercent >= 300}
+                    >
                       <ZoomIn className="w-4 h-4" />
                     </Button>
-                    <Button type="button" variant="ghost" size="icon" onClick={resetZoom} title="Fit to screen">
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={handleResetZoom} 
+                      title="Fit to screen"
+                    >
                       <RotateCcw className="w-4 h-4" />
                     </Button>
                     <div className="w-px h-6 bg-border mx-1" />
                   </>
                 )}
-                <Button type="button" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setCleanView(true); }} title="Clean view">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => setCleanView(true)} 
+                  title="Clean view"
+                >
                   <Maximize2 className="w-4 h-4" />
                 </Button>
-                <Button type="button" variant="ghost" size="icon" onClick={openNew} title="Open in new tab">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={handleOpenExternal} 
+                  title="Open in new tab"
+                >
                   <ExternalLink className="w-4 h-4" />
                 </Button>
-                <Button type="button" variant="ghost" size="icon" onClick={download} title="Download">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={handleDownload} 
+                  title="Download"
+                >
                   <Download className="w-4 h-4" />
                 </Button>
-                <Button type="button" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); close(); }}>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={handleClose}
+                >
                   <X className="w-4 h-4" />
                 </Button>
               </div>
@@ -156,15 +182,16 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
           </div>
         ) : (
           <div className="absolute top-2 right-2 z-50 flex gap-1 bg-background/80 backdrop-blur-sm rounded-md p-1">
-            <Button type="button" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setCleanView(false); }}>
+            <Button type="button" variant="ghost" size="icon" onClick={() => setCleanView(false)}>
               <Minimize2 className="w-4 h-4" />
             </Button>
-            <Button type="button" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); close(); }}>
+            <Button type="button" variant="ghost" size="icon" onClick={handleClose}>
               <X className="w-4 h-4" />
             </Button>
           </div>
         )}
-        <div ref={boxRef} className="flex-1 overflow-auto bg-muted/30">
+        
+        <div ref={containerRef} className="flex-1 overflow-auto bg-muted/30">
           {isPdf ? (
             <div className="w-full h-full p-4">
               <iframe
@@ -174,19 +201,22 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                 title={fileName || 'PDF'}
               />
             </div>
-          ) : isImg ? (
-            <div className="p-4 min-h-full">
-              {!ready && <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>}
+          ) : isImage ? (
+            <div className="p-4">
+              {!imageLoaded && (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">
+                  Loading...
+                </div>
+              )}
               <img
-                key={fileUrl}
+                ref={imageRef}
                 src={fileUrl}
                 alt={fileName || 'Image'}
-                onLoad={onImgLoad}
+                onLoad={handleImageLoad}
                 style={{
-                  width: ready ? `${w}px` : undefined,
-                  height: ready ? `${h}px` : undefined,
-                  maxWidth: ready ? 'none' : '100%',
-                  display: ready ? 'block' : 'none',
+                  transform: `scale(${zoomPercent / 100})`,
+                  transformOrigin: 'top left',
+                  visibility: imageLoaded ? 'visible' : 'hidden',
                 }}
               />
             </div>
