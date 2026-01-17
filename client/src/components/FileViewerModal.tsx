@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X, ExternalLink, Download, ZoomIn, ZoomOut, RotateCcw, Maximize2, Minimize2 } from "lucide-react";
 
@@ -18,26 +17,44 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const [ready, setReady] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   
-  function download() {
+  function download(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
     const a = document.createElement('a');
     a.href = fileUrl;
     a.download = fileName || 'download';
     a.click();
   }
 
-  function openNew() {
+  function openNew(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
     window.open(fileUrl, '_blank', 'noopener,noreferrer');
   }
 
-  function zoomIn() {
-    setScale(s => Math.min(s + 0.25, 3));
+  function zoomIn(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setScale(s => {
+      const newScale = Math.min(s + 0.25, 3);
+      console.log('Zoom in:', s, '->', newScale);
+      return newScale;
+    });
   }
 
-  function zoomOut() {
-    setScale(s => Math.max(s - 0.25, 0.25));
+  function zoomOut(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setScale(s => {
+      const newScale = Math.max(s - 0.25, 0.25);
+      console.log('Zoom out:', s, '->', newScale);
+      return newScale;
+    });
   }
 
-  function resetZoom() {
+  function resetZoom(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
     setScale(baseScale);
   }
 
@@ -75,6 +92,19 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
   const isPdf = fileName?.toLowerCase().endsWith('.pdf') || fileUrl.includes('.pdf');
   const isImg = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
                 /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
@@ -84,51 +114,52 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const h = imgSize.h * scale;
 
   return (
-    <Dialog open={isOpen} onOpenChange={o => { if (!o) close(); }}>
-      <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0 flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/80" onClick={close} />
+      <div className="relative bg-background rounded-lg shadow-lg flex flex-col" style={{ width: '95vw', height: '95vh', maxWidth: '95vw', maxHeight: '95vh' }}>
         {!cleanView ? (
-          <DialogHeader className="p-4 border-b shrink-0">
+          <div className="p-4 border-b shrink-0">
             <div className="flex items-center justify-between gap-2">
-              <DialogTitle className="text-sm truncate flex-1">
+              <h2 className="text-sm font-semibold truncate flex-1">
                 {fileName || 'File Viewer'}
-              </DialogTitle>
+              </h2>
               <div className="flex items-center gap-1">
                 {(isPdf || isImg) && (
                   <>
-                    <Button variant="ghost" size="icon" onClick={zoomOut} disabled={scale <= 0.25}>
+                    <Button type="button" variant="ghost" size="icon" onClick={zoomOut} disabled={scale <= 0.25}>
                       <ZoomOut className="w-4 h-4" />
                     </Button>
                     <span className="text-xs text-muted-foreground min-w-[3rem] text-center">{pct}%</span>
-                    <Button variant="ghost" size="icon" onClick={zoomIn} disabled={scale >= 3}>
+                    <Button type="button" variant="ghost" size="icon" onClick={zoomIn} disabled={scale >= 3}>
                       <ZoomIn className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={resetZoom} title="Fit to screen">
+                    <Button type="button" variant="ghost" size="icon" onClick={resetZoom} title="Fit to screen">
                       <RotateCcw className="w-4 h-4" />
                     </Button>
                     <div className="w-px h-6 bg-border mx-1" />
                   </>
                 )}
-                <Button variant="ghost" size="icon" onClick={() => setCleanView(true)} title="Clean view">
+                <Button type="button" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setCleanView(true); }} title="Clean view">
                   <Maximize2 className="w-4 h-4" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={openNew} title="Open in new tab">
+                <Button type="button" variant="ghost" size="icon" onClick={openNew} title="Open in new tab">
                   <ExternalLink className="w-4 h-4" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={download} title="Download">
+                <Button type="button" variant="ghost" size="icon" onClick={download} title="Download">
                   <Download className="w-4 h-4" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={close}>
+                <Button type="button" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); close(); }}>
                   <X className="w-4 h-4" />
                 </Button>
               </div>
             </div>
-          </DialogHeader>
+          </div>
         ) : (
           <div className="absolute top-2 right-2 z-50 flex gap-1 bg-background/80 backdrop-blur-sm rounded-md p-1">
-            <Button variant="ghost" size="icon" onClick={() => setCleanView(false)}>
+            <Button type="button" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setCleanView(false); }}>
               <Minimize2 className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={close}>
+            <Button type="button" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); close(); }}>
               <X className="w-4 h-4" />
             </Button>
           </div>
@@ -152,8 +183,8 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                 alt={fileName || 'Image'}
                 onLoad={onImgLoad}
                 style={{
-                  width: ready ? w : undefined,
-                  height: ready ? h : undefined,
+                  width: ready ? `${w}px` : undefined,
+                  height: ready ? `${h}px` : undefined,
                   maxWidth: ready ? 'none' : '100%',
                   display: ready ? 'block' : 'none',
                 }}
@@ -168,7 +199,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
             />
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
