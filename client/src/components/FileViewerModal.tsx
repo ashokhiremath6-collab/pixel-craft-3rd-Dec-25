@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X, ExternalLink, Download, ZoomIn, ZoomOut, RotateCcw, Maximize2, Minimize2 } from "lucide-react";
@@ -13,6 +13,7 @@ interface FileViewerModalProps {
 export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileViewerModalProps) {
   const [zoom, setZoom] = useState(100);
   const [cleanView, setCleanView] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -49,9 +50,9 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
-      <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0">
+      <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0 flex flex-col">
         {!cleanView ? (
-          <DialogHeader className="p-4 border-b">
+          <DialogHeader className="p-4 border-b shrink-0">
             <div className="flex items-center justify-between gap-2">
               <DialogTitle className="text-sm truncate flex-1" data-testid="viewer-file-name">
                 {fileName || 'File Viewer'}
@@ -154,54 +155,50 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
           </div>
         )}
         <div 
-          className="flex-1 overflow-auto bg-muted/30" 
-          style={{ height: cleanView ? '95vh' : 'calc(95vh - 60px)' }}
+          ref={containerRef}
+          className="flex-1 overflow-auto bg-muted/30"
         >
           {isPdf ? (
-            <div 
-              className="min-h-full flex items-start justify-center p-4"
-              style={{ 
-                transform: `scale(${zoom / 100})`,
-                transformOrigin: 'top center',
-                width: `${10000 / zoom}%`,
-                marginLeft: zoom > 100 ? `${(zoom - 100) / 2}%` : 0,
-              }}
-            >
-              <object
-                data={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&zoom=${zoom}`}
-                type="application/pdf"
-                className="w-full"
-                style={{ height: 'calc(95vh - 100px)', minHeight: '600px' }}
+            <div className="w-full h-full p-4">
+              <iframe
+                src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=${zoom}`}
+                className="w-full h-full border-0 rounded"
+                style={{ 
+                  minHeight: '600px',
+                  transform: `scale(${zoom / 100})`,
+                  transformOrigin: 'top left',
+                  width: `${10000 / zoom}%`,
+                  height: `${10000 / zoom}%`,
+                }}
                 title={fileName || 'File viewer'}
-                data-testid="file-viewer-object"
-              >
-                <embed
-                  src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&zoom=${zoom}`}
-                  type="application/pdf"
-                  className="w-full"
-                  style={{ height: 'calc(95vh - 100px)', minHeight: '600px' }}
-                />
-              </object>
+                data-testid="file-viewer-pdf"
+              />
             </div>
           ) : isImage ? (
-            <div 
-              className="min-h-full flex items-start justify-center p-4 overflow-auto"
-            >
-              <img
-                src={fileUrl}
-                alt={fileName || 'Image viewer'}
+            <div className="p-4">
+              <div 
                 style={{ 
-                  width: `${zoom}%`,
-                  maxWidth: 'none',
-                  height: 'auto',
+                  display: 'inline-block',
+                  transform: `scale(${zoom / 100})`,
+                  transformOrigin: 'top left',
                 }}
-                data-testid="file-viewer-image"
-              />
+              >
+                <img
+                  src={fileUrl}
+                  alt={fileName || 'Image viewer'}
+                  style={{ 
+                    display: 'block',
+                    maxWidth: 'none',
+                  }}
+                  data-testid="file-viewer-image"
+                />
+              </div>
             </div>
           ) : (
             <iframe
               src={fileUrl}
               className="w-full h-full border-0"
+              style={{ minHeight: '600px' }}
               title={fileName || 'File viewer'}
               data-testid="file-viewer-iframe"
             />
