@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, MoreVertical, Pencil, Trash2, FileText, Download, Eye } from "lucide-react";
-import { FileViewerModal } from "@/components/FileViewerModal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,18 +37,11 @@ export default function SpecificationsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSpec, setEditingSpec] = useState<Specification | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
   const [formData, setFormData] = useState({
     category: "",
     title: "",
     description: "",
   });
-
-  const handleViewFile = (filePath: string, fileName: string) => {
-    setViewerFile({ url: filePath, name: fileName });
-    setViewerOpen(true);
-  };
 
   // Fetch specifications
   const { data: specs = [], isLoading } = useQuery<Specification[]>({
@@ -328,7 +320,7 @@ export default function SpecificationsPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleViewFile(spec.filePath!, spec.fileName || 'Document')}
+                                  onClick={() => window.open(spec.filePath, '_blank')}
                                   data-testid={`button-view-${spec.id}`}
                                   className="text-primary h-7 px-2 text-xs"
                                 >
@@ -477,18 +469,6 @@ export default function SpecificationsPage() {
             </form>
           </DialogContent>
         </Dialog>
-
-        {viewerFile && (
-          <FileViewerModal
-            isOpen={viewerOpen}
-            onClose={() => {
-              setViewerOpen(false);
-              setViewerFile(null);
-            }}
-            fileUrl={viewerFile.url}
-            fileName={viewerFile.name}
-          />
-        )}
       </div>
     </div>
   );

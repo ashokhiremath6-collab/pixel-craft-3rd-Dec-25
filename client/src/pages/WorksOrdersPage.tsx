@@ -35,7 +35,6 @@ import {
   X,
   Loader2
 } from "lucide-react";
-import { FileViewerModal } from "@/components/FileViewerModal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,19 +83,16 @@ const STATUS_LABELS = {
   void: "Voided",
 };
 
+const openFile = (filePath: string, fileName: string) => {
+  window.open(filePath, '_blank');
+};
+
 export default function WorksOrdersPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("orders");
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
-
-  const openFile = (filePath: string, fileName: string) => {
-    setViewerFile({ url: filePath, name: fileName });
-    setViewerOpen(true);
-  };
   
   // Template state
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
@@ -1631,18 +1627,6 @@ export default function WorksOrdersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {viewerFile && (
-        <FileViewerModal
-          isOpen={viewerOpen}
-          onClose={() => {
-            setViewerOpen(false);
-            setViewerFile(null);
-          }}
-          fileUrl={viewerFile.url}
-          fileName={viewerFile.name}
-        />
-      )}
     </div>
   );
 }
