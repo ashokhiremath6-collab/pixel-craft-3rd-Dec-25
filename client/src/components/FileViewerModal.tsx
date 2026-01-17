@@ -13,8 +13,10 @@ interface FileViewerModalProps {
 export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileViewerModalProps) {
   const [zoom, setZoom] = useState(100);
   const [cleanView, setCleanView] = useState(false);
-  const [imageNaturalSize, setImageNaturalSize] = useState<{ width: number; height: number } | null>(null);
+  const [initialFitZoom, setInitialFitZoom] = useState(100);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -36,22 +38,33 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   };
 
   const handleResetZoom = () => {
-    setZoom(100);
+    setZoom(initialFitZoom);
   };
 
   const handleClose = () => {
     setZoom(100);
     setCleanView(false);
-    setImageNaturalSize(null);
+    setImageLoaded(false);
+    setInitialFitZoom(100);
     onClose();
   };
 
   const handleImageLoad = () => {
-    if (imgRef.current) {
-      setImageNaturalSize({
-        width: imgRef.current.naturalWidth,
-        height: imgRef.current.naturalHeight
-      });
+    if (imgRef.current && containerRef.current) {
+      const img = imgRef.current;
+      const container = containerRef.current;
+      
+      const containerWidth = container.clientWidth - 32;
+      const containerHeight = container.clientHeight - 32;
+      
+      const widthRatio = containerWidth / img.naturalWidth;
+      const heightRatio = containerHeight / img.naturalHeight;
+      
+      const fitZoom = Math.min(widthRatio, heightRatio, 1) * 100;
+      
+      setInitialFitZoom(Math.round(fitZoom));
+      setZoom(Math.round(fitZoom));
+      setImageLoaded(true);
     }
   };
 
@@ -59,7 +72,8 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
     if (!isOpen) {
       setZoom(100);
       setCleanView(false);
-      setImageNaturalSize(null);
+      setImageLoaded(false);
+      setInitialFitZoom(100);
     }
   }, [isOpen]);
 
@@ -68,15 +82,17 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                   /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
 
   const getImageStyle = () => {
-    if (!imageNaturalSize) {
-      return { maxWidth: '100%', height: 'auto' };
+    if (!imgRef.current) {
+      return { maxWidth: '100%', height: 'auto', opacity: 0 };
     }
-    const scaledWidth = imageNaturalSize.width * (zoom / 100);
-    const scaledHeight = imageNaturalSize.height * (zoom / 100);
+    const scaledWidth = imgRef.current.naturalWidth * (zoom / 100);
+    const scaledHeight = imgRef.current.naturalHeight * (zoom / 100);
     return {
       width: `${scaledWidth}px`,
       height: `${scaledHeight}px`,
       maxWidth: 'none',
+      opacity: imageLoaded ? 1 : 0,
+      transition: 'opacity 0.2s ease-in-out',
     };
   };
 
@@ -119,7 +135,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                       variant="ghost"
                       size="icon"
                       onClick={handleResetZoom}
-                      title="Reset zoom"
+                      title="Fit to screen"
                       data-testid="button-reset-zoom"
                     >
                       <RotateCcw className="w-4 h-4" />
@@ -186,7 +202,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
             </Button>
           </div>
         )}
-        <div className="flex-1 overflow-auto bg-muted/30">
+        <div ref={containerRef} className="flex-1 overflow-auto bg-muted/30">
           {isPdf ? (
             <div className="w-full h-full p-4">
               <iframe
