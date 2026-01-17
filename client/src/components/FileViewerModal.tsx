@@ -13,89 +13,49 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const [zoomPercent, setZoomPercent] = useState(100);
   const [cleanView, setCleanView] = useState(false);
   const [initialZoom, setInitialZoom] = useState(100);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [naturalWidth, setNaturalWidth] = useState(0);
-  const [naturalHeight, setNaturalHeight] = useState(0);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleZoomIn = () => {
-    setZoomPercent(prev => Math.min(prev + 25, 300));
-  };
-
-  const handleZoomOut = () => {
-    setZoomPercent(prev => Math.max(prev - 25, 25));
-  };
-
-  const handleResetZoom = () => {
-    setZoomPercent(initialZoom);
-  };
-
-  const handleClose = () => {
+  const reset = () => {
     setZoomPercent(100);
     setCleanView(false);
-    setImageLoaded(false);
     setInitialZoom(100);
-    setNaturalWidth(0);
-    setNaturalHeight(0);
-    onClose();
+    setDimensions({ width: 0, height: 0 });
   };
 
-  const handleDownload = () => {
-    const a = document.createElement('a');
-    a.href = fileUrl;
-    a.download = fileName || 'download';
-    a.click();
-  };
+  useEffect(() => {
+    if (!isOpen) reset();
+  }, [isOpen]);
 
-  const handleOpenExternal = () => {
-    window.open(fileUrl, '_blank', 'noopener,noreferrer');
-  };
+  useEffect(() => {
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
 
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget;
-    const container = containerRef.current;
+  // Load image and calculate fit zoom
+  useEffect(() => {
+    if (!isOpen || !fileUrl) return;
     
-    if (img && container) {
-      const nw = img.naturalWidth;
-      const nh = img.naturalHeight;
-      setNaturalWidth(nw);
-      setNaturalHeight(nh);
-      
-      const containerWidth = container.clientWidth - 64;
-      const containerHeight = container.clientHeight - 64;
-      
-      const widthRatio = containerWidth / nw;
-      const heightRatio = containerHeight / nh;
-      const fitZoom = Math.min(widthRatio, heightRatio, 1) * 100;
-      
-      const roundedFitZoom = Math.round(fitZoom);
-      setInitialZoom(roundedFitZoom);
-      setZoomPercent(roundedFitZoom);
-      setImageLoaded(true);
-    }
-  };
+    const isImg = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
+                  /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
+    if (!isImg) return;
 
-  useEffect(() => {
-    if (!isOpen) {
-      setZoomPercent(100);
-      setCleanView(false);
-      setImageLoaded(false);
-      setInitialZoom(100);
-      setNaturalWidth(0);
-      setNaturalHeight(0);
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
+    const img = new Image();
+    img.onload = () => {
+      const container = containerRef.current;
+      if (!container) return;
+      
+      const cw = container.clientWidth - 64;
+      const ch = container.clientHeight - 64;
+      const fit = Math.min(cw / img.naturalWidth, ch / img.naturalHeight, 1) * 100;
+      const roundedFit = Math.round(fit);
+      
+      setDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+      setInitialZoom(roundedFit);
+      setZoomPercent(roundedFit);
     };
-  }, [isOpen]);
+    img.src = fileUrl;
+  }, [isOpen, fileUrl, fileName]);
 
   if (!isOpen) return null;
 
@@ -103,92 +63,43 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
                   /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
 
-  // Calculate display dimensions based on zoom
-  const displayWidth = naturalWidth * (zoomPercent / 100);
-  const displayHeight = naturalHeight * (zoomPercent / 100);
+  const scaledWidth = Math.round(dimensions.width * zoomPercent / 100);
+  const scaledHeight = Math.round(dimensions.height * zoomPercent / 100);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/80" onClick={handleClose} />
-      <div 
-        className="relative bg-background rounded-lg shadow-lg flex flex-col"
-        style={{ width: '95vw', height: '95vh' }}
-      >
+      <div className="absolute inset-0 bg-black/80" onClick={onClose} />
+      <div className="relative bg-background rounded-lg shadow-lg flex flex-col" style={{ width: '95vw', height: '95vh' }}>
         {!cleanView ? (
           <div className="p-4 border-b shrink-0">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold truncate flex-1">
-                {fileName || 'File Viewer'}
-              </h2>
+              <h2 className="text-sm font-semibold truncate flex-1">{fileName || 'File Viewer'}</h2>
               <div className="flex items-center gap-1">
                 {(isPdf || isImage) && (
                   <>
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={handleZoomOut} 
-                      disabled={zoomPercent <= 25}
-                    >
+                    <Button type="button" variant="ghost" size="icon" onClick={() => setZoomPercent(z => Math.max(z - 25, 25))} disabled={zoomPercent <= 25}>
                       <ZoomOut className="w-4 h-4" />
                     </Button>
-                    <span className="text-xs text-muted-foreground min-w-[3rem] text-center">
-                      {zoomPercent}%
-                    </span>
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={handleZoomIn} 
-                      disabled={zoomPercent >= 300}
-                    >
+                    <span className="text-xs text-muted-foreground min-w-[3rem] text-center">{zoomPercent}%</span>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => setZoomPercent(z => Math.min(z + 25, 300))} disabled={zoomPercent >= 300}>
                       <ZoomIn className="w-4 h-4" />
                     </Button>
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={handleResetZoom} 
-                      title="Fit to screen"
-                    >
+                    <Button type="button" variant="ghost" size="icon" onClick={() => setZoomPercent(initialZoom)} title="Fit to screen">
                       <RotateCcw className="w-4 h-4" />
                     </Button>
                     <div className="w-px h-6 bg-border mx-1" />
                   </>
                 )}
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={() => setCleanView(true)} 
-                  title="Clean view"
-                >
+                <Button type="button" variant="ghost" size="icon" onClick={() => setCleanView(true)} title="Clean view">
                   <Maximize2 className="w-4 h-4" />
                 </Button>
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={handleOpenExternal} 
-                  title="Open in new tab"
-                >
+                <Button type="button" variant="ghost" size="icon" onClick={() => window.open(fileUrl, '_blank')} title="Open in new tab">
                   <ExternalLink className="w-4 h-4" />
                 </Button>
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={handleDownload} 
-                  title="Download"
-                >
+                <Button type="button" variant="ghost" size="icon" onClick={() => { const a = document.createElement('a'); a.href = fileUrl; a.download = fileName || 'download'; a.click(); }} title="Download">
                   <Download className="w-4 h-4" />
                 </Button>
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={handleClose}
-                >
+                <Button type="button" variant="ghost" size="icon" onClick={onClose}>
                   <X className="w-4 h-4" />
                 </Button>
               </div>
@@ -196,64 +107,32 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
           </div>
         ) : (
           <div className="absolute top-2 right-2 z-50 flex gap-1 bg-background/80 backdrop-blur-sm rounded-md p-1">
-            <Button type="button" variant="ghost" size="icon" onClick={() => setCleanView(false)}>
-              <Minimize2 className="w-4 h-4" />
-            </Button>
-            <Button type="button" variant="ghost" size="icon" onClick={handleClose}>
-              <X className="w-4 h-4" />
-            </Button>
+            <Button type="button" variant="ghost" size="icon" onClick={() => setCleanView(false)}><Minimize2 className="w-4 h-4" /></Button>
+            <Button type="button" variant="ghost" size="icon" onClick={onClose}><X className="w-4 h-4" /></Button>
           </div>
         )}
         
         <div ref={containerRef} className="flex-1 overflow-auto bg-muted/30">
           {isPdf ? (
             <div className="w-full h-full p-4">
-              <iframe
-                src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1`}
-                className="w-full border-0 rounded bg-white"
-                style={{ minHeight: '600px', height: 'calc(95vh - 100px)' }}
-                title={fileName || 'PDF'}
-              />
+              <iframe src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1`} className="w-full border-0 rounded bg-white" style={{ minHeight: '600px', height: 'calc(95vh - 100px)' }} title={fileName || 'PDF'} />
             </div>
           ) : isImage ? (
             <div className="p-4">
-              {!imageLoaded && (
-                <div className="flex items-center justify-center h-64 text-muted-foreground">
-                  Loading...
+              {dimensions.width === 0 ? (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>
+              ) : (
+                <div style={{ width: scaledWidth, height: scaledHeight }}>
+                  <img
+                    src={fileUrl}
+                    alt={fileName || 'Image'}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
                 </div>
-              )}
-              {/* Hidden image to get natural dimensions */}
-              <img
-                src={fileUrl}
-                alt=""
-                onLoad={handleImageLoad}
-                style={{
-                  position: 'absolute',
-                  visibility: 'hidden',
-                  pointerEvents: 'none',
-                }}
-              />
-              {/* Visible image with explicit dimensions */}
-              {imageLoaded && naturalWidth > 0 && (
-                <img
-                  key={`${fileUrl}-${zoomPercent}`}
-                  src={fileUrl}
-                  alt={fileName || 'Image'}
-                  width={displayWidth}
-                  height={displayHeight}
-                  style={{
-                    display: 'block',
-                  }}
-                />
               )}
             </div>
           ) : (
-            <iframe
-              src={fileUrl}
-              className="w-full h-full border-0"
-              style={{ minHeight: '600px' }}
-              title={fileName || 'File'}
-            />
+            <iframe src={fileUrl} className="w-full h-full border-0" style={{ minHeight: '600px' }} title={fileName || 'File'} />
           )}
         </div>
       </div>
