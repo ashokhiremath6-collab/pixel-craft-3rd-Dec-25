@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download } from "lucide-react";
-import { FileViewerModal } from "@/components/FileViewerModal";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -29,8 +28,7 @@ export default function MoodboardsPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
   // Require project selection - no "all" option
   const [filterProjectId, setFilterProjectId] = useState<string>("");
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
+  const [previewImage, setPreviewImage] = useState<Moodboard | null>(null);
   
   // Determine asset type based on route
   const assetType = useMemo(() => {
@@ -531,17 +529,6 @@ export default function MoodboardsPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const openFileViewer = (moodboard: Moodboard) => {
-    const url = getPreviewUrl(moodboard);
-    if (url) {
-      setViewerFile({
-        url,
-        name: moodboard.fileName || moodboard.description || 'File'
-      });
-      setViewerOpen(true);
-    }
-  };
-
   return (
     <div className="space-y-3 p-4">
       {/* Header */}
@@ -678,7 +665,7 @@ export default function MoodboardsPage() {
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8"
-                                    onClick={() => openFileViewer(moodboard)}
+                                    onClick={() => setPreviewImage(moodboard)}
                                     data-testid={`button-view-${moodboard.id}`}
                                   >
                                     <Eye className="h-4 w-4" />
@@ -755,7 +742,7 @@ export default function MoodboardsPage() {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
-                              onClick={() => openFileViewer(moodboard)}
+                              onClick={() => setPreviewImage(moodboard)}
                               data-testid={`button-view-${moodboard.id}`}
                             >
                               <Eye className="h-4 w-4" />
@@ -998,17 +985,37 @@ export default function MoodboardsPage() {
         </CardContent>
       </Card>
 
-      {viewerFile && (
-        <FileViewerModal
-          isOpen={viewerOpen}
-          onClose={() => {
-            setViewerOpen(false);
-            setViewerFile(null);
-          }}
-          fileUrl={viewerFile.url}
-          fileName={viewerFile.name}
-        />
-      )}
+      <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 overflow-hidden">
+          <DialogHeader className="p-4 pb-0">
+            <DialogTitle>
+              {previewImage?.description || previewImage?.fileName || "Preview"}
+            </DialogTitle>
+          </DialogHeader>
+          {previewImage && (
+            <div className="p-4 pt-2 overflow-auto">
+              <img 
+                src={getPreviewUrl(previewImage) || ''}
+                alt={previewImage.description || previewImage.fileName || "Preview"}
+                className="max-w-full max-h-[70vh] mx-auto rounded-lg"
+                data-testid="image-preview-fullsize"
+              />
+              <div className="flex justify-center gap-2 mt-4">
+                <Button 
+                  onClick={() => window.open(getPreviewUrl(previewImage)!, '_blank')}
+                  data-testid="button-open-new-tab"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open in New Tab
+                </Button>
+                <Button variant="outline" onClick={() => setPreviewImage(null)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
