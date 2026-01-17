@@ -16,6 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import type { Project, FloorPlan } from "@shared/schema";
+import { FileViewerModal } from "@/components/FileViewerModal";
 
 const uploadFormSchema = z.object({
   projectId: z.string().min(1, "Project is required"),
@@ -42,6 +43,7 @@ export default function FloorPlansPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingFloorPlan, setEditingFloorPlan] = useState<FloorPlan | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [viewingFloorPlan, setViewingFloorPlan] = useState<FloorPlan | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -281,7 +283,7 @@ export default function FloorPlansPage() {
   };
 
   const handleView = (floorPlan: FloorPlan) => {
-    window.open(getFileUrl(floorPlan.filePath), '_blank', 'noopener,noreferrer');
+    setViewingFloorPlan(floorPlan);
   };
 
   const formatFileSize = (bytes: string) => {
@@ -837,6 +839,15 @@ export default function FloorPlansPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {viewingFloorPlan && (
+        <FileViewerModal
+          isOpen={!!viewingFloorPlan}
+          onClose={() => setViewingFloorPlan(null)}
+          fileUrl={getFileUrl(viewingFloorPlan.filePath)}
+          fileName={viewingFloorPlan.name || viewingFloorPlan.fileName || "Floor Plan"}
+        />
+      )}
     </div>
   );
 }
