@@ -608,9 +608,9 @@ export default function FloorPlansPage() {
                               variant="ghost"
                               onClick={() => handleView(floorPlan)}
                               data-testid={`button-view-${floorPlan.id}`}
-                              title="View in new tab"
+                              title="View with zoom"
                             >
-                              <ExternalLink className="h-3 w-3" />
+                              <Eye className="h-3 w-3" />
                             </Button>
                             <Button
                               size="icon"
@@ -696,9 +696,9 @@ export default function FloorPlansPage() {
                               variant="ghost"
                               onClick={() => handleView(floorPlan)}
                               data-testid={`button-view-${floorPlan.id}`}
-                              title="View in new tab"
+                              title="View with zoom"
                             >
-                              <ExternalLink className="h-3 w-3" />
+                              <Eye className="h-3 w-3" />
                             </Button>
                             <Button
                               size="icon"
