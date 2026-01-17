@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Download, Trash2, Edit, FileImage, File, Plus, ExternalLink } from "lucide-react";
+import { Upload, Download, Trash2, Edit, FileImage, File, Plus, Eye, ExternalLink } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
@@ -16,6 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import type { Project, FloorPlan } from "@shared/schema";
+import { FileViewerModal } from "@/components/FileViewerModal";
 
 const uploadFormSchema = z.object({
   projectId: z.string().min(1, "Project is required"),
@@ -42,6 +43,8 @@ export default function FloorPlansPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingFloorPlan, setEditingFloorPlan] = useState<FloorPlan | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -281,7 +284,11 @@ export default function FloorPlansPage() {
   };
 
   const handleView = (floorPlan: FloorPlan) => {
-    window.open(getFileUrl(floorPlan.filePath), '_blank', 'noopener,noreferrer');
+    setViewerFile({
+      url: getFileUrl(floorPlan.filePath),
+      name: floorPlan.fileName
+    });
+    setViewerOpen(true);
   };
 
   const formatFileSize = (bytes: string) => {
@@ -837,6 +844,18 @@ export default function FloorPlansPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {viewerFile && (
+        <FileViewerModal
+          isOpen={viewerOpen}
+          onClose={() => {
+            setViewerOpen(false);
+            setViewerFile(null);
+          }}
+          fileUrl={viewerFile.url}
+          fileName={viewerFile.name}
+        />
+      )}
     </div>
   );
 }
