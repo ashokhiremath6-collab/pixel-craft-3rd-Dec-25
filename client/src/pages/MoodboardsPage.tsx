@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -15,6 +14,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import type { Moodboard, Project, User } from "@shared/schema";
 import { User as UserIcon } from "lucide-react";
+import { FileViewerModal } from "@/components/FileViewerModal";
 
 export default function MoodboardsPage() {
   const { toast } = useToast();
@@ -985,37 +985,14 @@ export default function MoodboardsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 overflow-hidden">
-          <DialogHeader className="p-4 pb-0">
-            <DialogTitle>
-              {previewImage?.description || previewImage?.fileName || "Preview"}
-            </DialogTitle>
-          </DialogHeader>
-          {previewImage && (
-            <div className="p-4 pt-2 overflow-auto">
-              <img 
-                src={getPreviewUrl(previewImage) || ''}
-                alt={previewImage.description || previewImage.fileName || "Preview"}
-                className="max-w-full max-h-[70vh] mx-auto rounded-lg"
-                data-testid="image-preview-fullsize"
-              />
-              <div className="flex justify-center gap-2 mt-4">
-                <Button 
-                  onClick={() => window.open(getPreviewUrl(previewImage)!, '_blank')}
-                  data-testid="button-open-new-tab"
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Open in New Tab
-                </Button>
-                <Button variant="outline" onClick={() => setPreviewImage(null)}>
-                  Close
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {previewImage && (
+        <FileViewerModal
+          isOpen={!!previewImage}
+          onClose={() => setPreviewImage(null)}
+          fileUrl={getPreviewUrl(previewImage) || ''}
+          fileName={previewImage.description || previewImage.fileName || "Preview"}
+        />
+      )}
     </div>
   );
 }
