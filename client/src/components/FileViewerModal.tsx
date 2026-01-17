@@ -119,10 +119,13 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
             </div>
           ) : isImage ? (
             <div className="p-4">
+              <div className="mb-2 text-xs text-muted-foreground">
+                Debug: zoom={zoomPercent}%, natural={dimensions.width}x{dimensions.height}, scaled={scaledWidth}x{scaledHeight}
+              </div>
               {dimensions.width === 0 ? (
                 <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>
               ) : (
-                <div style={{ width: scaledWidth, height: scaledHeight }}>
+                <div style={{ width: `${scaledWidth}px`, height: `${scaledHeight}px`, border: '1px solid red' }}>
                   <img
                     src={fileUrl}
                     alt={fileName || 'Image'}
