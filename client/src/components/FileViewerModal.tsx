@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X, ExternalLink, Download, ZoomIn, ZoomOut, RotateCcw, Maximize2, Minimize2 } from "lucide-react";
@@ -11,11 +11,11 @@ interface FileViewerModalProps {
 }
 
 export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileViewerModalProps) {
-  const [zoom, setZoom] = useState(100);
+  const [zoomLevel, setZoomLevel] = useState(1);
   const [cleanView, setCleanView] = useState(false);
-  const [initialFitZoom, setInitialFitZoom] = useState(100);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
+  const [fitScale, setFitScale] = useState(1);
+  const [imageReady, setImageReady] = useState(false);
+  const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   
   const handleDownload = () => {
@@ -29,51 +29,53 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
     window.open(fileUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const handleZoomIn = () => {
-    setZoom(prev => Math.min(prev + 25, 300));
-  };
+  const handleZoomIn = useCallback(() => {
+    setZoomLevel(prev => Math.min(prev + 0.25, 3));
+  }, []);
 
-  const handleZoomOut = () => {
-    setZoom(prev => Math.max(prev - 25, 25));
-  };
+  const handleZoomOut = useCallback(() => {
+    setZoomLevel(prev => Math.max(prev - 0.25, 0.25));
+  }, []);
 
-  const handleResetZoom = () => {
-    setZoom(initialFitZoom);
-  };
+  const handleResetZoom = useCallback(() => {
+    setZoomLevel(fitScale);
+  }, [fitScale]);
 
   const handleClose = () => {
-    setZoom(100);
+    setZoomLevel(1);
     setCleanView(false);
-    setImageLoaded(false);
-    setInitialFitZoom(100);
+    setImageReady(false);
+    setFitScale(1);
+    setNaturalSize({ width: 0, height: 0 });
     onClose();
   };
 
-  const handleImageLoad = () => {
-    if (imgRef.current && containerRef.current) {
-      const img = imgRef.current;
-      const container = containerRef.current;
-      
-      const containerWidth = container.clientWidth - 32;
-      const containerHeight = container.clientHeight - 32;
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    const container = containerRef.current;
+    
+    if (container && img.naturalWidth && img.naturalHeight) {
+      const containerWidth = container.clientWidth - 64;
+      const containerHeight = container.clientHeight - 64;
       
       const widthRatio = containerWidth / img.naturalWidth;
       const heightRatio = containerHeight / img.naturalHeight;
+      const scale = Math.min(widthRatio, heightRatio, 1);
       
-      const fitZoom = Math.min(widthRatio, heightRatio, 1) * 100;
-      
-      setInitialFitZoom(Math.round(fitZoom));
-      setZoom(Math.round(fitZoom));
-      setImageLoaded(true);
+      setNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
+      setFitScale(scale);
+      setZoomLevel(scale);
+      setImageReady(true);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
-      setZoom(100);
+      setZoomLevel(1);
       setCleanView(false);
-      setImageLoaded(false);
-      setInitialFitZoom(100);
+      setImageReady(false);
+      setFitScale(1);
+      setNaturalSize({ width: 0, height: 0 });
     }
   }, [isOpen]);
 
@@ -81,20 +83,10 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
                   /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
 
-  const getImageStyle = () => {
-    if (!imgRef.current) {
-      return { maxWidth: '100%', height: 'auto', opacity: 0 };
-    }
-    const scaledWidth = imgRef.current.naturalWidth * (zoom / 100);
-    const scaledHeight = imgRef.current.naturalHeight * (zoom / 100);
-    return {
-      width: `${scaledWidth}px`,
-      height: `${scaledHeight}px`,
-      maxWidth: 'none',
-      opacity: imageLoaded ? 1 : 0,
-      transition: 'opacity 0.2s ease-in-out',
-    };
-  };
+  const displayZoom = Math.round(zoomLevel * 100);
+  
+  const imageWidth = naturalSize.width * zoomLevel;
+  const imageHeight = naturalSize.height * zoomLevel;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
@@ -113,20 +105,20 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                       size="icon"
                       onClick={handleZoomOut}
                       title="Zoom out"
-                      disabled={zoom <= 25}
+                      disabled={zoomLevel <= 0.25}
                       data-testid="button-zoom-out"
                     >
                       <ZoomOut className="w-4 h-4" />
                     </Button>
                     <span className="text-xs text-muted-foreground min-w-[3rem] text-center">
-                      {zoom}%
+                      {displayZoom}%
                     </span>
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={handleZoomIn}
                       title="Zoom in"
-                      disabled={zoom >= 300}
+                      disabled={zoomLevel >= 3}
                       data-testid="button-zoom-in"
                     >
                       <ZoomIn className="w-4 h-4" />
@@ -217,15 +209,25 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
               />
             </div>
           ) : isImage ? (
-            <div className="p-4 min-h-full">
+            <div className="p-4 flex justify-start items-start min-h-full">
               <img
-                ref={imgRef}
+                key={fileUrl}
                 src={fileUrl}
                 alt={fileName || 'Image viewer'}
                 onLoad={handleImageLoad}
-                style={getImageStyle()}
+                style={{
+                  width: imageReady ? `${imageWidth}px` : 'auto',
+                  height: imageReady ? `${imageHeight}px` : 'auto',
+                  maxWidth: imageReady ? 'none' : '100%',
+                  visibility: imageReady ? 'visible' : 'hidden',
+                }}
                 data-testid="file-viewer-image"
               />
+              {!imageReady && (
+                <div className="flex items-center justify-center w-full h-64">
+                  <span className="text-muted-foreground">Loading...</span>
+                </div>
+              )}
             </div>
           ) : (
             <iframe
