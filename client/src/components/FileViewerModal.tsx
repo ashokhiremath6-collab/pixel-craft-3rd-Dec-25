@@ -185,15 +185,15 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
             </div>
           ) : isImage ? (
             <div 
-              className="min-h-full flex items-start justify-center p-4 overflow-auto"
+              className="min-h-full flex items-center justify-center p-4"
             >
               <img
                 src={fileUrl}
                 alt={fileName || 'Image viewer'}
+                className="max-w-none"
                 style={{ 
-                  width: `${zoom}%`,
-                  maxWidth: 'none',
-                  height: 'auto',
+                  transform: `scale(${zoom / 100})`,
+                  transformOrigin: 'center center',
                 }}
                 data-testid="file-viewer-image"
               />
