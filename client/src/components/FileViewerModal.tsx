@@ -40,14 +40,19 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
     setZoom(100);
   };
 
+  const handleClose = () => {
+    setZoom(100);
+    onClose();
+  };
+
   const isPdf = fileName?.toLowerCase().endsWith('.pdf') || fileUrl.includes('.pdf');
   const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
                   /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { setZoom(100); onClose(); } }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0">
-        <DialogHeader className="p-4 border-b">
+        <DialogHeader className="p-3 border-b bg-background">
           <div className="flex items-center justify-between gap-2">
             <DialogTitle className="text-sm truncate flex-1" data-testid="viewer-file-name">
               {fileName || 'File Viewer'}
@@ -118,46 +123,35 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                 <Download className="w-4 h-4" />
               </Button>
               <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => { setZoom(100); onClose(); }}
+                variant="destructive"
+                size="sm"
+                onClick={handleClose}
+                className="ml-2"
                 data-testid="button-close-viewer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4 mr-1" />
+                Close
               </Button>
             </div>
           </div>
         </DialogHeader>
         <div 
           className="flex-1 overflow-auto bg-muted/30" 
-          style={{ height: 'calc(95vh - 60px)' }}
+          style={{ height: 'calc(95vh - 56px)' }}
         >
           {isPdf ? (
-            <div 
-              className="min-h-full flex items-start justify-center p-4"
+            <iframe
+              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=${zoom}`}
+              className="w-full h-full border-0"
               style={{ 
                 transform: `scale(${zoom / 100})`,
-                transformOrigin: 'top center',
+                transformOrigin: 'top left',
                 width: `${10000 / zoom}%`,
-                marginLeft: zoom > 100 ? `${(zoom - 100) / 2}%` : 0,
+                height: `${10000 / zoom}%`,
               }}
-            >
-              <object
-                data={`${fileUrl}#toolbar=1&navpanes=1&scrollbar=1&zoom=${zoom}`}
-                type="application/pdf"
-                className="w-full"
-                style={{ height: 'calc(95vh - 100px)', minHeight: '600px' }}
-                title={fileName || 'File viewer'}
-                data-testid="file-viewer-object"
-              >
-                <embed
-                  src={`${fileUrl}#toolbar=1&navpanes=1&scrollbar=1&zoom=${zoom}`}
-                  type="application/pdf"
-                  className="w-full"
-                  style={{ height: 'calc(95vh - 100px)', minHeight: '600px' }}
-                />
-              </object>
-            </div>
+              title={fileName || 'PDF viewer'}
+              data-testid="file-viewer-pdf"
+            />
           ) : isImage ? (
             <div 
               className="min-h-full flex items-center justify-center p-4"
