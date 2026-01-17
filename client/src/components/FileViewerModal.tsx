@@ -14,8 +14,9 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const [cleanView, setCleanView] = useState(false);
   const [initialZoom, setInitialZoom] = useState(100);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [naturalWidth, setNaturalWidth] = useState(0);
+  const [naturalHeight, setNaturalHeight] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
 
   const handleZoomIn = () => {
     setZoomPercent(prev => Math.min(prev + 25, 300));
@@ -34,6 +35,8 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
     setCleanView(false);
     setImageLoaded(false);
     setInitialZoom(100);
+    setNaturalWidth(0);
+    setNaturalHeight(0);
     onClose();
   };
 
@@ -48,16 +51,21 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
     window.open(fileUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const handleImageLoad = () => {
-    const img = imageRef.current;
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
     const container = containerRef.current;
     
     if (img && container) {
+      const nw = img.naturalWidth;
+      const nh = img.naturalHeight;
+      setNaturalWidth(nw);
+      setNaturalHeight(nh);
+      
       const containerWidth = container.clientWidth - 64;
       const containerHeight = container.clientHeight - 64;
       
-      const widthRatio = containerWidth / img.naturalWidth;
-      const heightRatio = containerHeight / img.naturalHeight;
+      const widthRatio = containerWidth / nw;
+      const heightRatio = containerHeight / nh;
       const fitZoom = Math.min(widthRatio, heightRatio, 1) * 100;
       
       const roundedFitZoom = Math.round(fitZoom);
@@ -73,6 +81,8 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
       setCleanView(false);
       setImageLoaded(false);
       setInitialZoom(100);
+      setNaturalWidth(0);
+      setNaturalHeight(0);
     }
   }, [isOpen]);
 
@@ -92,6 +102,10 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const isPdf = fileName?.toLowerCase().endsWith('.pdf') || fileUrl.includes('.pdf');
   const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
                   /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
+
+  // Calculate display dimensions based on zoom
+  const displayWidth = naturalWidth * (zoomPercent / 100);
+  const displayHeight = naturalHeight * (zoomPercent / 100);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -208,17 +222,30 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                   Loading...
                 </div>
               )}
+              {/* Hidden image to get natural dimensions */}
               <img
-                ref={imageRef}
                 src={fileUrl}
-                alt={fileName || 'Image'}
+                alt=""
                 onLoad={handleImageLoad}
                 style={{
-                  transform: `scale(${zoomPercent / 100})`,
-                  transformOrigin: 'top left',
-                  visibility: imageLoaded ? 'visible' : 'hidden',
+                  position: 'absolute',
+                  visibility: 'hidden',
+                  pointerEvents: 'none',
                 }}
               />
+              {/* Visible image with explicit dimensions */}
+              {imageLoaded && naturalWidth > 0 && (
+                <img
+                  key={`${fileUrl}-${zoomPercent}`}
+                  src={fileUrl}
+                  alt={fileName || 'Image'}
+                  width={displayWidth}
+                  height={displayHeight}
+                  style={{
+                    display: 'block',
+                  }}
+                />
+              )}
             </div>
           ) : (
             <iframe
