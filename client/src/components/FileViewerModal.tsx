@@ -69,14 +69,14 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
         >
           {isPdf ? (
             <object
-              data={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+              data={`${fileUrl}#toolbar=1&navpanes=1&scrollbar=1`}
               type="application/pdf"
               className="w-full h-full"
               title={fileName || 'File viewer'}
               data-testid="file-viewer-object"
             >
               <embed
-                src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+                src={`${fileUrl}#toolbar=1&navpanes=1&scrollbar=1`}
                 type="application/pdf"
                 className="w-full h-full"
               />
