@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
@@ -59,6 +60,7 @@ export default function MeetingMinutesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMOM, setEditingMOM] = useState<MeetingMinutes | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     projectId: "general",
     meetingDate: "",
@@ -227,8 +229,13 @@ export default function MeetingMinutesPage() {
   });
 
   const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete these meeting minutes?")) {
-      deleteMutation.mutate(id);
+    setDeletingId(id);
+  };
+
+  const confirmDelete = () => {
+    if (deletingId) {
+      deleteMutation.mutate(deletingId);
+      setDeletingId(null);
     }
   };
 
@@ -621,6 +628,13 @@ export default function MeetingMinutesPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <DeleteConfirmDialog
+        isOpen={!!deletingId}
+        onClose={() => setDeletingId(null)}
+        onConfirm={confirmDelete}
+        isDeleting={deleteMutation.isPending}
+      />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import type { Moodboard, Project, User } from "@shared/schema";
 import { User as UserIcon } from "lucide-react";
 import { FileViewerModal } from "@/components/FileViewerModal";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 
 export default function MoodboardsPage() {
   const { toast } = useToast();
@@ -29,6 +30,7 @@ export default function MoodboardsPage() {
   // Require project selection - no "all" option
   const [filterProjectId, setFilterProjectId] = useState<string>("");
   const [previewImage, setPreviewImage] = useState<Moodboard | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   
   // Determine asset type based on route
   const assetType = useMemo(() => {
@@ -504,7 +506,14 @@ export default function MoodboardsPage() {
 
   // Delete moodboard
   const deleteMoodboard = (id: string) => {
-    deleteMutation.mutate(id);
+    setDeletingId(id);
+  };
+
+  const confirmDelete = () => {
+    if (deletingId) {
+      deleteMutation.mutate(deletingId);
+      setDeletingId(null);
+    }
   };
 
   // Create preview/download URL for display
@@ -993,6 +1002,13 @@ export default function MoodboardsPage() {
           fileName={previewImage.description || previewImage.fileName || "Preview"}
         />
       )}
+
+      <DeleteConfirmDialog
+        isOpen={!!deletingId}
+        onClose={() => setDeletingId(null)}
+        onConfirm={confirmDelete}
+        isDeleting={deleteMutation.isPending}
+      />
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { z } from "zod";
 import { format } from "date-fns";
 import type { Project, FloorPlan } from "@shared/schema";
 import { FileViewerModal } from "@/components/FileViewerModal";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 
 const uploadFormSchema = z.object({
   projectId: z.string().min(1, "Project is required"),
@@ -44,6 +45,7 @@ export default function FloorPlansPage() {
   const [editingFloorPlan, setEditingFloorPlan] = useState<FloorPlan | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [viewingFloorPlan, setViewingFloorPlan] = useState<FloorPlan | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -307,8 +309,13 @@ export default function FloorPlansPage() {
   };
 
   const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this floor plan? This action cannot be undone.')) {
-      deleteMutation.mutate(id);
+    setDeletingId(id);
+  };
+
+  const confirmDelete = () => {
+    if (deletingId) {
+      deleteMutation.mutate(deletingId);
+      setDeletingId(null);
     }
   };
 
@@ -848,6 +855,13 @@ export default function FloorPlansPage() {
           fileName={viewingFloorPlan.name || viewingFloorPlan.fileName || "Floor Plan"}
         />
       )}
+
+      <DeleteConfirmDialog
+        isOpen={!!deletingId}
+        onClose={() => setDeletingId(null)}
+        onConfirm={confirmDelete}
+        isDeleting={deleteMutation.isPending}
+      />
     </div>
   );
 }

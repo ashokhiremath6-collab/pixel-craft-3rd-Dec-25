@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertCatalogueItemSchema } from "@shared/schema";
@@ -50,6 +51,7 @@ export default function CataloguePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<CatalogueItem | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploadType, setUploadType] = useState<"file" | "url">("file");
 
   const form = useForm<InsertCatalogueItem>({
@@ -256,8 +258,13 @@ export default function CataloguePage() {
   });
 
   const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this catalogue item?")) {
-      deleteMutation.mutate(id);
+    setDeletingId(id);
+  };
+
+  const confirmDelete = () => {
+    if (deletingId) {
+      deleteMutation.mutate(deletingId);
+      setDeletingId(null);
     }
   };
 
@@ -962,6 +969,13 @@ export default function CataloguePage() {
             </Form>
           </DialogContent>
         </Dialog>
+
+        <DeleteConfirmDialog
+          isOpen={!!deletingId}
+          onClose={() => setDeletingId(null)}
+          onConfirm={confirmDelete}
+          isDeleting={deleteMutation.isPending}
+        />
       </div>
     </div>
   );

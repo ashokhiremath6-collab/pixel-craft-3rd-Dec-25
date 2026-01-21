@@ -1,12 +1,15 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import VendorList from '@/components/VendorList';
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Vendor, VendorCategory } from "@shared/schema";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 
 export default function VendorsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [deletingVendorId, setDeletingVendorId] = useState<string | null>(null);
 
   // Fetch hierarchical category tree
   const { data: categories = [] } = useQuery<VendorCategory[]>({
@@ -88,8 +91,13 @@ export default function VendorsPage() {
   };
 
   const handleDeleteVendor = (vendorId: string) => {
-    if (confirm('Are you sure you want to delete this vendor? This action cannot be undone.')) {
-      deleteVendorMutation.mutate(vendorId);
+    setDeletingVendorId(vendorId);
+  };
+
+  const confirmDeleteVendor = () => {
+    if (deletingVendorId) {
+      deleteVendorMutation.mutate(deletingVendorId);
+      setDeletingVendorId(null);
     }
   };
 
@@ -102,13 +110,21 @@ export default function VendorsPage() {
   }
 
   return (
-    <VendorList 
-      vendors={vendors}
-      categories={categories}
-      onAddVendor={handleAddVendor}
-      onEditVendor={handleEditVendor}
-      onUpdateVendor={handleUpdateVendor}
-      onDeleteVendor={handleDeleteVendor}
-    />
+    <>
+      <VendorList 
+        vendors={vendors}
+        categories={categories}
+        onAddVendor={handleAddVendor}
+        onEditVendor={handleEditVendor}
+        onUpdateVendor={handleUpdateVendor}
+        onDeleteVendor={handleDeleteVendor}
+      />
+      <DeleteConfirmDialog
+        isOpen={!!deletingVendorId}
+        onClose={() => setDeletingVendorId(null)}
+        onConfirm={confirmDeleteVendor}
+        isDeleting={deleteVendorMutation.isPending}
+      />
+    </>
   );
 }

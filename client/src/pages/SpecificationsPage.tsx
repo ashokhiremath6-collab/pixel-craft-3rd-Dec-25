@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
@@ -37,6 +38,7 @@ export default function SpecificationsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSpec, setEditingSpec] = useState<Specification | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     category: "",
     title: "",
@@ -171,8 +173,13 @@ export default function SpecificationsPage() {
   });
 
   const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this specification?")) {
-      deleteMutation.mutate(id);
+    setDeletingId(id);
+  };
+
+  const confirmDelete = () => {
+    if (deletingId) {
+      deleteMutation.mutate(deletingId);
+      setDeletingId(null);
     }
   };
 
@@ -469,6 +476,13 @@ export default function SpecificationsPage() {
             </form>
           </DialogContent>
         </Dialog>
+
+        <DeleteConfirmDialog
+          isOpen={!!deletingId}
+          onClose={() => setDeletingId(null)}
+          onConfirm={confirmDelete}
+          isDeleting={deleteMutation.isPending}
+        />
       </div>
     </div>
   );

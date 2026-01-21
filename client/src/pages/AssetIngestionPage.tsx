@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,6 +71,7 @@ export default function AssetIngestionPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<ObjectAsset | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [saveToCatalogueDialogOpen, setSaveToCatalogueDialogOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
@@ -719,7 +721,7 @@ export default function AssetIngestionPage() {
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button 
               variant="destructive" 
-              onClick={() => selectedAsset && deleteMutation.mutate(selectedAsset.id)}
+              onClick={() => setDeleteConfirmOpen(true)}
               disabled={deleteMutation.isPending}
               data-testid="button-delete-asset"
             >
@@ -858,6 +860,17 @@ export default function AssetIngestionPage() {
         </DialogContent>
       </Dialog>
 
+      <DeleteConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={() => {
+          if (selectedAsset) {
+            deleteMutation.mutate(selectedAsset.id);
+            setDeleteConfirmOpen(false);
+          }
+        }}
+        isDeleting={deleteMutation.isPending}
+      />
     </div>
   );
 }
