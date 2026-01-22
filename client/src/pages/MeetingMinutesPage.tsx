@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
@@ -20,7 +20,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, MoreVertical, Pencil, Trash2, FileText, Download, Calendar } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Plus, MoreVertical, Pencil, Trash2, FileText, Download, Calendar, Sparkles, FileDown, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,8 +37,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
-import type { MeetingMinutes, Project } from "@shared/schema";
+import type { MeetingMinutes, Project, MeetingActionItem } from "@shared/schema";
 import { format } from "date-fns";
+
+interface ParsedFireflies {
+  attendees: string[];
+  summary: string;
+  actionItems: {
+    serialNo: number;
+    issueDiscussed: string;
+    responsibility: string | null;
+    deadline: string | null;
+    remarks: string | null;
+  }[];
+}
 
 const MEETING_TYPES = [
   "Client Meeting",
@@ -70,6 +90,16 @@ export default function MeetingMinutesPage() {
     location: "none",
     summary: "",
   });
+  
+  // Fireflies conversion state
+  const [firefliesDialogOpen, setFirefliesDialogOpen] = useState(false);
+  const [firefliesTranscript, setFirefliesTranscript] = useState("");
+  const [firefliesProjectId, setFirefliesProjectId] = useState<string>("general");
+  const [firefliesMeetingDate, setFirefliesMeetingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [firefliesMeetingTitle, setFirefliesMeetingTitle] = useState("");
+  const [parsedData, setParsedData] = useState<ParsedFireflies | null>(null);
+  const [expandedActionItems, setExpandedActionItems] = useState<Set<string>>(new Set());
+  const [actionItemsCache, setActionItemsCache] = useState<Map<string, MeetingActionItem[]>>(new Map());
 
   // Fetch meeting minutes
   const { data: minutes = [], isLoading } = useQuery<MeetingMinutes[]>({
@@ -239,6 +269,243 @@ export default function MeetingMinutesPage() {
     }
   };
 
+  // Parse Fireflies transcript mutation
+  const parseFirefliesMutation = useMutation({
+    mutationFn: async (data: { transcript: string; meetingDate: string; projectName: string }) => {
+      const response = await fetch("/api/parse-fireflies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to parse transcript");
+      }
+      return response.json() as Promise<ParsedFireflies>;
+    },
+    onSuccess: (data) => {
+      setParsedData(data);
+      toast({
+        title: "Success",
+        description: `Extracted ${data.actionItems.length} action items from transcript`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to parse Fireflies transcript",
+      });
+    },
+  });
+
+  // Fetch action items for a meeting
+  const fetchActionItems = async (meetingId: string) => {
+    if (actionItemsCache.has(meetingId)) {
+      return actionItemsCache.get(meetingId)!;
+    }
+    const response = await fetch(`/api/meeting-minutes/${meetingId}/action-items`, {
+      credentials: "include",
+    });
+    if (response.ok) {
+      const items = await response.json() as MeetingActionItem[];
+      setActionItemsCache(prev => new Map(prev).set(meetingId, items));
+      return items;
+    }
+    return [];
+  };
+
+  // Toggle action items visibility
+  const toggleActionItems = async (meetingId: string) => {
+    if (expandedActionItems.has(meetingId)) {
+      setExpandedActionItems(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(meetingId);
+        return newSet;
+      });
+    } else {
+      await fetchActionItems(meetingId);
+      setExpandedActionItems(prev => new Set(prev).add(meetingId));
+    }
+  };
+
+  // Save action items mutation
+  const saveActionItemsMutation = useMutation({
+    mutationFn: async ({ meetingId, actionItems }: { meetingId: string; actionItems: ParsedFireflies['actionItems'] }) => {
+      const response = await fetch(`/api/meeting-minutes/${meetingId}/action-items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionItems }),
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to save action items");
+      }
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      // Update cache
+      setActionItemsCache(prev => new Map(prev).set(variables.meetingId, []));
+      queryClient.invalidateQueries({ queryKey: ["/api/meeting-minutes"] });
+    },
+  });
+
+  // Create meeting with action items
+  const createMeetingWithActionsMutation = useMutation({
+    mutationFn: async (data: {
+      projectId: string | null;
+      meetingDate: string;
+      meetingTitle: string;
+      attendees: string;
+      summary: string;
+      actionItems: ParsedFireflies['actionItems'];
+    }) => {
+      // First create a placeholder file for the meeting (since file is required)
+      const formDataToSend = new FormData();
+      if (data.projectId && data.projectId !== "general") {
+        formDataToSend.append("projectId", data.projectId);
+      }
+      formDataToSend.append("meetingDate", data.meetingDate);
+      formDataToSend.append("meetingTitle", data.meetingTitle);
+      formDataToSend.append("meetingType", "Progress Meeting");
+      formDataToSend.append("attendees", data.attendees);
+      formDataToSend.append("summary", data.summary);
+      formDataToSend.append("location", "Online/Video Call");
+      
+      // Create a text file with the parsed content as the meeting document
+      const content = generateMeetingMinutesText(data);
+      const blob = new Blob([content], { type: 'text/plain' });
+      const file = new File([blob], `MOM_${data.meetingDate}_${data.meetingTitle.replace(/[^a-zA-Z0-9]/g, '_')}.txt`, { type: 'text/plain' });
+      formDataToSend.append("file", file);
+      
+      const response = await fetch("/api/meeting-minutes", {
+        method: "POST",
+        body: formDataToSend,
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create meeting minutes");
+      }
+      
+      const meeting = await response.json();
+      
+      // Now save the action items
+      if (data.actionItems.length > 0) {
+        await saveActionItemsMutation.mutateAsync({
+          meetingId: meeting.id,
+          actionItems: data.actionItems,
+        });
+      }
+      
+      return meeting;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meeting-minutes"] });
+      setFirefliesDialogOpen(false);
+      setParsedData(null);
+      setFirefliesTranscript("");
+      setFirefliesMeetingTitle("");
+      toast({
+        title: "Success",
+        description: "Meeting minutes created with action items",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    },
+  });
+
+  // Generate meeting minutes text content
+  const generateMeetingMinutesText = (data: {
+    meetingDate: string;
+    meetingTitle: string;
+    attendees: string;
+    summary: string;
+    actionItems: ParsedFireflies['actionItems'];
+  }): string => {
+    const projectName = firefliesProjectId !== "general" 
+      ? projects.find(p => p.id === firefliesProjectId)?.projectName || "Unknown Project"
+      : "General Meeting";
+    
+    let content = `MINUTES OF MEETING on ${format(new Date(data.meetingDate + 'T00:00:00'), 'dd-MM-yy')}\n`;
+    content += `${'='.repeat(60)}\n\n`;
+    content += `Project: ${projectName}\n`;
+    content += `Date: ${format(new Date(data.meetingDate + 'T00:00:00'), 'dd MMMM yyyy')}\n\n`;
+    content += `ATTENDEES\n${'-'.repeat(40)}\n`;
+    content += `${data.attendees}\n\n`;
+    content += `SUMMARY\n${'-'.repeat(40)}\n`;
+    content += `${data.summary}\n\n`;
+    content += `ACTION ITEMS\n${'-'.repeat(40)}\n`;
+    content += `${'SR NO'.padEnd(8)}${'ISSUES DISCUSSED'.padEnd(50)}${'RESPONSIBILITY'.padEnd(20)}${'DEADLINE'.padEnd(15)}REMARKS\n`;
+    content += `${'-'.repeat(120)}\n`;
+    
+    data.actionItems.forEach((item) => {
+      content += `${String(item.serialNo).padEnd(8)}${(item.issueDiscussed.substring(0, 47) + (item.issueDiscussed.length > 47 ? '...' : '')).padEnd(50)}${(item.responsibility || '-').padEnd(20)}${(item.deadline ? format(new Date(item.deadline + 'T00:00:00'), 'dd-MM-yyyy') : '-').padEnd(15)}${item.remarks || '-'}\n`;
+    });
+    
+    return content;
+  };
+
+  // Handle Fireflies parse
+  const handleParseFireflies = () => {
+    if (!firefliesTranscript.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please paste the Fireflies transcript",
+      });
+      return;
+    }
+    
+    const projectName = firefliesProjectId !== "general"
+      ? projects.find(p => p.id === firefliesProjectId)?.projectName || ""
+      : "";
+    
+    parseFirefliesMutation.mutate({
+      transcript: firefliesTranscript,
+      meetingDate: firefliesMeetingDate,
+      projectName,
+    });
+  };
+
+  // Handle save parsed meeting
+  const handleSaveParsedMeeting = () => {
+    if (!parsedData || !firefliesMeetingTitle) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please provide a meeting title",
+      });
+      return;
+    }
+    
+    createMeetingWithActionsMutation.mutate({
+      projectId: firefliesProjectId !== "general" ? firefliesProjectId : null,
+      meetingDate: firefliesMeetingDate,
+      meetingTitle: firefliesMeetingTitle,
+      attendees: parsedData.attendees.join(", "),
+      summary: parsedData.summary,
+      actionItems: parsedData.actionItems,
+    });
+  };
+
+  // Format deadline for display
+  const formatDeadline = (deadline: string | null): string => {
+    if (!deadline) return "-";
+    try {
+      return format(new Date(deadline + 'T00:00:00'), 'dd-MM-yyyy');
+    } catch {
+      return deadline;
+    }
+  };
+
   const handleOpenDialog = (mom?: MeetingMinutes) => {
     setSelectedFile(null);
     if (mom) {
@@ -316,14 +583,30 @@ export default function MeetingMinutesPage() {
     <div className="min-w-0 overflow-hidden p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-bold truncate">Meeting Minutes</h1>
-        <Button
-          onClick={() => handleOpenDialog()}
-          className="whitespace-nowrap"
-          data-testid="button-add-mom"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Upload Meeting Minutes
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setFirefliesDialogOpen(true);
+              setParsedData(null);
+              setFirefliesTranscript("");
+              setFirefliesMeetingTitle("");
+            }}
+            className="whitespace-nowrap"
+            data-testid="button-convert-fireflies"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            Convert Fireflies
+          </Button>
+          <Button
+            onClick={() => handleOpenDialog()}
+            className="whitespace-nowrap"
+            data-testid="button-add-mom"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Upload Meeting Minutes
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -436,6 +719,19 @@ export default function MeetingMinutesPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                onClick={() => toggleActionItems(mom.id)}
+                                data-testid={`button-action-items-${mom.id}`}
+                              >
+                                {expandedActionItems.has(mom.id) ? (
+                                  <ChevronUp className="h-4 w-4 mr-1" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4 mr-1" />
+                                )}
+                                Action Items
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 asChild
                                 data-testid={`button-view-${mom.id}`}
                               >
@@ -466,6 +762,40 @@ export default function MeetingMinutesPage() {
                               </DropdownMenu>
                             </div>
                           </div>
+                          
+                          {/* Action Items Table */}
+                          {expandedActionItems.has(mom.id) && (
+                            <div className="mt-4 border rounded-md overflow-x-auto">
+                              {actionItemsCache.get(mom.id)?.length === 0 ? (
+                                <div className="p-4 text-center text-muted-foreground text-sm">
+                                  No action items recorded for this meeting
+                                </div>
+                              ) : (
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead className="w-16">SR NO</TableHead>
+                                      <TableHead>ISSUES DISCUSSED</TableHead>
+                                      <TableHead className="w-32">RESPONSIBILITY</TableHead>
+                                      <TableHead className="w-28">DEADLINE</TableHead>
+                                      <TableHead className="w-40">REMARKS</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {actionItemsCache.get(mom.id)?.map((item) => (
+                                      <TableRow key={item.id}>
+                                        <TableCell className="font-medium">{item.serialNo}</TableCell>
+                                        <TableCell>{item.issueDiscussed}</TableCell>
+                                        <TableCell>{item.responsibility || "-"}</TableCell>
+                                        <TableCell>{formatDeadline(item.deadline)}</TableCell>
+                                        <TableCell>{item.remarks || "-"}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              )}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
@@ -635,6 +965,181 @@ export default function MeetingMinutesPage() {
         onConfirm={confirmDelete}
         isDeleting={deleteMutation.isPending}
       />
+
+      {/* Fireflies Conversion Dialog */}
+      <Dialog open={firefliesDialogOpen} onOpenChange={setFirefliesDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              Convert Fireflies Transcript
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {!parsedData ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="fireflies-project">Project</Label>
+                    <Select
+                      value={firefliesProjectId}
+                      onValueChange={setFirefliesProjectId}
+                    >
+                      <SelectTrigger id="fireflies-project">
+                        <SelectValue placeholder="Select project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="general">General/Company Meeting</SelectItem>
+                        {projects.map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.projectName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="fireflies-date">Meeting Date</Label>
+                    <Input
+                      id="fireflies-date"
+                      type="date"
+                      value={firefliesMeetingDate}
+                      onChange={(e) => setFirefliesMeetingDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="fireflies-transcript">
+                    Paste Fireflies Transcript
+                  </Label>
+                  <Textarea
+                    id="fireflies-transcript"
+                    value={firefliesTranscript}
+                    onChange={(e) => setFirefliesTranscript(e.target.value)}
+                    placeholder="Paste your Fireflies.ai meeting transcript here..."
+                    rows={12}
+                    className="font-mono text-sm"
+                  />
+                </div>
+                
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setFirefliesDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleParseFireflies}
+                    disabled={parseFirefliesMutation.isPending || !firefliesTranscript.trim()}
+                  >
+                    {parseFirefliesMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Parsing...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Parse Transcript
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : (
+              <>
+                <div className="border rounded-md p-4 bg-muted/30">
+                  <h3 className="font-semibold text-lg mb-4">Parsed Meeting Minutes</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <Label htmlFor="parsed-title">Meeting Title *</Label>
+                      <Input
+                        id="parsed-title"
+                        value={firefliesMeetingTitle}
+                        onChange={(e) => setFirefliesMeetingTitle(e.target.value)}
+                        placeholder="Enter meeting title"
+                      />
+                    </div>
+                    <div>
+                      <Label>Date</Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {formatDate(firefliesMeetingDate)}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <Label>Attendees</Label>
+                    <p className="text-sm mt-1">{parsedData.attendees.join(", ")}</p>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <Label>Summary</Label>
+                    <p className="text-sm mt-1">{parsedData.summary}</p>
+                  </div>
+                  
+                  <div>
+                    <Label className="mb-2 block">Action Items ({parsedData.actionItems.length})</Label>
+                    <div className="border rounded-md overflow-x-auto bg-background">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-16">SR NO</TableHead>
+                            <TableHead>ISSUES DISCUSSED</TableHead>
+                            <TableHead className="w-32">RESPONSIBILITY</TableHead>
+                            <TableHead className="w-28">DEADLINE</TableHead>
+                            <TableHead className="w-40">REMARKS</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {parsedData.actionItems.map((item) => (
+                            <TableRow key={item.serialNo}>
+                              <TableCell className="font-medium">{item.serialNo}</TableCell>
+                              <TableCell>{item.issueDiscussed}</TableCell>
+                              <TableCell>{item.responsibility || "-"}</TableCell>
+                              <TableCell>{formatDeadline(item.deadline)}</TableCell>
+                              <TableCell>{item.remarks || "-"}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                </div>
+                
+                <DialogFooter className="gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setParsedData(null)}
+                  >
+                    Back to Edit
+                  </Button>
+                  <Button
+                    onClick={handleSaveParsedMeeting}
+                    disabled={createMeetingWithActionsMutation.isPending || !firefliesMeetingTitle.trim()}
+                  >
+                    {createMeetingWithActionsMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <FileDown className="h-4 w-4 mr-2" />
+                        Save Meeting Minutes
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
