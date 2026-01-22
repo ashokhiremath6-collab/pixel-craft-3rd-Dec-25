@@ -447,7 +447,16 @@ export default function MeetingMinutesPage() {
     content += `${'-'.repeat(120)}\n`;
     
     data.actionItems.forEach((item) => {
-      content += `${String(item.serialNo).padEnd(8)}${(item.issueDiscussed.substring(0, 47) + (item.issueDiscussed.length > 47 ? '...' : '')).padEnd(50)}${(item.responsibility || '-').padEnd(20)}${(item.deadline ? format(new Date(item.deadline + 'T00:00:00'), 'dd-MM-yyyy') : '-').padEnd(15)}${item.remarks || '-'}\n`;
+      // Safe deadline formatting
+      let deadlineStr = "-";
+      if (item.deadline && item.deadline !== "-" && item.deadline !== "null" && /^\d{4}-\d{2}-\d{2}$/.test(item.deadline)) {
+        try {
+          deadlineStr = format(new Date(item.deadline + 'T00:00:00'), 'dd-MM-yyyy');
+        } catch {
+          deadlineStr = item.deadline;
+        }
+      }
+      content += `${String(item.serialNo).padEnd(8)}${(item.issueDiscussed.substring(0, 47) + (item.issueDiscussed.length > 47 ? '...' : '')).padEnd(50)}${(item.responsibility || '-').padEnd(20)}${deadlineStr.padEnd(15)}${item.remarks || '-'}\n`;
     });
     
     return content;
