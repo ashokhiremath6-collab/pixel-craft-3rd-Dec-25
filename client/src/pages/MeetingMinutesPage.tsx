@@ -442,9 +442,7 @@ export default function MeetingMinutesPage() {
     content += `${data.attendees}\n\n`;
     content += `SUMMARY\n${'-'.repeat(40)}\n`;
     content += `${data.summary}\n\n`;
-    content += `ACTION ITEMS\n${'-'.repeat(40)}\n`;
-    content += `${'SR NO'.padEnd(8)}${'ISSUES DISCUSSED'.padEnd(50)}${'RESPONSIBILITY'.padEnd(20)}${'DEADLINE'.padEnd(15)}REMARKS\n`;
-    content += `${'-'.repeat(120)}\n`;
+    content += `ACTION ITEMS\n${'-'.repeat(80)}\n\n`;
     
     data.actionItems.forEach((item) => {
       // Safe deadline formatting
@@ -456,7 +454,14 @@ export default function MeetingMinutesPage() {
           deadlineStr = item.deadline;
         }
       }
-      content += `${String(item.serialNo).padEnd(8)}${(item.issueDiscussed.substring(0, 47) + (item.issueDiscussed.length > 47 ? '...' : '')).padEnd(50)}${(item.responsibility || '-').padEnd(20)}${deadlineStr.padEnd(15)}${item.remarks || '-'}\n`;
+      
+      content += `${item.serialNo}. ${item.issueDiscussed}\n`;
+      content += `   Responsibility: ${item.responsibility || '-'}\n`;
+      content += `   Deadline: ${deadlineStr}\n`;
+      if (item.remarks) {
+        content += `   Remarks: ${item.remarks}\n`;
+      }
+      content += `\n`;
     });
     
     return content;
