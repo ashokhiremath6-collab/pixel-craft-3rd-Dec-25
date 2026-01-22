@@ -8150,7 +8150,8 @@ Return your response in the following JSON format only (no markdown, no code blo
         contents: prompt,
         config: {
           temperature: 0.3,
-          maxOutputTokens: 4096,
+          maxOutputTokens: 8192,
+          responseMimeType: "application/json",
         },
       });
       
@@ -8164,20 +8165,13 @@ Return your response in the following JSON format only (no markdown, no code blo
       try {
         // Clean up the response - remove any markdown code blocks if present
         let cleanContent = content.trim();
-        if (cleanContent.startsWith('```json')) {
-          cleanContent = cleanContent.slice(7);
-        }
-        if (cleanContent.startsWith('```')) {
-          cleanContent = cleanContent.slice(3);
-        }
-        if (cleanContent.endsWith('```')) {
-          cleanContent = cleanContent.slice(0, -3);
-        }
+        // Remove markdown code blocks
+        cleanContent = cleanContent.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
         
         const parsed = JSON.parse(cleanContent.trim());
         res.json(parsed);
       } catch (parseError) {
-        console.error('Error parsing AI response:', parseError, content);
+        console.error('Error parsing AI response:', parseError, content.substring(0, 500));
         res.status(500).json({ error: "Failed to parse AI response" });
       }
     } catch (error) {
