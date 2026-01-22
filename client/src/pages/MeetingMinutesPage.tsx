@@ -607,12 +607,13 @@ export default function MeetingMinutesPage() {
   };
 
   return (
-    <div className="min-w-0 overflow-hidden p-4 sm:p-6 space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-2xl font-bold truncate">Meeting Minutes</h1>
-        <div className="flex items-center gap-2">
+    <div className="min-w-0 overflow-hidden p-4 sm:p-6 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold">Meeting Minutes</h1>
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
+            size="sm"
             onClick={() => {
               setFirefliesDialogOpen(true);
               setParsedData(null);
@@ -622,44 +623,48 @@ export default function MeetingMinutesPage() {
             className="whitespace-nowrap"
             data-testid="button-convert-fireflies"
           >
-            <Sparkles className="h-4 w-4 mr-2" />
-            Convert Fireflies
+            <Sparkles className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Convert </span>Fireflies
           </Button>
           <Button
             onClick={() => handleOpenDialog()}
+            size="sm"
             className="whitespace-nowrap"
             data-testid="button-add-mom"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Upload Meeting Minutes
+            <Plus className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Upload </span>Minutes
           </Button>
         </div>
       </div>
 
       {/* Source Tabs */}
-      <div className="flex gap-2 border-b pb-2">
+      <div className="flex gap-1 sm:gap-2 border-b pb-2 overflow-x-auto">
         <Button
           variant={sourceFilter === "all" ? "default" : "ghost"}
           size="sm"
           onClick={() => setSourceFilter("all")}
+          className="text-xs sm:text-sm whitespace-nowrap"
         >
-          All Minutes
+          All
         </Button>
         <Button
           variant={sourceFilter === "manual" ? "default" : "ghost"}
           size="sm"
           onClick={() => setSourceFilter("manual")}
+          className="text-xs sm:text-sm whitespace-nowrap"
         >
-          <FileText className="h-4 w-4 mr-2" />
-          PM Minutes
+          <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+          PM
         </Button>
         <Button
           variant={sourceFilter === "fireflies" ? "default" : "ghost"}
           size="sm"
           onClick={() => setSourceFilter("fireflies")}
+          className="text-xs sm:text-sm whitespace-nowrap"
         >
-          <Sparkles className="h-4 w-4 mr-2" />
-          Fireflies Minutes
+          <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+          Fireflies
         </Button>
       </div>
 
@@ -746,18 +751,18 @@ export default function MeetingMinutesPage() {
                     {monthMins.map((mom) => (
                       <Card key={mom.id} className="hover-elevate" data-testid={`mom-${mom.id}`}>
                         <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-4">
+                          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <h4 className="font-semibold text-base">{mom.meetingTitle}</h4>
-                                <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
+                                <h4 className="font-semibold text-base break-words">{mom.meetingTitle}</h4>
+                                <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded whitespace-nowrap">
                                   {mom.meetingType}
                                 </span>
                               </div>
                               <div className="mt-2 space-y-1 text-sm text-muted-foreground">
                                 <p><strong>Date:</strong> {formatDate(mom.meetingDate)}</p>
                                 <p><strong>Project:</strong> {getProjectName(mom.projectId)}</p>
-                                <p><strong>Attendees:</strong> {mom.attendees}</p>
+                                <p className="break-words"><strong>Attendees:</strong> {mom.attendees}</p>
                                 {mom.location && <p><strong>Location:</strong> {mom.location}</p>}
                                 {mom.uploadedAt && (
                                   <p data-testid={`text-upload-time-${mom.id}`}>
@@ -765,11 +770,11 @@ export default function MeetingMinutesPage() {
                                   </p>
                                 )}
                                 {mom.summary && (
-                                  <p className="mt-2 text-foreground"><strong>Summary:</strong> {mom.summary}</p>
+                                  <p className="mt-2 text-foreground break-words"><strong>Summary:</strong> {mom.summary}</p>
                                 )}
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <Button
                                 variant="ghost"
                                 size="sm"
