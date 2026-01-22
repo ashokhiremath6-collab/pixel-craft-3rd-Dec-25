@@ -727,6 +727,7 @@ export const meetingMinutes = pgTable("meeting_minutes", {
   meetingType: text("meeting_type").notNull(), // Client Meeting, Internal Meeting, Site Visit, Vendor Meeting, Design Review
   attendees: text("attendees"), // Optional: Comma-separated or newline-separated list
   location: text("location"), // Office, Site, Online/Video Call, Client Office, etc.
+  source: text("source").default("manual"), // 'manual' for PM uploads, 'fireflies' for AI-converted
   filePath: text("file_path").notNull(), // path to MOM document in object storage
   fileName: text("file_name").notNull(),
   fileType: text("file_type").notNull(), // pdf, doc, docx, etc.
@@ -746,6 +747,7 @@ export const insertMeetingMinutesSchema = createInsertSchema(meetingMinutes).omi
   projectId: z.string().optional().nullable(),
   attendees: z.string().optional().nullable(),
   location: z.string().optional().nullable(),
+  source: z.string().optional().nullable(),
   summary: z.string().optional().nullable(),
   fileSize: z.union([z.string(), z.number()]).optional().nullable(),
 });

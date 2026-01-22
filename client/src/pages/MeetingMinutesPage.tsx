@@ -77,6 +77,7 @@ export default function MeetingMinutesPage() {
   const [meetingTypeFilter, setMeetingTypeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [meetingDateFilter, setMeetingDateFilter] = useState<string>("");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "manual" | "fireflies">("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMOM, setEditingMOM] = useState<MeetingMinutes | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -122,6 +123,12 @@ export default function MeetingMinutesPage() {
   // Filter and search
   const filteredMinutes = useMemo(() => {
     return minutes.filter((mom) => {
+      // Source filter
+      if (sourceFilter !== "all") {
+        const momSource = (mom as any).source || "manual";
+        if (sourceFilter !== momSource) return false;
+      }
+      
       // Meeting date filter
       if (meetingDateFilter && mom.meetingDate !== meetingDateFilter) return false;
       
@@ -149,7 +156,7 @@ export default function MeetingMinutesPage() {
       
       return true;
     });
-  }, [minutes, projectFilter, meetingTypeFilter, searchQuery, meetingDateFilter]);
+  }, [minutes, projectFilter, meetingTypeFilter, searchQuery, meetingDateFilter, sourceFilter]);
 
   // Group by month
   const groupedMinutes = useMemo(() => {
@@ -374,6 +381,7 @@ export default function MeetingMinutesPage() {
       formDataToSend.append("attendees", data.attendees);
       formDataToSend.append("summary", data.summary);
       formDataToSend.append("location", data.location);
+      formDataToSend.append("source", "fireflies");
       
       // Create a text file with the parsed content as the meeting document
       const content = generateMeetingMinutesText(data);
@@ -626,6 +634,33 @@ export default function MeetingMinutesPage() {
             Upload Meeting Minutes
           </Button>
         </div>
+      </div>
+
+      {/* Source Tabs */}
+      <div className="flex gap-2 border-b pb-2">
+        <Button
+          variant={sourceFilter === "all" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setSourceFilter("all")}
+        >
+          All Minutes
+        </Button>
+        <Button
+          variant={sourceFilter === "manual" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setSourceFilter("manual")}
+        >
+          <FileText className="h-4 w-4 mr-2" />
+          PM Minutes
+        </Button>
+        <Button
+          variant={sourceFilter === "fireflies" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setSourceFilter("fireflies")}
+        >
+          <Sparkles className="h-4 w-4 mr-2" />
+          Fireflies Minutes
+        </Button>
       </div>
 
       {/* Filters */}
