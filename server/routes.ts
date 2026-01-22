@@ -7908,6 +7908,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fileSize: req.file.size.toString(),
           summary: req.body.summary || null,
           uploadedBy: userId,
+          source: req.body.source || 'manual',
         };
 
         const minutes = await storage.createMeetingMinutes(momData);
