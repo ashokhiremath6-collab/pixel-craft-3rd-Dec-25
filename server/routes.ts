@@ -8036,6 +8036,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== Meeting Action Items Routes =====
+  
+  // Get action items for a meeting
+  app.get("/api/meeting-minutes/:id/action-items", requireProjectAccess, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const actionItems = await storage.getMeetingActionItems(id);
+      res.json(actionItems);
+    } catch (error) {
+      console.error('Error fetching action items:', error);
+      res.status(500).json({ error: "Failed to fetch action items" });
+    }
+  });
+
+  // Add action items to a meeting
+  app.post("/api/meeting-minutes/:id/action-items", requireProjectAccess, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { actionItems } = req.body;
+      
+      // Verify meeting exists
+      const meeting = await storage.getMeetingMinutes(id);
+      if (!meeting) {
+        return res.status(404).json({ error: "Meeting minutes not found" });
+      }
+      
+      // Delete existing action items and insert new ones
+      await storage.deleteMeetingActionItems(id);
+      
+      const createdItems = [];
+      for (const item of actionItems) {
+        const created = await storage.createMeetingActionItem({
+          meetingMinutesId: id,
+          serialNo: item.serialNo,
+          issueDiscussed: item.issueDiscussed,
+          responsibility: item.responsibility || null,
+          deadline: item.deadline || null,
+          remarks: item.remarks || null,
+        });
+        createdItems.push(created);
+      }
+      
+      res.json(createdItems);
+    } catch (error) {
+      console.error('Error creating action items:', error);
+      res.status(500).json({ error: "Failed to create action items" });
+    }
+  });
+
+  // Parse Fireflies transcript using Gemini AI
+  app.post("/api/parse-fireflies", requireProjectAccess, async (req, res) => {
+    try {
+      const { transcript, meetingDate, projectName } = req.body;
+      
+      if (!transcript) {
+        return res.status(400).json({ error: "Transcript is required" });
+      }
+
+      const prompt = `You are a professional meeting minutes parser. Analyze the following Fireflies.ai meeting transcript and extract structured action items.
+
+Meeting Context:
+- Date: ${meetingDate || 'Not specified'}
+- Project: ${projectName || 'Not specified'}
+
+Transcript:
+${transcript}
+
+Please extract:
+1. List of attendees (names of people who spoke)
+2. A concise summary of the meeting (2-3 sentences)
+3. Action items with the following structure:
+   - Issue/Discussion point
+   - Person responsible (if mentioned)
+   - Deadline (if mentioned, in YYYY-MM-DD format)
+   - Any remarks or additional notes
+
+Return your response in the following JSON format only (no markdown, no code blocks):
+{
+  "attendees": ["Name 1", "Name 2"],
+  "summary": "Brief meeting summary",
+  "actionItems": [
+    {
+      "serialNo": 1,
+      "issueDiscussed": "Description of the action item or discussion point",
+      "responsibility": "Person name or null",
+      "deadline": "YYYY-MM-DD or null",
+      "remarks": "Additional notes or null"
+    }
+  ]
+}`;
+
+      const response = await fetch("https://modelfarm.replit.app/v1beta/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.REPLIT_IDENTITY || ''}`
+        },
+        body: JSON.stringify({
+          model: "gemini-2.0-flash",
+          messages: [
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 4096,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Gemini API error:', errorText);
+        return res.status(500).json({ error: "Failed to parse transcript" });
+      }
+
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content;
+      
+      if (!content) {
+        return res.status(500).json({ error: "No response from AI" });
+      }
+
+      // Parse the JSON response
+      try {
+        // Clean up the response - remove any markdown code blocks if present
+        let cleanContent = content.trim();
+        if (cleanContent.startsWith('```json')) {
+          cleanContent = cleanContent.slice(7);
+        }
+        if (cleanContent.startsWith('```')) {
+          cleanContent = cleanContent.slice(3);
+        }
+        if (cleanContent.endsWith('```')) {
+          cleanContent = cleanContent.slice(0, -3);
+        }
+        
+        const parsed = JSON.parse(cleanContent.trim());
+        res.json(parsed);
+      } catch (parseError) {
+        console.error('Error parsing AI response:', parseError, content);
+        res.status(500).json({ error: "Failed to parse AI response" });
+      }
+    } catch (error) {
+      console.error('Error parsing Fireflies transcript:', error);
+      res.status(500).json({ error: "Failed to parse transcript" });
+    }
+  });
+
   // ===== Works Order Templates Routes =====
   
   // Get all templates (role-based access)

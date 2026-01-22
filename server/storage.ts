@@ -55,6 +55,8 @@ import {
   type InsertSavedAsset,
   type MeetingMinutes,
   type InsertMeetingMinutes,
+  type MeetingActionItem,
+  type InsertMeetingActionItem,
   type WorksOrderTemplate,
   type InsertWorksOrderTemplate,
   type WorksOrder,
@@ -89,6 +91,7 @@ import {
   specifications,
   savedAssets,
   meetingMinutes,
+  meetingActionItems,
   worksOrderTemplates,
   worksOrders,
   worksOrderSignatures,
@@ -318,6 +321,11 @@ export interface IStorage {
   createMeetingMinutes(minutes: InsertMeetingMinutes): Promise<MeetingMinutes>;
   updateMeetingMinutes(id: string, minutes: Partial<InsertMeetingMinutes>): Promise<MeetingMinutes | undefined>;
   deleteMeetingMinutes(id: string): Promise<boolean>;
+  
+  // Meeting Action Items
+  getMeetingActionItems(meetingMinutesId: string): Promise<MeetingActionItem[]>;
+  createMeetingActionItem(item: InsertMeetingActionItem): Promise<MeetingActionItem>;
+  deleteMeetingActionItems(meetingMinutesId: string): Promise<boolean>;
   
   // Works Order Templates
   getAllWorksOrderTemplates(): Promise<WorksOrderTemplate[]>;
@@ -2578,6 +2586,24 @@ export class DBStorage implements IStorage {
   async deleteMeetingMinutes(id: string): Promise<boolean> {
     const result = await db.delete(meetingMinutes).where(eq(meetingMinutes.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Meeting Action Items methods
+  async getMeetingActionItems(meetingMinutesId: string): Promise<MeetingActionItem[]> {
+    return await db.select()
+      .from(meetingActionItems)
+      .where(eq(meetingActionItems.meetingMinutesId, meetingMinutesId))
+      .orderBy(meetingActionItems.serialNo);
+  }
+
+  async createMeetingActionItem(item: InsertMeetingActionItem): Promise<MeetingActionItem> {
+    const result = await db.insert(meetingActionItems).values(item).returning();
+    return result[0];
+  }
+
+  async deleteMeetingActionItems(meetingMinutesId: string): Promise<boolean> {
+    const result = await db.delete(meetingActionItems).where(eq(meetingActionItems.meetingMinutesId, meetingMinutesId));
+    return result.rowCount !== null && result.rowCount >= 0;
   }
 
   // Works Order Templates methods

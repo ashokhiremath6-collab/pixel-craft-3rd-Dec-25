@@ -753,6 +753,32 @@ export const insertMeetingMinutesSchema = createInsertSchema(meetingMinutes).omi
 export type InsertMeetingMinutes = z.infer<typeof insertMeetingMinutesSchema>;
 export type MeetingMinutes = typeof meetingMinutes.$inferSelect;
 
+// Meeting Action Items table (for structured Fireflies conversion)
+export const meetingActionItems = pgTable("meeting_action_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meetingMinutesId: varchar("meeting_minutes_id").references(() => meetingMinutes.id, { onDelete: 'cascade' }).notNull(),
+  serialNo: integer("serial_no").notNull(),
+  issueDiscussed: text("issue_discussed").notNull(),
+  responsibility: text("responsibility"),
+  deadline: date("deadline"),
+  remarks: text("remarks"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("idx_meeting_action_meeting_id").on(table.meetingMinutesId),
+]);
+
+export const insertMeetingActionItemSchema = createInsertSchema(meetingActionItems).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  responsibility: z.string().optional().nullable(),
+  deadline: z.string().optional().nullable(),
+  remarks: z.string().optional().nullable(),
+});
+
+export type InsertMeetingActionItem = z.infer<typeof insertMeetingActionItemSchema>;
+export type MeetingActionItem = typeof meetingActionItems.$inferSelect;
+
 // Session storage table for Replit Auth
 export const sessions = pgTable(
   "sessions",
