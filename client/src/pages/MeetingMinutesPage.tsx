@@ -498,8 +498,10 @@ export default function MeetingMinutesPage() {
 
   // Format deadline for display
   const formatDeadline = (deadline: string | null): string => {
-    if (!deadline) return "-";
+    if (!deadline || deadline === "-" || deadline === "null") return "-";
     try {
+      // Validate it's a proper date format before parsing
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return deadline;
       return format(new Date(deadline + 'T00:00:00'), 'dd-MM-yyyy');
     } catch {
       return deadline;
