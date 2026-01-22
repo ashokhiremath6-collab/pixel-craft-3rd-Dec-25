@@ -342,11 +342,11 @@ export default function MeetingMinutesPage() {
       if (!response.ok) {
         throw new Error("Failed to save action items");
       }
-      return response.json();
+      return response.json() as Promise<MeetingActionItem[]>;
     },
-    onSuccess: (_, variables) => {
-      // Update cache
-      setActionItemsCache(prev => new Map(prev).set(variables.meetingId, []));
+    onSuccess: (savedItems, variables) => {
+      // Update cache with saved items
+      setActionItemsCache(prev => new Map(prev).set(variables.meetingId, savedItems));
       queryClient.invalidateQueries({ queryKey: ["/api/meeting-minutes"] });
     },
   });
