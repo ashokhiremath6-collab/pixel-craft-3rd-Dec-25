@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
+import { FileViewerModal } from "@/components/FileViewerModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
@@ -82,6 +83,7 @@ export default function MeetingMinutesPage() {
   const [editingMOM, setEditingMOM] = useState<MeetingMinutes | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [viewingFile, setViewingFile] = useState<{url: string, name: string} | null>(null);
   const [formData, setFormData] = useState({
     projectId: "general",
     meetingDate: "",
@@ -791,13 +793,11 @@ export default function MeetingMinutesPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                asChild
+                                onClick={() => setViewingFile({ url: mom.filePath, name: mom.fileName })}
                                 data-testid={`button-view-${mom.id}`}
                               >
-                                <a href={mom.filePath} target="_blank" rel="noopener noreferrer">
-                                  <Download className="h-4 w-4 mr-1" />
-                                  View
-                                </a>
+                                <Download className="h-4 w-4 mr-1" />
+                                View
                               </Button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -1023,6 +1023,13 @@ export default function MeetingMinutesPage() {
         onClose={() => setDeletingId(null)}
         onConfirm={confirmDelete}
         isDeleting={deleteMutation.isPending}
+      />
+
+      <FileViewerModal
+        isOpen={!!viewingFile}
+        onClose={() => setViewingFile(null)}
+        fileUrl={viewingFile?.url || ''}
+        fileName={viewingFile?.name}
       />
 
       {/* Fireflies Conversion Dialog */}

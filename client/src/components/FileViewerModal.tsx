@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { X, ExternalLink, Download, ZoomIn, ZoomOut, RotateCcw, Maximize2 } from "lucide-react";
+import { X, ExternalLink, Download, ZoomIn, ZoomOut, RotateCcw, Maximize2, Loader2 } from "lucide-react";
 
 interface FileViewerModalProps {
   isOpen: boolean;
@@ -12,6 +12,8 @@ interface FileViewerModalProps {
 
 export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileViewerModalProps) {
   const [zoom, setZoom] = useState(100);
+  const [textContent, setTextContent] = useState<string | null>(null);
+  const [isLoadingText, setIsLoadingText] = useState(false);
   
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -48,6 +50,24 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const isPdf = fileName?.toLowerCase().endsWith('.pdf') || fileUrl.includes('.pdf');
   const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
                   /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
+  const isText = fileName?.toLowerCase().endsWith('.txt') || fileUrl.includes('.txt');
+
+  useEffect(() => {
+    if (isOpen && isText && fileUrl) {
+      setIsLoadingText(true);
+      setTextContent(null);
+      fetch(fileUrl)
+        .then(res => res.text())
+        .then(text => {
+          setTextContent(text);
+          setIsLoadingText(false);
+        })
+        .catch(() => {
+          setTextContent('Unable to load file content');
+          setIsLoadingText(false);
+        });
+    }
+  }, [isOpen, isText, fileUrl]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
@@ -166,6 +186,18 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                 }}
                 data-testid="file-viewer-image"
               />
+            </div>
+          ) : isText ? (
+            <div className="p-4 h-full overflow-auto">
+              {isLoadingText ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <pre className="whitespace-pre-wrap break-words text-sm font-mono bg-background p-4 rounded-md" data-testid="file-viewer-text">
+                  {textContent}
+                </pre>
+              )}
             </div>
           ) : (
             <iframe
