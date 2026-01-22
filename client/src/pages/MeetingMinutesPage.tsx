@@ -97,6 +97,7 @@ export default function MeetingMinutesPage() {
   const [firefliesProjectId, setFirefliesProjectId] = useState<string>("general");
   const [firefliesMeetingDate, setFirefliesMeetingDate] = useState(new Date().toISOString().split('T')[0]);
   const [firefliesMeetingTitle, setFirefliesMeetingTitle] = useState("");
+  const [firefliesLocation, setFirefliesLocation] = useState<string>("Site");
   const [parsedData, setParsedData] = useState<ParsedFireflies | null>(null);
   const [expandedActionItems, setExpandedActionItems] = useState<Set<string>>(new Set());
   const [actionItemsCache, setActionItemsCache] = useState<Map<string, MeetingActionItem[]>>(new Map());
@@ -359,6 +360,7 @@ export default function MeetingMinutesPage() {
       meetingTitle: string;
       attendees: string;
       summary: string;
+      location: string;
       actionItems: ParsedFireflies['actionItems'];
     }) => {
       // First create a placeholder file for the meeting (since file is required)
@@ -371,7 +373,7 @@ export default function MeetingMinutesPage() {
       formDataToSend.append("meetingType", "Progress Meeting");
       formDataToSend.append("attendees", data.attendees);
       formDataToSend.append("summary", data.summary);
-      formDataToSend.append("location", "Online/Video Call");
+      formDataToSend.append("location", data.location);
       
       // Create a text file with the parsed content as the meeting document
       const content = generateMeetingMinutesText(data);
@@ -506,6 +508,7 @@ export default function MeetingMinutesPage() {
       meetingTitle: firefliesMeetingTitle,
       attendees: parsedData.attendees.join(", "),
       summary: parsedData.summary,
+      location: firefliesLocation,
       actionItems: parsedData.actionItems,
     });
   };
@@ -995,7 +998,7 @@ export default function MeetingMinutesPage() {
           <div className="space-y-4">
             {!parsedData ? (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="fireflies-project">Project</Label>
                     <Select
@@ -1023,6 +1026,24 @@ export default function MeetingMinutesPage() {
                       value={firefliesMeetingDate}
                       onChange={(e) => setFirefliesMeetingDate(e.target.value)}
                     />
+                  </div>
+                  <div>
+                    <Label htmlFor="fireflies-location">Location</Label>
+                    <Select
+                      value={firefliesLocation}
+                      onValueChange={setFirefliesLocation}
+                    >
+                      <SelectTrigger id="fireflies-location">
+                        <SelectValue placeholder="Select location" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LOCATIONS.map((loc) => (
+                          <SelectItem key={loc} value={loc}>
+                            {loc}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 
