@@ -8127,30 +8127,34 @@ Return your response in the following JSON format only (no markdown, no code blo
   ]
 }`;
 
-      const response = await fetch("https://modelfarm.replit.app/v1beta/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.REPLIT_IDENTITY || ''}`
-        },
-        body: JSON.stringify({
-          model: "gemini-2.0-flash",
-          messages: [
-            { role: "user", content: prompt }
-          ],
-          temperature: 0.3,
-          max_tokens: 4096,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Gemini API error:', errorText);
-        return res.status(500).json({ error: "Failed to parse transcript" });
+      // Use the Gemini AI integration
+      const { GoogleGenAI } = await import("@google/genai");
+      const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+      const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+      
+      if (!baseUrl || !apiKey) {
+        console.error("Gemini AI not configured");
+        return res.status(500).json({ error: "AI integration not configured" });
       }
-
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
+      
+      const client = new GoogleGenAI({
+        apiKey: apiKey,
+        httpOptions: {
+          apiVersion: "",
+          baseUrl: baseUrl,
+        },
+      });
+      
+      const response = await client.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          temperature: 0.3,
+          maxOutputTokens: 4096,
+        },
+      });
+      
+      const content = response.text;
       
       if (!content) {
         return res.status(500).json({ error: "No response from AI" });
