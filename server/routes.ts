@@ -12,6 +12,7 @@ import PDFDocument from "pdfkit";
 import ExcelJS from "exceljs";
 import fs from "fs";
 import path from "path";
+import mammoth from "mammoth";
 import { randomUUID } from "crypto";
 import { sql } from "drizzle-orm";
 import { storage } from "./storage";
@@ -200,6 +201,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.log("💥 Unknown error type - returning 500");
       return res.status(500).send("Internal server error: Failed to retrieve file");
+    }
+  });
+
+  // Endpoint to convert Word documents to HTML for viewing
+  app.get("/api/docx-to-html", requireAuth, async (req, res) => {
+    const filePath = req.query.path as string;
+    
+    if (!filePath) {
+      return res.status(400).json({ error: "File path is required" });
+    }
+    
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(filePath);
+      
+      // Check access permissions
+      const userId = (req.user as any).claims.sub;
+      const canAccess = await objectStorageService.canAccessObjectEntity({
+        objectFile,
+        userId: userId,
+        requestedPermission: ObjectPermission.READ,
+      });
+      
+      if (!canAccess) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      // Download the file buffer
+      const buffer = await downloadObjectBuffer(objectFile);
+      
+      // Convert to HTML using mammoth
+      const result = await mammoth.convertToHtml({ buffer });
+      
+      res.json({ 
+        html: result.value,
+        messages: result.messages 
+      });
+    } catch (error) {
+      console.error("Error converting docx to HTML:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      return res.status(500).json({ error: "Failed to convert document" });
     }
   });
 

@@ -14,6 +14,9 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const [zoom, setZoom] = useState(100);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [isLoadingText, setIsLoadingText] = useState(false);
+  const [docxHtml, setDocxHtml] = useState<string | null>(null);
+  const [isLoadingDocx, setIsLoadingDocx] = useState(false);
+  const [docxError, setDocxError] = useState<string | null>(null);
   
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -44,6 +47,8 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
 
   const handleClose = () => {
     setZoom(100);
+    setDocxHtml(null);
+    setDocxError(null);
     onClose();
   };
 
@@ -80,6 +85,30 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
     }
   }, [isOpen, isText, fileUrl]);
 
+  // Fetch and convert Word documents to HTML
+  const isDocx = /\.docx$/i.test(fileName || '') || /\.docx/i.test(fileUrl);
+  
+  useEffect(() => {
+    if (isOpen && isDocx && fileUrl) {
+      setIsLoadingDocx(true);
+      setDocxHtml(null);
+      setDocxError(null);
+      fetch(`/api/docx-to-html?path=${encodeURIComponent(fileUrl)}`)
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to convert document');
+          return res.json();
+        })
+        .then(data => {
+          setDocxHtml(data.html);
+          setIsLoadingDocx(false);
+        })
+        .catch((err) => {
+          setDocxError(err.message || 'Unable to load document');
+          setIsLoadingDocx(false);
+        });
+    }
+  }, [isOpen, isDocx, fileUrl]);
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0">
@@ -89,7 +118,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
               {fileName || 'File Viewer'}
             </DialogTitle>
             <div className="flex items-center gap-1">
-              {(isPdf || isImage) && (
+              {(isPdf || isImage || isDocx) && (
                 <>
                   <Button
                     variant="ghost"
@@ -210,6 +239,29 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                 </pre>
               )}
             </div>
+          ) : isDocx ? (
+            <div className="p-4 h-full overflow-auto bg-white">
+              {isLoadingDocx ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : docxError ? (
+                <div className="flex flex-col items-center justify-center h-full gap-4">
+                  <p className="text-muted-foreground">{docxError}</p>
+                  <Button onClick={handleDownload}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Instead
+                  </Button>
+                </div>
+              ) : docxHtml ? (
+                <div 
+                  className="prose prose-sm max-w-none p-6 bg-white rounded shadow-sm"
+                  style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }}
+                  dangerouslySetInnerHTML={{ __html: docxHtml }}
+                  data-testid="file-viewer-docx"
+                />
+              ) : null}
+            </div>
           ) : isOfficeDoc ? (
             <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
               <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
@@ -221,7 +273,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                   {fileName}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Office documents need to be downloaded to view.
+                  This file type needs to be downloaded to view.
                 </p>
               </div>
               <Button onClick={handleDownload} data-testid="button-download-office">
