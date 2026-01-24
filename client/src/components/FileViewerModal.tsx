@@ -51,6 +51,18 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
                   /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
   const isText = fileName?.toLowerCase().endsWith('.txt') || fileUrl.includes('.txt');
+  const isOfficeDoc = /\.(docx?|xlsx?|pptx?)$/i.test(fileName || '') || 
+                      /(docx?|xlsx?|pptx?)/i.test(fileUrl);
+  
+  // Build full URL for Google Docs Viewer
+  const getFullUrl = () => {
+    if (fileUrl.startsWith('http')) return fileUrl;
+    return `${window.location.origin}${fileUrl}`;
+  };
+  
+  const googleViewerUrl = isOfficeDoc 
+    ? `https://docs.google.com/gview?url=${encodeURIComponent(getFullUrl())}&embedded=true`
+    : null;
 
   useEffect(() => {
     if (isOpen && isText && fileUrl) {
@@ -199,13 +211,28 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                 </pre>
               )}
             </div>
-          ) : (
+          ) : isOfficeDoc && googleViewerUrl ? (
             <iframe
-              src={fileUrl}
+              src={googleViewerUrl}
               className="w-full h-full border-0"
-              title={fileName || 'File viewer'}
-              data-testid="file-viewer-iframe"
+              title={fileName || 'Document viewer'}
+              data-testid="file-viewer-office"
             />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
+              <div className="text-center">
+                <p className="text-muted-foreground mb-2">
+                  This file type cannot be previewed in the browser.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Use the download button to save the file to your device.
+                </p>
+              </div>
+              <Button onClick={handleDownload} data-testid="button-download-fallback">
+                <Download className="w-4 h-4 mr-2" />
+                Download File
+              </Button>
+            </div>
           )}
         </div>
       </DialogContent>
