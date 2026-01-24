@@ -238,25 +238,6 @@ export default function SpecificationsPage() {
     }
   };
 
-  // Check if file is an Office document that should be downloaded directly
-  const isOfficeDocument = (fileName: string): boolean => {
-    const ext = fileName.split('.').pop()?.toLowerCase();
-    return ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'].includes(ext || '');
-  };
-
-  // Handle view click - directly download Office docs, use modal for others
-  const handleViewClick = (filePath: string, fileName: string) => {
-    if (isOfficeDocument(fileName)) {
-      // Trigger direct download for Office documents
-      const link = document.createElement('a');
-      link.href = filePath;
-      link.download = fileName;
-      link.click();
-    } else {
-      // Open in modal for PDFs, images, text files
-      setViewingFile({ url: filePath, name: fileName });
-    }
-  };
 
   return (
     <div className="h-full overflow-auto">
@@ -349,12 +330,12 @@ export default function SpecificationsPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleViewClick(spec.filePath!, spec.fileName || 'Document')}
+                                  onClick={() => setViewingFile({ url: spec.filePath!, name: spec.fileName || 'Document' })}
                                   data-testid={`button-view-${spec.id}`}
                                   className="text-primary h-7 px-2 text-xs"
                                 >
                                   <Eye className="h-3.5 w-3.5 mr-1" />
-                                  {isOfficeDocument(spec.fileName || '') ? 'Open' : 'View'}
+                                  View
                                 </Button>
                                 <a
                                   href={spec.filePath}

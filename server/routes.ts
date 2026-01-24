@@ -13,6 +13,7 @@ import ExcelJS from "exceljs";
 import fs from "fs";
 import path from "path";
 import mammoth from "mammoth";
+import libre from "libreoffice-convert";
 import { randomUUID } from "crypto";
 import { sql } from "drizzle-orm";
 import { storage } from "./storage";
@@ -204,8 +205,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Endpoint to convert Word documents to HTML for viewing
-  app.get("/api/docx-to-html", requireAuth, async (req, res) => {
+  // Endpoint to convert Word/Excel documents to PDF for viewing
+  app.get("/api/office-to-pdf", requireAuth, async (req, res) => {
     const filePath = req.query.path as string;
     
     if (!filePath) {
@@ -231,15 +232,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Download the file buffer
       const buffer = await downloadObjectBuffer(objectFile);
       
-      // Convert to HTML using mammoth
-      const result = await mammoth.convertToHtml({ buffer });
-      
-      res.json({ 
-        html: result.value,
-        messages: result.messages 
+      // Convert to PDF using LibreOffice
+      const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
+        libre.convert(buffer, '.pdf', undefined, (err: Error | null, result: Buffer) => {
+          if (err) reject(err);
+          else resolve(result);
+        });
       });
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline');
+      res.send(pdfBuffer);
     } catch (error) {
-      console.error("Error converting docx to HTML:", error);
+      console.error("Error converting to PDF:", error);
       if (error instanceof ObjectNotFoundError) {
         return res.status(404).json({ error: "File not found" });
       }

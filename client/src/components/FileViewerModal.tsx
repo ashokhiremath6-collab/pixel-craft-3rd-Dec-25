@@ -59,14 +59,10 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const isOfficeDoc = /\.(docx?|xlsx?|pptx?)$/i.test(fileName || '') || 
                       /(docx?|xlsx?|pptx?)/i.test(fileUrl);
   
-  // Get file type for display
-  const getFileType = () => {
-    const ext = (fileName || fileUrl).toLowerCase();
-    if (ext.includes('.docx') || ext.includes('.doc')) return 'Word Document';
-    if (ext.includes('.xlsx') || ext.includes('.xls')) return 'Excel Spreadsheet';
-    if (ext.includes('.pptx') || ext.includes('.ppt')) return 'PowerPoint Presentation';
-    return 'Office Document';
-  };
+  // Build PDF conversion URL for Office documents
+  const officePdfUrl = isOfficeDoc 
+    ? `/api/office-to-pdf?path=${encodeURIComponent(fileUrl)}`
+    : null;
 
   useEffect(() => {
     if (isOpen && isText && fileUrl) {
@@ -239,25 +235,13 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                 </pre>
               )}
             </div>
-          ) : isOfficeDoc ? (
-            <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-                <Download className="w-8 h-8 text-primary" />
-              </div>
-              <div className="text-center">
-                <p className="font-medium mb-1">{getFileType()}</p>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {fileName}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  This file type needs to be downloaded to view.
-                </p>
-              </div>
-              <Button onClick={handleDownload} data-testid="button-download-office">
-                <Download className="w-4 h-4 mr-2" />
-                Download to View
-              </Button>
-            </div>
+          ) : isOfficeDoc && officePdfUrl ? (
+            <iframe
+              src={officePdfUrl}
+              className="w-full h-full border-0"
+              title={fileName || 'Document viewer'}
+              data-testid="file-viewer-office-pdf"
+            />
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
               <div className="text-center">
