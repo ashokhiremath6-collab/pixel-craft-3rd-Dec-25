@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
+import { FileViewerModal } from "@/components/FileViewerModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
@@ -39,6 +40,7 @@ export default function SpecificationsPage() {
   const [editingSpec, setEditingSpec] = useState<Specification | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [viewingFile, setViewingFile] = useState<{url: string, name: string} | null>(null);
   const [formData, setFormData] = useState({
     category: "",
     title: "",
@@ -327,7 +329,7 @@ export default function SpecificationsPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => window.open(spec.filePath, '_blank')}
+                                  onClick={() => setViewingFile({ url: spec.filePath!, name: spec.fileName || 'Document' })}
                                   data-testid={`button-view-${spec.id}`}
                                   className="text-primary h-7 px-2 text-xs"
                                 >
@@ -482,6 +484,13 @@ export default function SpecificationsPage() {
           onClose={() => setDeletingId(null)}
           onConfirm={confirmDelete}
           isDeleting={deleteMutation.isPending}
+        />
+
+        <FileViewerModal
+          isOpen={!!viewingFile}
+          onClose={() => setViewingFile(null)}
+          fileUrl={viewingFile?.url || ''}
+          fileName={viewingFile?.name}
         />
       </div>
     </div>
