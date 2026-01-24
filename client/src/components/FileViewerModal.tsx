@@ -14,9 +14,6 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const [zoom, setZoom] = useState(100);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [isLoadingText, setIsLoadingText] = useState(false);
-  const [docxHtml, setDocxHtml] = useState<string | null>(null);
-  const [isLoadingDocx, setIsLoadingDocx] = useState(false);
-  const [docxError, setDocxError] = useState<string | null>(null);
   
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -47,8 +44,6 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
 
   const handleClose = () => {
     setZoom(100);
-    setDocxHtml(null);
-    setDocxError(null);
     onClose();
   };
 
@@ -58,28 +53,6 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const isText = fileName?.toLowerCase().endsWith('.txt') || fileUrl.includes('.txt');
   const isWordDoc = /\.docx?$/i.test(fileName || '') || /\.docx?/i.test(fileUrl);
   const isExcelOrPpt = /\.(xlsx?|pptx?)$/i.test(fileName || '') || /(xlsx?|pptx?)/i.test(fileUrl);
-
-  // Load Word document HTML when modal opens
-  useEffect(() => {
-    if (isOpen && isWordDoc && fileUrl) {
-      setIsLoadingDocx(true);
-      setDocxError(null);
-      fetch(`/api/docx-to-html?path=${encodeURIComponent(fileUrl)}`)
-        .then(res => {
-          if (!res.ok) throw new Error('Failed to convert document');
-          return res.json();
-        })
-        .then(data => {
-          setDocxHtml(data.html);
-          setIsLoadingDocx(false);
-        })
-        .catch(err => {
-          console.error('Error loading document:', err);
-          setDocxError('Failed to load document');
-          setIsLoadingDocx(false);
-        });
-    }
-  }, [isOpen, isWordDoc, fileUrl]);
 
   useEffect(() => {
     if (isOpen && isText && fileUrl) {
@@ -229,43 +202,18 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                 </pre>
               )}
             </div>
-          ) : isWordDoc ? (
-            <div className="p-6 h-full overflow-auto bg-white">
-              {isLoadingDocx ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : docxError ? (
-                <div className="flex flex-col items-center justify-center h-full gap-4">
-                  <p className="text-muted-foreground">{docxError}</p>
-                  <Button onClick={handleDownload} data-testid="button-download-docx-error">
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Instead
-                  </Button>
-                </div>
-              ) : docxHtml ? (
-                <div 
-                  className="prose prose-sm max-w-none"
-                  style={{ 
-                    transform: `scale(${zoom / 100})`,
-                    transformOrigin: 'top left',
-                  }}
-                  dangerouslySetInnerHTML={{ __html: docxHtml }}
-                  data-testid="file-viewer-docx"
-                />
-              ) : null}
-            </div>
-          ) : isExcelOrPpt ? (
+          ) : (isWordDoc || isExcelOrPpt) ? (
             <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+                <Download className="w-8 h-8 text-primary" />
+              </div>
               <div className="text-center">
-                <p className="text-muted-foreground mb-2">
-                  Excel and PowerPoint files cannot be previewed directly.
-                </p>
+                <p className="font-medium mb-1">{fileName}</p>
                 <p className="text-sm text-muted-foreground">
-                  Please download the file to view it.
+                  Click below to download and view this file
                 </p>
               </div>
-              <Button onClick={handleDownload} data-testid="button-download-excel-ppt">
+              <Button onClick={handleDownload} data-testid="button-download-office">
                 <Download className="w-4 h-4 mr-2" />
                 Download File
               </Button>
