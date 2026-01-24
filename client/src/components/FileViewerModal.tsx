@@ -239,29 +239,6 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                 </pre>
               )}
             </div>
-          ) : isDocx ? (
-            <div className="p-4 h-full overflow-auto bg-white">
-              {isLoadingDocx ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : docxError ? (
-                <div className="flex flex-col items-center justify-center h-full gap-4">
-                  <p className="text-muted-foreground">{docxError}</p>
-                  <Button onClick={handleDownload}>
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Instead
-                  </Button>
-                </div>
-              ) : docxHtml ? (
-                <div 
-                  className="prose prose-sm max-w-none p-6 bg-white rounded shadow-sm"
-                  style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }}
-                  dangerouslySetInnerHTML={{ __html: docxHtml }}
-                  data-testid="file-viewer-docx"
-                />
-              ) : null}
-            </div>
           ) : isOfficeDoc ? (
             <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
               <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
