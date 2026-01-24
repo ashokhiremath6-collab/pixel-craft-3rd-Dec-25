@@ -56,13 +56,30 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
                   /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
   const isText = fileName?.toLowerCase().endsWith('.txt') || fileUrl.includes('.txt');
-  const isOfficeDoc = /\.(docx?|xlsx?|pptx?)$/i.test(fileName || '') || 
-                      /(docx?|xlsx?|pptx?)/i.test(fileUrl);
-  
-  // Build PDF conversion URL for Office documents
-  const officePdfUrl = isOfficeDoc 
-    ? `/api/office-to-pdf?path=${encodeURIComponent(fileUrl)}`
-    : null;
+  const isWordDoc = /\.docx?$/i.test(fileName || '') || /\.docx?/i.test(fileUrl);
+  const isExcelOrPpt = /\.(xlsx?|pptx?)$/i.test(fileName || '') || /(xlsx?|pptx?)/i.test(fileUrl);
+
+  // Load Word document HTML when modal opens
+  useEffect(() => {
+    if (isOpen && isWordDoc && fileUrl) {
+      setIsLoadingDocx(true);
+      setDocxError(null);
+      fetch(`/api/docx-to-html?path=${encodeURIComponent(fileUrl)}`)
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to convert document');
+          return res.json();
+        })
+        .then(data => {
+          setDocxHtml(data.html);
+          setIsLoadingDocx(false);
+        })
+        .catch(err => {
+          console.error('Error loading document:', err);
+          setDocxError('Failed to load document');
+          setIsLoadingDocx(false);
+        });
+    }
+  }, [isOpen, isWordDoc, fileUrl]);
 
   useEffect(() => {
     if (isOpen && isText && fileUrl) {
@@ -81,29 +98,6 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
     }
   }, [isOpen, isText, fileUrl]);
 
-  // Fetch and convert Word documents to HTML
-  const isDocx = /\.docx$/i.test(fileName || '') || /\.docx/i.test(fileUrl);
-  
-  useEffect(() => {
-    if (isOpen && isDocx && fileUrl) {
-      setIsLoadingDocx(true);
-      setDocxHtml(null);
-      setDocxError(null);
-      fetch(`/api/docx-to-html?path=${encodeURIComponent(fileUrl)}`)
-        .then(res => {
-          if (!res.ok) throw new Error('Failed to convert document');
-          return res.json();
-        })
-        .then(data => {
-          setDocxHtml(data.html);
-          setIsLoadingDocx(false);
-        })
-        .catch((err) => {
-          setDocxError(err.message || 'Unable to load document');
-          setIsLoadingDocx(false);
-        });
-    }
-  }, [isOpen, isDocx, fileUrl]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
@@ -114,7 +108,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
               {fileName || 'File Viewer'}
             </DialogTitle>
             <div className="flex items-center gap-1">
-              {(isPdf || isImage || isDocx) && (
+              {(isPdf || isImage || isWordDoc) && (
                 <>
                   <Button
                     variant="ghost"
@@ -235,13 +229,47 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                 </pre>
               )}
             </div>
-          ) : isOfficeDoc && officePdfUrl ? (
-            <iframe
-              src={officePdfUrl}
-              className="w-full h-full border-0"
-              title={fileName || 'Document viewer'}
-              data-testid="file-viewer-office-pdf"
-            />
+          ) : isWordDoc ? (
+            <div className="p-6 h-full overflow-auto bg-white">
+              {isLoadingDocx ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : docxError ? (
+                <div className="flex flex-col items-center justify-center h-full gap-4">
+                  <p className="text-muted-foreground">{docxError}</p>
+                  <Button onClick={handleDownload} data-testid="button-download-docx-error">
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Instead
+                  </Button>
+                </div>
+              ) : docxHtml ? (
+                <div 
+                  className="prose prose-sm max-w-none"
+                  style={{ 
+                    transform: `scale(${zoom / 100})`,
+                    transformOrigin: 'top left',
+                  }}
+                  dangerouslySetInnerHTML={{ __html: docxHtml }}
+                  data-testid="file-viewer-docx"
+                />
+              ) : null}
+            </div>
+          ) : isExcelOrPpt ? (
+            <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
+              <div className="text-center">
+                <p className="text-muted-foreground mb-2">
+                  Excel and PowerPoint files cannot be previewed directly.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Please download the file to view it.
+                </p>
+              </div>
+              <Button onClick={handleDownload} data-testid="button-download-excel-ppt">
+                <Download className="w-4 h-4 mr-2" />
+                Download File
+              </Button>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
               <div className="text-center">
