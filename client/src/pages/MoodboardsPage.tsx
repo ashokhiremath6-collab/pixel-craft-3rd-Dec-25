@@ -485,6 +485,16 @@ export default function MoodboardsPage() {
       return;
     }
     
+    // Validate folder selection for working drawings
+    if (assetType === "working_drawing" && !selectedFolder) {
+      toast({
+        variant: "destructive",
+        title: "Folder Required",
+        description: "Please select a folder for the working drawing.",
+      });
+      return;
+    }
+    
     const formData = new FormData();
     formData.append("moodboard", selectedFile);
     formData.append("assetType", assetType); // Add asset type
@@ -555,11 +565,25 @@ export default function MoodboardsPage() {
       return;
     }
 
+    // Validate folder selection for working drawings
+    if (assetType === "working_drawing" && !selectedFolder) {
+      toast({
+        variant: "destructive",
+        title: "Folder Required",
+        description: "Please select a folder for the working drawing.",
+      });
+      return;
+    }
+
     const formData = new FormData();
     formData.append("canvaLink", canvaLink.trim());
     formData.append("linkOnly", "true");
     formData.append("assetType", assetType); // Add asset type
     formData.append("projectId", selectedProjectId);
+    // Include folder for working drawings
+    if (assetType === "working_drawing" && selectedFolder) {
+      formData.append("folder", selectedFolder);
+    }
     
     uploadMutation.mutate(formData);
   };
@@ -1016,6 +1040,25 @@ export default function MoodboardsPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  
+                  {/* Folder Selection for Working Drawings - Link Only */}
+                  {assetType === "working_drawing" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="folder-for-link">Select Folder <span className="text-red-500">*</span></Label>
+                      <Select value={selectedFolder} onValueChange={setSelectedFolder}>
+                        <SelectTrigger id="folder-for-link" data-testid="select-folder-for-link">
+                          <SelectValue placeholder="Select a folder..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {workingDrawingFolders.map((folder) => (
+                            <SelectItem key={folder} value={folder}>
+                              {folder}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   
                   <Button 
                     onClick={handleSaveCanvaLinkOnly}
