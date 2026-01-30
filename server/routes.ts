@@ -4098,7 +4098,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload new moodboard
   app.post("/api/moodboards", requireAdmin, uploadMoodboard.single('moodboard'), async (req, res) => {
     try {
-      const { description, tags, projectId, canvaLink, linkOnly, assetType } = req.body;
+      const { description, tags, projectId, canvaLink, linkOnly, assetType, folder } = req.body;
       
       // Check if this is a Canva link-only upload (no file)
       const isLinkOnly = linkOnly === 'true';
@@ -4152,6 +4152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         assetType: assetType || 'moodboard',
         name: `Canva Design - ${new Date().toLocaleDateString()}`,
         description: description || null,
+        folder: folder && typeof folder === 'string' ? folder.trim() : null,
         fileName: null,
         filePath: null,
         fileType: null,
@@ -4164,6 +4165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         assetType: assetType || 'moodboard',
         name: req.file!.originalname,
         description: description || null,
+        folder: folder && typeof folder === 'string' ? folder.trim() : null,
         fileName: req.file!.originalname,
         filePath: objectPath, // Save object storage path instead of local path
         fileType: path.extname(req.file!.originalname).toLowerCase().substring(1), // Remove dot

@@ -147,6 +147,7 @@ export const moodboards = pgTable("moodboards", {
   assetType: text("asset_type").notNull().default("moodboard"), // "moodboard", "working_drawing", "render"
   name: text("name").notNull(),
   description: text("description"),
+  folder: text("folder"), // For organizing working drawings into folders
   fileName: text("file_name"), // Optional - can be null for Canva-link-only entries
   filePath: text("file_path"), // Optional - path in object storage
   fileType: text("file_type"), // Optional - jpeg, png, svg, webp, pdf, etc.

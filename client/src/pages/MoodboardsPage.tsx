@@ -27,6 +27,7 @@ export default function MoodboardsPage() {
   const [tags, setTags] = useState("");
   const [canvaLink, setCanvaLink] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
+  const [selectedFolder, setSelectedFolder] = useState<string>(""); // For working drawings folder
   // Require project selection - no "all" option
   const [filterProjectId, setFilterProjectId] = useState<string>("");
   const [previewImage, setPreviewImage] = useState<Moodboard | null>(null);
@@ -241,12 +242,32 @@ export default function MoodboardsPage() {
     "Walk-in Closet", "Balcony", "General"
   ];
 
-  // Group moodboards by project, and for renders also by room type
+  // Folder options for working drawings
+  const workingDrawingFolders = [
+    "Floor Plans",
+    "Elevations", 
+    "Electrical Layouts",
+    "Plumbing Layouts",
+    "HVAC Layouts",
+    "Ceiling Layouts",
+    "Furniture Layouts",
+    "Kitchen Details",
+    "Wardrobe Details",
+    "Bathroom Details",
+    "Joinery Details",
+    "Site Measurements",
+    "As-Built Drawings",
+    "Shop Drawings",
+    "Other"
+  ];
+
+  // Group moodboards by project, and for renders also by room type, for working drawings by folder
   const groupedMoodboards = useMemo(() => {
     const groups: Record<string, { 
       projectName: string; 
       items: Moodboard[];
       roomGroups?: Record<string, Moodboard[]>;
+      folderGroups?: Record<string, Moodboard[]>;
     }> = {};
     
     moodboards.forEach((moodboard: Moodboard) => {
@@ -258,6 +279,7 @@ export default function MoodboardsPage() {
           projectName,
           items: [],
           roomGroups: assetType === "render" ? {} : undefined,
+          folderGroups: assetType === "working_drawing" ? {} : undefined,
         };
       }
       groups[projectId].items.push(moodboard);
@@ -269,6 +291,15 @@ export default function MoodboardsPage() {
           groups[projectId].roomGroups![roomType] = [];
         }
         groups[projectId].roomGroups![roomType].push(moodboard);
+      }
+      
+      // For working drawings, group by folder
+      if (assetType === "working_drawing" && groups[projectId].folderGroups) {
+        const folder = (moodboard as any).folder || "Uncategorized";
+        if (!groups[projectId].folderGroups![folder]) {
+          groups[projectId].folderGroups![folder] = [];
+        }
+        groups[projectId].folderGroups![folder].push(moodboard);
       }
     });
     
@@ -289,6 +320,30 @@ export default function MoodboardsPage() {
             }
           });
           group.roomGroups = sortedRoomGroups;
+        }
+      });
+    }
+    
+    // Sort folder groups by predefined order
+    if (assetType === "working_drawing") {
+      Object.values(groups).forEach(group => {
+        if (group.folderGroups) {
+          const sortedFolderGroups: Record<string, Moodboard[]> = {};
+          workingDrawingFolders.forEach(folder => {
+            if (group.folderGroups![folder]) {
+              sortedFolderGroups[folder] = group.folderGroups![folder];
+            }
+          });
+          // Add Uncategorized and any folders not in predefined order
+          if (group.folderGroups["Uncategorized"]) {
+            sortedFolderGroups["Uncategorized"] = group.folderGroups["Uncategorized"];
+          }
+          Object.keys(group.folderGroups).forEach(folder => {
+            if (!sortedFolderGroups[folder]) {
+              sortedFolderGroups[folder] = group.folderGroups![folder];
+            }
+          });
+          group.folderGroups = sortedFolderGroups;
         }
       });
     }
@@ -317,6 +372,7 @@ export default function MoodboardsPage() {
       setTags("");
       setCanvaLink("");
       setSelectedProjectId("");
+      setSelectedFolder("");
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -441,6 +497,10 @@ export default function MoodboardsPage() {
     formData.append("projectId", selectedProjectId);
     if (canvaLink.trim()) {
       formData.append("canvaLink", canvaLink.trim());
+    }
+    // Include folder for working drawings
+    if (assetType === "working_drawing" && selectedFolder) {
+      formData.append("folder", selectedFolder);
     }
     
     uploadMutation.mutate(formData);
@@ -701,8 +761,93 @@ export default function MoodboardsPage() {
                       </div>
                     ))}
                   </div>
+                ) : assetType === "working_drawing" && group.folderGroups ? (
+                  /* For working drawings, show grouped by folder */
+                  <div className="space-y-6">
+                    {Object.entries(group.folderGroups).map(([folderName, folderItems]) => (
+                      <div key={folderName} className="space-y-3">
+                        <div className="flex items-center gap-2 pb-2 border-b">
+                          <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                          <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                            {folderName}
+                          </h4>
+                          <Badge variant="outline" className="text-xs">
+                            {folderItems.length}
+                          </Badge>
+                        </div>
+                        <div className="space-y-3 pl-2">
+                          {folderItems.map((moodboard: Moodboard) => (
+                            <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate" data-testid={`drawing-item-${moodboard.id}`}>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-base truncate mb-1" title={getDisplayTitle(moodboard)}>
+                                  {getDisplayTitle(moodboard) || labels.listMetadataText}
+                                </h4>
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                                  {moodboard.description && moodboard.fileName && (
+                                    <>
+                                      <span>{moodboard.fileName}</span>
+                                      <span>•</span>
+                                    </>
+                                  )}
+                                  <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+                                  {(moodboard as any).savedBy && getSavedByName((moodboard as any).savedBy) && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="flex items-center gap-1">
+                                        <UserIcon className="h-3 w-3" />
+                                        {getSavedByName((moodboard as any).savedBy)}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                                {moodboard.canvaLink && (
+                                  <a
+                                    href={moodboard.canvaLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
+                                    data-testid={`link-canva-${moodboard.id}`}
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                    <span>{labels.viewLinkText}</span>
+                                  </a>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {getPreviewUrl(moodboard) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => setPreviewImage(moodboard)}
+                                    data-testid={`button-view-${moodboard.id}`}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-red-600 hover:text-red-700"
+                                  onClick={() => deleteMoodboard(moodboard.id)}
+                                  disabled={deleteMutation.isPending}
+                                  data-testid={`button-delete-${moodboard.id}`}
+                                >
+                                  {deleteMutation.isPending ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  /* For moodboards and working drawings, show flat list */
+                  /* For moodboards, show flat list */
                   <div className="space-y-3">
                     {group.items.map((moodboard: Moodboard) => (
                       <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate" data-testid={`drawing-item-${moodboard.id}`}>
@@ -947,6 +1092,25 @@ export default function MoodboardsPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Folder Selection - Only for Working Drawings */}
+              {assetType === "working_drawing" && (
+                <div className="space-y-2">
+                  <Label htmlFor="folder">Folder <span className="text-red-500">*</span></Label>
+                  <Select value={selectedFolder} onValueChange={setSelectedFolder}>
+                    <SelectTrigger id="folder" data-testid="select-folder">
+                      <SelectValue placeholder="Select a folder..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {workingDrawingFolders.map((folder) => (
+                        <SelectItem key={folder} value={folder}>
+                          {folder}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Tags */}
               <div className="space-y-2">
