@@ -8,7 +8,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download } from "lucide-react";
+import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download, FolderInput, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
+} from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -406,6 +416,27 @@ export default function MoodboardsPage() {
       toast({
         variant: "destructive",
         title: labels.deleteFailedTitle,
+        description: error.message,
+      });
+    },
+  });
+
+  // Move to folder mutation (for working drawings)
+  const moveFolderMutation = useMutation({
+    mutationFn: async ({ id, folder }: { id: string; folder: string }) => {
+      return await apiRequest("PUT", `/api/moodboards/${id}`, { folder });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+      toast({
+        title: "Moved",
+        description: "Drawing moved to folder successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Move Failed",
         description: error.message,
       });
     },
@@ -842,27 +873,48 @@ export default function MoodboardsPage() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8"
                                     onClick={() => setPreviewImage(moodboard)}
                                     data-testid={`button-view-${moodboard.id}`}
                                   >
                                     <Eye className="h-4 w-4" />
                                   </Button>
                                 )}
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-red-600 hover:text-red-700"
-                                  onClick={() => deleteMoodboard(moodboard.id)}
-                                  disabled={deleteMutation.isPending}
-                                  data-testid={`button-delete-${moodboard.id}`}
-                                >
-                                  {deleteMutation.isPending ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-4 w-4" />
-                                  )}
-                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" data-testid={`button-actions-${moodboard.id}`}>
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuSub>
+                                      <DropdownMenuSubTrigger>
+                                        <FolderInput className="h-4 w-4 mr-2" />
+                                        Move to Folder
+                                      </DropdownMenuSubTrigger>
+                                      <DropdownMenuPortal>
+                                        <DropdownMenuSubContent>
+                                          {workingDrawingFolders.map((f) => (
+                                            <DropdownMenuItem
+                                              key={f}
+                                              onClick={() => moveFolderMutation.mutate({ id: moodboard.id, folder: f })}
+                                              className={(moodboard as any).folder === f ? "font-semibold bg-accent" : ""}
+                                            >
+                                              {f}
+                                            </DropdownMenuItem>
+                                          ))}
+                                        </DropdownMenuSubContent>
+                                      </DropdownMenuPortal>
+                                    </DropdownMenuSub>
+                                    <DropdownMenuItem
+                                      onClick={() => deleteMoodboard(moodboard.id)}
+                                      className="text-destructive"
+                                      data-testid={`button-delete-${moodboard.id}`}
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
                             </div>
                           ))}
