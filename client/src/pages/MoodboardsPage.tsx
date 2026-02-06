@@ -830,7 +830,7 @@ export default function MoodboardsPage() {
                       <div key={folderName} className="space-y-3">
                         <div className="flex items-center gap-2 pb-2 border-b">
                           <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                          <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                          <h4 className="font-bold text-sm uppercase tracking-wide">
                             {folderName}
                           </h4>
                           <Badge variant="outline" className="text-xs">
