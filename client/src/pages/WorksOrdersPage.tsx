@@ -928,7 +928,7 @@ export default function WorksOrdersPage() {
                                     </DropdownMenuItem>
                                   )}
                                   
-                                  {order.status === 'draft' && (
+                                  {(order.status === 'draft' || order.status === 'void') && (
                                     <DropdownMenuItem 
                                       onClick={() => handleDeleteClick('order', order.id)}
                                       className="text-destructive"
