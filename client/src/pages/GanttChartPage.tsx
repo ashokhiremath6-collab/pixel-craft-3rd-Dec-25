@@ -75,7 +75,7 @@ export default function GanttChartPage() {
   // Task table filters and settings
   const [taskSearchQuery, setTaskSearchQuery] = useState("");
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
-  const [taskSortMode, setTaskSortMode] = useState<'date' | 'category'>('date');
+  const [taskSortMode, setTaskSortMode] = useState<'original' | 'date' | 'category'>('original');
   
   // Inline editing for progress
   const [editingProgressTaskId, setEditingProgressTaskId] = useState<string | null>(null);
@@ -1037,23 +1037,22 @@ export default function GanttChartPage() {
         });
 
         // Sort tasks based on mode
-        const sortedTasks = [...filteredTasks].sort((a, b) => {
-          if (taskSortMode === 'category') {
-            // Sort by category first, then by start date within category
-            const catA = extractCategory(a.name || '');
-            const catB = extractCategory(b.name || '');
-            if (catA !== catB) return catA.localeCompare(catB);
-            // Within same category, sort by start date
-            const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
-            const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
-            return dateA - dateB;
-          } else {
-            // Sort by start date (chronological)
-            const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
-            const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
-            return dateA - dateB;
-          }
-        });
+        const sortedTasks = taskSortMode === 'original' 
+          ? filteredTasks  // Preserve server order (Excel row order)
+          : [...filteredTasks].sort((a, b) => {
+              if (taskSortMode === 'category') {
+                const catA = extractCategory(a.name || '');
+                const catB = extractCategory(b.name || '');
+                if (catA !== catB) return catA.localeCompare(catB);
+                const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+                const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+                return dateA - dateB;
+              } else {
+                const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+                const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+                return dateA - dateB;
+              }
+            });
 
         // Group tasks by phase (or category when sorting by category)
         const groupedTasks: { phase: string; tasks: Task[] }[] = [];
@@ -1197,14 +1196,14 @@ export default function GanttChartPage() {
                     {showOverdueOnly ? "Showing Overdue" : "Show Overdue"}
                   </Button>
                   <Button
-                    variant={taskSortMode === 'category' ? "default" : "outline"}
+                    variant={taskSortMode !== 'original' ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setTaskSortMode(taskSortMode === 'date' ? 'category' : 'date')}
+                    onClick={() => setTaskSortMode(taskSortMode === 'original' ? 'date' : taskSortMode === 'date' ? 'category' : 'original')}
                     className="gap-2"
                     data-testid="button-sort-mode"
                   >
                     <ArrowUpDown className="h-4 w-4" />
-                    {taskSortMode === 'category' ? "By Category" : "By Date"}
+                    {taskSortMode === 'original' ? "Original Order" : taskSortMode === 'date' ? "By Date" : "By Category"}
                   </Button>
                   {(taskSearchQuery || showOverdueOnly) && (
                     <Button
