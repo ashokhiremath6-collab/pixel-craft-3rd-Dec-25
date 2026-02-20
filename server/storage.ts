@@ -2217,11 +2217,11 @@ export class DBStorage implements IStorage {
   }
 
   async getTasksByProject(projectId: string): Promise<Task[]> {
-    return await db.select().from(tasks).where(eq(tasks.projectId, projectId)).orderBy(tasks.startDate);
+    return await db.select().from(tasks).where(eq(tasks.projectId, projectId)).orderBy(sql`CAST(NULLIF(regexp_replace(${tasks.taskId}, '[^0-9]', '', 'g'), '') AS INTEGER) ASC NULLS LAST`, tasks.createdAt);
   }
 
   async getTasksBySchedule(scheduleId: string): Promise<Task[]> {
-    return await db.select().from(tasks).where(eq(tasks.scheduleId, scheduleId)).orderBy(tasks.startDate);
+    return await db.select().from(tasks).where(eq(tasks.scheduleId, scheduleId)).orderBy(sql`CAST(NULLIF(regexp_replace(${tasks.taskId}, '[^0-9]', '', 'g'), '') AS INTEGER) ASC NULLS LAST`, tasks.createdAt);
   }
 
   async getTask(id: string): Promise<Task | undefined> {
