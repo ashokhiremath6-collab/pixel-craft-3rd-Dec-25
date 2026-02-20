@@ -5236,21 +5236,165 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Parse the file and import tasks
+      // =============================================
+      // ROBUST SCHEDULE IMPORT ENGINE
+      // =============================================
+
+      // Helper: case-insensitive column value lookup with whitespace/special char normalization
+      const normalizeHeader = (h: string) => h.replace(/\u00A0/g, ' ').replace(/[\r\n]+/g, ' ').trim().toLowerCase();
+      const getCol = (row: any, ...keys: string[]): any => {
+        // First try exact key match
+        for (const key of keys) {
+          if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return row[key];
+        }
+        // Then try normalized case-insensitive match on all row keys
+        const rowKeys = Object.keys(row);
+        for (const key of keys) {
+          const normalizedKey = normalizeHeader(key);
+          const found = rowKeys.find(k => normalizeHeader(k) === normalizedKey);
+          if (found && row[found] !== undefined && row[found] !== null && String(row[found]).trim() !== '') return row[found];
+        }
+        return null;
+      };
+
+      // Robust date parser - handles many formats from Excel, MS Project, Google Sheets, etc.
+      const parseDate = (dateValue: any): string | null => {
+        if (dateValue === null || dateValue === undefined) return null;
+        const raw = typeof dateValue === 'string' ? dateValue.replace(/\u00A0/g, ' ').trim() : dateValue;
+        if (!raw && raw !== 0) return null;
+
+        // Excel serial number (number like 45000 = a date)
+        if (typeof raw === 'number' && raw > 1000 && raw < 200000) {
+          const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+          const date = new Date(excelEpoch.getTime() + raw * 86400000);
+          if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
+        }
+
+        if (typeof raw !== 'string') {
+          // Date object
+          if (raw instanceof Date && !isNaN(raw.getTime())) {
+            return raw.toISOString().split('T')[0];
+          }
+          return null;
+        }
+
+        // Already YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+        // DD/MM/YYYY or DD-MM-YYYY (common in India/UK)
+        const ddmmyyyy = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if (ddmmyyyy) {
+          const [, d, m, y] = ddmmyyyy;
+          const day = parseInt(d), month = parseInt(m), year = parseInt(y);
+          if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            const date = new Date(year, month - 1, day);
+            if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
+          }
+        }
+
+        // MM/DD/YYYY (US format) - try if day > 12 suggests it's actually DD/MM
+        const mmddyyyy = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if (mmddyyyy) {
+          const [, first, second, y] = mmddyyyy;
+          const f = parseInt(first), s = parseInt(second), year = parseInt(y);
+          // If first > 12, it must be DD/MM/YYYY (already handled above)
+          // If second > 12, it must be MM/DD/YYYY
+          if (f <= 12 && s > 12) {
+            const date = new Date(year, f - 1, s);
+            if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
+          }
+        }
+
+        // DD Mon YYYY or DD-Mon-YYYY (e.g., "15 Jan 2025", "15-Jan-2025")
+        const months: Record<string, number> = {
+          jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+          jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+          january: 0, february: 1, march: 2, april: 3, june: 5,
+          july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+        };
+        const ddMonYyyy = raw.match(/^(\d{1,2})[\s\-]+([A-Za-z]+)[\s\-]+(\d{4})$/);
+        if (ddMonYyyy) {
+          const month = months[ddMonYyyy[2].toLowerCase()];
+          if (month !== undefined) {
+            const date = new Date(parseInt(ddMonYyyy[3]), month, parseInt(ddMonYyyy[1]));
+            if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
+          }
+        }
+
+        // Mon DD, YYYY (e.g., "Jan 15, 2025")
+        const monDdYyyy = raw.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+        if (monDdYyyy) {
+          const month = months[monDdYyyy[1].toLowerCase()];
+          if (month !== undefined) {
+            const date = new Date(parseInt(monDdYyyy[3]), month, parseInt(monDdYyyy[2]));
+            if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
+          }
+        }
+
+        // YYYY/MM/DD
+        const yyyymmdd = raw.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})$/);
+        if (yyyymmdd) {
+          const date = new Date(parseInt(yyyymmdd[1]), parseInt(yyyymmdd[2]) - 1, parseInt(yyyymmdd[3]));
+          if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
+        }
+
+        // Last resort: try native Date parsing (handles ISO strings, etc.)
+        try {
+          const date = new Date(raw);
+          if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2200) {
+            return date.toISOString().split('T')[0];
+          }
+        } catch (e) { /* ignore */ }
+
+        return null;
+      };
+
+      // Parse progress values from various formats
+      const parseProgress = (value: any): number => {
+        if (value === null || value === undefined) return 0;
+        if (typeof value === 'number') {
+          if (value >= 0 && value <= 1) return Math.round(value * 100);
+          return Math.min(100, Math.max(0, Math.round(value)));
+        }
+        const str = String(value).replace(/\u00A0/g, ' ').replace('%', '').trim().toLowerCase();
+        if (str === 'completed' || str === 'complete' || str === 'done') return 100;
+        if (str === 'incomplete' || str === 'pending' || str === 'not started' || str === '') return 0;
+        const num = parseFloat(str);
+        if (isNaN(num)) return 0;
+        if (num >= 0 && num <= 1) return Math.round(num * 100);
+        return Math.min(100, Math.max(0, Math.round(num)));
+      };
+
+      // Parse duration from various formats
+      const parseDuration = (value: any): string | null => {
+        if (value === null || value === undefined) return null;
+        const str = String(value).trim();
+        if (!str) return null;
+        // Extract number (integer or decimal) from strings like "5 days", "1.5", "3d", "10 working days"
+        const match = str.match(/([\d]+\.?[\d]*)/);
+        if (match) {
+          const num = parseFloat(match[1]);
+          if (!isNaN(num) && num >= 0) return num.toFixed(2);
+        }
+        return null;
+      };
+
+      // ---- Parse file into raw rows ----
       let taskData: any[] = [];
       const fileExtension = req.file.originalname.split('.').pop()?.toLowerCase();
 
       if (fileExtension === 'xlsx' || fileExtension === 'xls') {
         const workbook = XLSX.read(req.file.buffer);
-        console.log(`Excel file sheets: ${workbook.SheetNames.join(', ')}`);
+        console.log(`[Schedule Import] Excel file sheets: ${workbook.SheetNames.join(', ')}`);
         
-        // Try multiple common sheet names (case-insensitive), then fall back to first sheet (excluding Instructions)
+        // Find the best sheet: prioritize common schedule sheet names, skip Instructions
         const commonSheetPatterns = ['gantt', 'schedule', 'tasks', 'project schedule', 'timeline', 'data', 'sheet1'];
         let targetSheet = null;
         let usedSheetName = '';
         
-        // First try exact case-insensitive match
+        // Exact case-insensitive match first
         for (const pattern of commonSheetPatterns) {
+          if (targetSheet) break;
           for (const sheetName of workbook.SheetNames) {
             if (sheetName.toLowerCase() === pattern) {
               targetSheet = workbook.Sheets[sheetName];
@@ -5258,12 +5402,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               break;
             }
           }
-          if (targetSheet) break;
         }
         
-        // If no exact match, try partial match (sheet name contains pattern)
+        // Partial match (sheet name contains pattern)
         if (!targetSheet) {
           for (const pattern of commonSheetPatterns) {
+            if (targetSheet) break;
             for (const sheetName of workbook.SheetNames) {
               if (sheetName.toLowerCase().includes(pattern)) {
                 targetSheet = workbook.Sheets[sheetName];
@@ -5271,202 +5415,229 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 break;
               }
             }
-            if (targetSheet) break;
           }
         }
         
-        // If still no match, use the first sheet that's not "Instructions"
+        // Fallback: first non-Instructions sheet
         if (!targetSheet && workbook.SheetNames.length > 0) {
-          for (const name of workbook.SheetNames) {
-            if (name.toLowerCase() !== 'instructions') {
-              targetSheet = workbook.Sheets[name];
-              usedSheetName = name;
+          for (const sn of workbook.SheetNames) {
+            if (sn.toLowerCase() !== 'instructions') {
+              targetSheet = workbook.Sheets[sn];
+              usedSheetName = sn;
               break;
             }
           }
         }
         
         if (targetSheet) {
-          console.log(`Using sheet: "${usedSheetName}" from Excel file`);
-          // Use raw: false to convert Excel date serial numbers to date strings
+          console.log(`[Schedule Import] Using sheet: "${usedSheetName}"`);
+          // raw: false converts Excel date serial numbers; defval ensures empty cells appear
           taskData = XLSX.utils.sheet_to_json(targetSheet, { defval: null, raw: false });
-          console.log(`Parsed ${taskData.length} rows from Excel sheet`);
+          
+          // Auto-detect header row: if first row's values look like data headers, 
+          // XLSX already handled it. If not (e.g., title row), try finding the real header.
+          if (taskData.length > 0) {
+            const firstRowKeys = Object.keys(taskData[0]);
+            const looksLikeData = firstRowKeys.some(k => {
+              const lk = normalizeHeader(k);
+              return lk === 'name' || lk === 'task name' || lk === 'id' || lk === '#' || 
+                     lk === 'start' || lk === 'finish' || lk === 'start date' || lk === 'end date' ||
+                     lk === 'duration' || lk === 'status' || lk === '% complete';
+            });
+            
+            if (!looksLikeData) {
+              // Headers might be in a later row - try re-parsing with header detection
+              console.log(`[Schedule Import] First row keys don't look like headers: ${firstRowKeys.join(', ')}`);
+              console.log(`[Schedule Import] Attempting to auto-detect header row...`);
+              
+              // Scan first 10 rows looking for one that contains "Name" or "Task Name"
+              const rawData: any[][] = XLSX.utils.sheet_to_json(targetSheet, { header: 1, defval: null, raw: false });
+              let headerRowIdx = -1;
+              for (let r = 0; r < Math.min(rawData.length, 10); r++) {
+                const rowVals = (rawData[r] || []).map((v: any) => normalizeHeader(String(v || '')));
+                if (rowVals.some(v => v === 'name' || v === 'task name' || v === 'id')) {
+                  headerRowIdx = r;
+                  break;
+                }
+              }
+              
+              if (headerRowIdx >= 0) {
+                console.log(`[Schedule Import] Found header row at index ${headerRowIdx}`);
+                const headers = rawData[headerRowIdx].map((h: any) => String(h || '').trim());
+                const dataRows = rawData.slice(headerRowIdx + 1);
+                taskData = dataRows.map(row => {
+                  const obj: any = {};
+                  headers.forEach((h: string, idx: number) => {
+                    if (h) obj[h] = row[idx] ?? null;
+                  });
+                  return obj;
+                });
+              }
+            }
+          }
+          
+          console.log(`[Schedule Import] Parsed ${taskData.length} data rows`);
         } else {
-          console.log('No suitable sheet found in Excel file. Available sheets:', workbook.SheetNames);
+          console.log('[Schedule Import] No suitable sheet found. Available:', workbook.SheetNames);
         }
       } else if (fileExtension === 'csv') {
         const csvContent = req.file.buffer.toString('utf-8');
         const parseResult = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
         taskData = parseResult.data;
+        console.log(`[Schedule Import] Parsed ${taskData.length} rows from CSV`);
       } else {
         return res.status(400).json({ error: "Unsupported file format. Use CSV or XLSX" });
       }
 
-      // Helper function to parse and normalize dates
-      const parseDate = (dateValue: any): string | null => {
-        // Return null for empty/missing dates - don't default to today
-        if (!dateValue) return null;
-        
-        // If it's already a valid date string (YYYY-MM-DD), return it
-        if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
-          return dateValue;
-        }
-        
-        // Try to parse as a date
-        try {
-          const date = new Date(dateValue);
-          if (!isNaN(date.getTime())) {
-            return date.toISOString().split('T')[0];
-          }
-        } catch (e) {
-          // Fall through to null
-        }
-        
-        return null;
-      };
-
-      const createdTasks = [];
-      const errors: Array<{ row: number; error: string; data: any }> = [];
-      let skippedEmpty = 0;
-      
-      // Placeholder date for header rows (far in future to avoid alerts)
-      const HEADER_PLACEHOLDER_DATE = '2099-12-31';
-
-      // Helper: case-insensitive column value lookup
-      const getCol = (row: any, ...keys: string[]): any => {
-        for (const key of keys) {
-          if (row[key] !== undefined && row[key] !== null) return row[key];
-        }
-        // Try case-insensitive match on all row keys
-        const rowKeys = Object.keys(row);
-        for (const key of keys) {
-          const found = rowKeys.find(k => k.toLowerCase().trim() === key.toLowerCase().trim());
-          if (found && row[found] !== undefined && row[found] !== null) return row[found];
-        }
-        return null;
-      };
-
-      console.log(`Starting import of ${taskData.length} rows...`);
-      if (taskData.length > 0) {
-        console.log(`Column headers found: ${Object.keys(taskData[0]).join(', ')}`);
+      if (taskData.length === 0) {
+        return res.status(400).json({ 
+          error: "No data rows found in the file. Make sure the file has column headers (Name, Start, Finish, etc.) and data rows below them." 
+        });
       }
+
+      // Log detected columns for debugging
+      if (taskData.length > 0) {
+        console.log(`[Schedule Import] Column headers: ${Object.keys(taskData[0]).join(', ')}`);
+      }
+
+      // ---- Import rows into database ----
+      const createdTasks = [];
+      const errors: Array<{ row: number; error: string }> = [];
+      let skippedEmpty = 0;
+      const HEADER_PLACEHOLDER_DATE = '2099-12-31';
       
       for (let i = 0; i < taskData.length; i++) {
         const row: any = taskData[i];
         
         try {
-          // Support multiple column name formats (case-insensitive):
-          const taskId = String(getCol(row, 'ID', 'id', '#') ?? (i + 1));
-          const name = String(getCol(row, 'Name', 'name', 'Task Name', 'Task name', 'TASK NAME', 'task_name') || '').trim();
-          
-          // Check if entire row is empty (all values null/empty)
+          // Check if entire row is empty
           const allValues = Object.values(row);
           const isEmptyRow = allValues.every((v: any) => v === null || v === undefined || String(v).trim() === '');
-          
-          if (!name && isEmptyRow) {
+          if (isEmptyRow) {
             skippedEmpty++;
             continue;
           }
-          
-          // If name is empty but row has other data, use a placeholder name so it still imports
-          const finalName = name || `[Row ${i + 2}]`;
 
-          const durationValue = getCol(row, 'Duration', 'duration');
-          let durationString: string | null = null;
-          if (durationValue !== null) {
-            const durStr = String(durationValue);
-            // Handle decimal durations like "1.5 days" or "2.5"
-            const durMatch = durStr.match(/([\d.]+)/);
-            if (durMatch) {
-              durationString = durMatch[1];
+          // Extract task name with broad column name support
+          const rawName = getCol(row, 'Name', 'Task Name', 'Task name', 'task_name', 'Activity', 'Activity Name', 'Item', 'Description', 'Task');
+          const name = rawName ? String(rawName).replace(/\u00A0/g, ' ').trim() : '';
+          
+          // Skip rows that are completely unnamed AND have no dates (truly empty content rows)
+          if (!name) {
+            const hasAnyDate = getCol(row, 'Start', 'Start Date', 'Finish', 'End', 'End Date') !== null;
+            const hasAnyId = getCol(row, 'ID', 'id', '#') !== null;
+            if (!hasAnyDate && !hasAnyId) {
+              skippedEmpty++;
+              continue;
             }
           }
           
-          // Read Status column - normalize to check for completion
-          // Strip non-breaking spaces (NBSP \u00A0) and other whitespace from Excel
-          const statusValue = getCol(row, 'Status', 'status') || '';
+          const finalName = name || `[Unnamed - Row ${i + 2}]`;
+          const taskId = String(getCol(row, 'ID', 'id', '#', 'Sr No', 'S.No', 'Sl No', 'No.') ?? (i + 1));
+
+          // Parse duration
+          const durationString = parseDuration(getCol(row, 'Duration', 'duration', 'Days', 'Working Days'));
+          
+          // Parse status
+          const statusValue = getCol(row, 'Status', 'status', 'Task Status') || '';
           const statusNormalized = String(statusValue).replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
-          const isCompleted = statusNormalized === 'completed' || statusNormalized === 'complete' || statusNormalized === 'done';
-          const isInProgress = statusNormalized === 'in progress' || statusNormalized === 'in-progress' || statusNormalized === 'incomplete';
+          const isCompleted = ['completed', 'complete', 'done', 'finished', 'closed'].includes(statusNormalized);
+          const isInProgress = ['in progress', 'in-progress', 'incomplete', 'ongoing', 'active', 'wip', 'started'].includes(statusNormalized);
           
-          // Progress: if Status is "Completed", set to 100; otherwise use % Complete column
-          let progressValue: any = getCol(row, '% Complete', 'progress', 'Progress', '% complete', 'Percent Complete') ?? 0;
-          if (isCompleted) {
-            progressValue = 100;
-          }
-          // Clean percentage strings like "50%" or "0.5"
-          let progressNum = 0;
-          if (typeof progressValue === 'string') {
-            const cleaned = progressValue.replace('%', '').trim();
-            progressNum = parseFloat(cleaned) || 0;
-            if (progressNum > 0 && progressNum <= 1) progressNum = Math.round(progressNum * 100);
-          } else if (typeof progressValue === 'number') {
-            progressNum = progressValue;
-            if (progressNum > 0 && progressNum <= 1) progressNum = Math.round(progressNum * 100);
-          }
-          const progressString = String(Math.min(100, Math.max(0, Math.round(progressNum))));
+          // Parse progress
+          let progressNum = parseProgress(getCol(row, '% Complete', 'Progress', 'Percent Complete', 'Completion', '% Done'));
+          if (isCompleted) progressNum = 100;
+          const progressString = String(progressNum);
           
-          // Map status to internal status field
+          // Map to internal status
           let taskStatus = 'not_started';
-          if (isCompleted) {
+          if (isCompleted || progressNum >= 100) {
             taskStatus = 'completed';
-          } else if (isInProgress) {
-            taskStatus = 'in_progress';
-          } else if (progressNum > 0 && progressNum < 100) {
+          } else if (isInProgress || (progressNum > 0 && progressNum < 100)) {
             taskStatus = 'in_progress';
           }
           
-          // Parse dates - support multiple column name formats (case-insensitive)
-          let startDate = parseDate(getCol(row, 'Start', 'start', 'Start Date', 'start date', 'START'));
-          let endDate = parseDate(getCol(row, 'Finish', 'finish', 'End', 'End Date', 'end date', 'FINISH', 'end'));
+          // Parse dates
+          let startDate = parseDate(getCol(row, 'Start', 'Start Date', 'Begin', 'Begin Date', 'Planned Start'));
+          let endDate = parseDate(getCol(row, 'Finish', 'End', 'End Date', 'Finish Date', 'Due', 'Due Date', 'Planned Finish', 'Planned End'));
           
-          // For any row without dates, use placeholder
+          // Fallback: if end date missing but start + duration exist, calculate it
+          if (startDate && !endDate && durationString) {
+            const dur = parseFloat(durationString);
+            if (!isNaN(dur) && dur > 0) {
+              const start = new Date(startDate);
+              start.setDate(start.getDate() + Math.ceil(dur));
+              endDate = start.toISOString().split('T')[0];
+            }
+          }
+          // If start missing but end date exists, use end date as start too
+          if (!startDate && endDate) startDate = endDate;
+          
+          // Placeholder for rows without any dates
           startDate = startDate || HEADER_PLACEHOLDER_DATE;
           endDate = endDate || HEADER_PLACEHOLDER_DATE;
+
+          // Parse optional fields with safe string conversion
+          const safeStr = (val: any): string | null => {
+            if (val === null || val === undefined) return null;
+            const s = String(val).replace(/\u00A0/g, ' ').trim();
+            return s || null;
+          };
 
           const taskRecord = {
             projectId,
             scheduleId: schedule.id,
             taskId,
             name: finalName,
-            description: String(getCol(row, 'Remarks', 'remarks', 'Notes', 'notes', 'Description', 'description') || ''),
+            description: safeStr(getCol(row, 'Description', 'Remarks', 'Notes', 'Comments')) || '',
             startDate,
             endDate,
             duration: durationString,
             assignedTo: null,
             status: taskStatus,
-            priority: 'medium',
+            priority: 'medium' as const,
             progressPercentage: progressString,
-            approvalRequired: String(getCol(row, 'Approval Required', 'approvalRequired', 'approval_required') || 'N').toUpperCase() === 'Y',
-            materials: getCol(row, 'Materials', 'materials') ? String(getCol(row, 'Materials', 'materials')) : null,
-            owner: getCol(row, 'Owner', 'owner') ? String(getCol(row, 'Owner', 'owner')) : null,
-            targetStartDate: (() => {
-              const val = getCol(row, 'Target Start', 'targetStart', 'target_start');
-              return val ? parseDate(val) : null;
-            })(),
-            targetEndDate: (() => {
-              const val = getCol(row, 'Target Finish', 'targetFinish', 'target_finish');
-              return val ? parseDate(val) : null;
-            })(),
-            remarks: getCol(row, 'Remarks', 'remarks') ? String(getCol(row, 'Remarks', 'remarks')) : null,
-            outlineLevel: getCol(row, 'Outline Level', 'outlineLevel', 'outline_level') ? String(getCol(row, 'Outline Level', 'outlineLevel', 'outline_level')) : null,
-            color: getCol(row, 'Color', 'color') ? String(getCol(row, 'Color', 'color')) : null,
+            approvalRequired: String(getCol(row, 'Approval Required', 'Approval') || 'N').toUpperCase() === 'Y',
+            materials: safeStr(getCol(row, 'Materials', 'Material', 'Resources')),
+            owner: safeStr(getCol(row, 'Owner', 'Assigned To', 'Responsible', 'Resource Names')),
+            targetStartDate: parseDate(getCol(row, 'Target Start', 'Baseline Start', 'Original Start')),
+            targetEndDate: parseDate(getCol(row, 'Target Finish', 'Baseline Finish', 'Original Finish', 'Target End')),
+            remarks: safeStr(getCol(row, 'Remarks', 'Notes', 'Comments')),
+            outlineLevel: safeStr(getCol(row, 'Outline Level', 'Level', 'WBS Level', 'Indent')),
+            color: safeStr(getCol(row, 'Color', 'Colour', 'Color Code')),
           };
 
-          const validatedData = insertTaskSchema.parse(taskRecord);
-          const task = await storage.createTask(validatedData);
+          // Lightweight validation: ensure critical fields are valid before insert
+          if (!taskRecord.startDate || !/^\d{4}-\d{2}-\d{2}$/.test(taskRecord.startDate)) {
+            taskRecord.startDate = HEADER_PLACEHOLDER_DATE;
+          }
+          if (!taskRecord.endDate || !/^\d{4}-\d{2}-\d{2}$/.test(taskRecord.endDate)) {
+            taskRecord.endDate = HEADER_PLACEHOLDER_DATE;
+          }
+          if (taskRecord.duration && isNaN(parseFloat(taskRecord.duration))) {
+            taskRecord.duration = null;
+          }
+          if (isNaN(parseInt(taskRecord.progressPercentage))) {
+            taskRecord.progressPercentage = '0';
+          }
+          if (!['not_started', 'in_progress', 'blocked', 'completed', 'overdue'].includes(taskRecord.status)) {
+            taskRecord.status = 'not_started';
+          }
+
+          const task = await storage.createTask(taskRecord as any);
           createdTasks.push(task);
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Invalid data';
-          console.error(`Row ${i + 2} import failed: ${errorMessage}`);
-          errors.push({ row: i + 2, error: errorMessage, data: row });
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          const shortMsg = errorMessage.length > 200 ? errorMessage.substring(0, 200) + '...' : errorMessage;
+          console.error(`[Schedule Import] Row ${i + 2} failed: ${shortMsg}`);
+          errors.push({ row: i + 2, error: shortMsg });
         }
       }
 
-      console.log(`Import complete: ${createdTasks.length} created, ${errors.length} failed, ${skippedEmpty} empty rows skipped`);
+      console.log(`[Schedule Import] COMPLETE: ${createdTasks.length} created, ${errors.length} failed, ${skippedEmpty} empty rows skipped, ${taskData.length} total`);
       
       res.status(201).json({
-        message: `Imported schedule with ${createdTasks.length} tasks${skippedEmpty > 0 ? ` (${skippedEmpty} empty rows skipped)` : ''}`,
+        message: `Imported ${createdTasks.length} of ${taskData.length} rows${skippedEmpty > 0 ? ` (${skippedEmpty} empty rows skipped)` : ''}${errors.length > 0 ? ` - ${errors.length} rows had errors` : ''}`,
         schedule,
         tasksCreated: createdTasks.length,
         tasksFailed: errors.length,
