@@ -5327,44 +5327,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const createdTasks = [];
       const errors: Array<{ row: number; error: string; data: any }> = [];
-
-      // Helper to check if task name is a header row (PHASE, PACKAGE, or EXECUTE sections)
-      const isHeaderRow = (name: string): boolean => {
-        if (!name) return false;
-        const upper = name.toUpperCase();
-        return upper.startsWith('PHASE') || upper.startsWith('PACKAGE') || upper.startsWith('EXECUTE');
-      };
+      let skippedEmpty = 0;
       
       // Placeholder date for header rows (far in future to avoid alerts)
       const HEADER_PLACEHOLDER_DATE = '2099-12-31';
+
+      // Helper: case-insensitive column value lookup
+      const getCol = (row: any, ...keys: string[]): any => {
+        for (const key of keys) {
+          if (row[key] !== undefined && row[key] !== null) return row[key];
+        }
+        // Try case-insensitive match on all row keys
+        const rowKeys = Object.keys(row);
+        for (const key of keys) {
+          const found = rowKeys.find(k => k.toLowerCase().trim() === key.toLowerCase().trim());
+          if (found && row[found] !== undefined && row[found] !== null) return row[found];
+        }
+        return null;
+      };
+
+      console.log(`Starting import of ${taskData.length} rows...`);
+      if (taskData.length > 0) {
+        console.log(`Column headers found: ${Object.keys(taskData[0]).join(', ')}`);
+      }
       
       for (let i = 0; i < taskData.length; i++) {
         const row: any = taskData[i];
         
         try {
-          // Support multiple column name formats:
-          // ID column: ID, id, #
-          // Name column: Name, name, Task Name
-          const taskId = String(row.ID || row.id || row['#'] || (i + 1));
-          const name = row.Name || row.name || row['Task Name'] || '';
-          if (!name) continue;
+          // Support multiple column name formats (case-insensitive):
+          const taskId = String(getCol(row, 'ID', 'id', '#') ?? (i + 1));
+          const name = String(getCol(row, 'Name', 'name', 'Task Name', 'Task name', 'TASK NAME', 'task_name') || '').trim();
+          
+          // Check if entire row is empty (all values null/empty)
+          const allValues = Object.values(row);
+          const isEmptyRow = allValues.every((v: any) => v === null || v === undefined || String(v).trim() === '');
+          
+          if (!name && isEmptyRow) {
+            skippedEmpty++;
+            continue;
+          }
+          
+          // If name is empty but row has other data, use a placeholder name so it still imports
+          const finalName = name || `[Row ${i + 2}]`;
 
-          const durationValue = row.Duration || row.duration || null;
-          const durationString = durationValue ? String(parseInt(String(durationValue).replace(/[^\d]/g, '')) || 0) : null;
+          const durationValue = getCol(row, 'Duration', 'duration');
+          let durationString: string | null = null;
+          if (durationValue !== null) {
+            const durStr = String(durationValue);
+            // Handle decimal durations like "1.5 days" or "2.5"
+            const durMatch = durStr.match(/([\d.]+)/);
+            if (durMatch) {
+              durationString = durMatch[1];
+            }
+          }
           
           // Read Status column - normalize to check for completion
           // Strip non-breaking spaces (NBSP \u00A0) and other whitespace from Excel
-          const statusValue = row.Status || row.status || '';
+          const statusValue = getCol(row, 'Status', 'status') || '';
           const statusNormalized = String(statusValue).replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
           const isCompleted = statusNormalized === 'completed' || statusNormalized === 'complete' || statusNormalized === 'done';
           const isInProgress = statusNormalized === 'in progress' || statusNormalized === 'in-progress' || statusNormalized === 'incomplete';
           
           // Progress: if Status is "Completed", set to 100; otherwise use % Complete column
-          let progressValue = row['% Complete'] || row.progress || 0;
+          let progressValue: any = getCol(row, '% Complete', 'progress', 'Progress', '% complete', 'Percent Complete') ?? 0;
           if (isCompleted) {
             progressValue = 100;
           }
-          const progressString = String(progressValue || 0);
+          // Clean percentage strings like "50%" or "0.5"
+          let progressNum = 0;
+          if (typeof progressValue === 'string') {
+            const cleaned = progressValue.replace('%', '').trim();
+            progressNum = parseFloat(cleaned) || 0;
+            if (progressNum > 0 && progressNum <= 1) progressNum = Math.round(progressNum * 100);
+          } else if (typeof progressValue === 'number') {
+            progressNum = progressValue;
+            if (progressNum > 0 && progressNum <= 1) progressNum = Math.round(progressNum * 100);
+          }
+          const progressString = String(Math.min(100, Math.max(0, Math.round(progressNum))));
           
           // Map status to internal status field
           let taskStatus = 'not_started';
@@ -5372,19 +5412,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             taskStatus = 'completed';
           } else if (isInProgress) {
             taskStatus = 'in_progress';
-          } else if (progressValue > 0 && progressValue < 100) {
+          } else if (progressNum > 0 && progressNum < 100) {
             taskStatus = 'in_progress';
           }
           
-          // Parse dates - support multiple column name formats
-          // Start column: Start, start, Start Date
-          // End column: Finish, finish, End, End Date
-          let startDate = parseDate(row.Start || row.start || row['Start Date']);
-          let endDate = parseDate(row.Finish || row.finish || row.End || row['End Date']);
+          // Parse dates - support multiple column name formats (case-insensitive)
+          let startDate = parseDate(getCol(row, 'Start', 'start', 'Start Date', 'start date', 'START'));
+          let endDate = parseDate(getCol(row, 'Finish', 'finish', 'End', 'End Date', 'end date', 'FINISH', 'end'));
           
           // For any row without dates, use placeholder
-          // This satisfies NOT NULL constraint but won't trigger false "due today" alerts
-          // Tasks with missing dates are essentially "unscheduled" and need manual date entry
           startDate = startDate || HEADER_PLACEHOLDER_DATE;
           endDate = endDate || HEADER_PLACEHOLDER_DATE;
 
@@ -5392,23 +5428,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
             projectId,
             scheduleId: schedule.id,
             taskId,
-            name,
-            description: row.Remarks || row.remarks || row.Notes || '',
+            name: finalName,
+            description: String(getCol(row, 'Remarks', 'remarks', 'Notes', 'notes', 'Description', 'description') || ''),
             startDate,
             endDate,
             duration: durationString,
-            assignedTo: null, // Don't import resource names as user IDs - set manually later
+            assignedTo: null,
             status: taskStatus,
             priority: 'medium',
             progressPercentage: progressString,
-            approvalRequired: (row['Approval Required'] || row.approvalRequired || 'N') === 'Y',
-            materials: row.Materials || row.materials || null,
-            owner: row.Owner || row.owner || null,
-            targetStartDate: row['Target Start'] || row.targetStart ? parseDate(row['Target Start'] || row.targetStart) : null,
-            targetEndDate: row['Target Finish'] || row.targetFinish ? parseDate(row['Target Finish'] || row.targetFinish) : null,
-            remarks: row.Remarks || row.remarks || null,
-            outlineLevel: row['Outline Level'] || row.outlineLevel || null,
-            color: row.Color || row.color || null,
+            approvalRequired: String(getCol(row, 'Approval Required', 'approvalRequired', 'approval_required') || 'N').toUpperCase() === 'Y',
+            materials: getCol(row, 'Materials', 'materials') ? String(getCol(row, 'Materials', 'materials')) : null,
+            owner: getCol(row, 'Owner', 'owner') ? String(getCol(row, 'Owner', 'owner')) : null,
+            targetStartDate: (() => {
+              const val = getCol(row, 'Target Start', 'targetStart', 'target_start');
+              return val ? parseDate(val) : null;
+            })(),
+            targetEndDate: (() => {
+              const val = getCol(row, 'Target Finish', 'targetFinish', 'target_finish');
+              return val ? parseDate(val) : null;
+            })(),
+            remarks: getCol(row, 'Remarks', 'remarks') ? String(getCol(row, 'Remarks', 'remarks')) : null,
+            outlineLevel: getCol(row, 'Outline Level', 'outlineLevel', 'outline_level') ? String(getCol(row, 'Outline Level', 'outlineLevel', 'outline_level')) : null,
+            color: getCol(row, 'Color', 'color') ? String(getCol(row, 'Color', 'color')) : null,
           };
 
           const validatedData = insertTaskSchema.parse(taskRecord);
@@ -5416,18 +5458,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdTasks.push(task);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Invalid data';
+          console.error(`Row ${i + 2} import failed: ${errorMessage}`);
           errors.push({ row: i + 2, error: errorMessage, data: row });
         }
       }
 
-      // Note: Dependencies/predecessors are not imported - focusing on task alerts instead
+      console.log(`Import complete: ${createdTasks.length} created, ${errors.length} failed, ${skippedEmpty} empty rows skipped`);
       
       res.status(201).json({
-        message: `Imported schedule with ${createdTasks.length} tasks`,
+        message: `Imported schedule with ${createdTasks.length} tasks${skippedEmpty > 0 ? ` (${skippedEmpty} empty rows skipped)` : ''}`,
         schedule,
         tasksCreated: createdTasks.length,
         tasksFailed: errors.length,
-        errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
+        skippedEmpty,
+        totalRows: taskData.length,
+        errors: errors.length > 0 ? errors.slice(0, 50) : undefined,
       });
     } catch (error) {
       console.error('Error importing schedule:', error);

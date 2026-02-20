@@ -166,9 +166,14 @@ export default function GanttChartPage() {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/schedules/project', variables.projectId] });
+      const parts = [`Successfully imported ${data.tasksCreated} tasks`];
+      if (data.skippedEmpty > 0) parts.push(`${data.skippedEmpty} empty rows skipped`);
+      if (data.tasksFailed > 0) parts.push(`${data.tasksFailed} rows failed`);
+      if (data.totalRows) parts.push(`(${data.totalRows} total rows in file)`);
       toast({ 
         title: "Schedule Imported", 
-        description: `Successfully imported ${data.tasksCreated} tasks`,
+        description: parts.join('. '),
+        variant: data.tasksFailed > 0 ? "destructive" : "default",
       });
       setIsImportOpen(false);
       setSelectedFile(null);
