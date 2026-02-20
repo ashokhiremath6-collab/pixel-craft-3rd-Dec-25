@@ -881,7 +881,7 @@ export default function GanttChartPage() {
                             </Badge>
                             <Button 
                               size="sm" 
-                              variant="ghost"
+                              variant="outline"
                               onClick={() => {
                                 const link = document.createElement('a');
                                 link.href = `/api/schedules/${schedule.id}/download-original`;
@@ -893,7 +893,8 @@ export default function GanttChartPage() {
                               title="Download original uploaded file"
                               data-testid={`button-view-schedule-${schedule.id}`}
                             >
-                              <ExternalLink className="h-4 w-4" />
+                              <Download className="h-4 w-4 mr-1" />
+                              Original
                             </Button>
                             <Button 
                               size="sm" 
@@ -910,7 +911,7 @@ export default function GanttChartPage() {
                               data-testid={`button-designer-export-${schedule.id}`}
                             >
                               <Palette className="h-4 w-4 mr-1" />
-                              Open
+                              Designer
                             </Button>
                             <Button 
                               size="sm" 
