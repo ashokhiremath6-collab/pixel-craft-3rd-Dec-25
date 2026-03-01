@@ -22,9 +22,10 @@ interface QuotationRowProps {
   quotation: QuotationData;
   onStatusChange?: (id: string, status: "Quoted" | "Selected" | "Rejected") => void;
   onDownload?: (file: string) => void;
+  hideCategory?: boolean;
 }
 
-export default function QuotationRow({ quotation, onStatusChange, onDownload }: QuotationRowProps) {
+export default function QuotationRow({ quotation, onStatusChange, onDownload, hideCategory }: QuotationRowProps) {
   const handleStatusChange = (newStatus: "Quoted" | "Selected" | "Rejected") => {
     console.log('Status change:', quotation.id, newStatus);
     onStatusChange?.(quotation.id, newStatus);
@@ -56,9 +57,11 @@ export default function QuotationRow({ quotation, onStatusChange, onDownload }: 
       <TableCell className="font-medium" data-testid="text-vendor-name">
         <div className="flex flex-col">
           <span>{formatVendorNameWithCategory(quotation.vendorName, quotation.category)}</span>
-          <Badge variant="outline" className="w-fit mt-1">
-            {quotation.category}
-          </Badge>
+          {!hideCategory && (
+            <Badge variant="outline" className="w-fit mt-1">
+              {quotation.category}
+            </Badge>
+          )}
         </div>
       </TableCell>
       

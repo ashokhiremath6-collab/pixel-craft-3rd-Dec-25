@@ -418,16 +418,35 @@ export default function ProjectView({
                       <TableHeader>
                         <TableRow>
                           <TableHead>Vendor</TableHead>
-                          <TableHead>Category</TableHead>
                           <TableHead>Quote Value</TableHead>
                           <TableHead>Date</TableHead>
+                          <TableHead>Status</TableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {selectedQuotations.map((quotation) => (
-                          <QuotationRow key={quotation.id} quotation={quotation} />
-                        ))}
+                        {(() => {
+                          const groups: Record<string, typeof selectedQuotations> = {};
+                          selectedQuotations.forEach(q => {
+                            const cat = q.category || "Uncategorised";
+                            if (!groups[cat]) groups[cat] = [];
+                            groups[cat].push(q);
+                          });
+                          return Object.entries(groups).map(([category, quotes]) => (
+                            <>
+                              <TableRow key={`cat-${category}`} className="bg-muted/40 hover:bg-muted/40">
+                                <TableCell colSpan={5} className="py-2 px-4">
+                                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    {category}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                              {quotes.map(q => (
+                                <QuotationRow key={q.id} quotation={q} hideCategory />
+                              ))}
+                            </>
+                          ));
+                        })()}
                       </TableBody>
                     </Table>
                   </div>
