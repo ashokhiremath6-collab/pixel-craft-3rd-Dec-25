@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
 import QuotationRow from "./QuotationRow";
-import { Search, Plus, Building2, Calendar, Edit, Trash2, Users, FileText, X } from "lucide-react";
+import { Search, Plus, Building2, Edit, Trash2, Users, FileText, X, CheckCircle2 } from "lucide-react";
+import { formatCurrencyCompact } from "@/lib/currencyUtils";
 import type { Project } from "@shared/schema";
 
 interface ProjectData extends Project {
@@ -88,6 +89,7 @@ export default function ProjectView({
 }: ProjectViewProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
 
   const filteredProjects = projects.filter(
     (p) =>
@@ -363,70 +365,129 @@ export default function ProjectView({
         )}
 
         {/* Selected Project Quotations Panel */}
-        {selectedProjectData && (
-          <div className="mt-10">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">
-                  Vendors & Quotations
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {selectedProjectData.projectName}
-                </p>
-              </div>
-              <button
-                onClick={() => setSelectedProject(null)}
-                className="flex items-center justify-center w-8 h-8 rounded-full bg-card border border-border hover-elevate"
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
+        {selectedProjectData && (() => {
+          const displayedQuotations = showSelectedOnly
+            ? selectedProjectQuotations.filter(q => q.status === "Selected")
+            : selectedProjectQuotations;
 
-            {selectedProjectQuotations.length > 0 ? (
-              <div
-                className="bg-white dark:bg-card rounded-[16px] overflow-hidden"
-                style={{
-                  border: "1px solid #f3f4f6",
-                  boxShadow: "0 4px 16px 0 rgba(0,0,0,0.04)",
-                }}
-              >
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Vendor</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Quote Value</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedProjectQuotations.map((quotation) => (
-                      <QuotationRow key={quotation.id} quotation={quotation} />
-                    ))}
-                  </TableBody>
-                </Table>
+          const selectedTotal = selectedProjectQuotations
+            .filter(q => q.status === "Selected")
+            .reduce((sum, q) => sum + parseFloat(q.quotationValue || "0"), 0);
+
+          const selectedCount = selectedProjectQuotations.filter(q => q.status === "Selected").length;
+
+          return (
+            <div className="mt-10">
+              {/* Panel Header */}
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">
+                    Vendors & Quotations
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedProjectData.projectName}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Selected Only toggle */}
+                  <button
+                    onClick={() => setShowSelectedOnly(v => !v)}
+                    data-testid="button-toggle-selected-only"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all"
+                    style={showSelectedOnly ? {
+                      background: "#0071e3",
+                      color: "#fff",
+                    } : {
+                      background: "#f3f4f6",
+                      color: "#374151",
+                    }}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Selected Only
+                    {selectedCount > 0 && (
+                      <span
+                        className="ml-1 text-xs px-1.5 py-0.5 rounded-full font-semibold"
+                        style={showSelectedOnly
+                          ? { background: "rgba(255,255,255,0.25)", color: "#fff" }
+                          : { background: "#0071e3", color: "#fff" }}
+                      >
+                        {selectedCount}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setSelectedProject(null)}
+                    className="flex items-center justify-center w-8 h-8 rounded-full bg-card border border-border hover-elevate"
+                  >
+                    <X className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </div>
               </div>
-            ) : (
-              <div
-                className="bg-white dark:bg-card rounded-[16px] py-12 flex flex-col items-center justify-center gap-3"
-                style={{
-                  border: "1px solid #f3f4f6",
-                  boxShadow: "0 4px 16px 0 rgba(0,0,0,0.04)",
-                }}
-              >
-                <FileText className="h-10 w-10 text-muted-foreground/30" />
-                <p
-                  className="text-sm text-muted-foreground"
-                  data-testid="text-no-quotations"
+
+              {/* Selected total banner */}
+              {selectedCount > 0 && (
+                <div
+                  className="flex items-center justify-between px-5 py-3 rounded-[12px] mb-4"
+                  style={{ background: "#f0f9ff", border: "1px solid #bae6fd" }}
                 >
-                  No quotations submitted for this project yet.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" style={{ color: "#0284c7" }} />
+                    <span className="text-sm font-medium" style={{ color: "#0c4a6e" }}>
+                      {selectedCount} vendor{selectedCount !== 1 ? "s" : ""} selected
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-base" style={{ color: "#0c4a6e" }}
+                    data-testid="text-selected-total">
+                    {formatCurrencyCompact(selectedTotal)}
+                  </span>
+                </div>
+              )}
+
+              {displayedQuotations.length > 0 ? (
+                <div
+                  className="bg-white dark:bg-card rounded-[16px] overflow-hidden"
+                  style={{
+                    border: "1px solid #f3f4f6",
+                    boxShadow: "0 4px 16px 0 rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Vendor</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Quote Value</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {displayedQuotations.map((quotation) => (
+                        <QuotationRow key={quotation.id} quotation={quotation} />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div
+                  className="bg-white dark:bg-card rounded-[16px] py-12 flex flex-col items-center justify-center gap-3"
+                  style={{
+                    border: "1px solid #f3f4f6",
+                    boxShadow: "0 4px 16px 0 rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <FileText className="h-10 w-10 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground" data-testid="text-no-quotations">
+                    {showSelectedOnly
+                      ? "No vendors have been selected for this project yet."
+                      : "No quotations submitted for this project yet."}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
