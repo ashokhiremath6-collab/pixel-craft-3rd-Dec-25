@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PixelCraft Designer Projects</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#0071e3",
+                        "background-light": "#ffffff", 
+                        "background-subtle": "#F5F5F7",
+                        "background-dark": "#000000",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1c1c1e",
+                        "accent-green": "#34c759",
+                        "accent-purple": "#af52de",
+                        "text-primary": "#1d1d1f",
+                        "text-secondary": "#86868b",
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'SF Pro Text', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                        display: ['Inter', 'SF Pro Display', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                        'xl': "16px",
+                        '2xl': "20px",
+                        '3xl': "24px",
+                    },
+                    boxShadow: {
+                        'soft': '0 2px 12px rgba(0,0,0,0.03)',
+                        'medium': '0 8px 30px rgba(0,0,0,0.04)',
+                        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+                        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+                    }
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+    @layer utilities {
+        .glass-panel {
+            @apply bg-white/70 backdrop-blur-xl border border-white/50 shadow-sm;
+        }
+        .dark .glass-panel {
+            @apply bg-gray-900/70 border-gray-800/50;
+        }
+        .text-gradient {
+            @apply bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400;
+        }
+    }
+</style>
+<style>
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        .dark .glass-nav {
+            background: rgba(0, 0, 0, 0.8);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        body {
+            font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+        }
+        .project-card-image-mask {
+            mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+        }
+    </style>
+</head>
+<body class="bg-background-subtle dark:bg-black text-text-primary dark:text-gray-100 font-sans transition-colors duration-300 antialiased selection:bg-blue-100 selection:text-blue-900">
+<nav class="fixed top-0 w-full z-50 glass-nav transition-colors duration-300">
+<div class="max-w-[1440px] mx-auto px-6 lg:px-8">
+<div class="flex justify-between h-14 items-center">
+<div class="flex items-center gap-10">
+<div class="flex-shrink-0 flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-[22px]">grid_view</span>
+<span class="font-semibold text-[17px] tracking-tight text-gray-900 dark:text-white">PixelCraft</span>
+</div>
+<div class="hidden md:flex items-center gap-6 text-[13px] font-medium text-text-secondary">
+<a class="hover:text-primary transition-colors" href="#">Overview</a>
+<a class="text-primary font-semibold" href="#">Projects</a>
+<a class="hover:text-primary transition-colors" href="#">Estimates</a>
+</div>
+</div>
+<div class="flex items-center gap-5">
+<div class="relative group hidden sm:block">
+<div class="flex items-center bg-gray-100/50 dark:bg-gray-800/50 rounded-lg px-2 py-1.5 transition-all duration-300 w-8 group-hover:w-48 group-focus-within:w-48 overflow-hidden">
+<span class="material-symbols-outlined text-[18px] text-text-secondary flex-shrink-0">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-xs w-full ml-2 text-text-primary placeholder-text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 p-0 h-5" placeholder="Search projects..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-3 pl-4 border-l border-gray-200 dark:border-gray-700/50">
+<button class="p-1.5 rounded-full text-text-secondary hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full border border-white dark:border-black"></span>
+</button>
+<div class="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden cursor-pointer ring-2 ring-transparent hover:ring-gray-200 transition-all">
+<img alt="User avatar" class="h-full w-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHL2Kz-UAJpMJ4fm8-XGV9C7GjyUJoLkIYbF30UJamwHbKdZ_U_Y--iChMRzyvtCH8wxiWjUyjuPCIO-11VxVLCw_9ElSnwmLnI5AATdGIz3LmTn4iwRdWdRfcA4uyWPH_WkH0pCKO00Gz2c8vXUJW0LAjmt_ZM4O4paV-XR-p9goJMWrN4JbAPtm_LLExlZOrvEEtZZ4zQ9MA9pUhV9EDFzrVo2xUDBHwFPMaw1cpg5_zI5UI6JlP2rKJlfLWPWb_suMSLJcj1RUS"/>
+</div>
+</div>
+</div>
+</div>
+</div>
+</nav>
+<main class="pt-28 pb-12 px-6 lg:px-8 max-w-[1440px] mx-auto min-h-screen">
+<div class="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+<div>
+<h1 class="text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight text-gray-900 dark:text-white mb-3">
+                Your Projects
+            </h1>
+<p class="text-xl text-text-secondary font-normal max-w-2xl">
+                Track and manage client projects from start to finish.
+            </p>
+</div>
+<button class="flex items-center gap-2 bg-primary hover:bg-blue-600 text-white px-5 py-3 rounded-full shadow-lg shadow-blue-500/20 transition-all duration-200 hover:scale-105 active:scale-95 group">
+<span class="material-symbols-outlined text-[20px] group-hover:rotate-90 transition-transform duration-300">add</span>
+<span class="font-medium text-sm">Add Project</span>
+</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+<div class="group relative bg-white dark:bg-surface-dark rounded-3xl overflow-hidden shadow-medium hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-800 hover:-translate-y-1 cursor-pointer">
+<div class="h-64 w-full relative overflow-hidden">
+<img alt="Piramal Towers Interior" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 project-card-image-mask" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC-tFm5F7YAdyjYG3rHgcffFN1o2bf5mUBFed62m4Oip2eAgLKYd1LH6ODJfnuNBmxKQU8EQotmOZ9TV8njJytfVq9y-f-G2oFMPECiMtBLYciKVAzcFm0r0hBQpmVMIPF5UfgSiGPv1_1HVQB9ewNrRKXJu1r91CFcJCyQUuXhw4GP0kwScZK7DKsu3EwIoPPpSe07pDkF-pAfhY567I1hcHFBRteYaB0CqmnWrA02MNdP7FxLa23W4MC_x2LLJEngpdGobfsJFIsY"/>
+<div class="absolute top-4 right-4 bg-white/90 dark:bg-black/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 shadow-sm">
+<span class="text-[11px] font-semibold text-accent-green uppercase tracking-wide flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse"></span> Active
+                    </span>
+</div>
+</div>
+<div class="p-6 pt-2 relative">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="text-2xl font-semibold text-gray-900 dark:text-white group-hover:text-primary transition-colors">Piramal Towers</h3>
+<p class="text-sm text-text-secondary">Anil Mehta</p>
+</div>
+</div>
+<div class="mt-6 space-y-4">
+<div class="flex items-center justify-between text-xs text-text-secondary">
+<span>Timeline</span>
+<span class="font-medium text-gray-900 dark:text-white">Sep 1, 2025 → Mar 30, 2026</span>
+</div>
+<div class="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+<div class="bg-primary h-1.5 rounded-full" style="width: 35%"></div>
+</div>
+<div class="flex items-center gap-4 pt-2 border-t border-gray-100 dark:border-gray-800">
+<div class="flex items-center gap-1.5 text-xs text-text-secondary">
+<span class="material-symbols-outlined text-[16px]">groups</span>
+<span>2 Vendors</span>
+</div>
+<div class="flex items-center gap-1.5 text-xs text-text-secondary">
+<span class="material-symbols-outlined text-[16px]">folder_open</span>
+<span>12 Files</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="group relative bg-white dark:bg-surface-dark rounded-3xl overflow-hidden shadow-medium hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-800 hover:-translate-y-1 cursor-pointer ring-2 ring-primary ring-offset-2 ring-offset-[#F5F5F7] dark:ring-offset-black">
+<div class="h-64 w-full relative overflow-hidden">
+<img alt="Maker Tower Interior" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 project-card-image-mask" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDfi8T7kKD6iLH1S8rLw5LrOH2gJa-YhnomXSA5STB2FK-lAAsfb0ohcENSRI9wryWrBwvVuVKlLFY8tvxv9jnDFB_O5C2JDiIcTXjemfGmNmbPy9A1MzSiU8l8ORQT616UesbZVzkMeASZkeZ1OuB2hwZmnCtlt4JGc869wmgZHuLYb1EuMmF16K_4JptrVGcTSSiYovigPEl_qoPU0w6GeJI3H1jXXmShaA3KVRCJvZSVFXCmygw8QQ7xaBaI-HdY2zLpounpmnoR"/>
+<div class="absolute top-4 right-4 bg-white/90 dark:bg-black/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 shadow-sm">
+<span class="text-[11px] font-semibold text-accent-green uppercase tracking-wide flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-accent-green"></span> Active
+                    </span>
+</div>
+</div>
+<div class="p-6 pt-2 relative">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="text-2xl font-semibold text-gray-900 dark:text-white group-hover:text-primary transition-colors">Maker Tower</h3>
+<p class="text-sm text-text-secondary">Hiremath's</p>
+</div>
+</div>
+<div class="mt-6 space-y-4">
+<div class="flex items-center justify-between text-xs text-text-secondary">
+<span>Timeline</span>
+<span class="font-medium text-gray-900 dark:text-white">May 1, 2025 → Aug 1, 2026</span>
+</div>
+<div class="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+<div class="bg-primary h-1.5 rounded-full" style="width: 65%"></div>
+</div>
+<div class="flex items-center gap-4 pt-2 border-t border-gray-100 dark:border-gray-800">
+<div class="flex items-center gap-1.5 text-xs text-text-secondary">
+<span class="material-symbols-outlined text-[16px]">groups</span>
+<span>14 Vendors</span>
+</div>
+<div class="flex items-center gap-1.5 text-xs text-text-secondary">
+<span class="material-symbols-outlined text-[16px]">folder_open</span>
+<span>48 Files</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="group relative bg-white dark:bg-surface-dark rounded-3xl overflow-hidden shadow-medium hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-800 hover:-translate-y-1 cursor-pointer">
+<div class="h-64 w-full relative overflow-hidden">
+<img alt="Modern Loft Interior" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 project-card-image-mask" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7EwqyjgjzddBAiXoE18vS0CW88q2C89jQOM959DaKVxUHI1T0abqTZ9F-NlHvFtYCg3zFIkcqMUE3l_4cfUZssbVQ5TbFFbah3MdJvhcx57Lbe7Qy5wCDrySLSXY8YM3hITVun1FDn-fktWEP6r8gDFyhiYRMrsvTyaSdV9IcvGTf9LGL-f0WANjME5QQghPr4PBTqTQb1_QHeYsSCC3AydR7CADHXZQtlRXpoS-41rkCU6MSqCJfYec_Td-HM2itNjb0ydqvxB9Z"/>
+<div class="absolute top-4 right-4 bg-white/90 dark:bg-black/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 shadow-sm">
+<span class="text-[11px] font-semibold text-orange-500 uppercase tracking-wide flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span> Planning
+                    </span>
+</div>
+</div>
+<div class="p-6 pt-2 relative">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="text-2xl font-semibold text-gray-900 dark:text-white group-hover:text-primary transition-colors">The Modern Loft</h3>
+<p class="text-sm text-text-secondary">Sarah Jenkins</p>
+</div>
+</div>
+<div class="mt-6 space-y-4">
+<div class="flex items-center justify-between text-xs text-text-secondary">
+<span>Timeline</span>
+<span class="font-medium text-gray-900 dark:text-white">Nov 15, 2025 → Dec 20, 2026</span>
+</div>
+<div class="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+<div class="bg-gray-300 dark:bg-gray-600 h-1.5 rounded-full" style="width: 5%"></div>
+</div>
+<div class="flex items-center gap-4 pt-2 border-t border-gray-100 dark:border-gray-800">
+<div class="flex items-center gap-1.5 text-xs text-text-secondary">
+<span class="material-symbols-outlined text-[16px]">groups</span>
+<span>0 Vendors</span>
+</div>
+<div class="flex items-center gap-1.5 text-xs text-text-secondary">
+<span class="material-symbols-outlined text-[16px]">folder_open</span>
+<span>2 Files</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-[fadeIn_0.5s_ease-out]">
+<div class="lg:col-span-8 space-y-6">
+<div class="glass-panel rounded-3xl p-8 border border-white/60 dark:border-gray-800">
+<div class="flex justify-between items-center mb-6">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-2xl">apartment</span>
+<h2 class="text-xl font-semibold text-gray-900 dark:text-white">Maker Tower Details</h2>
+</div>
+<button class="text-sm font-medium text-primary hover:text-blue-700 transition-colors flex items-center gap-1">
+                        Manage Project <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+<div class="p-4 rounded-2xl bg-background-subtle dark:bg-gray-800/50 border border-transparent hover:border-gray-200 dark:hover:border-gray-700 transition-all">
+<span class="text-xs text-text-secondary uppercase tracking-wider font-medium">Wall Finishes</span>
+<div class="mt-2 flex items-center justify-between">
+<span class="text-2xl font-semibold text-gray-900 dark:text-white">₹1.2L</span>
+<span class="px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold">APPROVED</span>
+</div>
+</div>
+<div class="p-4 rounded-2xl bg-background-subtle dark:bg-gray-800/50 border border-transparent hover:border-gray-200 dark:hover:border-gray-700 transition-all">
+<span class="text-xs text-text-secondary uppercase tracking-wider font-medium">Flooring</span>
+<div class="mt-2 flex items-center justify-between">
+<span class="text-2xl font-semibold text-gray-900 dark:text-white">₹4.5L</span>
+<span class="px-2.5 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-[10px] font-bold">PENDING</span>
+</div>
+</div>
+</div>
+<h3 class="text-sm font-medium text-text-secondary mb-4 uppercase tracking-wider">Participating Vendors</h3>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-xl transition-colors group cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
+                                AH
+                             </div>
+<div>
+<p class="text-sm font-medium text-gray-900 dark:text-white">Ashok Hiremath</p>
+<p class="text-xs text-text-secondary">Wall Finishes, Electricals</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-gray-300 group-hover:text-primary transition-colors">chevron_right</span>
+</div>
+<div class="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-xl transition-colors group cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-sm">
+                                TB
+                             </div>
+<div>
+<p class="text-sm font-medium text-gray-900 dark:text-white">TileBar Exclusives</p>
+<p class="text-xs text-text-secondary">Flooring, Bathroom</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-gray-300 group-hover:text-primary transition-colors">chevron_right</span>
+</div>
+</div>
+</div>
+</div>
+<div class="lg:col-span-4 space-y-6">
+<div class="bg-white/60 dark:bg-surface-dark/60 backdrop-blur-xl rounded-3xl p-8 border border-gray-100 dark:border-gray-800 h-full">
+<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-6">Recent Activity</h3>
+<div class="relative pl-4 space-y-8">
+<div class="absolute left-4 top-2 bottom-2 w-px bg-gray-200 dark:bg-gray-700"></div>
+<div class="relative pl-6 group">
+<div class="absolute left-[11px] top-1.5 h-2.5 w-2.5 rounded-full bg-blue-500 ring-4 ring-white dark:ring-gray-900 z-10"></div>
+<div class="flex flex-col gap-1">
+<p class="text-[13px] font-semibold text-gray-900 dark:text-white group-hover:text-primary transition-colors">Quotation Updated</p>
+<p class="text-xs text-text-secondary">Electricals revised by Ashok H.</p>
+<span class="text-[11px] text-text-secondary/70 mt-1">10 mins ago</span>
+</div>
+</div>
+<div class="relative pl-6 group">
+<div class="absolute left-[11px] top-1.5 h-2.5 w-2.5 rounded-full bg-gray-300 dark:bg-gray-600 ring-4 ring-white dark:ring-gray-900 z-10"></div>
+<div class="flex flex-col gap-1">
+<p class="text-[13px] font-semibold text-gray-900 dark:text-white group-hover:text-primary transition-colors">New File Uploaded</p>
+<p class="text-xs text-text-secondary">Living_Room_Render_v3.jpg</p>
+<span class="text-[11px] text-text-secondary/70 mt-1">2 hours ago</span>
+</div>
+</div>
+<div class="relative pl-6 group">
+<div class="absolute left-[11px] top-1.5 h-2.5 w-2.5 rounded-full bg-gray-300 dark:bg-gray-600 ring-4 ring-white dark:ring-gray-900 z-10"></div>
+<div class="flex flex-col gap-1">
+<p class="text-[13px] font-semibold text-gray-900 dark:text-white group-hover:text-primary transition-colors">Site Visit Logged</p>
+<p class="text-xs text-text-secondary">Measurements confirmed.</p>
+<span class="text-[11px] text-text-secondary/70 mt-1">Yesterday</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<footer class="bg-white dark:bg-surface-dark border-t border-gray-200 dark:border-gray-800 pt-16 pb-8 mt-12">
+<div class="max-w-[1440px] mx-auto px-6 lg:px-8">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+<div>
+<h4 class="font-semibold text-gray-900 dark:text-white mb-4 text-sm">Platform</h4>
+<ul class="space-y-3 text-xs text-text-secondary">
+<li><a class="hover:text-primary transition-colors" href="#">Project Management</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Vendor Network</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">AI Rendering</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Financial Tools</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-semibold text-gray-900 dark:text-white mb-4 text-sm">Resources</h4>
+<ul class="space-y-3 text-xs text-text-secondary">
+<li><a class="hover:text-primary transition-colors" href="#">Designer Blog</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Community</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Help Center</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">API Documentation</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-semibold text-gray-900 dark:text-white mb-4 text-sm">Company</h4>
+<ul class="space-y-3 text-xs text-text-secondary">
+<li><a class="hover:text-primary transition-colors" href="#">About Us</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Careers</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Legal</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Contact</a></li>
+</ul>
+</div>
+<div class="col-span-2 md:col-span-1">
+<h4 class="font-semibold text-gray-900 dark:text-white mb-4 text-sm">Newsletter</h4>
+<p class="text-xs text-text-secondary mb-4">Get the latest trends and updates.</p>
+<form class="flex">
+<input class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-l-lg px-4 py-2 text-xs focus:ring-2 focus:ring-primary dark:text-white" placeholder="Email address" type="email"/>
+<button class="bg-primary text-white px-4 py-2 rounded-r-lg text-xs font-medium hover:bg-blue-600 transition">Subscribe</button>
+</form>
+</div>
+</div>
+<div class="border-t border-gray-100 dark:border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center">
+<p class="text-[11px] text-gray-400">© 2023 PixelCraft Inc. All rights reserved.</p>
+<div class="flex space-x-6 mt-4 md:mt-0">
+<a class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" href="#"><span class="sr-only">Twitter</span><svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84"></path></svg></a>
+<a class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" href="#"><span class="sr-only">Instagram</span><svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path clip-rule="evenodd" d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772A4.902 4.902 0 014.43 3.09c.636-.247 1.363-.416 2.427-.465C8.901 2.013 9.256 2 11.685 2h.63zm-.081 1.802h-.468c-2.456 0-2.784.011-3.807.058-.975.045-1.504.207-1.857.344-.467.182-.8.398-1.15.748-.35.35-.566.683-.748 1.15-.137.353-.3.882-.344 1.857-.047 1.023-.058 1.351-.058 3.807v.468c0 2.456.011 2.784.058 3.807.045.975.207 1.504.344 1.857.182.466.399.8.748 1.15.35.35.683.566 1.15.748.353.137.882.3 1.857.344 1.054.048 1.37.058 4.041.058h.08c2.597 0 2.917-.01 3.96-.058.976-.045 1.505-.207 1.858-.344.466-.182.8-.398 1.15-.748.35-.35.566-.683.748-1.15.137-.353.3-.882.344-1.857.048-1.055.058-1.37.058-4.041v-.08c0-2.597-.01-2.917-.058-3.96-.045-.976-.207-1.505-.344-1.858a3.097 3.097 0 00-.748-1.15 3.098 3.098 0 00-1.15-.748c-.353-.137-.882-.3-1.857-.344-1.023-.047-1.351-.058-3.807-.058zM12 6.865a5.135 5.135 0 110 10.27 5.135 5.135 0 010-10.27zm0 1.802a3.333 3.333 0 100 6.666 3.333 3.333 0 000-6.666zm5.338-3.205a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4z" fill-rule="evenodd"></path></svg></a>
+</div>
+</div>
+</div>
+</footer>
+</body></html>
