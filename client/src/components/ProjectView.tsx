@@ -365,7 +365,9 @@ export default function ProjectView({
 
         {/* Selected Project Quotations Panel */}
         {selectedProjectData && (() => {
-          const selectedQuotations = selectedProjectQuotations.filter(q => q.status === "Selected");
+          const selectedQuotations = selectedProjectQuotations
+            .filter(q => q.status === "Selected")
+            .sort((a, b) => (a.category || "").localeCompare(b.category || ""));
           const selectedTotal = selectedQuotations.reduce(
             (sum, q) => sum + parseFloat(q.quotationValue || "0"), 0
           );
