@@ -2,12 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import Dashboard from '@/components/Dashboard';
 import type { Vendor, Project, VendorCategory, ActivityLog, Task } from "@shared/schema";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { X, FileUp, Clock, AlertCircle, Calendar } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { formatDistanceToNow, differenceInDays, startOfDay, format } from "date-fns";
+import { differenceInDays, startOfDay } from "date-fns";
 
 interface VendorWithCategory extends Omit<Vendor, 'categoryName'> {
   category: string;
@@ -33,10 +28,8 @@ interface QuotationsResponse {
 }
 
 export default function DashboardPage() {
-  // State for project filter
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectId] = useState<string | null>(null);
 
-  // Get user info to check role
   const { data: user } = useQuery<{ role: string }>({
     queryKey: ['/api/auth/user'],
     retry: false,
@@ -44,10 +37,9 @@ export default function DashboardPage() {
   
   const isDesignerOrAdmin = user?.role === 'designer' || user?.role === 'admin';
   
-  // Fetch all data needed for dashboard
   const { data: vendorsData, isLoading: vendorsLoading } = useQuery<Vendor[]>({
     queryKey: ['/api/vendors'],
-    enabled: isDesignerOrAdmin, // Load vendors for designers and admins
+    enabled: isDesignerOrAdmin,
   });
 
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery<VendorCategory[]>({
@@ -59,18 +51,14 @@ export default function DashboardPage() {
   });
 
   const { data: activitiesData, isLoading: activitiesLoading } = useQuery<ActivityLog[]>({
-    queryKey: selectedProjectId ? ['/api/activities', selectedProjectId] : ['/api/activities'],
+    queryKey: ['/api/activities'],
     queryFn: async () => {
-      const url = selectedProjectId 
-        ? `/api/activities?projectId=${selectedProjectId}` 
-        : '/api/activities';
-      const response = await fetch(url, { credentials: 'include' });
+      const response = await fetch('/api/activities', { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch activities');
       return response.json();
     }
   });
 
-  // Fetch all tasks across all projects for alerts
   const { data: allTasksData } = useQuery<Task[]>({
     queryKey: ['/api/tasks'],
     queryFn: async () => {
@@ -94,46 +82,39 @@ export default function DashboardPage() {
     );
   }
 
-  // Create category lookup map
   const categoryMap = (categoriesData || []).reduce((acc, category) => {
     acc[category.id] = category.name;
     return acc;
   }, {} as Record<string, string>);
 
-  // Transform vendors to match Dashboard component expectations
-  // For clients, vendors data will be empty since they don't need to see all vendors
   const vendorsWithCategory: VendorWithCategory[] = (vendorsData || []).map(vendor => ({
     ...vendor,
     category: categoryMap[vendor.categoryId] || 'Unknown Category'
   }));
 
-  // Create all quotations from project-vendor relationships
   const allQuotations = Object.entries(quotationsData?.quotations || {})
     .flatMap(([projectId, projectQuotations]) => {
       const project = quotationsData?.projects.find(p => p.id === projectId);
       return projectQuotations.map(q => ({
         ...q,
         projectName: project?.projectName || 'Unknown Project',
-        category: q.category, // Include category from API response
+        category: q.category,
       }));
     });
 
-  // Create recent quotations for display (latest 10 by submission date)
   const recentQuotations = allQuotations
     .sort((a, b) => {
-      // Sort by uploadedAt if available, otherwise dateOfQuotation, otherwise fall back to IDs
-      const dateA = a.uploadedAt 
-        ? new Date(a.uploadedAt).getTime() 
+      const dateA = a.uploadedAt
+        ? new Date(a.uploadedAt).getTime()
         : (a.dateOfQuotation ? new Date(a.dateOfQuotation).getTime() : 0);
-      const dateB = b.uploadedAt 
-        ? new Date(b.uploadedAt).getTime() 
+      const dateB = b.uploadedAt
+        ? new Date(b.uploadedAt).getTime()
         : (b.dateOfQuotation ? new Date(b.dateOfQuotation).getTime() : 0);
-      return dateB - dateA; // Most recent first
+      return dateB - dateA;
     })
     .slice(0, 10);
 
-  // Filter data based on selected project
-  const filteredProjects = selectedProjectId 
+  const filteredProjects = selectedProjectId
     ? (quotationsData?.projects || []).filter(p => p.id === selectedProjectId)
     : quotationsData?.projects || [];
 
@@ -151,7 +132,6 @@ export default function DashboardPage() {
       })
     : recentQuotations;
 
-  // Filter vendors to only show those associated with the selected project
   const filteredVendors = selectedProjectId
     ? vendorsWithCategory.filter(vendor => {
         const projectQuotations = quotationsData?.quotations[selectedProjectId] || [];
@@ -159,46 +139,6 @@ export default function DashboardPage() {
       })
     : vendorsWithCategory;
 
-  // Helper function to get activity type label
-  const getActivityTypeLabel = (activityType: string) => {
-    const labels: Record<string, string> = {
-      'floor_plan_upload': 'Floor Plan',
-      'floor_plan_delete': 'Floor Plan',
-      'moodboard_upload': 'Moodboard',
-      'moodboard_delete': 'Moodboard',
-      'render_upload': 'Render',
-      'render_delete': 'Render',
-      'working_drawing_upload': 'Working Drawing',
-      'working_drawing_delete': 'Working Drawing',
-      'quote_upload': 'Quotation',
-      'quote_file_delete': 'Quotation',
-      'schedule_upload': 'Project Schedule',
-      'specification_upload': 'Specification',
-      'specification_delete': 'Specification',
-      'catalogue_upload': 'Catalogue Item',
-      'catalogue_delete': 'Catalogue Item',
-      'invoice_create': 'Invoice',
-      'invoice_update': 'Invoice',
-      'invoice_delete': 'Invoice',
-      'vendor_payment': 'Payment',
-      'vendor_create': 'Vendor',
-      'vendor_update': 'Vendor',
-      'vendor_delete': 'Vendor'
-    };
-    return labels[activityType] || activityType;
-  };
-
-  // Helper function to get activity action (uploaded or deleted)
-  const getActivityAction = (activityType: string) => {
-    if (activityType.endsWith('_delete')) return 'deleted';
-    if (activityType.endsWith('_upload')) return 'uploaded';
-    if (activityType.endsWith('_create')) return 'created';
-    if (activityType.endsWith('_update')) return 'updated';
-    if (activityType === 'vendor_payment') return 'recorded';
-    return 'performed';
-  };
-
-  // Helper to parse dates consistently (same as GanttChartPage)
   const parseLocalDate = (dateStr: string | Date | null) => {
     if (!dateStr) return null;
     if (dateStr instanceof Date) return dateStr;
@@ -209,7 +149,6 @@ export default function DashboardPage() {
     return new Date(dateStr);
   };
 
-  // Calculate task alerts - Starting in Next 30 Days, Completion Countdown, and Overdue
   const getTaskAlerts = () => {
     if (!allTasksData || !quotationsData) return { upcomingStart: [], completionCountdown: [], overdue: [] };
     
@@ -220,22 +159,17 @@ export default function DashboardPage() {
     const overdue: Array<Task & { projectName: string, daysOverdue: number }> = [];
     
     allTasksData.forEach(task => {
-      // Skip completed tasks (check both status field AND progressPercentage to match GanttChartPage)
       if (task.status === 'completed') return;
       const progress = Number(task.progressPercentage) || 0;
       if (progress >= 100) return;
       
-      // Skip PHASE, PACKAGE, and EXECUTE header rows - these are grouping headers, not actual tasks
       const taskName = task.name?.toUpperCase() || '';
       if (taskName.startsWith('PHASE') || taskName.startsWith('PACKAGE') || taskName.startsWith('EXECUTE')) return;
-      
-      // Skip tasks with placeholder dates (2099-12-31) used for header rows without real dates
       if (task.startDate === '2099-12-31' || task.endDate === '2099-12-31') return;
       
       const project = quotationsData.projects.find(p => p.id === task.projectId);
       const projectName = project?.projectName || 'Unknown Project';
       
-      // Check for tasks starting in the next 30 days (including today)
       if (task.startDate) {
         const startDate = startOfDay(new Date(task.startDate));
         const daysUntilStart = differenceInDays(startDate, today);
@@ -244,16 +178,12 @@ export default function DashboardPage() {
         }
       }
       
-      // Check for overdue first (matches GanttChartPage logic: endDate < now)
-      // Then check for completion countdown
       if (task.endDate) {
         const endDate = parseLocalDate(task.endDate);
         if (endDate && endDate < now) {
-          // Task is overdue - end date has passed
           const daysOverdue = Math.max(1, differenceInDays(today, startOfDay(endDate)));
           overdue.push({ ...task, projectName, daysOverdue });
         } else if (endDate) {
-          // Check for completion countdown (5 days or less before end date)
           const daysToGo = differenceInDays(startOfDay(endDate), today);
           if (daysToGo >= 1 && daysToGo <= 5) {
             completionCountdown.push({ ...task, projectName, daysToGo });
@@ -262,277 +192,26 @@ export default function DashboardPage() {
       }
     });
     
-    // Sort upcoming start by soonest first (ascending)
     upcomingStart.sort((a, b) => a.daysUntilStart - b.daysUntilStart);
-    
-    // Sort completion countdown by days remaining (ascending)
     completionCountdown.sort((a, b) => a.daysToGo - b.daysToGo);
-    
-    // Sort overdue by most overdue first (descending)
     overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
     
     return { upcomingStart, completionCountdown, overdue };
   };
 
   const taskAlerts = getTaskAlerts();
-  const hasAlerts = taskAlerts.upcomingStart.length > 0 || taskAlerts.completionCountdown.length > 0 || taskAlerts.overdue.length > 0;
 
   return (
-    <div className="space-y-4">
-      {/* Task Alerts */}
-      {hasAlerts && (
-        <Card className="border-orange-200 dark:border-orange-900">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-orange-600" />
-              <CardTitle className="text-lg">Task Alerts</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Tasks Starting in Next 30 Days */}
-            {taskAlerts.upcomingStart.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-blue-600 hover:bg-blue-700 font-semibold">
-                    Starting in Next 30 Days
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    {taskAlerts.upcomingStart.length} task{taskAlerts.upcomingStart.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {taskAlerts.upcomingStart.map(task => (
-                    <div
-                      key={task.id}
-                      className="flex items-center justify-between gap-3 p-3 rounded-md bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900/30"
-                      data-testid={`alert-start-${task.id}`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate" data-testid={`text-task-name-${task.id}`}>
-                          {task.name}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          <span data-testid={`text-project-${task.id}`}>{task.projectName}</span>
-                          {task.startDate && (
-                            <>
-                              <span>•</span>
-                              <span>{format(new Date(task.startDate), 'dd MMM yyyy')}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <Badge className={`flex-shrink-0 ${task.daysUntilStart === 0 ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'}`}>
-                        {task.daysUntilStart === 0 ? 'Today' : task.daysUntilStart === 1 ? 'Tomorrow' : `In ${task.daysUntilStart} days`}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* Completion Countdown (5 days or less) */}
-            {taskAlerts.completionCountdown.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="bg-orange-100 dark:bg-orange-900/30 text-orange-900 dark:text-orange-100 font-semibold">
-                    Completion Countdown
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    {taskAlerts.completionCountdown.length} task{taskAlerts.completionCountdown.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {taskAlerts.completionCountdown.map(task => (
-                    <div
-                      key={task.id}
-                      className="flex items-center justify-between gap-3 p-3 rounded-md bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-900/30"
-                      data-testid={`alert-countdown-${task.id}`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm" data-testid={`text-task-name-${task.id}`}>
-                          <span className="truncate">{task.name}</span>
-                          <span className="text-orange-700 dark:text-orange-300 ml-2">
-                            - {task.daysToGo} day{task.daysToGo !== 1 ? 's' : ''} to go for completion
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          <span data-testid={`text-project-${task.id}`}>{task.projectName}</span>
-                        </div>
-                      </div>
-                      <Badge 
-                        variant="secondary" 
-                        className={`flex-shrink-0 ${
-                          task.daysToGo <= 2 
-                            ? 'bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-100' 
-                            : 'bg-orange-100 dark:bg-orange-900/30 text-orange-900 dark:text-orange-100'
-                        }`}
-                      >
-                        {task.daysToGo} day{task.daysToGo !== 1 ? 's' : ''}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Overdue Tasks */}
-            {taskAlerts.overdue.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Badge variant="destructive" className="font-semibold">
-                    Overdue
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    {taskAlerts.overdue.length} task{taskAlerts.overdue.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {taskAlerts.overdue.map(task => (
-                    <div
-                      key={task.id}
-                      className="flex items-center justify-between gap-3 p-3 rounded-md bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30"
-                      data-testid={`alert-overdue-${task.id}`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm" data-testid={`text-task-name-${task.id}`}>
-                          <span className="truncate">{task.name}</span>
-                          <span className="text-red-700 dark:text-red-300 ml-2">
-                            - {task.daysOverdue} day{task.daysOverdue !== 1 ? 's' : ''} overdue
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          <span data-testid={`text-project-${task.id}`}>{task.projectName}</span>
-                          {task.endDate && (
-                            <>
-                              <span>•</span>
-                              <span>Due: {format(new Date(task.endDate), "MMM d, yyyy")}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <Badge variant="destructive" className="flex-shrink-0">
-                        {task.daysOverdue} day{task.daysOverdue !== 1 ? 's' : ''} overdue
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Project Filter */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <label className="text-sm font-medium mb-2 block">
-                Filter by Project
-              </label>
-              <Select 
-                value={selectedProjectId || "all"} 
-                onValueChange={(value) => setSelectedProjectId(value === "all" ? null : value)}
-              >
-                <SelectTrigger data-testid="select-project-filter">
-                  <SelectValue placeholder="All Projects" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Projects</SelectItem>
-                  {(quotationsData?.projects || []).map(project => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.projectName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {selectedProjectId && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSelectedProjectId(null)}
-                className="mt-6"
-                data-testid="button-clear-filter"
-                title="Clear filter"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
+    <div>
       <Dashboard 
         vendors={filteredVendors}
         projects={filteredProjects}
         recentQuotations={filteredRecentQuotations}
         allQuotations={filteredQuotations}
+        activities={activitiesData || []}
+        taskAlerts={taskAlerts}
         onNavigate={handleNavigate}
       />
-
-      {/* Recent Activity */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
-          <CardTitle className="text-lg font-medium">Recent Activity</CardTitle>
-          <FileUp className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          {!activitiesData || activitiesData.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground" data-testid="text-no-activities">
-              No recent activity
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {activitiesData.slice(0, 10).map((activity) => {
-                const project = quotationsData?.projects.find(p => p.id === activity.projectId);
-                const activityDate = new Date(activity.createdAt);
-                const formattedDateTime = format(activityDate, "MMM d, yyyy 'at' h:mm a");
-                
-                return (
-                  <div 
-                    key={activity.id} 
-                    className="flex items-start gap-3 p-3 rounded-md hover-elevate"
-                    data-testid={`activity-${activity.id}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm" data-testid={`text-user-${activity.id}`}>
-                          {activity.userName}
-                        </span>
-                        <span className="text-sm text-muted-foreground">{getActivityAction(activity.activityType)}</span>
-                        <span className="text-sm font-medium text-primary" data-testid={`text-type-${activity.id}`}>
-                          {getActivityTypeLabel(activity.activityType)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="text-sm text-muted-foreground truncate" data-testid={`text-filename-${activity.id}`}>
-                          {activity.fileName}
-                        </span>
-                        {project && (
-                          <>
-                            <span className="text-sm text-muted-foreground">•</span>
-                            <span className="text-sm text-muted-foreground" data-testid={`text-project-${activity.id}`}>
-                              {project.projectName}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        <span data-testid={`text-time-${activity.id}`}>{formattedDateTime}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
