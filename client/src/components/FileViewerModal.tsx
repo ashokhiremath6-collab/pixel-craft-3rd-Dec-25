@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X, ExternalLink, Download, ZoomIn, ZoomOut, RotateCcw, Maximize2, Loader2 } from "lucide-react";
+import { openPdf } from "@/lib/fileUtils";
 
 interface FileViewerModalProps {
   isOpen: boolean;
@@ -10,36 +11,74 @@ interface FileViewerModalProps {
   fileName?: string;
 }
 
+type FileType = "pdf" | "image" | "text" | "word" | "excel" | "unknown" | "detecting";
+
+function guessTypeFromName(fileName?: string, fileUrl?: string): FileType | null {
+  const name = (fileName || fileUrl || "").toLowerCase();
+  if (name.endsWith(".pdf") || name.includes(".pdf")) return "pdf";
+  if (/\.(jpg|jpeg|png|gif|webp|svg|bmp)/.test(name)) return "image";
+  if (name.endsWith(".txt")) return "text";
+  if (/\.docx?/.test(name)) return "word";
+  if (/\.(xlsx?|pptx?)/.test(name)) return "excel";
+  return null;
+}
+
+function contentTypeToFileType(ct: string): FileType {
+  if (ct.includes("pdf")) return "pdf";
+  if (ct.startsWith("image/")) return "image";
+  if (ct.includes("text/plain")) return "text";
+  if (ct.includes("word") || ct.includes("officedocument.wordprocessing")) return "word";
+  if (ct.includes("spreadsheet") || ct.includes("excel") || ct.includes("presentation") || ct.includes("powerpoint")) return "excel";
+  return "unknown";
+}
+
 export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileViewerModalProps) {
   const [zoom, setZoom] = useState(100);
   const [textContent, setTextContent] = useState<string | null>(null);
-  const [isLoadingText, setIsLoadingText] = useState(false);
-  
+  const [fileType, setFileType] = useState<FileType>("detecting");
+
+  useEffect(() => {
+    if (!isOpen || !fileUrl) return;
+    setFileType("detecting");
+    setTextContent(null);
+    setZoom(100);
+
+    const guessed = guessTypeFromName(fileName, fileUrl);
+    if (guessed) {
+      setFileType(guessed);
+      return;
+    }
+
+    fetch(fileUrl, { method: "HEAD" })
+      .then(res => {
+        const ct = res.headers.get("content-type") || "";
+        setFileType(contentTypeToFileType(ct));
+      })
+      .catch(() => setFileType("pdf"));
+  }, [isOpen, fileUrl, fileName]);
+
+  useEffect(() => {
+    if (fileType === "text" && isOpen && fileUrl) {
+      fetch(fileUrl)
+        .then(res => res.text())
+        .then(text => setTextContent(text))
+        .catch(() => setTextContent("Unable to load file content"));
+    }
+  }, [fileType, isOpen, fileUrl]);
+
   const handleDownload = () => {
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = fileUrl;
-    link.download = fileName || 'download';
+    link.download = fileName || "download";
     link.click();
   };
 
   const handleOpenExternal = () => {
-    window.open(fileUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  const handleZoomIn = () => {
-    setZoom(prev => Math.min(prev + 25, 300));
-  };
-
-  const handleZoomOut = () => {
-    setZoom(prev => Math.max(prev - 25, 25));
-  };
-
-  const handleResetZoom = () => {
-    setZoom(100);
-  };
-
-  const handleFitToWidth = () => {
-    setZoom(100);
+    if (fileType === "pdf") {
+      openPdf(fileUrl);
+    } else {
+      window.open(fileUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   const handleClose = () => {
@@ -47,30 +86,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
     onClose();
   };
 
-  const isPdf = fileName?.toLowerCase().endsWith('.pdf') || fileUrl.includes('.pdf');
-  const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName || '') || 
-                  /(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(fileUrl);
-  const isText = fileName?.toLowerCase().endsWith('.txt') || fileUrl.includes('.txt');
-  const isWordDoc = /\.docx?$/i.test(fileName || '') || /\.docx?/i.test(fileUrl);
-  const isExcelOrPpt = /\.(xlsx?|pptx?)$/i.test(fileName || '') || /(xlsx?|pptx?)/i.test(fileUrl);
-
-  useEffect(() => {
-    if (isOpen && isText && fileUrl) {
-      setIsLoadingText(true);
-      setTextContent(null);
-      fetch(fileUrl)
-        .then(res => res.text())
-        .then(text => {
-          setTextContent(text);
-          setIsLoadingText(false);
-        })
-        .catch(() => {
-          setTextContent('Unable to load file content');
-          setIsLoadingText(false);
-        });
-    }
-  }, [isOpen, isText, fileUrl]);
-
+  const canZoom = fileType === "pdf" || fileType === "image" || fileType === "word";
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
@@ -78,121 +94,72 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
         <DialogHeader className="p-3 border-b bg-background">
           <div className="flex items-center justify-between gap-2">
             <DialogTitle className="text-sm truncate flex-1" data-testid="viewer-file-name">
-              {fileName || 'File Viewer'}
+              {fileName || "File Viewer"}
             </DialogTitle>
             <div className="flex items-center gap-1">
-              {(isPdf || isImage || isWordDoc) && (
+              {canZoom && (
                 <>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleZoomOut}
-                    title="Zoom out"
-                    disabled={zoom <= 25}
-                    data-testid="button-zoom-out"
-                  >
+                  <Button variant="ghost" size="icon" onClick={() => setZoom(z => Math.max(z - 25, 25))} disabled={zoom <= 25} data-testid="button-zoom-out">
                     <ZoomOut className="w-4 h-4" />
                   </Button>
-                  <span className="text-xs text-muted-foreground min-w-[3rem] text-center">
-                    {zoom}%
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleZoomIn}
-                    title="Zoom in"
-                    disabled={zoom >= 300}
-                    data-testid="button-zoom-in"
-                  >
+                  <span className="text-xs text-muted-foreground min-w-[3rem] text-center">{zoom}%</span>
+                  <Button variant="ghost" size="icon" onClick={() => setZoom(z => Math.min(z + 25, 300))} disabled={zoom >= 300} data-testid="button-zoom-in">
                     <ZoomIn className="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleResetZoom}
-                    title="Reset zoom"
-                    data-testid="button-reset-zoom"
-                  >
+                  <Button variant="ghost" size="icon" onClick={() => setZoom(100)} data-testid="button-reset-zoom">
                     <RotateCcw className="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleFitToWidth}
-                    title="Fit to width"
-                    data-testid="button-fit-width"
-                  >
+                  <Button variant="ghost" size="icon" onClick={() => setZoom(100)} data-testid="button-fit-width">
                     <Maximize2 className="w-4 h-4" />
                   </Button>
                   <div className="w-px h-6 bg-border mx-1" />
                 </>
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleOpenExternal}
-                title="Open in new tab"
-                data-testid="button-open-external"
-              >
+              <Button variant="ghost" size="icon" onClick={handleOpenExternal} title="Open in new tab" data-testid="button-open-external">
                 <ExternalLink className="w-4 h-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleDownload}
-                title="Download file"
-                data-testid="button-download-file"
-              >
+              <Button variant="ghost" size="icon" onClick={handleDownload} title="Download file" data-testid="button-download-file">
                 <Download className="w-4 h-4" />
               </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleClose}
-                className="ml-2"
-                data-testid="button-close-viewer"
-              >
+              <Button variant="destructive" size="sm" onClick={handleClose} className="ml-2" data-testid="button-close-viewer">
                 <X className="w-4 h-4 mr-1" />
                 Close
               </Button>
             </div>
           </div>
         </DialogHeader>
-        <div 
-          className="flex-1 overflow-auto bg-muted/30" 
-          style={{ height: 'calc(95vh - 56px)' }}
-        >
-          {isPdf ? (
+
+        <div className="flex-1 overflow-auto bg-muted/30" style={{ height: "calc(95vh - 56px)" }}>
+          {fileType === "detecting" ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : fileType === "pdf" ? (
             <iframe
-              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=${zoom}`}
+              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
               className="w-full h-full border-0"
-              style={{ 
+              style={{
                 transform: `scale(${zoom / 100})`,
-                transformOrigin: 'top left',
+                transformOrigin: "top left",
                 width: `${10000 / zoom}%`,
                 height: `${10000 / zoom}%`,
               }}
-              title={fileName || 'PDF viewer'}
+              title={fileName || "PDF viewer"}
               data-testid="file-viewer-pdf"
             />
-          ) : isImage ? (
-            <div 
-              className="min-h-full flex items-center justify-center p-4"
-            >
+          ) : fileType === "image" ? (
+            <div className="min-h-full flex items-center justify-center p-4">
               <img
                 src={fileUrl}
-                alt={fileName || 'Image viewer'}
+                alt={fileName || "Image viewer"}
                 className="max-w-none"
-                style={{ 
-                  transform: `scale(${zoom / 100})`,
-                  transformOrigin: 'center center',
-                }}
+                style={{ transform: `scale(${zoom / 100})`, transformOrigin: "center center" }}
                 data-testid="file-viewer-image"
               />
             </div>
-          ) : isText ? (
+          ) : fileType === "text" ? (
             <div className="p-4 h-full overflow-auto">
-              {isLoadingText ? (
+              {textContent === null ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
@@ -202,16 +169,14 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                 </pre>
               )}
             </div>
-          ) : (isWordDoc || isExcelOrPpt) ? (
+          ) : fileType === "word" || fileType === "excel" ? (
             <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
               <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
                 <Download className="w-8 h-8 text-primary" />
               </div>
               <div className="text-center">
                 <p className="font-medium mb-1">{fileName}</p>
-                <p className="text-sm text-muted-foreground">
-                  Click below to download and view this file
-                </p>
+                <p className="text-sm text-muted-foreground">Click below to download and view this file</p>
               </div>
               <Button onClick={handleDownload} data-testid="button-download-office">
                 <Download className="w-4 h-4 mr-2" />
@@ -221,12 +186,8 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
               <div className="text-center">
-                <p className="text-muted-foreground mb-2">
-                  This file type cannot be previewed in the browser.
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Use the download button to save the file to your device.
-                </p>
+                <p className="text-muted-foreground mb-2">This file type cannot be previewed in the browser.</p>
+                <p className="text-sm text-muted-foreground">Use the download button to save the file to your device.</p>
               </div>
               <Button onClick={handleDownload} data-testid="button-download-fallback">
                 <Download className="w-4 h-4 mr-2" />
