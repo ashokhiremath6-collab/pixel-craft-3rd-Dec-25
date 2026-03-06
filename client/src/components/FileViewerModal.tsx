@@ -103,7 +103,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
                     <ZoomOut className="w-4 h-4" />
                   </Button>
                   <span className="text-xs text-muted-foreground min-w-[3rem] text-center">{zoom}%</span>
-                  <Button variant="ghost" size="icon" onClick={() => setZoom(z => Math.min(z + 25, 300))} disabled={zoom >= 300} data-testid="button-zoom-in">
+                  <Button variant="ghost" size="icon" onClick={() => setZoom(z => Math.min(z + 25, 500))} disabled={zoom >= 500} data-testid="button-zoom-in">
                     <ZoomIn className="w-4 h-4" />
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => setZoom(100)} data-testid="button-reset-zoom">
@@ -129,24 +129,20 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-auto bg-muted/30" style={{ height: "calc(95vh - 56px)" }}>
+        <div className="flex-1 bg-muted/30" style={{ height: "calc(95vh - 56px)", overflow: "auto" }}>
           {fileType === "detecting" ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : fileType === "pdf" ? (
-            <iframe
-              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
-              className="w-full h-full border-0"
-              style={{
-                transform: `scale(${zoom / 100})`,
-                transformOrigin: "top left",
-                width: `${10000 / zoom}%`,
-                height: `${10000 / zoom}%`,
-              }}
-              title={fileName || "PDF viewer"}
-              data-testid="file-viewer-pdf"
-            />
+            <div style={{ width: `${zoom}%`, height: `${zoom}%`, minWidth: "100%", minHeight: "100%" }}>
+              <iframe
+                src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+                title={fileName || "PDF viewer"}
+                data-testid="file-viewer-pdf"
+              />
+            </div>
           ) : fileType === "image" ? (
             <div className="min-h-full flex items-center justify-center p-4">
               <img
