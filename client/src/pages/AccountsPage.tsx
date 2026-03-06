@@ -1,3 +1,4 @@
+import { openFileUrl } from "@/lib/fileUtils";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -915,7 +916,7 @@ export default function AccountsPage() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={() => window.open(editingInvoice.attachmentPath!, '_blank')}
+                            onClick={() => openFileUrl(editingInvoice.attachmentPath!)}
                           >
                             <Eye className="h-4 w-4 mr-1" />
                             View
@@ -1143,7 +1144,7 @@ export default function AccountsPage() {
                               onClick={() => {
                                 const invoice = invoices.find(inv => inv.id === entry.id);
                                 if (invoice?.attachmentPath) {
-                                  window.open(invoice.attachmentPath, '_blank');
+                                  openFileUrl(invoice.attachmentPath);
                                 }
                               }}
                               data-testid={`button-view-invoice-${entry.id}`}

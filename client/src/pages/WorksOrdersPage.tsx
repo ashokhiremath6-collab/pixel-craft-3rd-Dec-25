@@ -1,3 +1,4 @@
+import { openFileUrl } from "@/lib/fileUtils";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -83,8 +84,8 @@ const STATUS_LABELS = {
   void: "Voided",
 };
 
-const openFile = (filePath: string, fileName: string) => {
-  window.open(filePath, '_blank');
+const openFile = (filePath: string, _fileName: string) => {
+  openFileUrl(filePath);
 };
 
 export default function WorksOrdersPage() {
@@ -626,7 +627,7 @@ export default function WorksOrdersPage() {
 
       const filePath = filePathMatch[1];
       // Open the original imported file in a new tab
-      window.open(filePath, '_blank');
+      openFileUrl(filePath);
 
       toast({
         title: "Success",
@@ -1407,7 +1408,7 @@ export default function WorksOrdersPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => window.open(file.filePath, '_blank')}
+                          onClick={() => openFileUrl(file.filePath)}
                           data-testid={`button-view-file-${index}`}
                           title="Open in new tab"
                         >
