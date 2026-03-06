@@ -11,7 +11,7 @@ interface FileViewerModalProps {
   fileName?: string;
 }
 
-type FileType = "pdf" | "image" | "text" | "word" | "excel" | "unknown" | "detecting";
+type FileType = "pdf" | "image" | "text" | "word" | "excel" | "detecting";
 
 function guessTypeFromName(fileName?: string, fileUrl?: string): FileType | null {
   const name = (fileName || fileUrl || "").toLowerCase();
@@ -29,7 +29,7 @@ function contentTypeToFileType(ct: string): FileType {
   if (ct.includes("text/plain")) return "text";
   if (ct.includes("word") || ct.includes("officedocument.wordprocessing")) return "word";
   if (ct.includes("spreadsheet") || ct.includes("excel") || ct.includes("presentation") || ct.includes("powerpoint")) return "excel";
-  return "unknown";
+  return "pdf";
 }
 
 export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileViewerModalProps) {
@@ -51,10 +51,8 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
 
     fetch(fileUrl, { method: "HEAD" })
       .then(res => {
-        if (!res.ok) { setFileType("pdf"); return; }
-        const ct = res.headers.get("content-type") || "";
-        const detected = contentTypeToFileType(ct);
-        setFileType(detected === "unknown" ? "pdf" : detected);
+        const ct = res.ok ? (res.headers.get("content-type") || "") : "";
+        setFileType(contentTypeToFileType(ct));
       })
       .catch(() => setFileType("pdf"));
   }, [isOpen, fileUrl, fileName]);
@@ -186,16 +184,12 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
               </Button>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-              <div className="text-center">
-                <p className="text-muted-foreground mb-2">This file type cannot be previewed in the browser.</p>
-                <p className="text-sm text-muted-foreground">Use the download button to save the file to your device.</p>
-              </div>
-              <Button onClick={handleDownload} data-testid="button-download-fallback">
-                <Download className="w-4 h-4 mr-2" />
-                Download File
-              </Button>
-            </div>
+            <iframe
+              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+              className="w-full h-full border-0"
+              title={fileName || "File viewer"}
+              data-testid="file-viewer-pdf"
+            />
           )}
         </div>
       </DialogContent>
