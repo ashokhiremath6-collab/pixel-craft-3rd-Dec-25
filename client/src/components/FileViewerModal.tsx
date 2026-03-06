@@ -51,8 +51,10 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
 
     fetch(fileUrl, { method: "HEAD" })
       .then(res => {
+        if (!res.ok) { setFileType("pdf"); return; }
         const ct = res.headers.get("content-type") || "";
-        setFileType(contentTypeToFileType(ct));
+        const detected = contentTypeToFileType(ct);
+        setFileType(detected === "unknown" ? "pdf" : detected);
       })
       .catch(() => setFileType("pdf"));
   }, [isOpen, fileUrl, fileName]);
