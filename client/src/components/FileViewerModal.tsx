@@ -140,8 +140,6 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
               style={{
                 width: `${zoom}%`,
                 height: `calc(${zoom / 100} * (95vh - 56px))`,
-                minWidth: "100%",
-                minHeight: "calc(95vh - 56px)",
                 border: "none",
                 display: "block",
               }}
