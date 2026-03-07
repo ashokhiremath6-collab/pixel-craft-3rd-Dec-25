@@ -135,14 +135,19 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : fileType === "pdf" ? (
-            <div style={{ width: `${zoom}%`, height: `${zoom}%`, minWidth: "100%", minHeight: "100%" }}>
-              <iframe
-                src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-                style={{ width: "100%", height: "100%", border: "none", display: "block" }}
-                title={fileName || "PDF viewer"}
-                data-testid="file-viewer-pdf"
-              />
-            </div>
+            <iframe
+              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+              style={{
+                width: `${zoom}%`,
+                height: `calc(${zoom / 100} * (95vh - 56px))`,
+                minWidth: "100%",
+                minHeight: "calc(95vh - 56px)",
+                border: "none",
+                display: "block",
+              }}
+              title={fileName || "PDF viewer"}
+              data-testid="file-viewer-pdf"
+            />
           ) : fileType === "image" ? (
             <div className="min-h-full flex items-center justify-center p-4">
               <img
