@@ -168,6 +168,7 @@ export default function GanttChartPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/schedules/project', variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       const parts = [`Successfully imported ${data.tasksCreated} tasks`];
       if (data.skippedEmpty > 0) parts.push(`${data.skippedEmpty} empty rows skipped`);
       if (data.tasksFailed > 0) parts.push(`${data.tasksFailed} rows failed`);
@@ -288,6 +289,7 @@ export default function GanttChartPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       setReimportScheduleId(null);
       toast({ 
         title: "Success", 

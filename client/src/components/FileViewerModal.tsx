@@ -129,20 +129,16 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
           </div>
         </DialogHeader>
 
-        <div className="flex-1 bg-muted/30" style={{ height: "calc(95vh - 56px)", overflow: "auto" }}>
+        <div className="flex-1 bg-muted/30" style={{ height: "calc(95vh - 56px)", overflow: "hidden" }}>
           {fileType === "detecting" ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : fileType === "pdf" ? (
             <iframe
-              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-              style={{
-                width: `${zoom}%`,
-                height: `calc(${zoom / 100} * (95vh - 56px))`,
-                border: "none",
-                display: "block",
-              }}
+              key={zoom}
+              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&zoom=${zoom}`}
+              style={{ width: "100%", height: "100%", border: "none", display: "block" }}
               title={fileName || "PDF viewer"}
               data-testid="file-viewer-pdf"
             />

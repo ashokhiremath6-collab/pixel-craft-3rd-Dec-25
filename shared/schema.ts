@@ -178,6 +178,7 @@ export const tasks = pgTable("tasks", {
   projectId: varchar("project_id").notNull().references(() => projects.id),
   scheduleId: varchar("schedule_id").references(() => projectSchedules.id), // link to uploaded schedule
   taskId: text("task_id"), // external task ID from uploaded file (e.g., "1", "2.1", etc.)
+  rowIndex: integer("row_index"), // original Excel/CSV row position (0-based) for stable ordering
   name: text("name").notNull(),
   description: text("description"),
   startDate: date("start_date").notNull(),

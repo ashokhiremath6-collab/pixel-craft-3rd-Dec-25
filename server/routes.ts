@@ -5588,6 +5588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             projectId,
             scheduleId: schedule.id,
             taskId,
+            rowIndex: i,
             name: finalName,
             description: safeStr(getCol(row, 'Description', 'Remarks', 'Notes', 'Comments')) || '',
             startDate,
