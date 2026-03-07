@@ -143,12 +143,17 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
               data-testid="file-viewer-pdf"
             />
           ) : fileType === "image" ? (
-            <div className="min-h-full flex items-center justify-center p-4">
+            <div style={{ width: "100%", height: "100%", overflow: "auto", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <img
                 src={fileUrl}
                 alt={fileName || "Image viewer"}
-                className="max-w-none"
-                style={{ transform: `scale(${zoom / 100})`, transformOrigin: "center center" }}
+                style={{
+                  maxWidth: zoom <= 100 ? "100%" : `${zoom}%`,
+                  maxHeight: zoom <= 100 ? "100%" : "none",
+                  width: "auto",
+                  height: "auto",
+                  display: "block",
+                }}
                 data-testid="file-viewer-image"
               />
             </div>
