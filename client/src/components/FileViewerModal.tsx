@@ -143,19 +143,29 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
               data-testid="file-viewer-pdf"
             />
           ) : fileType === "image" ? (
-            <div style={{ width: "100%", height: "100%", overflow: "auto", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <img
-                src={fileUrl}
-                alt={fileName || "Image viewer"}
-                style={{
-                  maxWidth: zoom <= 100 ? "100%" : `${zoom}%`,
-                  maxHeight: zoom <= 100 ? "100%" : "none",
-                  width: "auto",
-                  height: "auto",
-                  display: "block",
-                }}
-                data-testid="file-viewer-image"
-              />
+            <div style={{
+              width: "100%",
+              height: "100%",
+              overflow: "auto",
+              display: "flex",
+              alignItems: zoom <= 100 ? "center" : "flex-start",
+              justifyContent: zoom <= 100 ? "center" : "flex-start",
+            }}>
+              <div style={{
+                width: zoom > 100 ? `${zoom}%` : "100%",
+                height: zoom > 100 ? `${zoom}%` : "100%",
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                <img
+                  src={fileUrl}
+                  alt={fileName || "Image viewer"}
+                  style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+                  data-testid="file-viewer-image"
+                />
+              </div>
             </div>
           ) : fileType === "text" ? (
             <div className="p-4 h-full overflow-auto">
