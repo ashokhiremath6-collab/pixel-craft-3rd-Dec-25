@@ -923,11 +923,10 @@ export default function AccountsPage() {
                           <Button
                             type="button"
                             variant="outline"
-                            size="sm"
+                            size="icon"
                             onClick={() => openInViewer(editingInvoice.attachmentPath!)}
                           >
-                            <Eye className="h-4 w-4 mr-1" />
-                            View
+                            <Eye className="h-4 w-4" />
                           </Button>
                         </div>
                       )}

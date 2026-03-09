@@ -329,13 +329,12 @@ export default function SpecificationsPage() {
                               <>
                                 <Button
                                   variant="ghost"
-                                  size="sm"
+                                  size="icon"
                                   onClick={() => setViewingFile({ url: spec.filePath!, name: spec.fileName || 'Document' })}
                                   data-testid={`button-view-${spec.id}`}
-                                  className="text-primary h-7 px-2 text-xs"
+                                  className="text-primary"
                                 >
-                                  <Eye className="h-3.5 w-3.5 mr-1" />
-                                  View
+                                  <Eye className="h-4 w-4" />
                                 </Button>
                                 <a
                                   href={spec.filePath}
