@@ -1,4 +1,4 @@
-import { openFileUrl } from "@/lib/fileUtils";
+import { FileViewerModal } from "@/components/FileViewerModal";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -84,12 +84,16 @@ const STATUS_LABELS = {
   void: "Voided",
 };
 
-const openFile = (filePath: string, _fileName: string) => {
-  openFileUrl(filePath);
-};
-
 export default function WorksOrdersPage() {
   const { toast } = useToast();
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerUrl, setViewerUrl] = useState("");
+  const [viewerFileName, setViewerFileName] = useState("");
+  const openInViewer = (url: string, name?: string) => {
+    setViewerUrl(url);
+    setViewerFileName(name || "");
+    setViewerOpen(true);
+  };
   const [activeTab, setActiveTab] = useState("orders");
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -626,8 +630,7 @@ export default function WorksOrdersPage() {
       }
 
       const filePath = filePathMatch[1];
-      // Open the original imported file in a new tab
-      openFileUrl(filePath);
+      openInViewer(filePath);
 
       toast({
         title: "Success",
@@ -1012,15 +1015,7 @@ export default function WorksOrdersPage() {
                                   variant="ghost" 
                                   size="icon"
                                   onClick={() => {
-                                    try {
-                                      openFile(template.objectPath, template.originalFileName || 'template');
-                                    } catch (error) {
-                                      toast({
-                                        title: "Error",
-                                        description: "Failed to open template file",
-                                        variant: "destructive",
-                                      });
-                                    }
+                                    openInViewer(template.objectPath, template.originalFileName || 'template');
                                   }}
                                   data-testid={`button-view-template-${template.id}`}
                                 >
@@ -1037,15 +1032,7 @@ export default function WorksOrdersPage() {
                                   {template.objectPath && (
                                     <DropdownMenuItem 
                                       onClick={() => {
-                                        try {
-                                          openFile(template.objectPath, template.originalFileName || 'template');
-                                        } catch (error) {
-                                          toast({
-                                            title: "Error",
-                                            description: "Failed to open template file",
-                                            variant: "destructive",
-                                          });
-                                        }
+                                        openInViewer(template.objectPath, template.originalFileName || 'template');
                                       }}
                                       data-testid={`menu-view-template-${template.id}`}
                                     >
@@ -1408,7 +1395,7 @@ export default function WorksOrdersPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => openFileUrl(file.filePath)}
+                          onClick={() => openInViewer(file.filePath, file.fileName)}
                           data-testid={`button-view-file-${index}`}
                           title="Open in new tab"
                         >
@@ -1628,6 +1615,12 @@ export default function WorksOrdersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <FileViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        fileUrl={viewerUrl}
+        fileName={viewerFileName}
+      />
     </div>
   );
 }

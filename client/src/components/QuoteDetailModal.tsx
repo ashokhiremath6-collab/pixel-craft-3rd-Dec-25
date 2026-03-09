@@ -1,4 +1,4 @@
-// No imports needed from React for this component
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
@@ -17,7 +17,7 @@ import { Loader2, FileText, Calendar, IndianRupee, Package, User, AlertCircle, E
 import { useToast } from "@/hooks/use-toast";
 import type { Boq, ProjectVendor } from "@shared/schema";
 import { formatCurrencyCompact, parseLocalizedNumber } from "@/lib/currencyUtils";
-import { openFile } from "@/lib/fileUtils";
+import { FileViewerModal } from "@/components/FileViewerModal";
 
 interface QuoteDetailModalProps {
   isOpen: boolean;
@@ -40,6 +40,14 @@ export default function QuoteDetailModal({
   projectName 
 }: QuoteDetailModalProps) {
   const { toast } = useToast();
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerUrl, setViewerUrl] = useState("");
+  const [viewerFileName, setViewerFileName] = useState("");
+  const openInViewer = (url: string, name?: string) => {
+    setViewerUrl(url);
+    setViewerFileName(name || "");
+    setViewerOpen(true);
+  };
 
   // Use React Query for data fetching
   const { 
@@ -107,7 +115,7 @@ export default function QuoteDetailModal({
     return acc;
   }, {} as Record<string, Boq[]>) || {};
 
-  return (
+  return (<>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden" data-testid="dialog-quote-details">
         <DialogHeader>
@@ -202,7 +210,7 @@ export default function QuoteDetailModal({
                             onClick={() => {
                               if (quoteDetails.quote.quotationFile) {
                                 // Open file - mobile-friendly (downloads on mobile, opens in new tab on desktop)
-                                openFile(quoteDetails.quote.quotationFile);
+                                openInViewer(quoteDetails.quote.quotationFile);
                               }
                             }}
                             data-testid="button-view-original-file"
@@ -275,5 +283,11 @@ export default function QuoteDetailModal({
         </div>
       </DialogContent>
     </Dialog>
-  );
+    <FileViewerModal
+      isOpen={viewerOpen}
+      onClose={() => setViewerOpen(false)}
+      fileUrl={viewerUrl}
+      fileName={viewerFileName}
+    />
+  </>);
 }

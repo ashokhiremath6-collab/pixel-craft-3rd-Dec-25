@@ -1,4 +1,4 @@
-import { openFileUrl } from "@/lib/fileUtils";
+import { FileViewerModal } from "@/components/FileViewerModal";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +42,14 @@ interface LedgerEntry {
 }
 
 export default function AccountsPage() {
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerUrl, setViewerUrl] = useState("");
+  const [viewerFileName, setViewerFileName] = useState("");
+  const openInViewer = (url: string, name?: string) => {
+    setViewerUrl(url);
+    setViewerFileName(name || "");
+    setViewerOpen(true);
+  };
   const [selectedVendorId, setSelectedVendorId] = useState<string>("");
   const [addInvoiceDialogOpen, setAddInvoiceDialogOpen] = useState(false);
   const [addPaymentDialogOpen, setAddPaymentDialogOpen] = useState(false);
@@ -916,7 +924,7 @@ export default function AccountsPage() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={() => openFileUrl(editingInvoice.attachmentPath!)}
+                            onClick={() => openInViewer(editingInvoice.attachmentPath!)}
                           >
                             <Eye className="h-4 w-4 mr-1" />
                             View
@@ -1144,7 +1152,7 @@ export default function AccountsPage() {
                               onClick={() => {
                                 const invoice = invoices.find(inv => inv.id === entry.id);
                                 if (invoice?.attachmentPath) {
-                                  openFileUrl(invoice.attachmentPath);
+                                  openInViewer(invoice.attachmentPath);
                                 }
                               }}
                               data-testid={`button-view-invoice-${entry.id}`}
@@ -1444,6 +1452,12 @@ function PaymentsSummary() {
           })}
         </div>
       )}
+      <FileViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        fileUrl={viewerUrl}
+        fileName={viewerFileName}
+      />
     </div>
   );
 }
