@@ -54,6 +54,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [quoteType, setQuoteType] = useState<string>(forceQuoteType || "regular");
   const [unitRateSubtype, setUnitRateSubtype] = useState<string>("quote"); // "quote" or "comparative"
+  const [vendorCategoryFilter, setVendorCategoryFilter] = useState<string>("all");
   const [dragActive, setDragActive] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [conflictData, setConflictData] = useState<ConflictData | null>(null);
@@ -113,6 +114,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
         setSelectedProject("");
         setSelectedVendor("");
         setSelectedCategory("");
+        setVendorCategoryFilter("all");
         setQuoteType(forceQuoteType || "regular");
         setUnitRateSubtype("quote");
         onImportComplete?.(result);
@@ -167,6 +169,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
       setSelectedFile(null);
       setSelectedProject("");
       setSelectedVendor("");
+      setVendorCategoryFilter("all");
       setQuoteType(forceQuoteType || "regular");
       setUnitRateSubtype("quote");
       onImportComplete?.(result);
@@ -375,6 +378,19 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
     return <FileText className="h-4 w-4" />;
   };
 
+  // Sorted + filtered vendors for selection
+  const sortedVendors = [...(vendors as Vendor[])].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+  const filteredVendors = vendorCategoryFilter === "all"
+    ? sortedVendors
+    : sortedVendors.filter((v) => v.categoryId === vendorCategoryFilter);
+
+  // Sorted categories
+  const sortedCategories = [...(categories as VendorCategory[])].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+
   return (
     <div className="space-y-6" data-testid="quote-import">
       <Card>
@@ -510,7 +526,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
           )}
 
           {/* Vendor/Category Selection - show after Unit Rate Type is selected */}
-          <div>
+          <div className="space-y-3">
             {/* Show Category selection for comparative statements, Vendor for regular quotes */}
             {unitRateSubtype === "comparative" && forceQuoteType === "unitrate" ? (
               <div>
@@ -526,7 +542,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
                     <SelectValue placeholder="Choose a category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((category) => (
+                    {sortedCategories.map((category) => (
                       <SelectItem
                         key={category.id}
                         value={category.id}
@@ -542,31 +558,62 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
                 </p>
               </div>
             ) : (
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Select Vendor
-                </label>
-                <Select
-                  value={selectedVendor}
-                  onValueChange={setSelectedVendor}
-                  data-testid="select-vendor"
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a vendor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(vendors as Vendor[]).map((vendor) => (
-                      <SelectItem
-                        key={vendor.id}
-                        value={vendor.id}
-                        data-testid={`option-vendor-${vendor.id}`}
-                      >
-                        {vendor.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Filter by Category
+                  </label>
+                  <Select
+                    value={vendorCategoryFilter}
+                    onValueChange={(val) => {
+                      setVendorCategoryFilter(val);
+                      setSelectedVendor("");
+                    }}
+                    data-testid="select-vendor-category-filter"
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All categories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All categories</SelectItem>
+                      {sortedCategories.map((category) => (
+                        <SelectItem
+                          key={category.id}
+                          value={category.id}
+                          data-testid={`option-filter-category-${category.id}`}
+                        >
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Select Vendor
+                  </label>
+                  <Select
+                    value={selectedVendor}
+                    onValueChange={setSelectedVendor}
+                    data-testid="select-vendor"
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={filteredVendors.length === 0 ? "No vendors in this category" : "Choose a vendor"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredVendors.map((vendor) => (
+                        <SelectItem
+                          key={vendor.id}
+                          value={vendor.id}
+                          data-testid={`option-vendor-${vendor.id}`}
+                        >
+                          {vendor.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
           </div>
 
