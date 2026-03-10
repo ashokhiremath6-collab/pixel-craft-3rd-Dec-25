@@ -65,7 +65,7 @@ function GlassStatCard({
     <div
       onClick={onClick}
       data-testid={testId}
-      className="flex flex-col gap-4 p-6 rounded-[20px] cursor-pointer select-none flex-1"
+      className="flex flex-col gap-3 p-4 sm:p-6 rounded-[20px] cursor-pointer select-none"
       style={{
         background: "rgba(255,255,255,0.7)",
         backdropFilter: "blur(12px)",
@@ -88,7 +88,7 @@ function GlassStatCard({
       </div>
       <div className="flex items-baseline gap-2">
         <span
-          className="text-[36px] font-semibold leading-none"
+          className="text-[24px] sm:text-[36px] font-semibold leading-none"
           style={{ color: "#111827" }}
         >
           {value}
@@ -207,25 +207,25 @@ export default function Dashboard({
   };
 
   return (
-    <div className="min-h-full px-8 py-14" style={{ background: "hsl(var(--background))" }}>
-      <div className="max-w-[1280px] mx-auto flex flex-col gap-12">
+    <div className="min-h-full px-4 py-6 sm:px-8 sm:py-14" style={{ background: "hsl(var(--background))" }}>
+      <div className="max-w-[1280px] mx-auto flex flex-col gap-6 sm:gap-12">
 
         {/* ── Page Header ── */}
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2">
           <h1
             className="font-semibold leading-none"
-            style={{ fontSize: "clamp(2rem,4vw,3.75rem)", color: "#111827", letterSpacing: "-1.5px" }}
+            style={{ fontSize: "clamp(1.5rem,4vw,3.75rem)", color: "#111827", letterSpacing: "-1px" }}
             data-testid="heading-dashboard"
           >
             PixelCraft Designer
           </h1>
-          <p className="text-[20px]" style={{ color: "#86868b" }}>
+          <p className="text-sm sm:text-[20px]" style={{ color: "#86868b" }}>
             Overview of your vendors, projects, and quotations.
           </p>
         </div>
 
         {/* ── Glassmorphism Stat Cards ── */}
-        <div className="flex gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6">
           <GlassStatCard
             label="Total Vendors"
             icon={Users}
@@ -261,15 +261,15 @@ export default function Dashboard({
         </div>
 
         {/* ── Two-Column Main Content ── */}
-        <div className="flex gap-8 items-start">
+        <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 items-start">
 
           {/* Left Column */}
-          <div className="flex flex-col gap-8 flex-1 min-w-0">
+          <div className="flex flex-col gap-6 sm:gap-8 flex-1 min-w-0 w-full">
 
             {/* Recent Quotations */}
             <ContentCard>
-              <div className="flex items-center justify-between px-8 pt-8 pb-4">
-                <h2 className="text-[24px] font-semibold" style={{ color: "#111827" }}>
+              <div className="flex items-center justify-between px-4 sm:px-8 pt-5 sm:pt-8 pb-3 sm:pb-4">
+                <h2 className="text-lg sm:text-[24px] font-semibold" style={{ color: "#111827" }}>
                   Recent Quotations
                 </h2>
                 <button
@@ -284,11 +284,11 @@ export default function Dashboard({
               </div>
 
               {recentQuotations.length === 0 ? (
-                <div className="px-8 pb-8 text-sm text-center py-10" style={{ color: "#86868b" }}>
+                <div className="px-4 sm:px-8 pb-5 sm:pb-8 text-sm text-center py-8 sm:py-10" style={{ color: "#86868b" }}>
                   No quotations yet.
                 </div>
               ) : (
-                <div className="px-8 pb-8 flex flex-col gap-3">
+                <div className="px-4 sm:px-8 pb-5 sm:pb-8 flex flex-col gap-3">
                   {recentQuotations.slice(0, 6).map(q => (
                     <div
                       key={q.id}
@@ -330,19 +330,19 @@ export default function Dashboard({
             {/* Recent Activity */}
             {activities.length > 0 && (
               <ContentCard>
-                <div className="px-8 pt-8 pb-4">
-                  <h2 className="text-[24px] font-semibold" style={{ color: "#111827" }}>
+                <div className="px-4 sm:px-8 pt-5 sm:pt-8 pb-3 sm:pb-4">
+                  <h2 className="text-lg sm:text-[24px] font-semibold" style={{ color: "#111827" }}>
                     Recent Activity
                   </h2>
                 </div>
-                <div className="px-8 pb-8 flex flex-col gap-2">
+                <div className="px-4 sm:px-8 pb-5 sm:pb-8 flex flex-col gap-2">
                   {activities.slice(0, 8).map(activity => {
                     const proj = projects.find(p => p.id === activity.projectId);
                     return (
                       <div
                         key={activity.id}
                         data-testid={`activity-${activity.id}`}
-                        className="flex items-start gap-3 px-4 py-3 rounded-[12px]"
+                        className="flex items-start gap-3 px-3 py-2.5 rounded-[12px]"
                         style={{ background: "#f9fafb" }}
                       >
                         <div className="flex-1 min-w-0">
@@ -357,20 +357,20 @@ export default function Dashboard({
                               {getActivityLabel(activity.activityType)}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2 mt-0.5 text-xs" style={{ color: "#86868b" }}>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5 text-xs" style={{ color: "#86868b" }}>
                             {activity.fileName && (
-                              <span className="truncate" data-testid={`text-filename-${activity.id}`}>
+                              <span className="truncate max-w-[120px] sm:max-w-none" data-testid={`text-filename-${activity.id}`}>
                                 {activity.fileName}
                               </span>
                             )}
                             {proj && (
                               <>
                                 <span>•</span>
-                                <span data-testid={`text-project-${activity.id}`}>{proj.projectName}</span>
+                                <span className="whitespace-nowrap" data-testid={`text-project-${activity.id}`}>{proj.projectName}</span>
                               </>
                             )}
                             <span>•</span>
-                            <span data-testid={`text-time-${activity.id}`}>
+                            <span className="whitespace-nowrap" data-testid={`text-time-${activity.id}`}>
                               {format(new Date(activity.createdAt), "MMM d, h:mm a")}
                             </span>
                           </div>
@@ -384,7 +384,7 @@ export default function Dashboard({
           </div>
 
           {/* Right Column */}
-          <div className="flex flex-col gap-8 w-[360px] flex-shrink-0">
+          <div className="flex flex-col gap-6 sm:gap-8 w-full lg:w-[360px] lg:flex-shrink-0">
 
             {/* Task Alerts */}
             {hasAlerts && (
