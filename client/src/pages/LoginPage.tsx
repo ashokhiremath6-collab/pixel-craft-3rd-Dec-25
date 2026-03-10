@@ -21,8 +21,11 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Welcome to PixelCraft Designer</CardTitle>
+        <CardHeader className="text-center space-y-3">
+          <div className="flex justify-center">
+            <img src="/logo.png" alt="PixelCraft Designer" className="h-16 w-16 object-contain" />
+          </div>
+          <CardTitle className="text-2xl">PixelCraft Designer</CardTitle>
           <CardDescription>
             Sign in with your Replit account to access PixelCraft Designer.
           </CardDescription>

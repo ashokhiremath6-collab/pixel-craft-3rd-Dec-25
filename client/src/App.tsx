@@ -81,10 +81,12 @@ function AuthenticatedApp() {
           <header className="flex items-center justify-between p-2 sm:p-4 border-b bg-background shrink-0 gap-2">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <h1 className="text-sm sm:text-lg font-semibold truncate" data-testid="heading-app-title">
-                <span className="sm:hidden">PixelCraft</span>
-                <span className="hidden sm:inline">PixelCraft Designer</span>
-              </h1>
+              <div className="flex items-center gap-2 min-w-0">
+                <img src="/logo.png" alt="PixelCraft Designer" className="h-7 w-7 object-contain shrink-0" />
+                <h1 className="text-sm sm:text-base font-semibold truncate hidden sm:block" data-testid="heading-app-title">
+                  PixelCraft Designer
+                </h1>
+              </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-3 shrink-0">
               {user && (
