@@ -103,6 +103,8 @@ export default function AssetIngestionPage() {
       setUploadFile(null);
       setUploadPreview(null);
       setSelectedObjectType("");
+      setFilterType('all');
+      setFilterStatus('all');
       queryClient.invalidateQueries({ queryKey: ['/api/object-assets'] });
     },
     onError: (error: Error) => {
