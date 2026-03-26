@@ -147,6 +147,8 @@ export default function AIRendersPage() {
   
   // Retry state for 503 errors
   const [retryCountdown, setRetryCountdown] = useState<number>(0);
+  const [retryAttempts, setRetryAttempts] = useState<number>(0);
+  const MAX_AUTO_RETRIES = 3;
   const [lastFormData, setLastFormData] = useState<{ file: File | null; style: string; prompt: string } | null>(null);
   const retryIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -168,39 +170,52 @@ export default function AIRendersPage() {
   // Flag to track if auto-retry should trigger
   const [shouldAutoRetry, setShouldAutoRetry] = useState(false);
   
-  // Start auto-retry countdown (30 seconds)
+  // Start auto-retry countdown (30 seconds), stops after MAX_AUTO_RETRIES attempts
   const startRetryCountdown = (formData: { file: File | null; style: string; prompt: string }) => {
     setLastFormData(formData);
-    setRetryCountdown(30);
-    setShouldAutoRetry(false);
-    
-    if (retryIntervalRef.current) {
-      clearInterval(retryIntervalRef.current);
-    }
-    
-    retryIntervalRef.current = setInterval(() => {
-      setRetryCountdown(prev => {
-        if (prev <= 1) {
-          if (retryIntervalRef.current) {
-            clearInterval(retryIntervalRef.current);
-            retryIntervalRef.current = null;
+
+    setRetryAttempts(prev => {
+      const next = prev + 1;
+      // If we've hit the limit, just show the panel without starting a new countdown
+      if (next > MAX_AUTO_RETRIES) {
+        setRetryCountdown(-1); // sentinel: "stopped, manual retry only"
+        setShouldAutoRetry(false);
+        return next;
+      }
+
+      setRetryCountdown(30);
+      setShouldAutoRetry(false);
+
+      if (retryIntervalRef.current) {
+        clearInterval(retryIntervalRef.current);
+      }
+
+      retryIntervalRef.current = setInterval(() => {
+        setRetryCountdown(prev2 => {
+          if (prev2 <= 1) {
+            if (retryIntervalRef.current) {
+              clearInterval(retryIntervalRef.current);
+              retryIntervalRef.current = null;
+            }
+            setShouldAutoRetry(true);
+            return 0;
           }
-          // Signal that auto-retry should happen
-          setShouldAutoRetry(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+          return prev2 - 1;
+        });
+      }, 1000);
+
+      return next;
+    });
   };
 
-  // Cancel retry countdown
+  // Cancel retry countdown — resets everything
   const cancelRetryCountdown = () => {
     if (retryIntervalRef.current) {
       clearInterval(retryIntervalRef.current);
       retryIntervalRef.current = null;
     }
     setRetryCountdown(0);
+    setRetryAttempts(0);
     setLastFormData(null);
     setShouldAutoRetry(false);
   };
@@ -2048,17 +2063,22 @@ export default function AIRendersPage() {
               </>
             ) : lastFormData ? (
               <div className="flex flex-col items-center justify-center h-64 text-muted-foreground border-2 border-dashed rounded-lg border-orange-300 bg-orange-50 dark:bg-orange-900/10">
-                <RefreshCw className="h-12 w-12 mb-4 text-orange-500 animate-pulse" />
+                <RefreshCw className={`h-12 w-12 mb-4 text-orange-500 ${retryCountdown > 0 ? 'animate-pulse' : ''}`} />
                 <p className="text-center font-medium text-orange-700 dark:text-orange-300">
-                  AI Service Temporarily Busy
+                  {retryAttempts > MAX_AUTO_RETRIES ? 'Auto-retry stopped' : 'AI Service Temporarily Busy'}
                 </p>
-                <p className="text-sm text-center mt-2 text-orange-600 dark:text-orange-400">
-                  {retryCountdown > 0 
-                    ? `Auto-retry available in ${retryCountdown} seconds` 
-                    : 'Ready to retry - click below'}
+                <p className="text-sm text-center mt-1 text-orange-500 dark:text-orange-400">
+                  Attempt {Math.min(retryAttempts, MAX_AUTO_RETRIES)} of {MAX_AUTO_RETRIES}
+                </p>
+                <p className="text-sm text-center mt-1 text-orange-600 dark:text-orange-400">
+                  {retryAttempts > MAX_AUTO_RETRIES
+                    ? 'The service is still busy — try again manually or come back later.'
+                    : retryCountdown > 0
+                      ? `Auto-retrying in ${retryCountdown}s…`
+                      : 'Ready to retry — click below'}
                 </p>
                 <div className="flex gap-3 mt-4">
-                  <Button 
+                  <Button
                     onClick={() => {
                       cancelRetryCountdown();
                       if (lastFormData?.file) {
@@ -2071,13 +2091,13 @@ export default function AIRendersPage() {
                         });
                       }
                     }}
-                    disabled={generateFromImageMutation.isPending}
+                    disabled={generateFromImageMutation.isPending || retryCountdown > 0}
                     data-testid="button-retry-now"
                   >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${retryCountdown > 0 ? '' : 'animate-spin'}`} />
-                    {retryCountdown > 0 ? `Wait ${retryCountdown}s to Retry` : 'Retry Now'}
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    {retryCountdown > 0 ? `Retrying in ${retryCountdown}s…` : 'Retry Now'}
                   </Button>
-                  <Button 
+                  <Button
                     variant="outline"
                     onClick={cancelRetryCountdown}
                     data-testid="button-cancel-retry"
