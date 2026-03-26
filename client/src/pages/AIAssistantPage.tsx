@@ -40,6 +40,7 @@ function MarkdownRenderer({ text }: { text: string }) {
     const lines = md.split("\n");
     const elements: JSX.Element[] = [];
     let i = 0;
+    let k = 0; // dedicated key counter — always unique
 
     while (i < lines.length) {
       const line = lines[i];
@@ -60,7 +61,7 @@ function MarkdownRenderer({ text }: { text: string }) {
           .filter((row) => row.length > 0);
 
         elements.push(
-          <div key={i} className="overflow-x-auto my-3">
+          <div key={k++} className="overflow-x-auto my-3">
             <table className="min-w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-muted/60">
@@ -89,30 +90,30 @@ function MarkdownRenderer({ text }: { text: string }) {
       }
 
       if (line.startsWith("### ")) {
-        elements.push(<h3 key={i} className="font-semibold text-base mt-4 mb-1 text-foreground">{line.slice(4)}</h3>);
+        elements.push(<h3 key={k++} className="font-semibold text-base mt-4 mb-1 text-foreground">{line.slice(4)}</h3>);
       } else if (line.startsWith("## ")) {
-        elements.push(<h2 key={i} className="font-bold text-lg mt-5 mb-2 text-foreground">{line.slice(3)}</h2>);
+        elements.push(<h2 key={k++} className="font-bold text-lg mt-5 mb-2 text-foreground">{line.slice(3)}</h2>);
       } else if (line.startsWith("# ")) {
-        elements.push(<h1 key={i} className="font-bold text-xl mt-5 mb-2 text-foreground">{line.slice(2)}</h1>);
+        elements.push(<h1 key={k++} className="font-bold text-xl mt-5 mb-2 text-foreground">{line.slice(2)}</h1>);
       } else if (line.match(/^[\-\*] /)) {
         elements.push(
-          <li key={i} className="ml-4 text-foreground/90" style={{ listStyleType: "disc" }}>
+          <li key={k++} className="ml-4 text-foreground/90" style={{ listStyleType: "disc" }}>
             {renderInline(line.slice(2))}
           </li>
         );
       } else if (line.match(/^\d+\. /)) {
         elements.push(
-          <li key={i} className="ml-4 text-foreground/90" style={{ listStyleType: "decimal" }}>
+          <li key={k++} className="ml-4 text-foreground/90" style={{ listStyleType: "decimal" }}>
             {renderInline(line.replace(/^\d+\. /, ""))}
           </li>
         );
       } else if (line.trim() === "---" || line.trim() === "***") {
-        elements.push(<hr key={i} className="my-3 border-border" />);
+        elements.push(<hr key={k++} className="my-3 border-border" />);
       } else if (line.trim() === "") {
-        elements.push(<div key={i} className="h-2" />);
+        elements.push(<div key={k++} className="h-2" />);
       } else {
         elements.push(
-          <p key={i} className="text-foreground/90 leading-relaxed">
+          <p key={k++} className="text-foreground/90 leading-relaxed">
             {renderInline(line)}
           </p>
         );

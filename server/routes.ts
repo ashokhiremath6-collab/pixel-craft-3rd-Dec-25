@@ -20,7 +20,8 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
-import { RENDER_STYLES, generateInteriorRender, generateConceptRender, detectRoomType, extractRoomName, paraphraseBrief, chatWithDesignAssistant, DesignChatMessage, DesignChatAttachment } from "./ai/gemini";
+import { RENDER_STYLES, generateInteriorRender, generateConceptRender, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
+import { chatWithDesignAssistant, DesignChatMessage, DesignChatAttachment } from "./ai/claude";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,

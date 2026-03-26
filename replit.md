@@ -39,7 +39,7 @@ Preferred communication style: Simple, everyday language.
 - **Catalogue System**: Interior design product taxonomy with vendor/brand tracking, description, attributes, and file attachments.
 - **Specifications System**: Category-wise specification document management with file upload support.
 - **Activity Log**: Tracks vendor operations and file uploads with user attribution.
-- **Design Intelligence Chat**: AI assistant powered by Gemini 2.5 Flash for design-related queries, accessible by Admin and Designer roles. Provides expert advice on dimensions, ergonomics, and space planning.
+- **Design Intelligence Chat**: AI assistant powered by Claude Sonnet (claude-sonnet-4-6) via Replit Anthropic integration for full-spectrum interior design queries. Supports multimodal input (images, PDFs). Accessible by Admin and Designer roles.
 - **AI Render Generation**: Uses Gemini 2.5 Flash Image model to generate renders with style presets, catalogue item integration, reference photo support, and a grid overlay system. Includes smart modification tools for editing existing renders.
 - **Asset Ingestion System**: Two-mode workflow (Analyze-Only, AI-Edit) for processing images, generating descriptions, and providing prompt hints. Supports AI-based image editing (e.g., background removal).
 - **Saved Assets System**: Central repository for processed images, reusable across AI renders, with search, tags, and source type tracking. Integrates with Asset Ingestion and AI Renders via an asset picker component.
