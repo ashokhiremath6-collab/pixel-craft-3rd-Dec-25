@@ -1251,9 +1251,16 @@ const DESIGN_SYSTEM_PROMPT = `You are a senior interior design consultant and sp
 
 Be concise, precise, and practical. You are talking to a professional designer, not a layperson.`;
 
+export interface DesignChatAttachment {
+  data: string;       // base64-encoded file content
+  mimeType: string;   // e.g. "image/jpeg", "image/png", "application/pdf"
+  name: string;       // original filename for display
+}
+
 export interface DesignChatMessage {
   role: "user" | "assistant";
   content: string;
+  attachments?: DesignChatAttachment[];
 }
 
 export async function chatWithDesignAssistant(
@@ -1261,11 +1268,34 @@ export async function chatWithDesignAssistant(
 ): Promise<string> {
   const client = getAIClient();
 
-  // Build the contents array for the multi-turn conversation
-  const contents = messages.map((msg) => ({
-    role: msg.role === "assistant" ? "model" : "user",
-    parts: [{ text: msg.content }],
-  }));
+  // Build multimodal contents array for the multi-turn conversation
+  const contents = messages.map((msg) => {
+    const parts: any[] = [];
+
+    // Add any image/document attachments first (only for user messages)
+    if (msg.role === "user" && msg.attachments?.length) {
+      for (const att of msg.attachments) {
+        parts.push({
+          inlineData: {
+            data: att.data,
+            mimeType: att.mimeType,
+          },
+        });
+      }
+    }
+
+    // Always add the text part
+    if (msg.content.trim()) {
+      parts.push({ text: msg.content });
+    } else if (parts.length === 0) {
+      parts.push({ text: "(no text provided)" });
+    }
+
+    return {
+      role: msg.role === "assistant" ? "model" : "user",
+      parts,
+    };
+  });
 
   const response = await client.models.generateContent({
     model: "gemini-2.5-flash",
