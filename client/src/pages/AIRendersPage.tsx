@@ -125,6 +125,7 @@ export default function AIRendersPage() {
   
   const [showAssetPicker, setShowAssetPicker] = useState(false);
   const [showAssetPickerForMaterials, setShowAssetPickerForMaterials] = useState(false);
+  const [showAssetPickerForSourceImage, setShowAssetPickerForSourceImage] = useState(false);
   
   const [showGrid, setShowGrid] = useState(false);
   const [gridSize, setGridSize] = useState(50);
@@ -662,6 +663,35 @@ export default function AIRendersPage() {
         photo.id === id ? { ...photo, description } : photo
       )
     );
+  };
+
+  const handleAssetPickerSelectForSourceImage = async (asset: SelectedAsset) => {
+    try {
+      let file: File;
+      let url: string;
+
+      if (asset.type === 'external' && asset.file) {
+        file = asset.file;
+        url = URL.createObjectURL(asset.file);
+      } else if (asset.previewUrl) {
+        const response = await fetch(asset.previewUrl);
+        const blob = await response.blob();
+        const ext = blob.type.includes('png') ? '.png' : blob.type.includes('webp') ? '.webp' : '.jpg';
+        file = new File([blob], `${asset.displayName}${ext}`, { type: blob.type || 'image/jpeg' });
+        url = asset.previewUrl;
+      } else {
+        toast({ title: "Error", description: "Could not load the selected asset", variant: "destructive" });
+        return;
+      }
+
+      setSelectedFile(file);
+      setPreviewUrl(url);
+      setShowAssetPickerForSourceImage(false);
+      toast({ title: "Asset Loaded", description: `${asset.displayName} set as source image` });
+    } catch (error) {
+      console.error('Error loading asset as source image:', error);
+      toast({ title: "Error", description: "Failed to load asset as source image", variant: "destructive" });
+    }
   };
 
   const handleAssetPickerSelect = async (asset: SelectedAsset) => {
@@ -1263,11 +1293,21 @@ export default function AIRendersPage() {
                       className="cursor-pointer flex-1"
                       data-testid="input-image-upload"
                     />
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowAssetPickerForSourceImage(true)}
+                      data-testid="button-select-saved-asset-source"
+                      title="Use a saved asset as source image"
+                    >
+                      <FolderOpen className="h-4 w-4 mr-2" />
+                      Assets
+                    </Button>
                     <Button 
                       variant="outline" 
                       onClick={() => setShowSavedRendersDialog(true)}
                       disabled={savedRenders.length === 0}
                       data-testid="button-select-saved-render"
+                      title="Use a previously generated render"
                     >
                       <FolderOpen className="h-4 w-4 mr-2" />
                       Saved
@@ -2384,6 +2424,14 @@ export default function AIRendersPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <AssetPicker
+        open={showAssetPickerForSourceImage}
+        onOpenChange={setShowAssetPickerForSourceImage}
+        onSelect={handleAssetPickerSelectForSourceImage}
+        title="Select Source Image"
+        description="Choose a saved asset (e.g. a SketchUp render) to use as the source image for AI rendering"
+      />
 
       <AssetPicker
         open={showAssetPicker}
