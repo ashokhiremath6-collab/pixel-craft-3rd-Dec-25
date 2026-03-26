@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -98,6 +98,11 @@ const settingsItems: NavigationItem[] = [
 ];
 
 const designerOnlyItems: NavigationItem[] = [
+  {
+    title: "Design Intelligence",
+    url: "/ai-assistant",
+    icon: BrainCircuit,
+  },
   {
     title: "AI Renders",
     url: "/ai-renders",

@@ -20,7 +20,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
-import { RENDER_STYLES, generateInteriorRender, generateConceptRender, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
+import { RENDER_STYLES, generateInteriorRender, generateConceptRender, detectRoomType, extractRoomName, paraphraseBrief, chatWithDesignAssistant, DesignChatMessage } from "./ai/gemini";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
@@ -9308,6 +9308,22 @@ Return your response in the following JSON format only (no markdown, no code blo
       console.error('Error importing works order:', error);
       const errorMessage = error instanceof Error ? error.message : "Failed to import works order";
       res.status(500).json({ error: errorMessage });
+    }
+  });
+
+  // ─── Design Intelligence Chat ─────────────────────────────────────────────
+  app.post("/api/ai-assistant/chat", requireAuth, async (req, res) => {
+    try {
+      const { messages } = req.body as { messages: DesignChatMessage[] };
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ error: "messages array is required" });
+      }
+      const reply = await chatWithDesignAssistant(messages);
+      res.json({ reply });
+    } catch (error) {
+      console.error("Design assistant error:", error);
+      const msg = error instanceof Error ? error.message : "AI assistant failed";
+      res.status(500).json({ error: msg });
     }
   });
 

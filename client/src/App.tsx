@@ -27,6 +27,7 @@ import MeetingMinutesPage from "@/pages/MeetingMinutesPage";
 import WorksOrdersPage from "@/pages/WorksOrdersPage";
 import AIRendersPage from "@/pages/AIRendersPage";
 import AssetIngestionPage from "@/pages/AssetIngestionPage";
+import AIAssistantPage from "@/pages/AIAssistantPage";
 import LoginPage from "@/pages/LoginPage";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,7 @@ function Router() {
       <Route path="/renders" component={MoodboardsPage} />
       <Route path="/ai-renders" component={AIRendersPage} />
       <Route path="/asset-ingestion" component={AssetIngestionPage} />
+      <Route path="/ai-assistant" component={AIAssistantPage} />
       <Route path="/client-access" component={ClientAccessPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
