@@ -142,6 +142,121 @@ Rules:
   return brief;
 }
 
+export async function generateFloorPlanSVG(
+  messages: DesignChatMessage[]
+): Promise<string> {
+  const client = getClaudeClient();
+
+  const conversationContext = messages
+    .filter((m) => m.type !== "floor-plan" && m.content.trim())
+    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .join("\n\n");
+
+  const systemPrompt = `You are an expert architectural drafter. You produce clean, accurate SVG floor plan drawings to scale from text descriptions.
+
+## SVG Canvas
+- viewBox="0 0 1000 760"
+- Drawing area: x=80 to x=920, y=50 to y=640 (total 840×590 usable pixels)
+- White background rect covering entire canvas
+
+## Scale
+- **1 metre = 50px**. A 4m wall = 200px. A 600mm wall thickness = 30px.
+- Centre the floor plan in the drawing area
+
+## Wall Drawing (use <rect> or <polygon> for filled walls)
+- External walls: filled rectangles, fill="#2c2c2c", no separate stroke needed
+- Wall thickness: external = 12px (240mm real), internal partitions = 8px (160mm real)
+- Walls must be solid filled polygons/rects — not just lines
+- At corners, walls should meet cleanly (miter or overlap for solidity)
+- Interior wall colour: fill="#3a3a3a"
+
+## Door (standard 800mm = 40px unless stated)
+- Leave a 40px gap in the wall
+- Door leaf: a line from hinge point to open position, stroke="#555" stroke-width="2"
+- Door swing: a quarter-circle arc from open position back to wall face, stroke="#555" stroke-width="1.5" fill="rgba(180,210,255,0.25)"
+
+## Window (standard 1200mm = 60px unless stated)
+- Leave a 60px gap in the wall
+- Fill gap with two short parallel lines (glazing bars), stroke="#4a90d9" stroke-width="2"
+- Add thin outer line to indicate frame: stroke="#4a90d9" stroke-width="1"
+
+## Room Labels (centred in room)
+- Room name: <text font-family="Arial,sans-serif" font-size="13" font-weight="600" fill="#1a1a1a" text-anchor="middle">
+- Dimensions below: <text font-family="Arial,sans-serif" font-size="10" fill="#666" text-anchor="middle">
+
+## Dimension Lines (outside walls, 30px offset)
+- Thin dashed lines: stroke="#aaa" stroke-dasharray="5,3" stroke-width="1"
+- Arrow ticks at ends (small diagonal lines ±4px)
+- Dimension text centred above/beside line: font-size="10" fill="#555" font-family="Arial,sans-serif"
+- Show overall width and depth at minimum
+
+## North Arrow (top-right corner, x≈880 y≈80)
+- Simple upward-pointing filled triangle, fill="#333"
+- Letter "N" above triangle: font-size="12" font-weight="bold" fill="#333"
+
+## Scale Bar (bottom-left, y≈660)
+- Two alternating filled/empty rectangles, each = 50px (1m)
+- Labels: 0m, 1m, 2m
+- Font-size="10" fill="#555"
+
+## Title Block (y=680 to y=750)
+- Horizontal rule at y=680: stroke="#ccc" stroke-width="1"
+- Drawing title (space name): x=500 y=700, font-size="15" font-weight="bold" fill="#1a1a1a" text-anchor="middle"
+- "Scale 1:50 | Not to be used for construction" x=500 y=718, font-size="10" fill="#888" text-anchor="middle"
+
+## Hatching for walls (optional but preferred)
+- If using polygon walls, a subtle diagonal hatch pattern inside wall sections looks professional
+- Use a <pattern> with diagonal lines for this
+
+## OUTPUT RULES
+- Return ONLY the raw SVG. No markdown, no code fences, no explanation.
+- Start exactly with: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 760" width="1000" height="760">
+- End exactly with: </svg>
+- Calculate ALL x,y coordinates mathematically from the dimensions provided.
+- If rooms are described, show them with correct relative proportions.
+- If specific dimensions aren't given, use typical residential dimensions (bedroom ≈ 3.5×4m, living room ≈ 4×5m, kitchen ≈ 3×3.5m, bathroom ≈ 2×2.5m).
+- Include ALL rooms described. Label EVERY room.
+- Walls must form closed, continuous outlines — no open gaps except at doors/windows.`;
+
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 8192,
+    system: systemPrompt,
+    messages: [
+      {
+        role: "user",
+        content: `Based on the following design consultation, generate an SVG floor plan:\n\n${conversationContext}\n\nIf the description doesn't specify a layout, infer a logical one from the context. Produce a complete, to-scale SVG floor plan now.`,
+      },
+    ],
+  });
+
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    throw new Error("No SVG response from Claude");
+  }
+
+  let svg = textBlock.text.trim();
+
+  // Strip markdown code fences if Claude included them
+  svg = svg.replace(/^```(?:svg|xml)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+
+  // Basic validation
+  if (!svg.startsWith("<svg")) {
+    const svgStart = svg.indexOf("<svg");
+    if (svgStart !== -1) {
+      svg = svg.slice(svgStart);
+    } else {
+      throw new Error("Claude did not return valid SVG");
+    }
+  }
+  const svgEnd = svg.lastIndexOf("</svg>");
+  if (svgEnd !== -1) {
+    svg = svg.slice(0, svgEnd + 6);
+  }
+
+  return svg;
+}
+
 export async function chatWithDesignAssistant(
   messages: DesignChatMessage[]
 ): Promise<string> {

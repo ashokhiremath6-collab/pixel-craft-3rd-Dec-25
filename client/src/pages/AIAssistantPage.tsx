@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Send, RotateCcw, Copy, Check, BrainCircuit, ChevronRight, Paperclip, X, FileText, ImageIcon, Wand2, ArrowRight, Sparkles } from "lucide-react";
+import { Send, RotateCcw, Copy, Check, BrainCircuit, ChevronRight, Paperclip, X, FileText, ImageIcon, Wand2, ArrowRight, Sparkles, PenLine, Download } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -32,17 +32,18 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   attachments?: Attachment[];
-  type?: "text" | "render-brief";
+  type?: "text" | "render-brief" | "floor-plan";
   briefData?: RenderBrief;
+  svgContent?: string;
 }
 
 const SUGGESTED_PROMPTS = [
+  "Design a master bedroom 4m × 5m with ensuite and walk-in wardrobe",
+  "Layout a studio apartment 8m × 6m — open-plan living, kitchen, sleeping area",
   "What depth should bookshelves be for A4 ring binders?",
   "How many wine bottles fit in a 900mm wide wine rack with 3 rows?",
   "Design a bar storage unit 1200mm wide × 900mm tall for mixed glassware and spirits",
   "Standard dimensions for a home bar counter with seating",
-  "How many files can I fit on a 2400mm tall shelving unit?",
-  "What shelf spacing do I need for whiskey bottles and tumblers together?",
   "Recommended cupboard depth for a walk-in wardrobe",
   "Standard kitchen worktop height and overhang dimensions",
 ];
@@ -235,6 +236,7 @@ export default function AIAssistantPage() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isBriefLoading, setIsBriefLoading] = useState(false);
+  const [isFloorPlanLoading, setIsFloorPlanLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -397,6 +399,50 @@ export default function AIAssistantPage() {
     setLocation("/ai-renders");
   }, [setLocation]);
 
+  const generateFloorPlan = useCallback(async () => {
+    const conversationMessages = messages.filter((m) => !["floor-plan"].includes(m.type ?? ""));
+    if (conversationMessages.length === 0 || isFloorPlanLoading) return;
+    setIsFloorPlanLoading(true);
+    try {
+      const payload = {
+        messages: conversationMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          type: m.type,
+        })),
+      };
+      const res = await apiRequest("POST", "/api/ai-assistant/floor-plan", payload);
+      const data = await res.json() as { svg: string };
+      setMessages((prev) => [
+        ...prev.filter((m) => m.type !== "floor-plan"),
+        {
+          role: "assistant",
+          content: "",
+          type: "floor-plan",
+          svgContent: data.svg,
+        },
+      ]);
+    } catch {
+      toast({
+        title: "Error",
+        description: "Could not generate the floor plan. Try describing the space in more detail first.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFloorPlanLoading(false);
+    }
+  }, [messages, isFloorPlanLoading, toast]);
+
+  const downloadSVG = useCallback((svg: string, filename = "floor-plan.svg") => {
+    const blob = new Blob([svg], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
   const canSend = (input.trim().length > 0 || attachments.length > 0) && !isLoading;
   const isEmpty = messages.length === 0;
 
@@ -418,8 +464,27 @@ export default function AIAssistantPage() {
             <Button
               variant="outline"
               size="sm"
+              onClick={generateFloorPlan}
+              disabled={isFloorPlanLoading || isLoading || isBriefLoading}
+              className="gap-1.5"
+            >
+              {isFloorPlanLoading ? (
+                <>
+                  <PenLine className="w-3.5 h-3.5 animate-pulse" />
+                  Drawing plan…
+                </>
+              ) : (
+                <>
+                  <PenLine className="w-3.5 h-3.5" />
+                  Floor Plan
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={generateBrief}
-              disabled={isBriefLoading || isLoading}
+              disabled={isBriefLoading || isLoading || isFloorPlanLoading}
               className="gap-1.5"
             >
               {isBriefLoading ? (
@@ -430,13 +495,13 @@ export default function AIAssistantPage() {
               ) : (
                 <>
                   <Wand2 className="w-3.5 h-3.5" />
-                  Generate Render Brief
+                  Render Brief
                 </>
               )}
             </Button>
             <Button variant="ghost" size="sm" onClick={clearConversation} className="gap-1.5 text-muted-foreground">
               <RotateCcw className="w-3.5 h-3.5" />
-              New conversation
+              New
             </Button>
           </div>
         )}
@@ -475,6 +540,53 @@ export default function AIAssistantPage() {
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col gap-6">
             {messages.map((msg, i) => {
+              // Floor plan card
+              if (msg.type === "floor-plan" && msg.svgContent) {
+                return (
+                  <div key={i} className="flex gap-3 justify-start">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 shrink-0 mt-0.5">
+                      <PenLine className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="max-w-[90%] w-full rounded-2xl border border-border bg-card overflow-hidden">
+                      <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+                        <PenLine className="w-4 h-4 text-primary" />
+                        <span className="font-semibold text-sm text-foreground">Floor Plan</span>
+                        <Badge variant="secondary" className="ml-auto text-xs">SVG · 1:50</Badge>
+                      </div>
+                      <div className="p-4 bg-white overflow-x-auto">
+                        <div
+                          className="min-w-[600px]"
+                          dangerouslySetInnerHTML={{ __html: msg.svgContent }}
+                          style={{ lineHeight: 0 }}
+                        />
+                      </div>
+                      <div className="px-4 py-3 border-t border-border flex items-center gap-2 flex-wrap">
+                        <p className="text-xs text-muted-foreground flex-1">For reference only — not a construction drawing.</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 shrink-0"
+                          onClick={() => downloadSVG(msg.svgContent!)}
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Download SVG
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 shrink-0 text-muted-foreground"
+                          onClick={() => generateFloorPlan()}
+                          disabled={isFloorPlanLoading}
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Regenerate
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               // Render brief card
               if (msg.type === "render-brief" && msg.briefData) {
                 const brief = msg.briefData;
@@ -567,6 +679,21 @@ export default function AIAssistantPage() {
                   <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:0ms]" />
                   <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:150ms]" />
                   <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:300ms]" />
+                </div>
+              </div>
+            )}
+
+            {/* Floor plan loading indicator */}
+            {isFloorPlanLoading && (
+              <div className="flex gap-3 justify-start">
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 shrink-0">
+                  <PenLine className="w-4 h-4 text-primary" />
+                </div>
+                <div className="bg-card border border-border rounded-2xl px-4 py-3.5 flex items-center gap-3">
+                  <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:300ms]" />
+                  <span className="text-xs text-muted-foreground">Drafting floor plan…</span>
                 </div>
               </div>
             )}
