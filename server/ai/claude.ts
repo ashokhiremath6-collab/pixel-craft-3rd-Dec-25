@@ -257,6 +257,127 @@ export async function generateFloorPlanSVG(
   return svg;
 }
 
+export async function generateElevationSVG(
+  messages: DesignChatMessage[]
+): Promise<string> {
+  const client = getClaudeClient();
+
+  const conversationContext = messages
+    .filter((m) => !["floor-plan", "elevation"].includes(m.type ?? "") && m.content.trim())
+    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .join("\n\n");
+
+  const systemPrompt = `You are an expert architectural interior drafter. You produce clean, accurate SVG interior elevation drawings from text descriptions.
+
+An ELEVATION is a flat orthographic view of a wall face — as if looking straight at it. It shows height, width, doors, windows, joinery, and finish zones on that specific wall.
+
+## SVG Canvas
+- viewBox="0 0 1200 700"
+- Background: white rect covering full canvas
+- Drawing area: x=100 to x=1100, y=50 to y=580 (1000×530 usable)
+- If multiple elevations needed (e.g., 4 walls), arrange them in a 2×2 grid
+
+## Scale
+- **1 metre = 60px** (so a 3m-wide wall = 180px, a 2.4m ceiling height = 144px)
+- Label every elevation clearly (e.g., "NORTH ELEVATION", "ELEVATION A-A")
+
+## Base Elements (every elevation must have these)
+- **Floor line**: thick horizontal line at the bottom of the wall, stroke="#2c2c2c" stroke-width="3"
+- **Ceiling line**: thinner dashed line at top, stroke="#888" stroke-dasharray="6,3" stroke-width="1.5"
+- **Wall profile**: left and right wall edges as solid verticals, stroke="#2c2c2c" stroke-width="3"
+- **Skirting board**: a filled rect 100mm high (6px) at the very base, fill="#c8b99a" or similar timber tone
+- **Cornice/ceiling junction**: a 1px line at the top
+
+## Door Drawing (standard 2100mm high = 126px, 800mm wide = 48px unless stated)
+- Filled rect for door frame: fill="#e8e0d0" stroke="#3a3a3a" stroke-width="2"
+- Door panel: inner rect with 10% inset, fill="#f0ead8"
+- Door handle: small circle at appropriate side, fill="#888" r="3"
+- Threshold line at floor
+
+## Window Drawing (standard sill at 900mm = 54px from floor, head at 2100mm = 126px unless stated)
+- Frame: rect, fill="none" stroke="#3a6fa8" stroke-width="2.5"
+- Glazing: filled rect inside frame, fill="rgba(180,220,255,0.3)"
+- Glazing bar (if specified): vertical/horizontal dividers, stroke="#3a6fa8" stroke-width="1"
+- Sill: small rect at bottom of window, fill="#d0c8b8"
+- Show sill height label
+
+## Joinery / Built-in Furniture
+- Wardrobes/cupboards: rect outline + door lines, fill="#f5f0e8" stroke="#555" stroke-width="1.5"
+- Shelving: horizontal lines at correct spacing, stroke="#777" stroke-width="1.5"
+- Kitchen units: base and wall units clearly distinguished
+- Show handles as small rects or circles
+
+## Finish Zones (optional hatch patterns)
+- Tiling: fine grid hatch using <pattern>
+- Panelling: vertical lines
+- Paint: flat fill with label
+- Label each finish zone with an annotation line and text
+
+## Dimension Lines
+- Vertical dimensions on the left side (overall height, window sill/head, door head)
+- Horizontal dimensions along the top or bottom (overall width, element positions)
+- Style: stroke="#aaa" stroke-dasharray="4,3" stroke-width="1", tick marks ±5px at ends
+- Text: font-size="9" fill="#555" font-family="Arial,sans-serif"
+- Show: floor-to-ceiling height, floor-to-window-sill, window head height, door head height
+
+## Labels and Annotations
+- Elevation title: bold, font-size="13" font-weight="700" fill="#1a1a1a" font-family="Arial,sans-serif"
+- Material callouts: leader lines (thin, angled) with text labels, font-size="9" fill="#333"
+- Room name and wall direction in title block
+
+## Title Block (y=620 to y=700)
+- Horizontal rule at y=620, stroke="#ccc"
+- Drawing title centred, font-size="14" font-weight="bold" fill="#1a1a1a"
+- "Scale 1:50 | Interior Elevation | Reference Only" font-size="9" fill="#888"
+
+## Scale Bar (bottom-left)
+- 0m / 1m / 2m markers, alternating filled/empty 60px rects
+
+## OUTPUT RULES
+- Return ONLY the raw SVG. No markdown, no code fences, no explanation.
+- Start exactly with: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" width="1200" height="700">
+- End exactly with: </svg>
+- Calculate ALL positions mathematically — every element must be to scale.
+- If no specific wall is mentioned, show the PRIMARY feature wall (the one with the most interest — fireplace, joinery, window, etc.)
+- If multiple walls described, show up to 4 elevations arranged in a 2-column grid
+- Always show at least ONE complete elevation — never return an empty drawing.`;
+
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 8192,
+    system: systemPrompt,
+    messages: [
+      {
+        role: "user",
+        content: `Based on the following design consultation, generate an SVG interior elevation drawing:\n\n${conversationContext}\n\nProduce a complete, to-scale interior elevation SVG. If specific walls aren't mentioned, draw the most interesting/feature wall of the space described.`,
+      },
+    ],
+  });
+
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    throw new Error("No SVG response from Claude");
+  }
+
+  let svg = textBlock.text.trim();
+  svg = svg.replace(/^```(?:svg|xml)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+
+  if (!svg.startsWith("<svg")) {
+    const svgStart = svg.indexOf("<svg");
+    if (svgStart !== -1) {
+      svg = svg.slice(svgStart);
+    } else {
+      throw new Error("Claude did not return valid SVG for elevation");
+    }
+  }
+  const svgEnd = svg.lastIndexOf("</svg>");
+  if (svgEnd !== -1) {
+    svg = svg.slice(0, svgEnd + 6);
+  }
+
+  return svg;
+}
+
 export async function chatWithDesignAssistant(
   messages: DesignChatMessage[]
 ): Promise<string> {

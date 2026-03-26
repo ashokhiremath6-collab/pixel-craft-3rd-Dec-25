@@ -32,7 +32,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   attachments?: Attachment[];
-  type?: "text" | "render-brief" | "floor-plan";
+  type?: "text" | "render-brief" | "floor-plan" | "elevation";
   briefData?: RenderBrief;
   svgContent?: string;
 }
@@ -237,6 +237,7 @@ export default function AIAssistantPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isBriefLoading, setIsBriefLoading] = useState(false);
   const [isFloorPlanLoading, setIsFloorPlanLoading] = useState(false);
+  const [isElevationLoading, setIsElevationLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -433,7 +434,7 @@ export default function AIAssistantPage() {
     }
   }, [messages, isFloorPlanLoading, toast]);
 
-  const downloadSVG = useCallback((svg: string, filename = "floor-plan.svg") => {
+  const downloadSVG = useCallback((svg: string, filename = "drawing.svg") => {
     const blob = new Blob([svg], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -442,6 +443,40 @@ export default function AIAssistantPage() {
     a.click();
     URL.revokeObjectURL(url);
   }, []);
+
+  const generateElevation = useCallback(async () => {
+    const conversationMessages = messages.filter((m) => !["elevation"].includes(m.type ?? ""));
+    if (conversationMessages.length === 0 || isElevationLoading) return;
+    setIsElevationLoading(true);
+    try {
+      const payload = {
+        messages: conversationMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          type: m.type,
+        })),
+      };
+      const res = await apiRequest("POST", "/api/ai-assistant/elevation", payload);
+      const data = await res.json() as { svg: string };
+      setMessages((prev) => [
+        ...prev.filter((m) => m.type !== "elevation"),
+        {
+          role: "assistant",
+          content: "",
+          type: "elevation",
+          svgContent: data.svg,
+        },
+      ]);
+    } catch {
+      toast({
+        title: "Error",
+        description: "Could not generate the elevation. Try describing the wall in more detail.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsElevationLoading(false);
+    }
+  }, [messages, isElevationLoading, toast]);
 
   const canSend = (input.trim().length > 0 || attachments.length > 0) && !isLoading;
   const isEmpty = messages.length === 0;
@@ -465,13 +500,13 @@ export default function AIAssistantPage() {
               variant="outline"
               size="sm"
               onClick={generateFloorPlan}
-              disabled={isFloorPlanLoading || isLoading || isBriefLoading}
+              disabled={isFloorPlanLoading || isElevationLoading || isLoading || isBriefLoading}
               className="gap-1.5"
             >
               {isFloorPlanLoading ? (
                 <>
                   <PenLine className="w-3.5 h-3.5 animate-pulse" />
-                  Drawing plan…
+                  Drawing…
                 </>
               ) : (
                 <>
@@ -483,14 +518,33 @@ export default function AIAssistantPage() {
             <Button
               variant="outline"
               size="sm"
+              onClick={generateElevation}
+              disabled={isElevationLoading || isFloorPlanLoading || isLoading || isBriefLoading}
+              className="gap-1.5"
+            >
+              {isElevationLoading ? (
+                <>
+                  <PenLine className="w-3.5 h-3.5 animate-pulse" />
+                  Drawing…
+                </>
+              ) : (
+                <>
+                  <PenLine className="w-3.5 h-3.5 rotate-90" />
+                  Elevation
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={generateBrief}
-              disabled={isBriefLoading || isLoading || isFloorPlanLoading}
+              disabled={isBriefLoading || isLoading || isFloorPlanLoading || isElevationLoading}
               className="gap-1.5"
             >
               {isBriefLoading ? (
                 <>
                   <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                  Building brief…
+                  Building…
                 </>
               ) : (
                 <>
@@ -540,6 +594,53 @@ export default function AIAssistantPage() {
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col gap-6">
             {messages.map((msg, i) => {
+              // Elevation card
+              if (msg.type === "elevation" && msg.svgContent) {
+                return (
+                  <div key={i} className="flex gap-3 justify-start">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 shrink-0 mt-0.5">
+                      <PenLine className="w-4 h-4 text-primary rotate-90" />
+                    </div>
+                    <div className="max-w-[92%] w-full rounded-2xl border border-border bg-card overflow-hidden">
+                      <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+                        <PenLine className="w-4 h-4 text-primary rotate-90" />
+                        <span className="font-semibold text-sm text-foreground">Interior Elevation</span>
+                        <Badge variant="secondary" className="ml-auto text-xs">SVG · 1:50</Badge>
+                      </div>
+                      <div className="p-4 bg-white overflow-x-auto">
+                        <div
+                          className="min-w-[700px]"
+                          dangerouslySetInnerHTML={{ __html: msg.svgContent }}
+                          style={{ lineHeight: 0 }}
+                        />
+                      </div>
+                      <div className="px-4 py-3 border-t border-border flex items-center gap-2 flex-wrap">
+                        <p className="text-xs text-muted-foreground flex-1">For reference only — not a construction drawing.</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 shrink-0"
+                          onClick={() => downloadSVG(msg.svgContent!, "elevation.svg")}
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Download SVG
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 shrink-0 text-muted-foreground"
+                          onClick={() => generateElevation()}
+                          disabled={isElevationLoading}
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Regenerate
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               // Floor plan card
               if (msg.type === "floor-plan" && msg.svgContent) {
                 return (
@@ -679,6 +780,21 @@ export default function AIAssistantPage() {
                   <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:0ms]" />
                   <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:150ms]" />
                   <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:300ms]" />
+                </div>
+              </div>
+            )}
+
+            {/* Elevation loading indicator */}
+            {isElevationLoading && (
+              <div className="flex gap-3 justify-start">
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 shrink-0">
+                  <PenLine className="w-4 h-4 text-primary rotate-90" />
+                </div>
+                <div className="bg-card border border-border rounded-2xl px-4 py-3.5 flex items-center gap-3">
+                  <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:300ms]" />
+                  <span className="text-xs text-muted-foreground">Drawing elevation…</span>
                 </div>
               </div>
             )}
