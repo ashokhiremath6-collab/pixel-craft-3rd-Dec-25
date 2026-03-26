@@ -353,7 +353,7 @@ export default function AIAssistantPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold leading-tight">Design Intelligence</h1>
-            <p className="text-xs text-muted-foreground">Ask anything · attach images, floor plans, or PDFs</p>
+            <p className="text-xs text-muted-foreground">Your interior design consultant · attach images, floor plans, or PDFs</p>
           </div>
         </div>
         {!isEmpty && (
@@ -374,7 +374,7 @@ export default function AIAssistantPage() {
               </div>
               <h2 className="text-2xl font-bold mb-2">Design Intelligence</h2>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                Your expert assistant for dimensions, space calculations, and storage planning. Upload a floor plan, product sheet, or sketch — or just ask a question.
+                Your expert interior design consultant — from space planning and material selection to lighting, colour schemes, furniture layouts, and project specifications. Upload a floor plan, product sheet, or sketch, or just ask anything.
               </p>
             </div>
 
@@ -480,7 +480,7 @@ export default function AIAssistantPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about dimensions, storage capacity, shelf depths, glassware… or attach a file"
+              placeholder="Ask anything about interior design — materials, layouts, lighting, colours, dimensions, specifications…"
               className="flex-1 resize-none border-0 bg-transparent p-0 min-h-[24px] max-h-[160px] text-sm focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/60"
               rows={1}
               style={{ fieldSizing: "content" } as React.CSSProperties}
