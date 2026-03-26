@@ -36,6 +36,7 @@ const MAX_FILE_MB = 10;
 
 function MarkdownRenderer({ text }: { text: string }) {
   const renderMarkdown = (md: string) => {
+    if (!md) return [];
     const lines = md.split("\n");
     const elements: JSX.Element[] = [];
     let i = 0;
@@ -307,8 +308,9 @@ export default function AIAssistantPage() {
             })),
           })),
         };
-        const data = await apiRequest("POST", "/api/ai-assistant/chat", payload) as { reply: string };
-        setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+        const res = await apiRequest("POST", "/api/ai-assistant/chat", payload);
+        const data = await res.json() as { reply: string };
+        setMessages((prev) => [...prev, { role: "assistant", content: data.reply ?? "" }]);
       } catch {
         toast({
           title: "Error",
