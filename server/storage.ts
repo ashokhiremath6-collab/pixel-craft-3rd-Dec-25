@@ -2213,15 +2213,15 @@ export class DBStorage implements IStorage {
 
   // Task Management
   async getAllTasks(): Promise<Task[]> {
-    return await db.select().from(tasks).orderBy(sql`${tasks.rowIndex} ASC NULLS LAST`, sql`CAST(NULLIF(regexp_replace(${tasks.taskId}, '[^0-9]', '', 'g'), '') AS INTEGER) ASC NULLS LAST`, tasks.createdAt);
+    return await db.select().from(tasks).orderBy(sql`${tasks.rowIndex} ASC NULLS LAST`, tasks.createdAt);
   }
 
   async getTasksByProject(projectId: string): Promise<Task[]> {
-    return await db.select().from(tasks).where(eq(tasks.projectId, projectId)).orderBy(sql`${tasks.rowIndex} ASC NULLS LAST`, sql`CAST(NULLIF(regexp_replace(${tasks.taskId}, '[^0-9]', '', 'g'), '') AS INTEGER) ASC NULLS LAST`, tasks.createdAt);
+    return await db.select().from(tasks).where(eq(tasks.projectId, projectId)).orderBy(sql`${tasks.rowIndex} ASC NULLS LAST`, tasks.createdAt);
   }
 
   async getTasksBySchedule(scheduleId: string): Promise<Task[]> {
-    return await db.select().from(tasks).where(eq(tasks.scheduleId, scheduleId)).orderBy(sql`${tasks.rowIndex} ASC NULLS LAST`, sql`CAST(NULLIF(regexp_replace(${tasks.taskId}, '[^0-9]', '', 'g'), '') AS INTEGER) ASC NULLS LAST`, tasks.createdAt);
+    return await db.select().from(tasks).where(eq(tasks.scheduleId, scheduleId)).orderBy(sql`${tasks.rowIndex} ASC NULLS LAST`, tasks.createdAt);
   }
 
   async getTask(id: string): Promise<Task | undefined> {

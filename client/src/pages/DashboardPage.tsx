@@ -50,6 +50,11 @@ export default function DashboardPage() {
     queryKey: ['/api/quotations'],
   });
 
+  const { data: projectsData } = useQuery<Project[]>({
+    queryKey: ['/api/projects'],
+    staleTime: 0,
+  });
+
   const { data: activitiesData, isLoading: activitiesLoading } = useQuery<ActivityLog[]>({
     queryKey: ['/api/activities'],
     queryFn: async () => {
@@ -61,11 +66,7 @@ export default function DashboardPage() {
 
   const { data: allTasksData } = useQuery<Task[]>({
     queryKey: ['/api/tasks'],
-    queryFn: async () => {
-      const response = await fetch('/api/tasks', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch tasks');
-      return response.json();
-    }
+    staleTime: 0,
   });
 
   const handleNavigate = (path: string) => {
@@ -114,20 +115,24 @@ export default function DashboardPage() {
     })
     .slice(0, 10);
 
+  // Use the full projects list (from /api/projects) for the dashboard — this includes
+  // projects that have a Gantt schedule but no quotations yet.
+  const allProjects = projectsData || quotationsData?.projects || [];
+
   const filteredProjects = selectedProjectId
-    ? (quotationsData?.projects || []).filter(p => p.id === selectedProjectId)
-    : quotationsData?.projects || [];
+    ? allProjects.filter(p => p.id === selectedProjectId)
+    : allProjects;
 
   const filteredQuotations = selectedProjectId
     ? allQuotations.filter(q => {
-        const project = quotationsData?.projects.find(p => p.projectName === q.projectName);
+        const project = allProjects.find(p => p.projectName === q.projectName);
         return project?.id === selectedProjectId;
       })
     : allQuotations;
 
   const filteredRecentQuotations = selectedProjectId
     ? recentQuotations.filter(q => {
-        const project = quotationsData?.projects.find(p => p.projectName === q.projectName);
+        const project = allProjects.find(p => p.projectName === q.projectName);
         return project?.id === selectedProjectId;
       })
     : recentQuotations;
@@ -149,16 +154,27 @@ export default function DashboardPage() {
     return new Date(dateStr);
   };
 
+  // Build a project name lookup from all available sources so that tasks from projects
+  // with no quotations (schedule-only) still get a proper project name on the dashboard.
+  const projectNameMap = allProjects.reduce((acc, p) => {
+    acc[p.id] = p.projectName;
+    return acc;
+  }, {} as Record<string, string>);
+
   const getTaskAlerts = () => {
-    if (!allTasksData || !quotationsData) return { upcomingStart: [], completionCountdown: [], overdue: [] };
+    if (!allTasksData) return { upcomingStart: [], completionCountdown: [], overdue: [] };
     
     const now = new Date();
     const today = startOfDay(now);
     const upcomingStart: Array<Task & { projectName: string, daysUntilStart: number }> = [];
     const completionCountdown: Array<Task & { projectName: string, daysToGo: number }> = [];
     const overdue: Array<Task & { projectName: string, daysOverdue: number }> = [];
+
+    const tasksToProcess = selectedProjectId
+      ? allTasksData.filter(t => t.projectId === selectedProjectId)
+      : allTasksData;
     
-    allTasksData.forEach(task => {
+    tasksToProcess.forEach(task => {
       if (task.status === 'completed') return;
       const progress = Number(task.progressPercentage) || 0;
       if (progress >= 100) return;
@@ -167,8 +183,7 @@ export default function DashboardPage() {
       if (taskName.startsWith('PHASE') || taskName.startsWith('PACKAGE') || taskName.startsWith('EXECUTE')) return;
       if (task.startDate === '2099-12-31' || task.endDate === '2099-12-31') return;
       
-      const project = quotationsData.projects.find(p => p.id === task.projectId);
-      const projectName = project?.projectName || 'Unknown Project';
+      const projectName = task.projectId ? (projectNameMap[task.projectId] || 'Unknown Project') : 'Unknown Project';
       
       if (task.startDate) {
         const startDate = startOfDay(new Date(task.startDate));
