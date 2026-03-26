@@ -74,6 +74,74 @@ const DESIGN_SYSTEM_PROMPT = `You are a senior interior design consultant with 2
 
 You are talking to a professional designer — be precise, use correct industry terminology, and skip basic explanations unless asked.`;
 
+export interface RenderBrief {
+  styleId: string;
+  description: string;
+  customPrompt: string;
+}
+
+const VALID_STYLE_IDS = [
+  "modern", "minimalist", "industrial", "scandinavian",
+  "bohemian", "mid-century", "luxury", "coastal", "traditional", "rustic",
+];
+
+export async function generateRenderBrief(
+  messages: DesignChatMessage[]
+): Promise<RenderBrief> {
+  const client = getClaudeClient();
+
+  const conversationText = messages
+    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .join("\n\n");
+
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1024,
+    system: `You are an expert at translating interior design conversations into precise AI image-generation briefs.
+
+Given a design consultation conversation, output a JSON object with exactly these fields:
+
+{
+  "styleId": "<one of: modern, minimalist, industrial, scandinavian, bohemian, mid-century, luxury, coastal, traditional, rustic>",
+  "description": "<A rich, single-paragraph description of the room for the AI renderer. Include: room type, overall mood/atmosphere, key furniture pieces and their arrangement, primary colour palette, materials and finishes, lighting character, and any distinctive design elements. Be specific and visual — this is the main generation prompt.>",
+  "customPrompt": "<A focused sentence or two covering any specific technical details, material finishes, or spatial relationships that should be especially emphasised in the render. Can be empty string if not applicable.>"
+}
+
+Rules:
+- Respond ONLY with the raw JSON object. No markdown, no explanation, no code fences.
+- Choose the styleId that best matches the design direction discussed.
+- The description must be vivid, concrete, and render-ready — not vague.
+- If the conversation discusses multiple rooms, brief the PRIMARY room discussed.`,
+    messages: [
+      {
+        role: "user",
+        content: `Here is the design consultation to summarise into a render brief:\n\n${conversationText}`,
+      },
+    ],
+  });
+
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    throw new Error("No response from Claude for render brief");
+  }
+
+  let brief: RenderBrief;
+  try {
+    brief = JSON.parse(textBlock.text.trim()) as RenderBrief;
+  } catch {
+    throw new Error("Claude returned invalid JSON for render brief");
+  }
+
+  // Validate and normalise styleId
+  if (!VALID_STYLE_IDS.includes(brief.styleId)) {
+    brief.styleId = "modern";
+  }
+  brief.description = brief.description?.trim() ?? "";
+  brief.customPrompt = brief.customPrompt?.trim() ?? "";
+
+  return brief;
+}
+
 export async function chatWithDesignAssistant(
   messages: DesignChatMessage[]
 ): Promise<string> {

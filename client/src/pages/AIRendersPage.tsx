@@ -103,6 +103,7 @@ export default function AIRendersPage() {
   const [, setLocation] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const [activeTab, setActiveTab] = useState<string>("image");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string>("");
   const [customPrompt, setCustomPrompt] = useState("");
@@ -211,7 +212,28 @@ export default function AIRendersPage() {
       }
     };
   }, []);
-  
+
+  // Load render brief transferred from Design Intelligence chat
+  useEffect(() => {
+    const raw = sessionStorage.getItem("designBrief");
+    if (!raw) return;
+    try {
+      const brief = JSON.parse(raw) as { styleId: string; description: string; customPrompt?: string };
+      sessionStorage.removeItem("designBrief");
+      if (brief.styleId) setSelectedStyle(brief.styleId);
+      if (brief.description) setTextDescription(brief.description);
+      if (brief.customPrompt) setCustomPrompt(brief.customPrompt);
+      setActiveTab("description");
+      toast({
+        title: "Brief loaded from Design Intelligence",
+        description: "Style and description pre-filled. Add a source image or generate from description.",
+      });
+    } catch {
+      sessionStorage.removeItem("designBrief");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Helper function to convert column index to letter (0=A, 1=B, etc.)
   const columnToLetter = (col: number): string => {
     let result = '';
@@ -1216,7 +1238,7 @@ export default function AIRendersPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Tabs defaultValue="image" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="image" data-testid="tab-image-upload">
                   <ImageIcon className="h-4 w-4 mr-2" />

@@ -21,7 +21,7 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { RENDER_STYLES, generateInteriorRender, generateConceptRender, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
-import { chatWithDesignAssistant, DesignChatMessage, DesignChatAttachment } from "./ai/claude";
+import { chatWithDesignAssistant, generateRenderBrief, DesignChatMessage, DesignChatAttachment } from "./ai/claude";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
@@ -9324,6 +9324,21 @@ Return your response in the following JSON format only (no markdown, no code blo
     } catch (error) {
       console.error("Design assistant error:", error);
       const msg = error instanceof Error ? error.message : "AI assistant failed";
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.post("/api/ai-assistant/render-brief", requireAuth, async (req, res) => {
+    try {
+      const { messages } = req.body as { messages: DesignChatMessage[] };
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ error: "messages array is required" });
+      }
+      const brief = await generateRenderBrief(messages);
+      res.json(brief);
+    } catch (error) {
+      console.error("Render brief error:", error);
+      const msg = error instanceof Error ? error.message : "Failed to generate render brief";
       res.status(500).json({ error: msg });
     }
   });

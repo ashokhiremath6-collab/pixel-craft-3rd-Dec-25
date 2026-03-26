@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Send, RotateCcw, Copy, Check, BrainCircuit, ChevronRight, Paperclip, X, FileText, ImageIcon } from "lucide-react";
+import { Send, RotateCcw, Copy, Check, BrainCircuit, ChevronRight, Paperclip, X, FileText, ImageIcon, Wand2, ArrowRight, Sparkles } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 
 interface Attachment {
@@ -14,10 +16,24 @@ interface Attachment {
   size: number;
 }
 
+interface RenderBrief {
+  styleId: string;
+  description: string;
+  customPrompt: string;
+}
+
+const STYLE_LABELS: Record<string, string> = {
+  modern: "Modern", minimalist: "Minimalist", industrial: "Industrial",
+  scandinavian: "Scandinavian", bohemian: "Bohemian", "mid-century": "Mid-Century Modern",
+  luxury: "Luxury", coastal: "Coastal", traditional: "Traditional", rustic: "Rustic",
+};
+
 interface Message {
   role: "user" | "assistant";
   content: string;
   attachments?: Attachment[];
+  type?: "text" | "render-brief";
+  briefData?: RenderBrief;
 }
 
 const SUGGESTED_PROMPTS = [
@@ -218,10 +234,12 @@ export default function AIAssistantPage() {
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isBriefLoading, setIsBriefLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -341,13 +359,51 @@ export default function AIAssistantPage() {
     textareaRef.current?.focus();
   };
 
+  const generateBrief = useCallback(async () => {
+    const conversationMessages = messages.filter((m) => m.type !== "render-brief");
+    if (conversationMessages.length === 0 || isBriefLoading) return;
+    setIsBriefLoading(true);
+    try {
+      const payload = {
+        messages: conversationMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+      };
+      const res = await apiRequest("POST", "/api/ai-assistant/render-brief", payload);
+      const brief = await res.json() as { styleId: string; description: string; customPrompt: string };
+      setMessages((prev) => [
+        ...prev.filter((m) => m.type !== "render-brief"),
+        {
+          role: "assistant",
+          content: "",
+          type: "render-brief",
+          briefData: brief,
+        },
+      ]);
+    } catch {
+      toast({
+        title: "Error",
+        description: "Could not generate the render brief. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBriefLoading(false);
+    }
+  }, [messages, isBriefLoading, toast]);
+
+  const sendBriefToRenders = useCallback((brief: RenderBrief) => {
+    sessionStorage.setItem("designBrief", JSON.stringify(brief));
+    setLocation("/ai-renders");
+  }, [setLocation]);
+
   const canSend = (input.trim().length > 0 || attachments.length > 0) && !isLoading;
   const isEmpty = messages.length === 0;
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 px-6 py-4 border-b shrink-0">
+      <div className="flex items-center justify-between gap-4 px-6 py-4 border-b shrink-0 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10">
             <BrainCircuit className="w-5 h-5 text-primary" />
@@ -358,10 +414,31 @@ export default function AIAssistantPage() {
           </div>
         </div>
         {!isEmpty && (
-          <Button variant="ghost" size="sm" onClick={clearConversation} className="gap-1.5 text-muted-foreground">
-            <RotateCcw className="w-3.5 h-3.5" />
-            New conversation
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={generateBrief}
+              disabled={isBriefLoading || isLoading}
+              className="gap-1.5"
+            >
+              {isBriefLoading ? (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                  Building brief…
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-3.5 h-3.5" />
+                  Generate Render Brief
+                </>
+              )}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={clearConversation} className="gap-1.5 text-muted-foreground">
+              <RotateCcw className="w-3.5 h-3.5" />
+              New conversation
+            </Button>
+          </div>
         )}
       </div>
 
@@ -397,41 +474,88 @@ export default function AIAssistantPage() {
           </div>
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col gap-6">
-            {messages.map((msg, i) => (
-              <div key={i} className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>
-                {msg.role === "assistant" && (
-                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 shrink-0 mt-0.5">
-                    <BrainCircuit className="w-4 h-4 text-primary" />
-                  </div>
-                )}
-                <div
-                  className={cn(
-                    "relative group max-w-[85%] rounded-2xl px-4 py-3",
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-card border border-border"
-                  )}
-                >
-                  {msg.role === "user" ? (
-                    <>
-                      {msg.attachments && msg.attachments.length > 0 && (
-                        <MessageAttachments attachments={msg.attachments} />
-                      )}
-                      {msg.content && (
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <MarkdownRenderer text={msg.content} />
-                      <div className="flex justify-end mt-2">
-                        <CopyButton text={msg.content} />
+            {messages.map((msg, i) => {
+              // Render brief card
+              if (msg.type === "render-brief" && msg.briefData) {
+                const brief = msg.briefData;
+                return (
+                  <div key={i} className="flex gap-3 justify-start">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 shrink-0 mt-0.5">
+                      <Wand2 className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="max-w-[85%] rounded-2xl border border-primary/30 bg-primary/5 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-primary/20 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                        <span className="font-semibold text-sm text-foreground">Render Brief Ready</span>
+                        <Badge variant="secondary" className="ml-auto text-xs">
+                          {STYLE_LABELS[brief.styleId] ?? brief.styleId}
+                        </Badge>
                       </div>
-                    </>
+                      <div className="px-4 py-3 space-y-2">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Space Description</p>
+                          <p className="text-sm text-foreground/90 leading-relaxed">{brief.description}</p>
+                        </div>
+                        {brief.customPrompt && (
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Specific Details</p>
+                            <p className="text-sm text-foreground/90 leading-relaxed">{brief.customPrompt}</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="px-4 py-3 border-t border-primary/20 flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground flex-1">This brief is optimised for the AI Render generator.</p>
+                        <Button
+                          size="sm"
+                          onClick={() => sendBriefToRenders(brief)}
+                          className="gap-1.5 shrink-0"
+                        >
+                          Go to AI Renders
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Normal message
+              return (
+                <div key={i} className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>
+                  {msg.role === "assistant" && (
+                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 shrink-0 mt-0.5">
+                      <BrainCircuit className="w-4 h-4 text-primary" />
+                    </div>
                   )}
+                  <div
+                    className={cn(
+                      "relative group max-w-[85%] rounded-2xl px-4 py-3",
+                      msg.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-card border border-border"
+                    )}
+                  >
+                    {msg.role === "user" ? (
+                      <>
+                        {msg.attachments && msg.attachments.length > 0 && (
+                          <MessageAttachments attachments={msg.attachments} />
+                        )}
+                        {msg.content && (
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <MarkdownRenderer text={msg.content} />
+                        <div className="flex justify-end mt-2">
+                          <CopyButton text={msg.content} />
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {/* Typing indicator */}
             {isLoading && (
