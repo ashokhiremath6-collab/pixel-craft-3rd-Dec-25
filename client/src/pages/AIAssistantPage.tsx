@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Send, RotateCcw, Copy, Check, BrainCircuit, ChevronRight, Paperclip, X, FileText, ImageIcon, Wand2, ArrowRight, Sparkles, PenLine, Download } from "lucide-react";
+import { Send, RotateCcw, Copy, Check, BrainCircuit, ChevronRight, Paperclip, X, FileText, ImageIcon, Wand2, ArrowRight, Sparkles, PenLine, Download, Loader2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -238,6 +238,8 @@ export default function AIAssistantPage() {
   const [isBriefLoading, setIsBriefLoading] = useState(false);
   const [isFloorPlanLoading, setIsFloorPlanLoading] = useState(false);
   const [isElevationLoading, setIsElevationLoading] = useState(false);
+  const [isFloorPlanDXFLoading, setIsFloorPlanDXFLoading] = useState(false);
+  const [isElevationDXFLoading, setIsElevationDXFLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -444,6 +446,38 @@ export default function AIAssistantPage() {
     URL.revokeObjectURL(url);
   }, []);
 
+  const downloadDXF = useCallback(async (endpoint: "floor-plan-dxf" | "elevation-dxf") => {
+    const setLoading = endpoint === "floor-plan-dxf" ? setIsFloorPlanDXFLoading : setIsElevationDXFLoading;
+    setLoading(true);
+    try {
+      const payload = {
+        messages: messages
+          .filter((m) => !["floor-plan", "elevation"].includes(m.type ?? ""))
+          .map((m) => ({ role: m.role, content: m.content, type: m.type })),
+      };
+      const res = await apiRequest("POST", `/api/ai-assistant/${endpoint}`, payload);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).error ?? "Download failed");
+      }
+      const blob = await res.blob();
+      const dispHeader = res.headers.get("Content-Disposition") ?? "";
+      const nameMatch = dispHeader.match(/filename="?([^"]+)"?/);
+      const filename = nameMatch?.[1] ?? (endpoint === "floor-plan-dxf" ? "FloorPlan.dxf" : "Elevation.dxf");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "DXF Downloaded", description: "Open in SketchUp: File → Import → DXF" });
+    } catch (err) {
+      toast({ title: "DXF generation failed", description: err instanceof Error ? err.message : "Please try again.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [messages, toast]);
+
   const generateElevation = useCallback(async () => {
     const conversationMessages = messages.filter((m) => !["elevation"].includes(m.type ?? ""));
     if (conversationMessages.length === 0 || isElevationLoading) return;
@@ -623,7 +657,22 @@ export default function AIAssistantPage() {
                           onClick={() => downloadSVG(msg.svgContent!, "elevation.svg")}
                         >
                           <Download className="w-3.5 h-3.5" />
-                          Download SVG
+                          SVG
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 shrink-0"
+                          onClick={() => downloadDXF("elevation-dxf")}
+                          disabled={isElevationDXFLoading}
+                          title="Download DXF for import into SketchUp or AutoCAD"
+                        >
+                          {isElevationDXFLoading ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5" />
+                          )}
+                          {isElevationDXFLoading ? "Generating…" : "DXF for SketchUp"}
                         </Button>
                         <Button
                           variant="ghost"
@@ -670,7 +719,22 @@ export default function AIAssistantPage() {
                           onClick={() => downloadSVG(msg.svgContent!)}
                         >
                           <Download className="w-3.5 h-3.5" />
-                          Download SVG
+                          SVG
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 shrink-0"
+                          onClick={() => downloadDXF("floor-plan-dxf")}
+                          disabled={isFloorPlanDXFLoading}
+                          title="Download DXF for import into SketchUp or AutoCAD"
+                        >
+                          {isFloorPlanDXFLoading ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5" />
+                          )}
+                          {isFloorPlanDXFLoading ? "Generating…" : "DXF for SketchUp"}
                         </Button>
                         <Button
                           variant="ghost"

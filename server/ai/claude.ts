@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { DXFSpec } from "../utils/dxfGenerator";
 
 function getClaudeClient(): Anthropic {
   return new Anthropic({
@@ -442,4 +443,194 @@ export async function chatWithDesignAssistant(
     throw new Error("No text response from Claude");
   }
   return textBlock.text.trim();
+}
+
+// ─── DXF spec generators ──────────────────────────────────────────────────────
+
+const DXF_FLOOR_PLAN_SYSTEM = `You are an expert architectural CAD drafter. You produce precise JSON geometry specs for floor plans that will be converted to DXF files importable into SketchUp and AutoCAD.
+
+## Units
+All coordinates and dimensions are in MILLIMETRES at 1:1 real-world scale.
+Origin (0,0) is the bottom-left outer corner of the floor plan.
+Y axis goes UPWARD (north).
+
+## Output
+Return ONLY a valid JSON object with this exact structure — no markdown, no explanation:
+
+{
+  "title": "string — space name / project name",
+  "width_mm": number,
+  "height_mm": number,
+  "entities": [
+    // WALLS — use LWPOLYLINE closed=true for each wall outline (outer + inner face as a closed polygon)
+    // or use LINE pairs for wall faces
+    // DOORS — use LINE for door leaf + ARC for swing
+    // WINDOWS — use LWPOLYLINE for frame outline + LINE for glazing bars
+    // FURNITURE — use LWPOLYLINE (closed) for outlines, TEXT for labels
+    // DIMENSIONS — use LINE for dim lines, LINE for ticks, TEXT for value labels
+    // LABELS — use TEXT for room names (large h) and area notations (smaller h)
+  ]
+}
+
+## Entity formats
+
+LINE:       { "type":"LINE",       "layer":"...", "x1":0, "y1":0, "x2":1000, "y2":0 }
+TEXT:       { "type":"TEXT",       "layer":"...", "x":500, "y":500, "h":150, "text":"BEDROOM" }
+ARC:        { "type":"ARC",        "layer":"...", "cx":0, "cy":0, "r":900, "a1":0, "a2":90 }
+CIRCLE:     { "type":"CIRCLE",     "layer":"...", "cx":0, "cy":0, "r":50 }
+LWPOLYLINE: { "type":"LWPOLYLINE", "layer":"...", "points":[[0,0],[1000,0],[1000,1000],[0,1000]], "closed":true }
+
+## Layers to use
+- "Walls"         — external wall outlines (LWPOLYLINE filled region = use 4 outer + 4 inner points for thick wall)
+- "InternalWalls" — partition walls
+- "Doors"         — door leaf (LINE) and swing (ARC)
+- "Windows"       — window frame and glazing
+- "Furniture"     — furniture outlines and labels
+- "Dimensions"    — dimension lines, ticks, and value text
+- "Labels"        — room name TEXT and area TEXT
+- "Grid"          — optional reference grid lines (subtle)
+- "Title"         — title block text at bottom
+
+## Mandatory content
+1. Complete wall outline for every room described
+2. All doors with swing arcs
+3. All windows
+4. Room name labels (h=150mm) and area labels e.g. "16.5 m²" (h=100mm)
+5. Dimension lines along ALL four outer edges with real dimensions
+6. Title block text at y=-600: drawing title, "Scale 1:50", "PixelCraft Designer"
+
+## Wall thickness
+- External walls: 240mm thick — draw as LWPOLYLINE with 8 points (outer rect + inner rect, closed=true, no fill needed — just the outline)
+- Internal partitions: 150mm thick
+
+## Example for a simple 4000×3000 room with one door and one window:
+The outer extents would be x=0,y=0 to x=4480,y=3480 (adding wall thickness all around).
+Draw outer wall LWPOLYLINE, then inner void LWPOLYLINE, then individual features.`;
+
+function stripJsonFences(raw: string): string {
+  return raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/, "")
+    .trim();
+}
+
+export async function generateFloorPlanDXFSpec(
+  messages: DesignChatMessage[]
+): Promise<DXFSpec> {
+  const client = getClaudeClient();
+
+  const conversationContext = messages
+    .filter((m) => !["floor-plan", "elevation"].includes((m as any).type ?? "") && m.content.trim())
+    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .join("\n\n");
+
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 8192,
+    system: DXF_FLOOR_PLAN_SYSTEM,
+    messages: [
+      {
+        role: "user",
+        content: `Generate a DXF floor plan JSON spec based on the following design consultation:\n\n${conversationContext}\n\nProduce the complete JSON now. Calculate ALL coordinates precisely in mm.`,
+      },
+    ],
+  });
+
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") throw new Error("No response from Claude");
+
+  const cleaned = stripJsonFences(textBlock.text);
+  try {
+    return JSON.parse(cleaned) as DXFSpec;
+  } catch {
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      return JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1)) as DXFSpec;
+    }
+    throw new Error("Claude returned invalid JSON for floor plan DXF");
+  }
+}
+
+const DXF_ELEVATION_SYSTEM = `You are an expert architectural CAD drafter. You produce precise JSON geometry specs for interior elevation drawings that will be converted to DXF files importable into SketchUp and AutoCAD.
+
+## Units
+All coordinates in MILLIMETRES at 1:1 real-world scale.
+Origin (0,0) is the bottom-left of the wall face (floor-left corner).
+X axis goes right, Y axis goes UPWARD.
+
+## Output
+Return ONLY a valid JSON object with this exact structure — no markdown, no explanation:
+
+{
+  "title": "string — e.g. NORTH ELEVATION - Master Bedroom",
+  "width_mm": number,   // wall width
+  "height_mm": number,  // ceiling height
+  "entities": [ ... ]
+}
+
+## Entity formats (same as floor plan)
+LINE:       { "type":"LINE",       "layer":"...", "x1":0, "y1":0, "x2":1000, "y2":0 }
+TEXT:       { "type":"TEXT",       "layer":"...", "x":500, "y":500, "h":150, "text":"HEADING" }
+ARC:        { "type":"ARC",        "layer":"...", "cx":0, "cy":0, "r":900, "a1":0, "a2":90 }
+LWPOLYLINE: { "type":"LWPOLYLINE", "layer":"...", "points":[[0,0],[1000,0],[1000,1000],[0,1000]], "closed":true }
+
+## Layers
+- "Walls"       — wall outline and profile edges
+- "Doors"       — door frame and panel outlines
+- "Windows"     — window frame, sill, glazing
+- "Furniture"   — joinery, built-ins, loose furniture silhouettes
+- "Hatching"    — material finish hatch lines (tile grid, timber lines, etc.)
+- "Dimensions"  — dimension lines, ticks, text
+- "Labels"      — element labels and material callouts
+- "Title"       — title block
+
+## Mandatory content
+1. Floor line (LINE at y=0, full width) and ceiling line (LINE at y=height_mm)
+2. Left and right wall edges
+3. Skirting board (LWPOLYLINE closed, 100mm high, full width)
+4. All doors with frames and panels
+5. All windows with frames, glazing, and sill
+6. Joinery / built-in furniture as LWPOLYLINE outlines
+7. Material finish hatching (tile: grid of LINEs at 300mm centres; timber: horizontal LINEs at 20mm centres; etc.)
+8. Dimension lines: vertical left side (floor-to-ceiling, sill height, head height), horizontal bottom (wall width, element positions)
+9. Material / finish callout TEXT with leader lines (LINE from element to label)
+10. Title block at y=-500: elevation name, wall dimensions, "Scale 1:50", "PixelCraft Designer"`;
+
+export async function generateElevationDXFSpec(
+  messages: DesignChatMessage[]
+): Promise<DXFSpec> {
+  const client = getClaudeClient();
+
+  const conversationContext = messages
+    .filter((m) => !["floor-plan", "elevation"].includes((m as any).type ?? "") && m.content.trim())
+    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .join("\n\n");
+
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 8192,
+    system: DXF_ELEVATION_SYSTEM,
+    messages: [
+      {
+        role: "user",
+        content: `Generate a DXF elevation drawing JSON spec based on the following design consultation:\n\n${conversationContext}\n\nProduce the complete JSON now. Calculate ALL coordinates precisely in mm.`,
+      },
+    ],
+  });
+
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") throw new Error("No response from Claude");
+
+  const cleaned = stripJsonFences(textBlock.text);
+  try {
+    return JSON.parse(cleaned) as DXFSpec;
+  } catch {
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      return JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1)) as DXFSpec;
+    }
+    throw new Error("Claude returned invalid JSON for elevation DXF");
+  }
 }

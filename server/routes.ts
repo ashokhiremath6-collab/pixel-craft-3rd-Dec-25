@@ -21,7 +21,8 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { RENDER_STYLES, generateInteriorRender, generateConceptRender, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
-import { chatWithDesignAssistant, generateRenderBrief, generateFloorPlanSVG, generateElevationSVG, DesignChatMessage, DesignChatAttachment } from "./ai/claude";
+import { chatWithDesignAssistant, generateRenderBrief, generateFloorPlanSVG, generateElevationSVG, generateFloorPlanDXFSpec, generateElevationDXFSpec, DesignChatMessage, DesignChatAttachment } from "./ai/claude";
+import { generateDXF } from "./utils/dxfGenerator";
 import { 
   insertVendorCategorySchema,
   insertVendorSchema,
@@ -9369,6 +9370,42 @@ Return your response in the following JSON format only (no markdown, no code blo
     } catch (error) {
       console.error("Render brief error:", error);
       const msg = error instanceof Error ? error.message : "Failed to generate render brief";
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.post("/api/ai-assistant/floor-plan-dxf", requireAuth, async (req, res) => {
+    try {
+      const { messages } = req.body as { messages: DesignChatMessage[] };
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ error: "messages array is required" });
+      }
+      const spec = await generateFloorPlanDXFSpec(messages);
+      const dxf = generateDXF(spec);
+      res.setHeader("Content-Type", "application/dxf");
+      res.setHeader("Content-Disposition", `attachment; filename="${spec.title.replace(/[^a-z0-9_-]/gi, "_")}_FloorPlan.dxf"`);
+      res.send(dxf);
+    } catch (error) {
+      console.error("Floor plan DXF error:", error);
+      const msg = error instanceof Error ? error.message : "Failed to generate floor plan DXF";
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.post("/api/ai-assistant/elevation-dxf", requireAuth, async (req, res) => {
+    try {
+      const { messages } = req.body as { messages: DesignChatMessage[] };
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ error: "messages array is required" });
+      }
+      const spec = await generateElevationDXFSpec(messages);
+      const dxf = generateDXF(spec);
+      res.setHeader("Content-Type", "application/dxf");
+      res.setHeader("Content-Disposition", `attachment; filename="${spec.title.replace(/[^a-z0-9_-]/gi, "_")}_Elevation.dxf"`);
+      res.send(dxf);
+    } catch (error) {
+      console.error("Elevation DXF error:", error);
+      const msg = error instanceof Error ? error.message : "Failed to generate elevation DXF";
       res.status(500).json({ error: msg });
     }
   });
