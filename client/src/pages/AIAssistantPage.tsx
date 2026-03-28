@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Send, RotateCcw, Copy, Check, BrainCircuit, ChevronRight, Paperclip, X, FileText, ImageIcon, Wand2, ArrowRight, Sparkles, PenLine, Download, Loader2 } from "lucide-react";
+import { Send, RotateCcw, Copy, Check, BrainCircuit, ChevronRight, Paperclip, X, FileText, ImageIcon, Wand2, ArrowRight, Sparkles, PenLine, Download, Loader2, BookOpen, MessageSquare, Map, Layers, Package, Lightbulb, FolderDown } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -240,6 +240,7 @@ export default function AIAssistantPage() {
   const [isElevationLoading, setIsElevationLoading] = useState(false);
   const [isFloorPlanDXFLoading, setIsFloorPlanDXFLoading] = useState(false);
   const [isElevationDXFLoading, setIsElevationDXFLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"chat" | "guide">("chat");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -595,7 +596,238 @@ export default function AIAssistantPage() {
         )}
       </div>
 
-      {/* Chat area */}
+      {/* Tab bar */}
+      <div className="shrink-0 border-b px-6 flex gap-1">
+        <button
+          onClick={() => setActiveTab("chat")}
+          className={cn(
+            "flex items-center gap-1.5 text-sm font-medium px-1 py-3 border-b-2 transition-colors",
+            activeTab === "chat"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          Chat
+        </button>
+        <button
+          onClick={() => setActiveTab("guide")}
+          className={cn(
+            "flex items-center gap-1.5 text-sm font-medium px-1 py-3 border-b-2 transition-colors ml-4",
+            activeTab === "guide"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          How to Use
+        </button>
+      </div>
+
+      {/* Guide tab */}
+      {activeTab === "guide" && (
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-3xl mx-auto px-6 py-8 space-y-8">
+
+            {/* Intro */}
+            <div className="flex items-start gap-4 p-5 rounded-2xl bg-primary/5 border border-primary/15">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 shrink-0">
+                <BrainCircuit className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground mb-1">What is Design Intelligence?</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  An AI design consultant built into PixelCraft. Describe any space or design challenge and it
+                  responds with expert-level guidance. From that same conversation you can generate scaled floor
+                  plans, wall elevations, and CAD files ready to open in SketchUp — all without leaving the app.
+                </p>
+              </div>
+            </div>
+
+            {/* Feature 1 — Chat */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-500/10">
+                  <MessageSquare className="w-4 h-4 text-blue-500" />
+                </div>
+                <h2 className="font-bold text-base text-foreground">Asking design questions</h2>
+              </div>
+              <div className="space-y-3 pl-9">
+                {[
+                  { n: 1, text: "Type any interior design question into the chat bar at the bottom and press Enter." },
+                  { n: 2, text: "The AI responds with professional-level guidance — dimensions, layouts, materials, finishes, colour palettes, or specifications." },
+                  { n: 3, text: "Keep the conversation going. Every follow-up builds on the context already discussed — no need to repeat yourself." },
+                  { n: 4, text: "Attach files using the paperclip icon: photos of the existing space, rough sketches, product data sheets, or PDF floor plans. The AI reads and incorporates them." },
+                ].map(({ n, text }) => (
+                  <div key={n} className="flex items-start gap-3">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500/10 text-blue-600 text-xs font-bold shrink-0 mt-0.5">{n}</span>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{text}</p>
+                  </div>
+                ))}
+                <div className="flex items-start gap-2 mt-2 p-3 rounded-xl bg-muted/50 border border-border">
+                  <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-muted-foreground">Use the suggested prompts on the Chat tab to see example responses and get started quickly.</p>
+                </div>
+              </div>
+            </section>
+
+            <div className="border-t border-border" />
+
+            {/* Feature 2 — Floor Plan */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500/10">
+                  <Map className="w-4 h-4 text-emerald-600" />
+                </div>
+                <h2 className="font-bold text-base text-foreground">Generating a Floor Plan</h2>
+                <Badge variant="secondary" className="text-xs">1:50 scale</Badge>
+              </div>
+              <div className="space-y-3 pl-9">
+                {[
+                  { n: 1, text: "Describe the space in chat first — room names, dimensions (e.g. 4m × 5m), door and window positions, furniture, and any specific layout requirements." },
+                  { n: 2, text: "Click the Floor Plan button in the header (it appears once the conversation has started)." },
+                  { n: 3, text: "A scaled 1:50 floor plan appears in the chat: walls, doors with swing arcs, windows, furniture outlines, room labels, and dimension lines." },
+                  { n: 4, text: "If anything is incorrect, type a correction in chat and click Floor Plan again to regenerate with the updated context." },
+                  { n: 5, text: "Two download buttons appear below the drawing: SVG (visual image for presentations) and DXF for SketchUp (CAD file — see below)." },
+                ].map(({ n, text }) => (
+                  <div key={n} className="flex items-start gap-3">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-bold shrink-0 mt-0.5">{n}</span>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{text}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <div className="border-t border-border" />
+
+            {/* Feature 3 — Elevation */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-violet-500/10">
+                  <Layers className="w-4 h-4 text-violet-600" />
+                </div>
+                <h2 className="font-bold text-base text-foreground">Generating an Elevation</h2>
+                <Badge variant="secondary" className="text-xs">1:50 scale</Badge>
+              </div>
+              <div className="space-y-3 pl-9">
+                {[
+                  { n: 1, text: "In the same conversation, describe the specific wall face you want drawn — what is on it, joinery, window sill and head heights, materials and finishes." },
+                  { n: 2, text: "Click the Elevation button in the header." },
+                  { n: 3, text: "A scaled elevation appears: floor line, ceiling line, doors with frames and panels, windows with glazing and sills, joinery outlines, material hatching, and full dimension annotations." },
+                  { n: 4, text: "Download as SVG (visual) or DXF for SketchUp (CAD) using the buttons below the drawing." },
+                ].map(({ n, text }) => (
+                  <div key={n} className="flex items-start gap-3">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-violet-500/10 text-violet-600 text-xs font-bold shrink-0 mt-0.5">{n}</span>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{text}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <div className="border-t border-border" />
+
+            {/* Feature 4 — DXF / SketchUp */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-orange-500/10">
+                  <FolderDown className="w-4 h-4 text-orange-500" />
+                </div>
+                <h2 className="font-bold text-base text-foreground">Exporting to SketchUp via DXF</h2>
+              </div>
+              <div className="space-y-3 pl-9">
+                {[
+                  { n: 1, text: "After generating a floor plan or elevation, click DXF for SketchUp below the drawing. It takes 15–30 seconds to compute real-world millimetre coordinates." },
+                  { n: 2, text: "The file downloads automatically, named after the space." },
+                  { n: 3, text: "In SketchUp: File → Import → AutoCAD Files (.dxf) → select the file → set units to Millimetres → click Import." },
+                  { n: 4, text: "The geometry lands at real-world scale with walls, doors, windows, and furniture on separate named layers. Push/Pull the walls to ceiling height immediately." },
+                ].map(({ n, text }) => (
+                  <div key={n} className="flex items-start gap-3">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-orange-500/10 text-orange-600 text-xs font-bold shrink-0 mt-0.5">{n}</span>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{text}</p>
+                  </div>
+                ))}
+
+                {/* Layer table */}
+                <div className="mt-3 rounded-xl border border-border overflow-hidden">
+                  <div className="bg-muted/60 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Layers available in SketchUp after import</div>
+                  <div className="divide-y divide-border">
+                    {[
+                      { layer: "Walls", desc: "External wall outlines" },
+                      { layer: "InternalWalls", desc: "Partition walls" },
+                      { layer: "Doors", desc: "Door leaf lines and swing arcs" },
+                      { layer: "Windows", desc: "Frames and glazing" },
+                      { layer: "Furniture", desc: "Outlines of fixed and loose furniture" },
+                      { layer: "Dimensions", desc: "Dimension lines and measurements" },
+                      { layer: "Labels", desc: "Room names and area callouts" },
+                      { layer: "Title", desc: "Title block" },
+                    ].map(({ layer, desc }) => (
+                      <div key={layer} className="flex items-center gap-4 px-4 py-2.5">
+                        <span className="text-xs font-mono text-foreground w-36 shrink-0">{layer}</span>
+                        <span className="text-xs text-muted-foreground">{desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <div className="border-t border-border" />
+
+            {/* Feature 5 — Render Brief */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-pink-500/10">
+                  <Wand2 className="w-4 h-4 text-pink-500" />
+                </div>
+                <h2 className="font-bold text-base text-foreground">Creating a Render Brief</h2>
+              </div>
+              <div className="space-y-3 pl-9">
+                {[
+                  { n: 1, text: "After discussing the design concept and style in chat, click Render Brief in the header." },
+                  { n: 2, text: "A brief card appears with a detected style preset (Modern, Luxury, Scandinavian, etc.), a room description, and a suggested AI image prompt." },
+                  { n: 3, text: "Click Open in AI Renders — the brief transfers to the AI Renders page with everything pre-filled, ready to generate a photorealistic render." },
+                ].map(({ n, text }) => (
+                  <div key={n} className="flex items-start gap-3">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-pink-500/10 text-pink-600 text-xs font-bold shrink-0 mt-0.5">{n}</span>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{text}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <div className="border-t border-border" />
+
+            {/* Tips */}
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500/10">
+                  <Lightbulb className="w-4 h-4 text-amber-500" />
+                </div>
+                <h2 className="font-bold text-base text-foreground">Tips for best results</h2>
+              </div>
+              <div className="space-y-2 pl-9">
+                {[
+                  "Build the conversation before generating drawings — the more context the AI has, the more accurate the output.",
+                  "You can generate multiple drawings in one session — a floor plan and several elevations from the same conversation.",
+                  "Regenerate freely. Each click re-reads the full conversation, so corrections you type will always be reflected.",
+                  "Attach a SketchUp screenshot or existing floor plan PDF if you want design feedback on work already in progress.",
+                  "Treat the DXF as a starting geometry in SketchUp, not a finished drawing — it is designed to be refined.",
+                ].map((tip, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 mt-2" />
+                    <p className="text-sm text-muted-foreground leading-relaxed">{tip}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <div className="pb-6" />
+          </div>
+        </div>
+      )}
+
+      {/* Chat tab */}
+      {activeTab === "chat" && (
       <div className="flex-1 overflow-y-auto">
         {isEmpty ? (
           <div className="flex flex-col items-center justify-center min-h-full px-6 py-10 gap-8">
@@ -881,8 +1113,10 @@ export default function AIAssistantPage() {
           </div>
         )}
       </div>
+      )}
 
-      {/* Input area */}
+      {/* Input area — chat tab only */}
+      {activeTab === "chat" && (<>
       <div className="shrink-0 border-t bg-background px-4 py-4">
         <div className="max-w-3xl mx-auto">
           {/* Attachment previews */}
@@ -944,6 +1178,7 @@ export default function AIAssistantPage() {
         className="hidden"
         onChange={handleFileSelect}
       />
+      </>)}
     </div>
   );
 }
