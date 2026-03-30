@@ -924,7 +924,7 @@ export default function AccountsPage() {
                             type="button"
                             variant="outline"
                             size="icon"
-                            onClick={() => openInViewer(editingInvoice.attachmentPath!, (editingInvoice.invoiceNumber || 'invoice') + '.pdf')}
+                            onClick={() => openInViewer(`/api/invoices/${editingInvoice.id}/attachment`, (editingInvoice.invoiceNumber || 'invoice') + '.pdf')}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -1151,7 +1151,7 @@ export default function AccountsPage() {
                               onClick={() => {
                                 const invoice = invoices.find(inv => inv.id === entry.id);
                                 if (invoice?.attachmentPath) {
-                                  openInViewer(invoice.attachmentPath, (invoice.invoiceNumber || 'invoice') + '.pdf');
+                                  openInViewer(`/api/invoices/${invoice.id}/attachment`, (invoice.invoiceNumber || 'invoice') + '.pdf');
                                 }
                               }}
                               data-testid={`button-view-invoice-${entry.id}`}

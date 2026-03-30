@@ -6655,6 +6655,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Serve invoice PDF attachment directly
+  app.get("/api/invoices/:id/attachment", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const invoice = await storage.getVendorInvoice(id);
+      if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+      if (!invoice.attachmentPath) return res.status(404).json({ error: "No attachment for this invoice" });
+
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(invoice.attachmentPath);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline');
+      objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error("Error serving invoice attachment:", error);
+      if (error instanceof ObjectNotFoundError) return res.status(404).json({ error: "File not found in storage" });
+      res.status(500).json({ error: "Failed to retrieve attachment" });
+    }
+  });
+
   app.delete("/api/invoices/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
