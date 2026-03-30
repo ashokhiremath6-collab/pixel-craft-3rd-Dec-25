@@ -101,7 +101,12 @@ export async function canAccessObject({
     console.log("✅ ACL policy retrieved:", aclPolicy);
     
     if (!aclPolicy) {
-      console.log("❌ No ACL policy found - denying access");
+      // No ACL policy set — allow authenticated users to read, deny unauthenticated
+      if (requestedPermission === ObjectPermission.READ && userId) {
+        console.log("✅ No ACL policy — authenticated user READ allowed");
+        return true;
+      }
+      console.log("❌ No ACL policy and no userId — denying access");
       return false;
     }
 
