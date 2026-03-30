@@ -537,7 +537,7 @@ export default function AIAssistantPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold leading-tight">Design Intelligence</h1>
-            <p className="text-xs text-muted-foreground">Your interior design consultant · attach images, floor plans, or PDFs</p>
+            <p className="text-xs text-muted-foreground">Your interior design consultant · attach images, PDFs, or SketchUp files (.dxf, .obj)</p>
           </div>
         </div>
         {!isEmpty && (
@@ -784,7 +784,38 @@ export default function AIAssistantPage() {
 
             <div className="border-t border-border" />
 
-            {/* Feature 5 — Render Brief */}
+            {/* Feature 5 — Import from SketchUp */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-orange-500/10">
+                  <Box className="w-4 h-4 text-orange-500" />
+                </div>
+                <h2 className="font-bold text-base text-foreground">Importing files from SketchUp</h2>
+                <Badge variant="secondary" className="text-xs">DXF · OBJ</Badge>
+              </div>
+              <div className="space-y-3 pl-9">
+                {[
+                  { n: 1, text: "In SketchUp, export your model: File → Export → 2D Graphic (for floor plans/elevations as DXF) or File → Export → 3D Model (for OBJ). Save the exported file to your computer." },
+                  { n: 2, text: "In Design Intelligence, click the paperclip icon in the chat bar and select the exported .dxf or .obj file." },
+                  { n: 3, text: "The file chip appears in orange to indicate it is a CAD file. Type your question — for example: \"Review this floor plan layout and suggest improvements\" — and send." },
+                  { n: 4, text: "The AI reads the full geometry — room names, wall positions and lengths, door and window openings, furniture outlines, layer names, and overall dimensions — and responds with design analysis and recommendations." },
+                  { n: 5, text: "You can then continue the conversation: ask about specific rooms, request layout alternatives, or use the Floor Plan or Elevation buttons to generate new drawings based on the imported geometry." },
+                ].map(({ n, text }) => (
+                  <div key={n} className="flex items-start gap-3">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-orange-500/10 text-orange-600 text-xs font-bold shrink-0 mt-0.5">{n}</span>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{text}</p>
+                  </div>
+                ))}
+                <div className="flex items-start gap-2 mt-2 p-3 rounded-xl bg-muted/50 border border-border">
+                  <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-muted-foreground">The DXF files that Design Intelligence exports are also the same format SketchUp can re-import — so you can generate a floor plan here, refine it in SketchUp, export it back as DXF, and return it here for further review.</p>
+                </div>
+              </div>
+            </section>
+
+            <div className="border-t border-border" />
+
+            {/* Feature 6 — Render Brief */}
             <section className="space-y-4">
               <div className="flex items-center gap-2">
                 <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-pink-500/10">
