@@ -100,7 +100,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, inArray, isNull, and, or, desc, sql } from "drizzle-orm";
+import { eq, inArray, isNull, and, or, desc, sql, asc, getTableColumns } from "drizzle-orm";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -2213,15 +2213,39 @@ export class DBStorage implements IStorage {
 
   // Task Management
   async getAllTasks(): Promise<Task[]> {
-    return await db.select().from(tasks).orderBy(sql`${tasks.rowIndex} ASC NULLS LAST`, tasks.createdAt);
+    return await db
+      .select(getTableColumns(tasks))
+      .from(tasks)
+      .leftJoin(projectSchedules, eq(tasks.scheduleId, projectSchedules.id))
+      .orderBy(
+        sql`${projectSchedules.uploadedAt} ASC NULLS LAST`,
+        sql`${tasks.rowIndex} ASC NULLS LAST`,
+        asc(tasks.createdAt)
+      );
   }
 
   async getTasksByProject(projectId: string): Promise<Task[]> {
-    return await db.select().from(tasks).where(eq(tasks.projectId, projectId)).orderBy(sql`${tasks.rowIndex} ASC NULLS LAST`, tasks.createdAt);
+    return await db
+      .select(getTableColumns(tasks))
+      .from(tasks)
+      .leftJoin(projectSchedules, eq(tasks.scheduleId, projectSchedules.id))
+      .where(eq(tasks.projectId, projectId))
+      .orderBy(
+        sql`${projectSchedules.uploadedAt} ASC NULLS LAST`,
+        sql`${tasks.rowIndex} ASC NULLS LAST`,
+        asc(tasks.createdAt)
+      );
   }
 
   async getTasksBySchedule(scheduleId: string): Promise<Task[]> {
-    return await db.select().from(tasks).where(eq(tasks.scheduleId, scheduleId)).orderBy(sql`${tasks.rowIndex} ASC NULLS LAST`, tasks.createdAt);
+    return await db
+      .select(getTableColumns(tasks))
+      .from(tasks)
+      .where(eq(tasks.scheduleId, scheduleId))
+      .orderBy(
+        sql`${tasks.rowIndex} ASC NULLS LAST`,
+        asc(tasks.createdAt)
+      );
   }
 
   async getTask(id: string): Promise<Task | undefined> {

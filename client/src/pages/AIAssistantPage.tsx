@@ -537,7 +537,7 @@ export default function AIAssistantPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold leading-tight">Design Intelligence</h1>
-            <p className="text-xs text-muted-foreground">Your interior design consultant · attach images, PDFs, or SketchUp files (.dxf, .obj)</p>
+            <p className="text-xs text-muted-foreground">Your AI assistant · ask anything · attach images, PDFs, or SketchUp files (.dxf, .obj)</p>
           </div>
         </div>
         {!isEmpty && (
@@ -879,7 +879,7 @@ export default function AIAssistantPage() {
               </div>
               <h2 className="text-2xl font-bold mb-2">Design Intelligence</h2>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                Your expert interior design consultant — from space planning and material selection to lighting, colour schemes, furniture layouts, and project specifications. Upload a floor plan, product sheet, or sketch, or just ask anything.
+                Your AI assistant — ask anything across any topic. Specialised in interior design, space planning, materials, lighting, colour schemes, furniture, procurement, and project specifications. Upload a floor plan, product sheet, sketch, or any file to get started.
               </p>
             </div>
 

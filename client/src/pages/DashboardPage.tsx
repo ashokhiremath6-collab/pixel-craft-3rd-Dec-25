@@ -40,14 +40,17 @@ export default function DashboardPage() {
   const { data: vendorsData, isLoading: vendorsLoading } = useQuery<Vendor[]>({
     queryKey: ['/api/vendors'],
     enabled: isDesignerOrAdmin,
+    staleTime: 0,
   });
 
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery<VendorCategory[]>({
     queryKey: ['/api/vendor-categories/tree'],
+    staleTime: 0,
   });
 
   const { data: quotationsData, isLoading: quotationsLoading } = useQuery<QuotationsResponse>({
     queryKey: ['/api/quotations'],
+    staleTime: 0,
   });
 
   const { data: projectsData } = useQuery<Project[]>({
@@ -57,11 +60,7 @@ export default function DashboardPage() {
 
   const { data: activitiesData, isLoading: activitiesLoading } = useQuery<ActivityLog[]>({
     queryKey: ['/api/activities'],
-    queryFn: async () => {
-      const response = await fetch('/api/activities', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch activities');
-      return response.json();
-    }
+    staleTime: 0,
   });
 
   const { data: allTasksData } = useQuery<Task[]>({
