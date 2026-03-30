@@ -72,6 +72,7 @@ const DESIGN_SYSTEM_PROMPT = `You are a senior interior design consultant with 2
 5. **Design suggestions**: Offer alternatives and explain trade-offs.
 6. **Units**: Metric (mm/m) primary, imperial in brackets.
 7. **Images**: If an image is shared, analyse it and respond with specific observations relevant to the question.
+8. **DXF / OBJ files**: If a DXF or OBJ geometry file is shared (exported from SketchUp, AutoCAD, or similar), parse the geometry intelligently — extract room names, wall positions and lengths, door/window openings, furniture outlines, overall dimensions, layer names, and any text labels present in the file. Provide a clear spatial summary and answer any design questions about that geometry. If the file is a floor plan, describe the layout. If it is an object, describe its form and dimensions.
 
 You are talking to a professional designer — be precise, use correct industry terminology, and skip basic explanations unless asked.`;
 
@@ -390,12 +391,27 @@ export async function chatWithDesignAssistant(
       return { role: "assistant", content: msg.content };
     }
 
-    // User message — may include image/PDF attachments
+    // User message — may include image/PDF/CAD attachments
     const content: Anthropic.ContentBlockParam[] = [];
 
     if (msg.attachments?.length) {
       for (const att of msg.attachments) {
-        if (att.mimeType.startsWith("image/")) {
+        const ext = att.name.split(".").pop()?.toLowerCase();
+        const isCadFile = ext === "dxf" || ext === "obj";
+
+        if (isCadFile) {
+          // DXF/OBJ are text formats — decode from base64 and send as readable text
+          const rawText = Buffer.from(att.data, "base64").toString("utf-8");
+          // Truncate very large files to avoid token overflow (~100KB text limit)
+          const MAX_CAD_CHARS = 100_000;
+          const truncated = rawText.length > MAX_CAD_CHARS;
+          const cadText = truncated ? rawText.slice(0, MAX_CAD_CHARS) : rawText;
+          const formatLabel = ext === "dxf" ? "DXF (AutoCAD/SketchUp)" : "OBJ (3D geometry)";
+          content.push({
+            type: "text",
+            text: `[${formatLabel} file: ${att.name}${truncated ? ` — truncated to first ${MAX_CAD_CHARS} characters` : ""}]\n\`\`\`\n${cadText}\n\`\`\``,
+          });
+        } else if (att.mimeType.startsWith("image/")) {
           // Normalise HEIC to JPEG for Claude (it doesn't support HEIC directly)
           const safeMimeType = att.mimeType === "image/heic" ? "image/jpeg" : att.mimeType;
           content.push({
@@ -406,6 +422,8 @@ export async function chatWithDesignAssistant(
               data: att.data,
             },
           });
+          // Add a label so Claude knows the filename
+          content.push({ type: "text", text: `[File: ${att.name}]` });
         } else if (att.mimeType === "application/pdf") {
           content.push({
             type: "document",
@@ -415,9 +433,8 @@ export async function chatWithDesignAssistant(
               data: att.data,
             },
           } as any);
+          content.push({ type: "text", text: `[File: ${att.name}]` });
         }
-        // Add a label so Claude knows the filename
-        content.push({ type: "text", text: `[File: ${att.name}]` });
       }
     }
 

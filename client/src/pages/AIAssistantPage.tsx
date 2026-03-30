@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Send, RotateCcw, Copy, Check, BrainCircuit, ChevronRight, Paperclip, X, FileText, ImageIcon, Wand2, ArrowRight, Sparkles, PenLine, Download, Loader2, BookOpen, MessageSquare, Map, Layers, Package, Lightbulb, FolderDown } from "lucide-react";
+import { Send, RotateCcw, Copy, Check, BrainCircuit, ChevronRight, Paperclip, X, FileText, ImageIcon, Wand2, ArrowRight, Sparkles, PenLine, Download, Loader2, BookOpen, MessageSquare, Map, Layers, Package, Lightbulb, FolderDown, Box } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -48,8 +48,8 @@ const SUGGESTED_PROMPTS = [
   "Standard kitchen worktop height and overhang dimensions",
 ];
 
-const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/heic,application/pdf";
-const MAX_FILE_MB = 10;
+const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/heic,application/pdf,.dxf,.obj";
+const MAX_FILE_MB = 20;
 
 function MarkdownRenderer({ text }: { text: string }) {
   const renderMarkdown = (md: string) => {
@@ -180,20 +180,28 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+function isCadFile(att: { name: string; mimeType: string }) {
+  const ext = att.name.split(".").pop()?.toLowerCase();
+  return ext === "dxf" || ext === "obj";
+}
+
 function AttachmentChip({ att, onRemove }: { att: Attachment; onRemove?: () => void }) {
   const isImage = att.mimeType.startsWith("image/");
+  const isCad = isCadFile(att);
   return (
     <div className="flex items-center gap-2 bg-muted border border-border rounded-xl px-2 py-1.5 max-w-[180px]">
       {isImage && att.previewUrl ? (
         <img src={att.previewUrl} alt={att.name} className="w-8 h-8 object-cover rounded-lg shrink-0" />
       ) : (
-        <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg shrink-0">
-          <FileText className="w-4 h-4 text-primary" />
+        <div className={cn("w-8 h-8 flex items-center justify-center rounded-lg shrink-0", isCad ? "bg-orange-500/10" : "bg-primary/10")}>
+          {isCad ? <Box className="w-4 h-4 text-orange-500" /> : <FileText className="w-4 h-4 text-primary" />}
         </div>
       )}
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium truncate text-foreground">{att.name}</p>
-        <p className="text-[10px] text-muted-foreground">{(att.size / 1024).toFixed(0)} KB</p>
+        <p className="text-[10px] text-muted-foreground">
+          {isCad ? "CAD / SketchUp · " : ""}{(att.size / 1024).toFixed(0)} KB
+        </p>
       </div>
       {onRemove && (
         <button
@@ -220,12 +228,15 @@ function MessageAttachments({ attachments }: { attachments: Attachment[] }) {
           className="max-w-[240px] max-h-[180px] object-cover rounded-xl border border-white/20"
         />
       ))}
-      {docs.map((att, i) => (
-        <div key={i} className="flex items-center gap-2 bg-white/10 rounded-xl px-3 py-2">
-          <FileText className="w-4 h-4" />
-          <span className="text-sm">{att.name}</span>
-        </div>
-      ))}
+      {docs.map((att, i) => {
+        const isCad = isCadFile(att);
+        return (
+          <div key={i} className={cn("flex items-center gap-2 rounded-xl px-3 py-2", isCad ? "bg-orange-500/15" : "bg-white/10")}>
+            {isCad ? <Box className="w-4 h-4 text-orange-300 shrink-0" /> : <FileText className="w-4 h-4 shrink-0" />}
+            <span className="text-sm">{att.name}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -657,7 +668,7 @@ export default function AIAssistantPage() {
                   { n: 1, text: "Type any interior design question into the chat bar at the bottom and press Enter." },
                   { n: 2, text: "The AI responds with professional-level guidance — dimensions, layouts, materials, finishes, colour palettes, or specifications." },
                   { n: 3, text: "Keep the conversation going. Every follow-up builds on the context already discussed — no need to repeat yourself." },
-                  { n: 4, text: "Attach files using the paperclip icon: photos of the existing space, rough sketches, product data sheets, or PDF floor plans. The AI reads and incorporates them." },
+                  { n: 4, text: "Attach files using the paperclip icon: photos of the existing space, rough sketches, product data sheets, PDF floor plans, or exported DXF/OBJ files from SketchUp. The AI reads and incorporates them." },
                 ].map(({ n, text }) => (
                   <div key={n} className="flex items-start gap-3">
                     <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500/10 text-blue-600 text-xs font-bold shrink-0 mt-0.5">{n}</span>
@@ -1164,7 +1175,7 @@ export default function AIAssistantPage() {
           </div>
 
           <p className="text-xs text-muted-foreground/60 text-center mt-2">
-            Enter to send · Shift+Enter for new line · Attach images &amp; PDFs up to {MAX_FILE_MB}MB
+            Enter to send · Shift+Enter for new line · Attach images, PDFs, or SketchUp exports (.dxf, .obj) up to {MAX_FILE_MB}MB
           </p>
         </div>
       </div>
