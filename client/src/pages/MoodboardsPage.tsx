@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,7 @@ import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 
 export default function MoodboardsPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [location] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -79,9 +81,9 @@ export default function MoodboardsPage() {
         listMetadataText: "Design",
         viewLinkText: "View Design",
         loadingText: "Loading your working drawings...",
-        uploadDescription: "Upload images (JPEG, PNG, SVG, WebP) or PDFs",
+        uploadDescription: "Upload images (JPEG, PNG, SVG, WebP), PDFs, or CAD files (DXF, DWG)",
         invalidFileTypeTitle: "Invalid file type",
-        invalidFileTypeDescription: "Please upload images (JPEG, PNG, SVG, WebP) or PDFs.",
+        invalidFileTypeDescription: "Please upload images (JPEG, PNG, SVG, WebP), PDFs, or CAD files (DXF, DWG).",
         fileTooLargeTitle: "File too large",
         fileTooLargeDescription: "Please select a file smaller than 10MB.",
         descriptionPlaceholder: "Describe this working drawing...",
@@ -162,9 +164,10 @@ export default function MoodboardsPage() {
     queryKey: ["/api/projects"],
   });
 
-  // Fetch users to display who saved each render
+  // Fetch users to display who saved each render — admin only (designers don't have access to the full user list)
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
+    enabled: user?.role === 'admin',
   });
 
   // Create a lookup map for users
@@ -455,9 +458,14 @@ export default function MoodboardsPage() {
     
     const file = files[0];
     
-    // Validate file type (images and PDFs from Canva)
+    // Validate file type — working drawings also allow DXF (SketchUp/AutoCAD exports)
     const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml', 'image/webp', 'application/pdf'];
-    if (!allowedTypes.includes(file.type)) {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'svg', 'webp', 'pdf'];
+    if (assetType === 'working_drawing') {
+      allowedExtensions.push('dxf', 'dwg');
+    }
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(ext || '')) {
       toast({
         variant: "destructive",
         title: labels.invalidFileTypeTitle,
@@ -658,6 +666,21 @@ export default function MoodboardsPage() {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Returns true for CAD files that can't be previewed in browser (DXF, DWG)
+  const isCadFile = (moodboard: Moodboard) => {
+    const ext = (moodboard.fileName || '').split('.').pop()?.toLowerCase();
+    return ext === 'dxf' || ext === 'dwg';
+  };
+
+  const downloadFile = (moodboard: Moodboard) => {
+    const url = getPreviewUrl(moodboard);
+    if (!url) return;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = moodboard.fileName || 'download';
+    link.click();
   };
 
   return (
@@ -877,14 +900,26 @@ export default function MoodboardsPage() {
                               </div>
                               <div className="flex items-center gap-2">
                                 {getPreviewUrl(moodboard) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setPreviewImage(moodboard)}
-                                    data-testid={`button-view-${moodboard.id}`}
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
+                                  isCadFile(moodboard) ? (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => downloadFile(moodboard)}
+                                      title="Download CAD file"
+                                      data-testid={`button-download-${moodboard.id}`}
+                                    >
+                                      <Download className="h-4 w-4" />
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => setPreviewImage(moodboard)}
+                                      data-testid={`button-view-${moodboard.id}`}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                  )
                                 )}
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
@@ -1052,14 +1087,18 @@ export default function MoodboardsPage() {
               {labels.dropzoneText}
             </p>
             <p className="text-sm text-muted-foreground">
-              Support for JPEG, PNG, SVG, WebP, and PDF files up to 10MB
+              {assetType === 'working_drawing'
+                ? 'Support for JPEG, PNG, SVG, WebP, PDF, DXF, and DWG files up to 10MB'
+                : 'Support for JPEG, PNG, SVG, WebP, and PDF files up to 10MB'}
             </p>
             
             <input
               ref={fileInputRef}
               type="file"
               className="hidden"
-              accept="image/jpeg,image/png,image/svg+xml,image/webp,application/pdf"
+              accept={assetType === 'working_drawing'
+                ? "image/jpeg,image/png,image/svg+xml,image/webp,application/pdf,.dxf,.dwg"
+                : "image/jpeg,image/png,image/svg+xml,image/webp,application/pdf"}
               onChange={(e) => handleFileSelect(e.target.files)}
               data-testid="input-file"
             />
