@@ -25,10 +25,13 @@ function createSmtpTransport() {
   });
 }
 
+// When using Resend without a verified custom domain, use their default onboarding sender.
+// Once you verify your domain at resend.com/domains, set RESEND_FROM to your own address.
 const FROM_ADDRESS =
+  process.env.RESEND_FROM ||
   process.env.SMTP_FROM ||
   process.env.SMTP_USER ||
-  "noreply@pixelcraftdesigner.com";
+  "onboarding@resend.dev";
 
 function getBaseUrl(req?: { protocol?: string; hostname?: string }): string {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
