@@ -507,6 +507,9 @@ export class MemStorage implements IStorage {
       user.passwordHash = passwordHash;
       user.passwordResetToken = null;
       user.passwordResetTokenExpiry = null;
+      user.emailVerificationToken = null;  // reset counts as verification
+      user.emailVerifiedAt = user.emailVerifiedAt || new Date();
+      user.updatedAt = new Date();
       this.users.set(userId, user);
     }
   }
@@ -1368,7 +1371,8 @@ export class DBStorage implements IStorage {
         passwordHash,
         passwordResetToken: null,
         passwordResetTokenExpiry: null,
-        emailVerifiedAt: new Date(), // Password reset counts as verification
+        emailVerificationToken: null,  // reset counts as verification
+        emailVerifiedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
