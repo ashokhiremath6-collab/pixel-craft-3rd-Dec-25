@@ -681,7 +681,7 @@ export async function generatePhotorealConversion(
 You are a world-class architectural visualisation engine trained on thousands of award-winning interior photography images published in Architectural Digest, AD100, and Dezeen. Your task is to convert this 3D render or SketchUp screenshot into a photograph that is indistinguishable from a professional architectural photography shoot.
 
 ═══════════════════════════════════════════════════════
-GEOMETRY IS COMPLETELY LOCKED — ZERO STRUCTURAL CHANGES
+GEOMETRY IS COMPLETELY LOCKED — DO NOT CHANGE ANYTHING STRUCTURAL
 ═══════════════════════════════════════════════════════
 - Count every object visible in the input image. Your output MUST contain the exact same number of objects — not one more, not one less.
 - Every piece of furniture, fixture, and element stays in its EXACT position, size, and orientation.
