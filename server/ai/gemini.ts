@@ -719,7 +719,7 @@ SECTION E — GLASS AND TRANSPARENT MATERIALS
 - Glass panels, vases, light fixture globes: internal reflections (secondary image visible inside the glass volume), meniscus edge effect (bright white line at curved edges), specular hotspot from the nearest light source, and slight distortion of objects seen through the glass.
 
 SECTION F — FABRIC, UPHOLSTERY, SOFT FURNISHINGS
-- Cushions, drapes, rugs, upholstery: visible weave or pile texture, soft natural shadow in folds and creases, slight sheen on tight-weave fabric under directional light, and naturaldrape where fabric hangs or rests.
+- Cushions, drapes, rugs, upholstery: visible weave or pile texture, soft natural shadow in folds and creases, slight sheen on tight-weave fabric under directional light, and natural drape where fabric hangs or rests.
 
 ═══════════════════════════════════════════════════════
 LIGHTING — ARCHITECTURAL PHOTOGRAPHY STANDARD
@@ -733,7 +733,7 @@ Every visible light fixture (pendant lights, wall sconces, ceiling downlights, t
 
 COLOUR TEMPERATURE CONTRAST
 - Interior artificial lighting: warm amber at approximately 2700–3200K. Pendant bulbs, sconces, and downlights all emit this warm colour.
-- Daylight from windows: cooler blue-white at approximately 5500–6500K.
+- Daylight from windows: cooler blue-white at approximately 5500K.
 - Where both light types are present, the contrast between warm interior and cool daylight creates a rich, photographic quality that characterises luxury interior photography.
 
 AMBIENT OCCLUSION AND SHADOW
