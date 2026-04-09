@@ -519,35 +519,45 @@ export async function generateInteriorRender(
     let prompt: string;
     
     if (customPrompt && customPrompt.trim()) {
-      // Check if there are reference photos to add special handling
       const hasReferencePhotos = referencePhotos && referencePhotos.length > 0;
       
-      prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text. Do NOT explain what you cannot do. Just generate the best possible image based on the request.
+      prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text. Do NOT explain limitations. Generate the image now.
 
-You are an expert interior design visualization assistant. Generate a modified version of this room image.
+You are a precision interior design editor. Your job is surgical: apply EXACTLY the instruction below and leave everything else completely untouched.
 
-REQUESTED CHANGE: ${customPrompt}
-
-CRITICAL PRESERVATION RULES - READ CAREFULLY:
-1. PRESERVE EVERYTHING: Keep the exact same room layout, walls, floors, ceiling, windows, doors, and ALL existing furniture UNLESS the user specifically asks to change them
-2. MINIMAL CHANGES: Only modify what the user explicitly requested - nothing more, nothing less
-3. FOLLOW INSTRUCTIONS LITERALLY: If user says "add a chair next to the sofa", add exactly ONE chair next to the sofa
-4. MATCH EXISTING STYLE: Any new items should match the existing room's style, colors, and aesthetic
-5. MAINTAIN PERSPECTIVE: Keep the same camera angle and room perspective as the input image
-6. SAME LIGHTING: Preserve the lighting conditions from the original image
-
-IMPORTANT RULES:
-- ALWAYS generate an image output - never refuse or explain limitations
-- The output should look 95% identical to the input, with only the requested change applied
-- If the exact request isn't possible, make the closest reasonable interpretation
-- Maintain photorealistic quality
+═══════════════════════════════════════════════════════
+YOUR INSTRUCTION — APPLY THIS AND ONLY THIS
+═══════════════════════════════════════════════════════
+${customPrompt}
 ${hasReferencePhotos ? `
 REFERENCE PHOTOS:
-- Use the reference photos as visual guides for style and appearance
-- Match colors and design details from the references
+- Study the attached reference photos for exact colours, textures, and style of the requested item(s)
+- Copy ONLY the specific item from each reference — ignore backgrounds, rooms, and other elements in the reference photos
+- Match the reference item's appearance as closely as possible in the output room
 ` : ''}${referenceInstructions}
 
-OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with professional lighting and sharp details. The image should be nearly identical to the input except for the specific change requested.`;
+═══════════════════════════════════════════════════════
+SCOPE LOCK — DO NOT TOUCH ANYTHING ELSE
+═══════════════════════════════════════════════════════
+- Change ONLY what the instruction above explicitly requests. Nothing else.
+- Room structure (walls, ceiling, floor, windows, doors, columns) = pixel-identical to input
+- Camera angle and room perspective = identical to input
+- Every piece of furniture NOT mentioned in the instruction = unchanged, same position, same appearance
+- Every colour NOT mentioned in the instruction = unchanged
+- Every light source NOT mentioned in the instruction = unchanged
+- Every texture and material NOT mentioned in the instruction = unchanged
+- If the instruction targets a specific area or item, all other areas and items are frozen
+
+INTERPRETATION RULE: When the instruction is ambiguous, apply the narrowest reasonable interpretation — do less rather than more.
+
+═══════════════════════════════════════════════════════
+QUALITY STANDARD
+═══════════════════════════════════════════════════════
+- Photorealistic quality matching the input image's style and lighting
+- Seamlessly blend changed elements with unchanged surroundings
+- Consistent shadows, reflections, and depth throughout
+
+OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with all changes applied cleanly and all unchanged areas preserved exactly.`;
     } else if (style) {
       prompt = `CRITICAL: You MUST generate an image. Do NOT respond with text explanations.
 

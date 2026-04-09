@@ -302,9 +302,14 @@ export default function AIRendersPage() {
       if (params.gridCell) {
         const cellLabel = getCellLabel(params.gridCell.col, params.gridCell.row);
         const { cols, rows } = getGridDimensions();
-        const colPosition = params.gridCell.col < cols / 3 ? 'left' : params.gridCell.col > (2 * cols) / 3 ? 'right' : 'center';
-        const rowPosition = params.gridCell.row < rows / 3 ? 'top' : params.gridCell.row > (2 * rows) / 3 ? 'bottom' : 'middle';
-        finalPrompt = `Focus specifically on grid cell ${cellLabel} (located at the ${rowPosition}-${colPosition} area of the image). ${params.prompt}`;
+        // Compute percentage extents of the selected cell within the image
+        const xStart = Math.round((params.gridCell.col / cols) * 100);
+        const xEnd = Math.round(((params.gridCell.col + 1) / cols) * 100);
+        const yStart = Math.round((params.gridCell.row / rows) * 100);
+        const yEnd = Math.round(((params.gridCell.row + 1) / rows) * 100);
+        const colPosition = params.gridCell.col < cols / 3 ? 'left' : params.gridCell.col > (2 * cols) / 3 ? 'right' : 'centre';
+        const rowPosition = params.gridCell.row < rows / 3 ? 'upper' : params.gridCell.row > (2 * rows) / 3 ? 'lower' : 'middle';
+        finalPrompt = `TARGETED AREA: Apply the change only within grid cell ${cellLabel} — the ${rowPosition}-${colPosition} section of the image, spanning approximately ${xStart}–${xEnd}% from the left and ${yStart}–${yEnd}% from the top of the image. Everything outside this cell must remain pixel-identical to the input.\n\nINSTRUCTION FOR CELL ${cellLabel}: ${params.prompt}`;
       }
       
       const formData = new FormData();
@@ -437,11 +442,11 @@ export default function AIRendersPage() {
   });
 
   const quickModifications = [
-    { icon: Paintbrush, label: "Change Colors", prompt: "Change the color scheme to be warmer and more inviting with earth tones" },
-    { icon: TreeDeciduous, label: "Add Plants", prompt: "Add indoor plants and greenery to make the space feel more natural and lively" },
-    { icon: Sofa, label: "Swap Furniture", prompt: "Replace the main furniture with a more modern, minimalist style" },
-    { icon: Sun, label: "Brighten Up", prompt: "Make the lighting brighter and add more natural light to the space" },
-    { icon: Eraser, label: "Declutter", prompt: "Remove unnecessary items and make the space cleaner and more minimal" },
+    { icon: Paintbrush, label: "Change Colors", prompt: "Change the wall colour only to a warm greige or soft terracotta tone. Keep all furniture, flooring, ceiling, lighting, and accessories exactly as they are — only the wall paint colour changes." },
+    { icon: TreeDeciduous, label: "Add Plants", prompt: "Place exactly ONE large indoor potted plant (such as a fiddle-leaf fig or monstera) in the most visually empty corner of the room. Do not move, remove, or alter any existing furniture, lighting, or other elements." },
+    { icon: Sofa, label: "Swap Furniture", prompt: "Replace only the largest seating item (sofa or main chairs) with a clean, contemporary version in a neutral fabric tone. Keep all other furniture, walls, floor, ceiling, lighting, and decor exactly unchanged." },
+    { icon: Sun, label: "Brighten Up", prompt: "Increase the overall light level in the room — brighten ceiling lights and add warm fill light to shadowed areas. Do not add or remove any fixtures, furniture, or objects. Only the lighting intensity and brightness changes." },
+    { icon: Eraser, label: "Declutter", prompt: "Remove only small loose objects from surfaces (books, ornaments, cables, clutter on tables or shelves). Do not remove any furniture, plants, artwork, or structural elements. Keep the room layout exactly as is." },
     { icon: RotateCcw, label: "Undo Changes", prompt: "Revert to a more classic, traditional style similar to the original" }
   ];
 
