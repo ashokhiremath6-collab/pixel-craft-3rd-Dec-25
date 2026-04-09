@@ -87,6 +87,14 @@ export async function setupAuth(app: Express) {
           if (!isValid) {
             return done(null, false, { message: "Incorrect password." });
           }
+          // Enforce email verification for accounts registered via the new sign-up flow
+          // (existing pre-migration accounts have no emailVerificationToken, so they pass)
+          if (user.emailVerificationToken !== null) {
+            return done(null, false, {
+              message:
+                "Please verify your email before signing in. Check your inbox, or use \"Forgot password?\" to get a new verification link.",
+            });
+          }
           return done(null, user);
         } catch (err) {
           return done(err);
@@ -302,4 +310,66 @@ export const isAuthenticated: RequestHandler = (req, res, next) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
   return next();
+};
+
+// Require authentication (any logged-in user)
+export const requireAuth: RequestHandler = (req, res, next) => {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  next();
+};
+
+// Require admin or designer role
+export const requireAdmin: RequestHandler = async (req, res, next) => {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  try {
+    const userId = (req.user as any).id;
+    const userRole = await storage.getUserRole(userId);
+    const role = userRole?.role?.toLowerCase();
+    if (!userRole || (role !== "designer" && role !== "admin")) {
+      return res.status(403).json({ error: "Admin or designer access required" });
+    }
+    next();
+  } catch {
+    return res.status(500).json({ error: "Failed to check authorization" });
+  }
+};
+
+// Require admin-only role
+export const requireAdminOnly: RequestHandler = async (req, res, next) => {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  try {
+    const userId = (req.user as any).id;
+    const userRole = await storage.getUserRole(userId);
+    const role = userRole?.role?.toLowerCase();
+    if (!userRole || role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    next();
+  } catch {
+    return res.status(500).json({ error: "Failed to check authorization" });
+  }
+};
+
+// Require admin, designer, or project_manager role
+export const requireProjectManagerOrAdmin: RequestHandler = async (req, res, next) => {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  try {
+    const userId = (req.user as any).id;
+    const userRole = await storage.getUserRole(userId);
+    const role = userRole?.role?.toLowerCase();
+    if (!userRole || (role !== "designer" && role !== "admin" && role !== "project_manager")) {
+      return res.status(403).json({ error: "Admin, designer, or project manager access required" });
+    }
+    next();
+  } catch {
+    return res.status(500).json({ error: "Failed to check authorization" });
+  }
 };

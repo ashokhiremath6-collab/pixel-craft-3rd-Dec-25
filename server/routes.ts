@@ -17,7 +17,7 @@ import libre from "libreoffice-convert";
 import { randomUUID } from "crypto";
 import { sql } from "drizzle-orm";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./localAuth";
+import { setupAuth, isAuthenticated, requireAuth, requireAdmin, requireAdminOnly, requireProjectManagerOrAdmin } from "./localAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { RENDER_STYLES, generateInteriorRender, generateConceptRender, generatePhotorealConversion, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
@@ -50,99 +50,19 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 
-// Replit Auth provides /api/login and /api/logout automatically
-
 // Session configuration types
 declare module 'express-session' {
   interface SessionData {
     userId?: string;
     userRole?: string;
-    oauthState?: string;
-    oauthNonce?: string;
   }
 }
 
-// Authentication middleware for Replit Auth
-const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.log("🔐 requireAuth called for:", req.path);
-  console.log("🔑 isAuthenticated:", req.isAuthenticated());
-  console.log("👤 has user:", !!req.user);
-  
-  if (!req.isAuthenticated() || !req.user) {
-    console.log("❌ Auth failed - returning 401");
-    return res.status(401).json({ error: "Authentication required" });
-  }
-  console.log("✅ Auth passed - calling next()");
-  next();
-};
-
-// Middleware for designer or admin access (content management)
-const requireAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (!req.isAuthenticated() || !req.user) {
-    return res.status(401).json({ error: "Authentication required" });
-  }
-  
-  try {
-    const userId = (req.user as any).id;
-    const userRole = await storage.getUserRole(userId);
-    // Normalize role to lowercase for case-insensitive comparison
-    const role = userRole?.role?.toLowerCase();
-    if (!userRole || (role !== 'designer' && role !== 'admin')) {
-      console.log(`🔒 Access denied for user ${userId}: role='${userRole?.role}' (normalized: '${role}')`);
-      return res.status(403).json({ error: "Admin or designer access required" });
-    }
-    next();
-  } catch (error) {
-    console.error('Error checking user role:', error);
-    return res.status(500).json({ error: "Failed to check authorization" });
-  }
-};
-
-// Middleware for admin-only access (user management, security-critical operations)
-const requireAdminOnly = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (!req.isAuthenticated() || !req.user) {
-    return res.status(401).json({ error: "Authentication required" });
-  }
-  
-  try {
-    const userId = (req.user as any).id;
-    const userRole = await storage.getUserRole(userId);
-    // Normalize role to lowercase for case-insensitive comparison
-    const role = userRole?.role?.toLowerCase();
-    if (!userRole || role !== 'admin') {
-      return res.status(403).json({ error: "Admin access required" });
-    }
-    next();
-  } catch (error) {
-    console.error('Error checking user role:', error);
-    return res.status(500).json({ error: "Failed to check authorization" });
-  }
-};
-
-// Middleware for admin, designer, or project_manager access (works orders, meeting minutes)
-const requireProjectAccess = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (!req.isAuthenticated() || !req.user) {
-    return res.status(401).json({ error: "Authentication required" });
-  }
-  
-  try {
-    const userId = (req.user as any).id;
-    const userRole = await storage.getUserRole(userId);
-    // Normalize role to lowercase for case-insensitive comparison
-    const role = userRole?.role?.toLowerCase();
-    if (!userRole || (role !== 'designer' && role !== 'admin' && role !== 'project_manager')) {
-      console.log(`🔒 Access denied for user ${userId}: role='${userRole?.role}' (normalized: '${role}')`);
-      return res.status(403).json({ error: "Admin, designer, or project manager access required" });
-    }
-    next();
-  } catch (error) {
-    console.error('Error checking user role:', error);
-    return res.status(500).json({ error: "Failed to check authorization" });
-  }
-};
+// requireProjectAccess is an alias for requireProjectManagerOrAdmin (works orders, meeting minutes)
+const requireProjectAccess = requireProjectManagerOrAdmin;
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Setup real Replit Auth (handles session configuration internally)
+  // Setup auth (session, passport-local, auth endpoints)
   await setupAuth(app);
 
   // Object Storage endpoints for permanent file storage
