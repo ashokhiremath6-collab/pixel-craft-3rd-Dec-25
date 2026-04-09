@@ -61,6 +61,12 @@ declare module 'express-session' {
 // requireProjectAccess is an alias for requireProjectManagerOrAdmin (works orders, meeting minutes)
 const requireProjectAccess = requireProjectManagerOrAdmin;
 
+// Strips sensitive credential fields before sending user data to the client
+function sanitizeUser(user: Record<string, any>) {
+  const { passwordHash, emailVerificationToken, passwordResetToken, passwordResetTokenExpiry, ...safe } = user;
+  return safe;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup auth (session, passport-local, auth endpoints)
   await setupAuth(app);
@@ -586,7 +592,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRole = await storage.getUserRole(user.id);
       
       res.json({
-        ...user,
+        ...sanitizeUser(user),
         role: userRole?.role || "client"
       });
     } catch (error) {
@@ -644,7 +650,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         users.map(async (user) => {
           const role = await storage.getUserRole(user.id);
           return {
-            ...user,
+            ...sanitizeUser(user),
             role: role?.role || null,
             roleIsActive: role?.isActive || false,
           };
