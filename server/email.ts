@@ -1,14 +1,21 @@
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-function createTransport() {
+const FROM_NAME = "PixelCraft Designer";
+
+function getResend(): Resend | null {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return null;
+  return new Resend(key);
+}
+
+function createSmtpTransport() {
   const host = process.env.SMTP_HOST;
   const port = parseInt(process.env.SMTP_PORT || "587", 10);
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
 
-  if (!host || !user || !pass) {
-    return null;
-  }
+  if (!host || !user || !pass) return null;
 
   return nodemailer.createTransport({
     host,
@@ -18,7 +25,10 @@ function createTransport() {
   });
 }
 
-const FROM = process.env.SMTP_FROM || process.env.SMTP_USER || "noreply@pixelcraftdesigner.com";
+const FROM_ADDRESS =
+  process.env.SMTP_FROM ||
+  process.env.SMTP_USER ||
+  "noreply@pixelcraftdesigner.com";
 
 function getBaseUrl(req?: { protocol?: string; hostname?: string }): string {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
@@ -28,25 +38,55 @@ function getBaseUrl(req?: { protocol?: string; hostname?: string }): string {
   return "http://localhost:5000";
 }
 
+async function sendEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<void> {
+  // 1. Try Resend first
+  const resend = getResend();
+  if (resend) {
+    const { error } = await resend.emails.send({
+      from: `${FROM_NAME} <${FROM_ADDRESS}>`,
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+      text: opts.text,
+    });
+    if (error) throw new Error(`Resend error: ${error.message}`);
+    return;
+  }
+
+  // 2. Fall back to SMTP
+  const smtp = createSmtpTransport();
+  if (smtp) {
+    await smtp.sendMail({
+      from: `"${FROM_NAME}" <${FROM_ADDRESS}>`,
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+      text: opts.text,
+    });
+    return;
+  }
+
+  // 3. No email service configured — log to console only
+  console.warn(
+    "[EMAIL] No email service configured (set RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS). " +
+      "Email not sent to: " + opts.to
+  );
+}
+
 export async function sendPasswordResetEmail(
   email: string,
   token: string,
   baseUrl?: string
 ): Promise<void> {
-  const transporter = createTransport();
-  if (!transporter) {
-    console.warn(
-      "[EMAIL] SMTP not configured — skipping password reset email. " +
-        "Set SMTP_HOST, SMTP_USER, SMTP_PASS to enable email sending."
-    );
-    console.info(`[EMAIL] Password reset token for ${email}: ${token}`);
-    return;
-  }
-
   const resetUrl = `${baseUrl || getBaseUrl()}/reset-password?token=${token}`;
+  console.info(`[EMAIL] Password reset link for ${email}: ${resetUrl}`);
 
-  await transporter.sendMail({
-    from: FROM,
+  await sendEmail({
     to: email,
     subject: "Reset your PixelCraft Designer password",
     html: `
@@ -77,20 +117,10 @@ export async function sendVerificationEmail(
   token: string,
   baseUrl?: string
 ): Promise<void> {
-  const transporter = createTransport();
-  if (!transporter) {
-    console.warn(
-      "[EMAIL] SMTP not configured — skipping verification email. " +
-        "Set SMTP_HOST, SMTP_USER, SMTP_PASS to enable email sending."
-    );
-    console.info(`[EMAIL] Verification token for ${email}: ${token}`);
-    return;
-  }
-
   const verifyUrl = `${baseUrl || getBaseUrl()}/api/auth/verify-email/${token}`;
+  console.info(`[EMAIL] Verification link for ${email}: ${verifyUrl}`);
 
-  await transporter.sendMail({
-    from: FROM,
+  await sendEmail({
     to: email,
     subject: "Verify your PixelCraft Designer account",
     html: `
