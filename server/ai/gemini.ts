@@ -676,11 +676,13 @@ export async function generatePhotorealConversion(
     const compressed = await compressImage(imageBase64, mimeType);
     console.log("[Gemini] Image compressed, size:", compressed.data.length, "bytes");
 
-    const prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text. Do NOT explain limitations.
+    const prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text. Do NOT explain limitations. Generate the image now.
 
-You are a photorealistic rendering engine. Your ONLY task is to convert this 3D render or SketchUp screenshot into a photorealistic photograph.
+You are a world-class architectural visualisation engine trained on thousands of award-winning interior photography images published in Architectural Digest, AD100, and Dezeen. Your task is to convert this 3D render or SketchUp screenshot into a photograph that is indistinguishable from a professional architectural photography shoot.
 
-GEOMETRY IS COMPLETELY LOCKED — DO NOT CHANGE ANYTHING STRUCTURAL:
+═══════════════════════════════════════════════════════
+GEOMETRY IS COMPLETELY LOCKED — ZERO STRUCTURAL CHANGES
+═══════════════════════════════════════════════════════
 - Count every object visible in the input image. Your output MUST contain the exact same number of objects — not one more, not one less.
 - Every piece of furniture, fixture, and element stays in its EXACT position, size, and orientation.
 - Room dimensions, walls, floors, ceiling, windows, and doors remain IDENTICAL in shape and position.
@@ -688,27 +690,81 @@ GEOMETRY IS COMPLETELY LOCKED — DO NOT CHANGE ANYTHING STRUCTURAL:
 - DO NOT add any new furniture, plants, accessories, decorations, or any object not already present.
 - DO NOT remove or reposition any existing objects.
 
-WHAT YOU ARE ALLOWED TO CHANGE (these are the ONLY permitted changes):
-1. MATERIALS — Replace flat CG surfaces with photorealistic physical materials:
-   - Wood → real wood grain with natural variation, warmth, and subtle imperfections
-   - Walls → real plaster or paint surface with subtle texture and slight sheen
-   - Metal → realistic reflections, specular highlights, and natural patina
-   - Glass → realistic transparency, internal reflections, and subtle distortions
-   - Fabric and upholstery → visible weave structure, soft natural folds, and drape
-   - Stone and tile → natural color variation, veining, and grout lines with depth
-   - Concrete → surface texture and slight imperfections
-2. LIGHTING — Add photorealistic illumination:
-   - Soft natural shadows with realistic falloff and penumbra
-   - Ambient occlusion in corners, under objects, and in crevices
-   - Specular highlights on all glossy or semi-glossy surfaces
-   - Light bouncing naturally between surfaces (indirect illumination)
-   - Consistent light direction from windows and existing light fixtures in the scene
-3. PHOTOGRAPHIC QUALITY:
-   - Subtle depth of field consistent with a DSLR at moderate aperture
-   - Natural photographic sharpness and contrast
-   - Realistic exposure and dynamic range without blown highlights or crushed shadows
+═══════════════════════════════════════════════════════
+WHAT YOU ARE TRANSFORMING (material + lighting quality ONLY)
+═══════════════════════════════════════════════════════
 
-OUTPUT: Generate a HIGH RESOLUTION photorealistic photograph of this exact scene. The result must look like it was shot with a professional DSLR camera on a tripod, capturing the identical room with identical objects — the only difference is that everything looks physically real instead of computer-generated.`;
+SECTION A — FLOOR SURFACES
+The floor is one of the most important photorealism indicators. Apply the following:
+- If the floor is stone, marble, or tile: render with VISIBLE stone veining that varies naturally across each tile, colour variation between individual tiles (no two tiles should look identical), grout lines that have slight depth and shadow. CRITICAL: the floor surface must show semi-specular reflections — overhead pendant lights, sconces, and nearby bright objects should appear as soft, slightly blurred mirror images in the floor surface. This is the hallmark of polished stone.
+- If the floor is wood: visible grain direction with alternating light/dark growth rings, slight gloss where light strikes at a low angle.
+- If the floor is concrete or screed: micro-texture visible as a grainy surface, subtle sheen from sealer coat.
+
+SECTION B — WALL SURFACES
+- Fabric or textile wall panels: render the individual woven threads as visible texture — a warp-and-weft pattern at close range, with subtle shadow depth between the threads. Panel seams and joins should catch directional light as a thin bright edge.
+- Painted walls: eggshell or satin sheen — a soft specular gradient that travels across the wall surface following the direction of the nearest light source. NOT flat, NOT matte.
+- Plaster or lime wash: visible micro-texture with slight tonal variation across the surface.
+- Panelled walls (wood moulding, wainscoting): deep shadow in the recessed areas, specular highlight on the raised edges catching light.
+
+SECTION C — METAL AND REFLECTIVE SURFACES
+- Elevator doors, door handles, hinges, drawer pulls, light fixture bodies: render as brushed or polished metal with NEAR-MIRROR reflections of the room. The reflection should be slightly compressed and slightly blurred as it appears in real brushed stainless or polished brass — not a perfect flat mirror, but a recognisable reflection of the surrounding space.
+- Brass or gold-tone metal: warm amber-gold colour with directional streaks of light from the grain of the brushing.
+- Chrome: cooler, high-contrast reflections with a sharp specular highlight.
+
+SECTION D — WOOD SURFACES
+- Carved or turned wood furniture: render visible multi-directional grain that follows the carved contours. Where light penetrates the surface at a low angle, add warm amber sub-surface scattering — the wood should glow slightly from within, not just reflect from the surface. Darkened shadows accumulate in recessed carved details, grooves, and undercuts. A visible lacquer or wax sheen coats the outer surface.
+- Flat wood (doors, shelves, floors): grain direction consistent, alternating light/dark bands, pore structure visible on closer surfaces.
+
+SECTION E — GLASS AND TRANSPARENT MATERIALS
+- Glass panels, vases, light fixture globes: internal reflections (secondary image visible inside the glass volume), meniscus edge effect (bright white line at curved edges), specular hotspot from the nearest light source, and slight distortion of objects seen through the glass.
+
+SECTION F — FABRIC, UPHOLSTERY, SOFT FURNISHINGS
+- Cushions, drapes, rugs, upholstery: visible weave or pile texture, soft natural shadow in folds and creases, slight sheen on tight-weave fabric under directional light, and naturaldrape where fabric hangs or rests.
+
+═══════════════════════════════════════════════════════
+LIGHTING — ARCHITECTURAL PHOTOGRAPHY STANDARD
+═══════════════════════════════════════════════════════
+
+FIXTURE GLOW AND LIGHT POOLS
+Every visible light fixture (pendant lights, wall sconces, ceiling downlights, table lamps) must:
+1. Emit a warm visible glow halo — a soft corona of warm light around the bulb or diffuser.
+2. Cast a visible warm pool of light on the nearest surfaces (wall, ceiling, floor) with natural falloff — bright near the fixture, gradually dimming as distance increases.
+3. Project soft-edged shadows from nearby objects (the pendant cord should cast a thin shadow line on the ceiling; the sconce should create a warm fan of light on the wall above and below it).
+
+COLOUR TEMPERATURE CONTRAST
+- Interior artificial lighting: warm amber at approximately 2700–3200K. Pendant bulbs, sconces, and downlights all emit this warm colour.
+- Daylight from windows: cooler blue-white at approximately 5500–6500K.
+- Where both light types are present, the contrast between warm interior and cool daylight creates a rich, photographic quality that characterises luxury interior photography.
+
+AMBIENT OCCLUSION AND SHADOW
+- Dark shadows accumulate in all interior corners (wall-to-wall, wall-to-floor, wall-to-ceiling junctions).
+- Under every piece of furniture, deep contact shadows that feather out with distance.
+- Inside carved details, recessed panels, and grooves — shadow fills these crevices completely.
+- Behind objects and in the depth of doorways — convincing darkness.
+
+SPECULAR REFLECTIONS (present on all semi-glossy surfaces)
+- Floor: soft reflection of pendant lights and windows.
+- Metal surfaces: sharp or slightly blurred reflection of room environment.
+- Lacquered wood: directional specular streak following light direction.
+- Painted walls: soft wide specular gradient.
+- Glass: sharp specular hotspot.
+
+INDIRECT ILLUMINATION
+Warm light from interior fixtures bounces off cream, white, or light-coloured wall surfaces and re-illuminates nearby objects with a secondary warm fill — this is the "bounce light" that makes a room feel inhabitable rather than studio-lit.
+
+═══════════════════════════════════════════════════════
+PHOTOGRAPHIC QUALITY — DSLR ARCHITECTURAL SHOOT
+═══════════════════════════════════════════════════════
+- Colour grade: professional architectural photography style — slightly warm white balance, lifted shadows (shadows are NOT crushed to pure black — they retain detail and warm colour), highlights controlled with a smooth rolloff (highlights do NOT blow out to pure white).
+- Depth of field: objects in the immediate foreground are at their sharpest. Mid-ground is slightly softer. Far background shows a very subtle focus falloff. This mimics a DSLR at f/8 with a moderate telephoto lens — the effect is subtle but unmistakeable.
+- Micro-detail sharpness: at the pixel level, individual threads in fabric, stone veining, and wood grain are crisp and sharp. This is NOT a blurry or painterly render — it is sharply detailed like a high-resolution photograph.
+- Film-like tonal curve: smooth, gradual transition from shadow to midtone to highlight. No hard clipping. Rich, saturated midtones.
+- Natural lens characteristics: very subtle vignette at the frame edges (corners very slightly darker), and micro-chromatic contrast that makes edges feel crisp.
+
+═══════════════════════════════════════════════════════
+OUTPUT STANDARD
+═══════════════════════════════════════════════════════
+The output must be indistinguishable from a photograph published in Architectural Digest or AD100. A viewer must genuinely question whether it is a photograph or a render. Generate at the highest possible resolution and quality. The geometry of every object is identical to the input — only the material quality, lighting, and photographic properties have been transformed.`;
 
     const parts: any[] = [
       { text: prompt },
