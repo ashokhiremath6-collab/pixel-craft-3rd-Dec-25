@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Download, Trash2, Edit, FileImage, File, Plus, ExternalLink } from "lucide-react";
+import { Upload, Download, Trash2, Edit, FileImage, File, Plus, ExternalLink, FileCode2, Layers, ChevronDown, ChevronUp } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
@@ -47,8 +47,23 @@ export default function FloorPlansPage() {
   const [viewingFloorPlan, setViewingFloorPlan] = useState<FloorPlan | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cadFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // CAD import state
+  const [cadImportDialogOpen, setCadImportDialogOpen] = useState(false);
+  const [cadFile, setCadFile] = useState<File | null>(null);
+  const [cadLayers, setCadLayers] = useState<string[]>([]);
+  const [cadLayersExpanded, setCadLayersExpanded] = useState(false);
+  const [cadDragActive, setCadDragActive] = useState(false);
+  const [cadDrawingType, setCadDrawingType] = useState("");
+  const [cadScale, setCadScale] = useState("");
+  const [cadDiscipline, setCadDiscipline] = useState("");
+  const [cadRevision, setCadRevision] = useState("A");
+  const [cadNotes, setCadNotes] = useState("");
+  const [cadProjectId, setCadProjectId] = useState("");
+  const [cadName, setCadName] = useState("");
 
   // Fetch floor plans only when a project is selected
   const { data: floorPlans = [], isLoading: floorPlansLoading } = useQuery<FloorPlan[]>({
@@ -200,6 +215,112 @@ export default function FloorPlansPage() {
       });
     },
   });
+
+  // CAD import mutation
+  const cadImportMutation = useMutation({
+    mutationFn: async () => {
+      if (!cadFile) throw new Error("No file selected");
+      if (!cadProjectId) throw new Error("Project is required");
+      if (!cadName.trim()) throw new Error("Drawing name is required");
+
+      const meta = {
+        type: cadDrawingType,
+        scale: cadScale,
+        discipline: cadDiscipline,
+        revision: cadRevision,
+        layers: cadLayers,
+        notes: cadNotes,
+      };
+
+      const formData = new FormData();
+      formData.append('file', cadFile);
+      formData.append('projectId', cadProjectId);
+      formData.append('name', cadName);
+      formData.append('description', `__CAD_META__:${JSON.stringify(meta)}`);
+      formData.append('version', cadRevision || '1.0');
+
+      const response = await fetch('/api/floor-plans', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Import failed');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "CAD drawing imported successfully" });
+      setCadFile(null);
+      setCadLayers([]);
+      setCadDrawingType("");
+      setCadScale("");
+      setCadDiscipline("");
+      setCadRevision("A");
+      setCadNotes("");
+      setCadProjectId("");
+      setCadName("");
+      setCadImportDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/floor-plans'] });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Import failed", description: error.message });
+    },
+  });
+
+  // Extract layer names from DXF file
+  const extractDXFLayers = async (file: File): Promise<string[]> => {
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/);
+      const layers = new Set<string>();
+      for (let i = 0; i < lines.length - 1; i++) {
+        if (lines[i].trim() === '8') {
+          const name = lines[i + 1].trim();
+          if (name && name.length > 0 && name.length < 256) layers.add(name);
+        }
+      }
+      return Array.from(layers).sort();
+    } catch {
+      return [];
+    }
+  };
+
+  // Parse CAD metadata from description field
+  const parseCadMeta = (description: string | null | undefined) => {
+    if (!description?.startsWith('__CAD_META__:')) return null;
+    try {
+      return JSON.parse(description.replace('__CAD_META__:', ''));
+    } catch {
+      return null;
+    }
+  };
+
+  // Check if a floor plan is a CAD file
+  const isCadFile = (fp: FloorPlan) => {
+    const ext = fp.fileName?.split('.').pop()?.toLowerCase();
+    return ext === 'dxf' || ext === 'dwg' || fp.fileType === 'dxf' || fp.fileType === 'dwg';
+  };
+
+  const handleCadFileSelect = async (file: File) => {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext !== 'dxf' && ext !== 'dwg') {
+      toast({ variant: "destructive", title: "Invalid file type", description: "Please select a DXF or DWG file." });
+      return;
+    }
+    if (file.size > 100 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "File too large", description: "Maximum file size is 100MB." });
+      return;
+    }
+    setCadFile(file);
+    if (!cadName) setCadName(file.name.replace(/\.[^.]+$/, ''));
+    if (ext === 'dxf') {
+      const layers = await extractDXFLayers(file);
+      setCadLayers(layers);
+    }
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -358,6 +479,11 @@ export default function FloorPlansPage() {
           <p className="text-sm text-muted-foreground">Manage architectural drawings and floor plans for your projects</p>
         </div>
         
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setCadImportDialogOpen(true)} data-testid="button-import-cad">
+            <FileCode2 className="h-4 w-4 mr-2" />
+            Import AutoCAD Drawing
+          </Button>
         <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-upload-floor-plan">
@@ -517,6 +643,7 @@ export default function FloorPlansPage() {
             </Form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Project Selector */}
@@ -589,77 +716,92 @@ export default function FloorPlansPage() {
                 </CardHeader>
                 <CardContent className="p-4">
                   <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                    {projectFloorPlans.map((floorPlan) => (
+                    {projectFloorPlans.map((floorPlan) => {
+                      const cadMeta = parseCadMeta(floorPlan.description);
+                      const isCAD = isCadFile(floorPlan);
+                      return (
                       <Card key={floorPlan.id} className="p-3" data-testid={`card-floor-plan-${floorPlan.id}`}>
                       <div className="space-y-2">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-2">
-                            {getFileIcon(floorPlan.fileType)}
-                            <div>
-                              <h4 className="font-medium text-sm" data-testid={`text-name-${floorPlan.id}`}>
-                                {floorPlan.name}
-                              </h4>
+                        <div className="flex items-start justify-between gap-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isCAD ? <FileCode2 className="h-4 w-4 text-amber-500 shrink-0" /> : getFileIcon(floorPlan.fileType)}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <h4 className="font-medium text-sm truncate" data-testid={`text-name-${floorPlan.id}`}>
+                                  {floorPlan.name}
+                                </h4>
+                                {isCAD && <Badge variant="secondary" className="text-xs shrink-0 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">CAD</Badge>}
+                              </div>
                               <p className="text-xs text-muted-foreground">
-                                v{floorPlan.version}
+                                Rev {floorPlan.version}
+                                {cadMeta?.type && ` · ${cadMeta.type}`}
+                                {cadMeta?.scale && ` · ${cadMeta.scale}`}
                               </p>
                             </div>
                           </div>
-                          <div className="flex space-x-1">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleView(floorPlan)}
-                              data-testid={`button-view-${floorPlan.id}`}
-                              title="View in new tab"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleEdit(floorPlan)}
-                              data-testid={`button-edit-${floorPlan.id}`}
-                            >
+                          <div className="flex space-x-1 shrink-0">
+                            {isCAD ? (
+                              <Button size="icon" variant="ghost" onClick={() => handleDownload(floorPlan)} title="Export / Download CAD file" data-testid={`button-download-${floorPlan.id}`}>
+                                <Download className="h-3 w-3" />
+                              </Button>
+                            ) : (
+                              <Button size="icon" variant="ghost" onClick={() => handleView(floorPlan)} data-testid={`button-view-${floorPlan.id}`} title="View">
+                                <ExternalLink className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <Button size="icon" variant="ghost" onClick={() => handleEdit(floorPlan)} data-testid={`button-edit-${floorPlan.id}`}>
                               <Edit className="h-3 w-3" />
                             </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleDelete(floorPlan.id)}
-                              data-testid={`button-delete-${floorPlan.id}`}
-                            >
+                            <Button size="icon" variant="ghost" onClick={() => handleDelete(floorPlan.id)} data-testid={`button-delete-${floorPlan.id}`}>
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
                         </div>
-                        
-                        {floorPlan.description && (
+
+                        {cadMeta ? (
+                          <div className="space-y-1">
+                            {cadMeta.discipline && (
+                              <p className="text-xs text-muted-foreground">Discipline: {cadMeta.discipline}</p>
+                            )}
+                            {cadMeta.layers?.length > 0 && (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Layers className="h-3 w-3" /> {cadMeta.layers.length} layers
+                              </p>
+                            )}
+                            {cadMeta.notes && (
+                              <p className="text-xs text-muted-foreground">{cadMeta.notes}</p>
+                            )}
+                          </div>
+                        ) : floorPlan.description ? (
                           <p className="text-xs text-muted-foreground" data-testid={`text-description-${floorPlan.id}`}>
                             {floorPlan.description}
                           </p>
-                        )}
-                        
+                        ) : null}
+
                         <div className="space-y-1">
                           <div className="flex justify-between items-center text-xs text-muted-foreground">
-                            <span data-testid={`text-file-size-${floorPlan.id}`}>
-                              {floorPlan.fileSize ? formatFileSize(floorPlan.fileSize) : 'Unknown size'}
-                            </span>
-                            <Badge 
-                              variant={floorPlan.isActive ? "default" : "secondary"}
-                              data-testid={`badge-status-${floorPlan.id}`}
-                            >
+                            <span>{floorPlan.fileSize ? formatFileSize(floorPlan.fileSize) : 'Unknown size'}</span>
+                            <Badge variant={floorPlan.isActive ? "default" : "secondary"}>
                               {floorPlan.isActive ? 'Active' : 'Inactive'}
                             </Badge>
                           </div>
                           {floorPlan.uploadedAt && (
-                            <p className="text-xs text-muted-foreground" data-testid={`text-upload-time-${floorPlan.id}`}>
+                            <p className="text-xs text-muted-foreground">
                               {format(new Date(floorPlan.uploadedAt), 'dd MMM yyyy, HH:mm')}
                             </p>
                           )}
                         </div>
+
+                        {isCAD && (
+                          <Button size="sm" variant="outline" className="w-full mt-1" onClick={() => handleDownload(floorPlan)}>
+                            <Download className="h-3 w-3 mr-2" />
+                            Export CAD File
+                          </Button>
+                        )}
                       </div>
                     </Card>
-                    ))}
+                    );
+                    })}
                   </div>
                 </CardContent>
               </Card>
@@ -677,83 +819,300 @@ export default function FloorPlansPage() {
               </CardHeader>
               <CardContent className="p-4">
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {floorPlans.map((floorPlan) => (
+                  {floorPlans.map((floorPlan) => {
+                    const cadMeta = parseCadMeta(floorPlan.description);
+                    const isCAD = isCadFile(floorPlan);
+                    return (
                     <Card key={floorPlan.id} className="p-3" data-testid={`card-floor-plan-${floorPlan.id}`}>
                       <div className="space-y-2">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-2">
-                            {getFileIcon(floorPlan.fileType)}
-                            <div>
-                              <h4 className="font-medium text-sm" data-testid={`text-name-${floorPlan.id}`}>
-                                {floorPlan.name}
-                              </h4>
+                        <div className="flex items-start justify-between gap-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isCAD ? <FileCode2 className="h-4 w-4 text-amber-500 shrink-0" /> : getFileIcon(floorPlan.fileType)}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <h4 className="font-medium text-sm truncate" data-testid={`text-name-${floorPlan.id}`}>
+                                  {floorPlan.name}
+                                </h4>
+                                {isCAD && <Badge variant="secondary" className="text-xs shrink-0 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">CAD</Badge>}
+                              </div>
                               <p className="text-xs text-muted-foreground">
-                                v{floorPlan.version}
+                                Rev {floorPlan.version}
+                                {cadMeta?.type && ` · ${cadMeta.type}`}
+                                {cadMeta?.scale && ` · ${cadMeta.scale}`}
                               </p>
                             </div>
                           </div>
-                          <div className="flex space-x-1">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleView(floorPlan)}
-                              data-testid={`button-view-${floorPlan.id}`}
-                              title="View in new tab"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleEdit(floorPlan)}
-                              data-testid={`button-edit-${floorPlan.id}`}
-                            >
+                          <div className="flex space-x-1 shrink-0">
+                            {isCAD ? (
+                              <Button size="icon" variant="ghost" onClick={() => handleDownload(floorPlan)} title="Export / Download CAD file" data-testid={`button-download-${floorPlan.id}`}>
+                                <Download className="h-3 w-3" />
+                              </Button>
+                            ) : (
+                              <Button size="icon" variant="ghost" onClick={() => handleView(floorPlan)} data-testid={`button-view-${floorPlan.id}`} title="View">
+                                <ExternalLink className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <Button size="icon" variant="ghost" onClick={() => handleEdit(floorPlan)} data-testid={`button-edit-${floorPlan.id}`}>
                               <Edit className="h-3 w-3" />
                             </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleDelete(floorPlan.id)}
-                              data-testid={`button-delete-${floorPlan.id}`}
-                            >
+                            <Button size="icon" variant="ghost" onClick={() => handleDelete(floorPlan.id)} data-testid={`button-delete-${floorPlan.id}`}>
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
                         </div>
-                        
-                        {floorPlan.description && (
+
+                        {cadMeta ? (
+                          <div className="space-y-1">
+                            {cadMeta.discipline && (
+                              <p className="text-xs text-muted-foreground">Discipline: {cadMeta.discipline}</p>
+                            )}
+                            {cadMeta.layers?.length > 0 && (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Layers className="h-3 w-3" /> {cadMeta.layers.length} layers
+                              </p>
+                            )}
+                            {cadMeta.notes && (
+                              <p className="text-xs text-muted-foreground">{cadMeta.notes}</p>
+                            )}
+                          </div>
+                        ) : floorPlan.description ? (
                           <p className="text-xs text-muted-foreground" data-testid={`text-description-${floorPlan.id}`}>
                             {floorPlan.description}
                           </p>
-                        )}
-                        
+                        ) : null}
+
                         <div className="space-y-1">
                           <div className="flex justify-between items-center text-xs text-muted-foreground">
-                            <span data-testid={`text-file-size-${floorPlan.id}`}>
-                              {floorPlan.fileSize ? formatFileSize(floorPlan.fileSize) : 'Unknown size'}
-                            </span>
-                            <Badge 
-                              variant={floorPlan.isActive ? "default" : "secondary"}
-                              data-testid={`badge-status-${floorPlan.id}`}
-                            >
+                            <span>{floorPlan.fileSize ? formatFileSize(floorPlan.fileSize) : 'Unknown size'}</span>
+                            <Badge variant={floorPlan.isActive ? "default" : "secondary"}>
                               {floorPlan.isActive ? 'Active' : 'Inactive'}
                             </Badge>
                           </div>
                           {floorPlan.uploadedAt && (
-                            <p className="text-xs text-muted-foreground" data-testid={`text-upload-time-${floorPlan.id}`}>
+                            <p className="text-xs text-muted-foreground">
                               {format(new Date(floorPlan.uploadedAt), 'dd MMM yyyy, HH:mm')}
                             </p>
                           )}
                         </div>
+
+                        {isCAD && (
+                          <Button size="sm" variant="outline" className="w-full mt-1" onClick={() => handleDownload(floorPlan)}>
+                            <Download className="h-3 w-3 mr-2" />
+                            Export CAD File
+                          </Button>
+                        )}
                       </div>
                     </Card>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
           )}
         </div>
       )}
+
+      {/* CAD Import Dialog */}
+      <Dialog open={cadImportDialogOpen} onOpenChange={(open) => { setCadImportDialogOpen(open); if (!open) { setCadFile(null); setCadLayers([]); setCadName(""); setCadDrawingType(""); setCadScale(""); setCadDiscipline(""); setCadRevision("A"); setCadNotes(""); setCadProjectId(""); } }}>
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileCode2 className="h-5 w-5" />
+              Import AutoCAD Drawing
+            </DialogTitle>
+            <DialogDescription>
+              Import DXF or DWG files from AutoCAD, SketchUp, or any CAD application. Files are stored in their original format and available for download at any time.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Project */}
+            <div className="space-y-1">
+              <Label>Project <span className="text-destructive">*</span></Label>
+              <Select value={cadProjectId} onValueChange={setCadProjectId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.projectName} - {project.clientName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Drawing Name */}
+            <div className="space-y-1">
+              <Label>Drawing Name <span className="text-destructive">*</span></Label>
+              <Input
+                placeholder="e.g., Ground Floor Plan, Section AA"
+                value={cadName}
+                onChange={(e) => setCadName(e.target.value)}
+              />
+            </div>
+
+            {/* Drawing Type and Scale */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Drawing Type</Label>
+                <Select value={cadDrawingType} onValueChange={setCadDrawingType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Floor Plan">Floor Plan</SelectItem>
+                    <SelectItem value="Reflected Ceiling Plan">Reflected Ceiling Plan</SelectItem>
+                    <SelectItem value="Elevation">Elevation</SelectItem>
+                    <SelectItem value="Section">Section</SelectItem>
+                    <SelectItem value="Site Plan">Site Plan</SelectItem>
+                    <SelectItem value="Detail">Detail Drawing</SelectItem>
+                    <SelectItem value="Joinery">Joinery Drawing</SelectItem>
+                    <SelectItem value="MEP">MEP / Services</SelectItem>
+                    <SelectItem value="Structural">Structural</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Drawing Scale</Label>
+                <Select value={cadScale} onValueChange={setCadScale}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select scale" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1:5">1:5</SelectItem>
+                    <SelectItem value="1:10">1:10</SelectItem>
+                    <SelectItem value="1:20">1:20</SelectItem>
+                    <SelectItem value="1:50">1:50</SelectItem>
+                    <SelectItem value="1:100">1:100</SelectItem>
+                    <SelectItem value="1:200">1:200</SelectItem>
+                    <SelectItem value="1:500">1:500</SelectItem>
+                    <SelectItem value="1:1000">1:1000</SelectItem>
+                    <SelectItem value="NTS">Not to Scale (NTS)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Discipline and Revision */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Discipline</Label>
+                <Select value={cadDiscipline} onValueChange={setCadDiscipline}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select discipline" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Architectural">Architectural</SelectItem>
+                    <SelectItem value="Interior Design">Interior Design</SelectItem>
+                    <SelectItem value="Structural">Structural</SelectItem>
+                    <SelectItem value="MEP">MEP / Services</SelectItem>
+                    <SelectItem value="Joinery">Joinery</SelectItem>
+                    <SelectItem value="Landscape">Landscape</SelectItem>
+                    <SelectItem value="Civil">Civil</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Revision</Label>
+                <Input
+                  placeholder="e.g., A, B, 1, 2"
+                  value={cadRevision}
+                  onChange={(e) => setCadRevision(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1">
+              <Label>Notes (Optional)</Label>
+              <Textarea
+                placeholder="Any additional notes about this drawing..."
+                value={cadNotes}
+                onChange={(e) => setCadNotes(e.target.value)}
+                className="resize-none"
+                rows={2}
+              />
+            </div>
+
+            {/* File Drop Zone */}
+            <div className="space-y-2">
+              <Label>CAD File <span className="text-destructive">*</span></Label>
+              <div
+                className={`border-2 border-dashed rounded-lg p-6 text-center space-y-3 transition-colors cursor-pointer ${
+                  cadDragActive
+                    ? 'border-primary bg-primary/10'
+                    : cadFile
+                    ? 'border-green-500 bg-green-500/5'
+                    : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+                }`}
+                onDragEnter={(e) => { e.preventDefault(); setCadDragActive(true); }}
+                onDragLeave={(e) => { e.preventDefault(); setCadDragActive(false); }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); setCadDragActive(false); const f = e.dataTransfer.files?.[0]; if (f) handleCadFileSelect(f); }}
+                onClick={() => cadFileInputRef.current?.click()}
+              >
+                <FileCode2 className={`h-10 w-10 mx-auto ${cadFile ? 'text-green-500' : 'text-muted-foreground'}`} />
+                <div>
+                  <p className="text-sm font-medium">
+                    {cadFile ? cadFile.name : 'Drop your DXF or DWG file here, or click to browse'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Accepts: AutoCAD (.dxf, .dwg) — Max 100MB
+                  </p>
+                </div>
+                {!cadFile && (
+                  <Button type="button" variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); cadFileInputRef.current?.click(); }}>
+                    Browse CAD Files
+                  </Button>
+                )}
+                <input
+                  ref={cadFileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".dxf,.dwg"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCadFileSelect(f); }}
+                />
+              </div>
+
+              {/* Extracted layers */}
+              {cadLayers.length > 0 && (
+                <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 text-xs font-medium w-full text-left"
+                    onClick={() => setCadLayersExpanded(v => !v)}
+                  >
+                    <Layers className="h-3.5 w-3.5" />
+                    {cadLayers.length} layers detected in DXF
+                    {cadLayersExpanded ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+                  </button>
+                  {cadLayersExpanded && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {cadLayers.map(layer => (
+                        <Badge key={layer} variant="secondary" className="text-xs">{layer}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setCadImportDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => cadImportMutation.mutate()}
+                disabled={!cadFile || !cadProjectId || !cadName.trim() || cadImportMutation.isPending}
+              >
+                {cadImportMutation.isPending ? 'Importing...' : 'Import Drawing'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>

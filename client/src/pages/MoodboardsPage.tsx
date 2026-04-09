@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download, FolderInput, MoreVertical } from "lucide-react";
+import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download, FolderInput, MoreVertical, FileCode2, Layers, ChevronDown, ChevronUp } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,12 +27,14 @@ import type { Moodboard, Project, User } from "@shared/schema";
 import { User as UserIcon } from "lucide-react";
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function MoodboardsPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [location] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cadFileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [description, setDescription] = useState("");
@@ -44,6 +46,21 @@ export default function MoodboardsPage() {
   const [filterProjectId, setFilterProjectId] = useState<string>("");
   const [previewImage, setPreviewImage] = useState<Moodboard | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // CAD import state (Working Drawings only)
+  const [cadImportOpen, setCadImportOpen] = useState(false);
+  const [cadFile, setCadFile] = useState<File | null>(null);
+  const [cadDragActive, setCadDragActive] = useState(false);
+  const [cadName, setCadName] = useState("");
+  const [cadDrawingType, setCadDrawingType] = useState("");
+  const [cadScale, setCadScale] = useState("");
+  const [cadDiscipline, setCadDiscipline] = useState("");
+  const [cadRevision, setCadRevision] = useState("A");
+  const [cadNotes, setCadNotes] = useState("");
+  const [cadProjectId, setCadProjectId] = useState("");
+  const [cadFolder, setCadFolder] = useState("");
+  const [cadLayers, setCadLayers] = useState<string[]>([]);
+  const [cadLayersExpanded, setCadLayersExpanded] = useState(false);
   
   // Determine asset type based on route
   const assetType = useMemo(() => {
@@ -222,6 +239,13 @@ export default function MoodboardsPage() {
 
   // Helper function to strip project name prefix from display title
   const getDisplayTitle = (moodboard: Moodboard) => {
+    // For CAD files, extract the name from the stored metadata
+    if (moodboard.description?.startsWith('__CAD_META__:')) {
+      try {
+        const meta = JSON.parse(moodboard.description.slice(13));
+        return meta.name || moodboard.fileName || '';
+      } catch { return moodboard.fileName || ''; }
+    }
     const title = moodboard.description || moodboard.fileName || '';
     if (!moodboard.projectId || !title) return title;
     
@@ -683,17 +707,82 @@ export default function MoodboardsPage() {
     link.click();
   };
 
+  // Parse CAD metadata from description field
+  const parseCadMeta = (desc: string | null | undefined) => {
+    if (!desc?.startsWith('__CAD_META__:')) return null;
+    try { return JSON.parse(desc.slice(13)); } catch { return null; }
+  };
+
+  // Handle CAD file selection and layer extraction
+  const handleCadFileSelect = async (file: File) => {
+    setCadFile(file);
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const name = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim();
+    setCadName(prev => prev || name);
+    if (ext === 'dxf') {
+      try {
+        const text = await file.text();
+        const layerSet = new Set<string>();
+        const lines = text.split('\n').map(l => l.trim());
+        for (let i = 0; i < lines.length - 1; i++) {
+          if (lines[i] === '8') { const layer = lines[i + 1]; if (layer && layer !== '0') layerSet.add(layer); }
+        }
+        setCadLayers(Array.from(layerSet).slice(0, 100));
+      } catch { setCadLayers([]); }
+    }
+  };
+
+  const resetCadForm = () => {
+    setCadFile(null); setCadLayers([]); setCadName(""); setCadDrawingType("");
+    setCadScale(""); setCadDiscipline(""); setCadRevision("A"); setCadNotes("");
+    setCadProjectId(""); setCadFolder(""); setCadLayersExpanded(false);
+  };
+
+  const cadImportMutation = useMutation({
+    mutationFn: async () => {
+      if (!cadFile) throw new Error("No file selected");
+      if (!cadProjectId) throw new Error("Project is required");
+      if (!cadName.trim()) throw new Error("Drawing name is required");
+      if (!cadFolder) throw new Error("Folder is required for Working Drawings");
+      const meta = { name: cadName.trim(), type: cadDrawingType, scale: cadScale, discipline: cadDiscipline, revision: cadRevision, layers: cadLayers, notes: cadNotes };
+      const formData = new FormData();
+      formData.append('moodboard', cadFile);
+      formData.append('assetType', 'working_drawing');
+      formData.append('projectId', cadProjectId);
+      formData.append('description', `__CAD_META__:${JSON.stringify(meta)}`);
+      formData.append('folder', cadFolder);
+      const response = await fetch('/api/moodboards', { method: 'POST', body: formData, credentials: 'include' });
+      if (!response.ok) { const e = await response.json(); throw new Error(e.error || 'Import failed'); }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "CAD drawing imported", description: `${cadName} has been added to Working Drawings.` });
+      resetCadForm();
+      setCadImportOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+    },
+    onError: (e: any) => toast({ variant: "destructive", title: "Import failed", description: e.message }),
+  });
+
   return (
     <div className="space-y-3 p-4">
       {/* Header */}
       <div className="flex flex-col gap-3">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="heading-moodboards">
-            {labels.title}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {labels.description}
-          </p>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h1 className="text-2xl font-bold" data-testid="heading-moodboards">
+              {labels.title}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {labels.description}
+            </p>
+          </div>
+          {assetType === "working_drawing" && (
+            <Button variant="outline" onClick={() => setCadImportOpen(true)} className="shrink-0" data-testid="button-import-cad">
+              <FileCode2 className="h-4 w-4 mr-2" />
+              Import AutoCAD Drawing
+            </Button>
+          )}
         </div>
         
         {/* Project Selector Card - Show for all asset types */}
@@ -861,62 +950,75 @@ export default function MoodboardsPage() {
                           </Badge>
                         </div>
                         <div className="space-y-3 pl-2">
-                          {folderItems.map((moodboard: Moodboard) => (
+                          {folderItems.map((moodboard: Moodboard) => {
+                            const cadMeta = parseCadMeta(moodboard.description);
+                            const isCAD = isCadFile(moodboard);
+                            return (
                             <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate" data-testid={`drawing-item-${moodboard.id}`}>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-medium text-base truncate mb-1" title={getDisplayTitle(moodboard)}>
-                                  {getDisplayTitle(moodboard) || labels.listMetadataText}
-                                </h4>
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-                                  {moodboard.description && moodboard.fileName && (
-                                    <>
-                                      <span>{moodboard.fileName}</span>
-                                      <span>•</span>
-                                    </>
-                                  )}
-                                  <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
-                                  {(moodboard as any).savedBy && getSavedByName((moodboard as any).savedBy) && (
-                                    <>
-                                      <span>•</span>
-                                      <span className="flex items-center gap-1">
-                                        <UserIcon className="h-3 w-3" />
-                                        {getSavedByName((moodboard as any).savedBy)}
-                                      </span>
-                                    </>
+                              <div className="flex-1 min-w-0 flex items-start gap-3">
+                                {isCAD && <FileCode2 className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />}
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                                    <h4 className="font-medium text-base truncate" title={getDisplayTitle(moodboard)}>
+                                      {getDisplayTitle(moodboard) || labels.listMetadataText}
+                                    </h4>
+                                    {isCAD && <Badge variant="secondary" className="text-xs shrink-0 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">CAD</Badge>}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                                    {cadMeta ? (
+                                      <>
+                                        {cadMeta.type && <span>{cadMeta.type}</span>}
+                                        {cadMeta.type && cadMeta.scale && <span>•</span>}
+                                        {cadMeta.scale && <span>{cadMeta.scale}</span>}
+                                        {(cadMeta.type || cadMeta.scale) && cadMeta.discipline && <span>•</span>}
+                                        {cadMeta.discipline && <span>{cadMeta.discipline}</span>}
+                                        {cadMeta.revision && <><span>•</span><span>Rev {cadMeta.revision}</span></>}
+                                        {cadMeta.layers?.length > 0 && (
+                                          <span className="flex items-center gap-1"><Layers className="h-3 w-3" />{cadMeta.layers.length} layers</span>
+                                        )}
+                                        <span>•</span>
+                                        <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy')}</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        {moodboard.description && moodboard.fileName && (
+                                          <>
+                                            <span>{moodboard.fileName}</span>
+                                            <span>•</span>
+                                          </>
+                                        )}
+                                        <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+                                      </>
+                                    )}
+                                    {(moodboard as any).savedBy && getSavedByName((moodboard as any).savedBy) && (
+                                      <>
+                                        <span>•</span>
+                                        <span className="flex items-center gap-1">
+                                          <UserIcon className="h-3 w-3" />
+                                          {getSavedByName((moodboard as any).savedBy)}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                  {cadMeta?.notes && <p className="text-xs text-muted-foreground mt-1">{cadMeta.notes}</p>}
+                                  {moodboard.canvaLink && (
+                                    <a href={moodboard.canvaLink} target="_blank" rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
+                                      data-testid={`link-canva-${moodboard.id}`}
+                                    >
+                                      <ExternalLink className="h-3 w-3" /><span>{labels.viewLinkText}</span>
+                                    </a>
                                   )}
                                 </div>
-                                {moodboard.canvaLink && (
-                                  <a
-                                    href={moodboard.canvaLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
-                                    data-testid={`link-canva-${moodboard.id}`}
-                                  >
-                                    <ExternalLink className="h-3 w-3" />
-                                    <span>{labels.viewLinkText}</span>
-                                  </a>
-                                )}
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 shrink-0">
                                 {getPreviewUrl(moodboard) && (
-                                  isCadFile(moodboard) ? (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => downloadFile(moodboard)}
-                                      title="Download CAD file"
-                                      data-testid={`button-download-${moodboard.id}`}
-                                    >
-                                      <Download className="h-4 w-4" />
+                                  isCAD ? (
+                                    <Button variant="outline" size="sm" onClick={() => downloadFile(moodboard)} title="Export CAD file" data-testid={`button-download-${moodboard.id}`}>
+                                      <Download className="h-3.5 w-3.5 mr-1.5" />Export
                                     </Button>
                                   ) : (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => setPreviewImage(moodboard)}
-                                      data-testid={`button-view-${moodboard.id}`}
-                                    >
+                                    <Button variant="ghost" size="icon" onClick={() => setPreviewImage(moodboard)} data-testid={`button-view-${moodboard.id}`}>
                                       <Eye className="h-4 w-4" />
                                     </Button>
                                   )
@@ -959,7 +1061,8 @@ export default function MoodboardsPage() {
                                 </DropdownMenu>
                               </div>
                             </div>
-                          ))}
+                          );
+                          })}
                         </div>
                       </div>
                     ))}
@@ -1314,6 +1417,141 @@ export default function MoodboardsPage() {
         onConfirm={confirmDelete}
         isDeleting={deleteMutation.isPending}
       />
+
+      {/* CAD Import Dialog — Working Drawings only */}
+      <Dialog open={cadImportOpen} onOpenChange={(open) => { setCadImportOpen(open); if (!open) resetCadForm(); }}>
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileCode2 className="h-5 w-5" />
+              Import AutoCAD Drawing
+            </DialogTitle>
+            <DialogDescription>
+              Import DXF or DWG files from AutoCAD, SketchUp, or any CAD application into Working Drawings.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Project */}
+            <div className="space-y-1">
+              <Label>Project <span className="text-destructive">*</span></Label>
+              <Select value={cadProjectId} onValueChange={setCadProjectId}>
+                <SelectTrigger><SelectValue placeholder="Select a project" /></SelectTrigger>
+                <SelectContent>
+                  {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.projectName} - {p.clientName}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Folder */}
+            <div className="space-y-1">
+              <Label>Folder <span className="text-destructive">*</span></Label>
+              <Select value={cadFolder} onValueChange={setCadFolder}>
+                <SelectTrigger><SelectValue placeholder="Select folder" /></SelectTrigger>
+                <SelectContent>
+                  {workingDrawingFolders.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Drawing Name */}
+            <div className="space-y-1">
+              <Label>Drawing Name <span className="text-destructive">*</span></Label>
+              <Input placeholder="e.g., Ground Floor Plan, Section AA" value={cadName} onChange={e => setCadName(e.target.value)} />
+            </div>
+
+            {/* Type + Scale */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Drawing Type</Label>
+                <Select value={cadDrawingType} onValueChange={setCadDrawingType}>
+                  <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                  <SelectContent>
+                    {["Floor Plan","Reflected Ceiling Plan","Elevation","Section","Site Plan","Detail Drawing","Joinery Drawing","MEP / Services","Structural"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Scale</Label>
+                <Select value={cadScale} onValueChange={setCadScale}>
+                  <SelectTrigger><SelectValue placeholder="Select scale" /></SelectTrigger>
+                  <SelectContent>
+                    {["1:5","1:10","1:20","1:50","1:100","1:200","1:500","1:1000","NTS"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Discipline + Revision */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Discipline</Label>
+                <Select value={cadDiscipline} onValueChange={setCadDiscipline}>
+                  <SelectTrigger><SelectValue placeholder="Select discipline" /></SelectTrigger>
+                  <SelectContent>
+                    {["Architectural","Interior Design","Structural","MEP","Joinery","Landscape","Civil"].map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Revision</Label>
+                <Input placeholder="e.g., A, B, 1" value={cadRevision} onChange={e => setCadRevision(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1">
+              <Label>Notes (Optional)</Label>
+              <Textarea placeholder="Additional notes..." value={cadNotes} onChange={e => setCadNotes(e.target.value)} className="resize-none" rows={2} />
+            </div>
+
+            {/* File drop zone */}
+            <div className="space-y-2">
+              <Label>CAD File <span className="text-destructive">*</span></Label>
+              <div
+                className={`border-2 border-dashed rounded-lg p-6 text-center space-y-3 transition-colors cursor-pointer ${cadDragActive ? 'border-primary bg-primary/10' : cadFile ? 'border-green-500 bg-green-500/5' : 'border-muted-foreground/25 hover:border-muted-foreground/50'}`}
+                onDragEnter={e => { e.preventDefault(); setCadDragActive(true); }}
+                onDragLeave={e => { e.preventDefault(); setCadDragActive(false); }}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); setCadDragActive(false); const f = e.dataTransfer.files?.[0]; if (f) handleCadFileSelect(f); }}
+                onClick={() => cadFileInputRef.current?.click()}
+              >
+                <FileCode2 className={`h-10 w-10 mx-auto ${cadFile ? 'text-green-500' : 'text-muted-foreground'}`} />
+                <div>
+                  <p className="text-sm font-medium">{cadFile ? cadFile.name : 'Drop DXF or DWG file here, or click to browse'}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Accepts: .dxf, .dwg — Max 100MB</p>
+                </div>
+                {!cadFile && (
+                  <Button type="button" variant="outline" size="sm" onClick={e => { e.stopPropagation(); cadFileInputRef.current?.click(); }}>Browse CAD Files</Button>
+                )}
+                <input ref={cadFileInputRef} type="file" className="hidden" accept=".dxf,.dwg" onChange={e => { const f = e.target.files?.[0]; if (f) handleCadFileSelect(f); }} />
+              </div>
+
+              {cadLayers.length > 0 && (
+                <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                  <button type="button" className="flex items-center gap-2 text-xs font-medium w-full text-left" onClick={() => setCadLayersExpanded(v => !v)}>
+                    <Layers className="h-3.5 w-3.5" />
+                    {cadLayers.length} layers detected
+                    {cadLayersExpanded ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+                  </button>
+                  {cadLayersExpanded && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {cadLayers.map(l => <Badge key={l} variant="secondary" className="text-xs">{l}</Badge>)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => { setCadImportOpen(false); resetCadForm(); }}>Cancel</Button>
+              <Button onClick={() => cadImportMutation.mutate()} disabled={!cadFile || !cadProjectId || !cadName.trim() || !cadFolder || cadImportMutation.isPending}>
+                {cadImportMutation.isPending ? 'Importing...' : 'Import Drawing'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
