@@ -93,7 +93,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
       if (!res.ok) throw new Error(data.error || "Registration failed");
       toast({
         title: "Account created",
-        description: data.message || "Please check your email to verify your account.",
+        description: "You can now sign in with your email and password.",
       });
       setMode("login");
       loginForm.setValue("email", values.email);
@@ -242,7 +242,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                     <FormItem>
                       <FormLabel>Email address</FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="you@example.com" autoComplete="email" {...field} />
+                        <Input type="text" inputMode="email" placeholder="you@example.com" autoComplete="off" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -177,35 +177,24 @@ export async function setupAuth(app: Express) {
       }
 
       const hash = await bcrypt.hash(password, 12);
-      const verificationToken = randomUUID();
       const userId = randomUUID();
 
+      // Auto-verify new accounts — no email verification step required
       const user = await storage.upsertUser({
         id: userId,
         email: normalizedEmail,
         firstName: firstName?.trim() || null,
         lastName: lastName?.trim() || null,
         passwordHash: hash,
-        emailVerificationToken: verificationToken,
+        emailVerificationToken: null,
+        emailVerifiedAt: new Date(),
       });
 
       await assignDefaultRole(user.id, normalizedEmail);
 
-      // Send verification email (non-fatal if SMTP not configured)
-      try {
-        const baseUrl =
-          process.env.APP_URL ||
-          (process.env.REPLIT_DOMAINS
-            ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
-            : `${req.protocol}://${req.hostname}`);
-        await sendVerificationEmail(normalizedEmail, verificationToken, baseUrl);
-      } catch (emailErr) {
-        console.error("[AUTH] Failed to send verification email:", emailErr);
-      }
-
       return res.status(201).json({
         success: true,
-        message: "Account created! Please check your email to verify your address.",
+        message: "Account created! You can now sign in.",
       });
     } catch (err) {
       console.error("[AUTH] Register error:", err);
