@@ -20,7 +20,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
-import { RENDER_STYLES, generateInteriorRender, generateConceptRender, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
+import { RENDER_STYLES, generateInteriorRender, generateConceptRender, generatePhotorealConversion, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
 import { chatWithDesignAssistant, generateRenderBrief, generateFloorPlanSVG, generateElevationSVG, generateFloorPlanDXFSpec, generateElevationDXFSpec, DesignChatMessage, DesignChatAttachment } from "./ai/claude";
 import { generateDXF } from "./utils/dxfGenerator";
 import { 
@@ -4495,6 +4495,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else {
         res.status(500).json({ error: error.message || "Failed to generate render" });
+      }
+    }
+  });
+
+  // Photoreal conversion endpoint — converts any render/image into a photorealistic version
+  app.post("/api/ai-renders/photoreal", requireAdmin, uploadAIRender.single('image'), async (req, res) => {
+    req.setTimeout(300000);
+    res.setTimeout(300000);
+
+    try {
+      const imageFile = req.file;
+      if (!imageFile) {
+        return res.status(400).json({ error: "No image uploaded" });
+      }
+
+      const imageBase64 = imageFile.buffer.toString('base64');
+      const mimeType = imageFile.mimetype;
+
+      console.log("[Photoreal] Processing image, size:", imageFile.buffer.length, "bytes");
+
+      const result = await generatePhotorealConversion(imageBase64, mimeType);
+
+      res.json({
+        success: true,
+        imageData: result.imageData,
+        mimeType: result.mimeType
+      });
+    } catch (error: any) {
+      console.error('[Photoreal] Error:', error);
+
+      const isServiceUnavailable = error.name === 'CircuitBreakerError' ||
+        error.message?.includes('temporarily unavailable') ||
+        error.message?.includes('Too many recent failures') ||
+        error.message?.includes('503') ||
+        error.message?.includes('overloaded');
+
+      if (isServiceUnavailable) {
+        res.status(503).json({
+          error: "AI service is temporarily busy. Please wait a moment and try again.",
+          retryAfter: 60
+        });
+      } else {
+        res.status(500).json({ error: error.message || "Failed to convert to photoreal" });
       }
     }
   });

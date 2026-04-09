@@ -48,7 +48,8 @@ import {
   TreeDeciduous,
   Sun,
   Eraser,
-  RotateCcw
+  RotateCcw,
+  ScanEye
 } from "lucide-react";
 
 interface ReferenceItem {
@@ -383,6 +384,58 @@ export default function AIRendersPage() {
     }
   });
   
+  const photorealMutation = useMutation({
+    mutationFn: async () => {
+      if (!generatedRender) throw new Error("No render to convert");
+
+      const base64Response = await fetch(`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`);
+      const blob = await base64Response.blob();
+      const file = new File([blob], 'render-for-photoreal.png', { type: generatedRender.mimeType });
+
+      const compressedBlob = await compressImageOnClient(file);
+      const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
+
+      const formData = new FormData();
+      formData.append('image', compressedFile);
+
+      const response = await fetch('/api/ai-renders/photoreal', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to convert to photorealistic');
+        }
+        throw new Error(`Server error (${response.status}). Please try again.`);
+      }
+
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      setGeneratedRender({
+        imageData: data.imageData,
+        mimeType: data.mimeType,
+        styleId: "photorealistic",
+        styleName: "Photorealistic"
+      });
+      toast({
+        title: "Photoreal Conversion Complete",
+        description: "Your render has been converted to a photorealistic image."
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Conversion Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
   const quickModifications = [
     { icon: Paintbrush, label: "Change Colors", prompt: "Change the color scheme to be warmer and more inviting with earth tones" },
     { icon: TreeDeciduous, label: "Add Plants", prompt: "Add indoor plants and greenery to make the space feel more natural and lively" },
@@ -1999,6 +2052,33 @@ export default function AIRendersPage() {
                       )}
                     </div>
                   )}
+                </div>
+
+                <div className="border rounded-lg p-3 bg-muted/30 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">Happy with the layout?</p>
+                    <p className="text-xs text-muted-foreground">Convert it to a photorealistic photograph — same objects, same positions, real materials and lighting.</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => photorealMutation.mutate()}
+                    disabled={photorealMutation.isPending}
+                    className="shrink-0"
+                    data-testid="button-make-photorealistic"
+                  >
+                    {photorealMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Converting...
+                      </>
+                    ) : (
+                      <>
+                        <ScanEye className="h-4 w-4 mr-2" />
+                        Make it Photorealistic
+                      </>
+                    )}
+                  </Button>
                 </div>
 
                 <div>

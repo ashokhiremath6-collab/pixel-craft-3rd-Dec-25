@@ -659,6 +659,108 @@ OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image.`;
   }
 }
 
+export async function generatePhotorealConversion(
+  imageBase64: string,
+  mimeType: string
+): Promise<{ imageData: string; mimeType: string }> {
+  console.log("[Gemini] Starting photoreal conversion...");
+
+  const validation = validateImageInput(imageBase64, mimeType);
+  if (!validation.valid) {
+    console.error("[Gemini] Photoreal input validation failed:", validation.error);
+    throw new Error(validation.error);
+  }
+
+  try {
+    console.log("[Gemini] Compressing image for photoreal conversion...");
+    const compressed = await compressImage(imageBase64, mimeType);
+    console.log("[Gemini] Image compressed, size:", compressed.data.length, "bytes");
+
+    const prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text. Do NOT explain limitations.
+
+You are a photorealistic rendering engine. Your ONLY task is to convert this 3D render or SketchUp screenshot into a photorealistic photograph.
+
+GEOMETRY IS COMPLETELY LOCKED — DO NOT CHANGE ANYTHING STRUCTURAL:
+- Count every object visible in the input image. Your output MUST contain the exact same number of objects — not one more, not one less.
+- Every piece of furniture, fixture, and element stays in its EXACT position, size, and orientation.
+- Room dimensions, walls, floors, ceiling, windows, and doors remain IDENTICAL in shape and position.
+- Camera angle, perspective, and field of view are IDENTICAL to the input.
+- DO NOT add any new furniture, plants, accessories, decorations, or any object not already present.
+- DO NOT remove or reposition any existing objects.
+
+WHAT YOU ARE ALLOWED TO CHANGE (these are the ONLY permitted changes):
+1. MATERIALS — Replace flat CG surfaces with photorealistic physical materials:
+   - Wood → real wood grain with natural variation, warmth, and subtle imperfections
+   - Walls → real plaster or paint surface with subtle texture and slight sheen
+   - Metal → realistic reflections, specular highlights, and natural patina
+   - Glass → realistic transparency, internal reflections, and subtle distortions
+   - Fabric and upholstery → visible weave structure, soft natural folds, and drape
+   - Stone and tile → natural color variation, veining, and grout lines with depth
+   - Concrete → surface texture and slight imperfections
+2. LIGHTING — Add photorealistic illumination:
+   - Soft natural shadows with realistic falloff and penumbra
+   - Ambient occlusion in corners, under objects, and in crevices
+   - Specular highlights on all glossy or semi-glossy surfaces
+   - Light bouncing naturally between surfaces (indirect illumination)
+   - Consistent light direction from windows and existing light fixtures in the scene
+3. PHOTOGRAPHIC QUALITY:
+   - Subtle depth of field consistent with a DSLR at moderate aperture
+   - Natural photographic sharpness and contrast
+   - Realistic exposure and dynamic range without blown highlights or crushed shadows
+
+OUTPUT: Generate a HIGH RESOLUTION photorealistic photograph of this exact scene. The result must look like it was shot with a professional DSLR camera on a tripod, capturing the identical room with identical objects — the only difference is that everything looks physically real instead of computer-generated.`;
+
+    const parts: any[] = [
+      { text: prompt },
+      { inlineData: { mimeType: compressed.mimeType, data: compressed.data } }
+    ];
+
+    console.log("[Gemini] Calling AI API for photoreal conversion...");
+    const result = await withRetry(async () => {
+      const response = await withTimeout(
+        getAIClient().models.generateContent({
+          model: "gemini-2.5-flash-image",
+          contents: [{ role: "user", parts }],
+          config: {
+            responseModalities: [Modality.TEXT, Modality.IMAGE],
+            safetySettings: SAFETY_SETTINGS,
+          },
+        }),
+        AI_TIMEOUT_MS,
+        "Photoreal conversion"
+      );
+
+      const candidate = response.candidates?.[0];
+      const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
+      const textPart = candidate?.content?.parts?.find((part: any) => part.text);
+
+      if (textPart?.text && !imagePart?.inlineData?.data) {
+        console.error("[Gemini] AI returned text instead of image:", textPart.text);
+        throw new Error("The AI couldn't generate this image. Please try again.");
+      }
+
+      if (!imagePart?.inlineData?.data) {
+        console.error("[Gemini] No image data in photoreal response.");
+        throw new Error("The AI didn't return an image. Please try again.");
+      }
+
+      return {
+        data: imagePart.inlineData.data,
+        mimeType: imagePart.inlineData.mimeType || "image/png"
+      };
+    }, "Photoreal conversion");
+
+    console.log("[Gemini] Enhancing photoreal output...");
+    const enhanced = await enhanceOutputImage(result.data, result.mimeType);
+
+    console.log("[Gemini] Photoreal conversion complete");
+    return { imageData: enhanced.data, mimeType: enhanced.mimeType };
+  } catch (error: any) {
+    console.error("[Gemini] Error during photoreal conversion:", error.message);
+    throw error;
+  }
+}
+
 export async function generateConceptRender(
   description: string,
   styleId: string
