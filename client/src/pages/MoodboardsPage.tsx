@@ -61,6 +61,7 @@ export default function MoodboardsPage() {
   const [cadFolder, setCadFolder] = useState("");
   const [cadLayers, setCadLayers] = useState<string[]>([]);
   const [cadLayersExpanded, setCadLayersExpanded] = useState(false);
+  const [cadUploadProgress, setCadUploadProgress] = useState(0);
   
   // Determine asset type based on route
   const assetType = useMemo(() => {
@@ -739,11 +740,11 @@ export default function MoodboardsPage() {
   };
 
   const cadImportMutation = useMutation({
-    mutationFn: async () => {
-      if (!cadFile) throw new Error("No file selected");
-      if (!cadProjectId) throw new Error("Project is required");
-      if (!cadName.trim()) throw new Error("Drawing name is required");
-      if (!cadFolder) throw new Error("Folder is required for Working Drawings");
+    mutationFn: (): Promise<any> => new Promise((resolve, reject) => {
+      if (!cadFile) { reject(new Error("No file selected")); return; }
+      if (!cadProjectId) { reject(new Error("Project is required")); return; }
+      if (!cadName.trim()) { reject(new Error("Drawing name is required")); return; }
+      if (!cadFolder) { reject(new Error("Folder is required for Working Drawings")); return; }
       const meta = { name: cadName.trim(), type: cadDrawingType, scale: cadScale, discipline: cadDiscipline, revision: cadRevision, layers: cadLayers, notes: cadNotes };
       const formData = new FormData();
       formData.append('moodboard', cadFile);
@@ -751,17 +752,38 @@ export default function MoodboardsPage() {
       formData.append('projectId', cadProjectId);
       formData.append('description', `__CAD_META__:${JSON.stringify(meta)}`);
       formData.append('folder', cadFolder);
-      const response = await fetch('/api/moodboards', { method: 'POST', body: formData, credentials: 'include' });
-      if (!response.ok) { const e = await response.json(); throw new Error(e.error || 'Import failed'); }
-      return response.json();
-    },
+
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          setCadUploadProgress(Math.round((e.loaded / e.total) * 85));
+        }
+      };
+      xhr.onload = () => {
+        setCadUploadProgress(100);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText)); } catch { resolve({}); }
+        } else {
+          try { reject(new Error(JSON.parse(xhr.responseText)?.error || 'Import failed')); }
+          catch { reject(new Error('Import failed')); }
+        }
+      };
+      xhr.onerror = () => reject(new Error('Upload failed — check your connection'));
+      xhr.open('POST', '/api/moodboards');
+      xhr.withCredentials = true;
+      xhr.send(formData);
+    }),
     onSuccess: () => {
       toast({ title: "CAD drawing imported", description: `${cadName} has been added to Working Drawings.` });
       resetCadForm();
       setCadImportOpen(false);
+      setCadUploadProgress(0);
       queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
     },
-    onError: (e: any) => toast({ variant: "destructive", title: "Import failed", description: e.message }),
+    onError: (e: any) => {
+      toast({ variant: "destructive", title: "Import failed", description: e.message });
+      setCadUploadProgress(0);
+    },
   });
 
   return (
@@ -1543,10 +1565,31 @@ export default function MoodboardsPage() {
               )}
             </div>
 
+            {/* Upload progress */}
+            {cadImportMutation.isPending && (
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{cadUploadProgress < 100 ? 'Uploading file…' : 'Saving to cloud…'}</span>
+                  <span>{cadUploadProgress}%</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-primary h-1.5 rounded-full transition-all duration-200"
+                    style={{ width: `${cadUploadProgress}%` }}
+                  />
+                </div>
+                {cadFile && (
+                  <p className="text-xs text-muted-foreground">
+                    File: {cadFile.name} ({(cadFile.size / 1024 / 1024).toFixed(1)} MB)
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => { setCadImportOpen(false); resetCadForm(); }}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => { setCadImportOpen(false); resetCadForm(); }} disabled={cadImportMutation.isPending}>Cancel</Button>
               <Button onClick={() => cadImportMutation.mutate()} disabled={!cadFile || !cadProjectId || !cadName.trim() || !cadFolder || cadImportMutation.isPending}>
-                {cadImportMutation.isPending ? 'Importing...' : 'Import Drawing'}
+                {cadImportMutation.isPending ? `Importing… ${cadUploadProgress}%` : 'Import Drawing'}
               </Button>
             </div>
           </div>

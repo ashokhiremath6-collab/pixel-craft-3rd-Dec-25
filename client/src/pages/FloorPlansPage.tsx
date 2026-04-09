@@ -64,6 +64,7 @@ export default function FloorPlansPage() {
   const [cadNotes, setCadNotes] = useState("");
   const [cadProjectId, setCadProjectId] = useState("");
   const [cadName, setCadName] = useState("");
+  const [cadUploadProgress, setCadUploadProgress] = useState(0);
 
   // Fetch floor plans only when a project is selected
   const { data: floorPlans = [], isLoading: floorPlansLoading } = useQuery<FloorPlan[]>({
@@ -218,10 +219,10 @@ export default function FloorPlansPage() {
 
   // CAD import mutation
   const cadImportMutation = useMutation({
-    mutationFn: async () => {
-      if (!cadFile) throw new Error("No file selected");
-      if (!cadProjectId) throw new Error("Project is required");
-      if (!cadName.trim()) throw new Error("Drawing name is required");
+    mutationFn: (): Promise<any> => new Promise((resolve, reject) => {
+      if (!cadFile) { reject(new Error("No file selected")); return; }
+      if (!cadProjectId) { reject(new Error("Project is required")); return; }
+      if (!cadName.trim()) { reject(new Error("Drawing name is required")); return; }
 
       const meta = {
         type: cadDrawingType,
@@ -239,18 +240,26 @@ export default function FloorPlansPage() {
       formData.append('description', `__CAD_META__:${JSON.stringify(meta)}`);
       formData.append('version', cadRevision || '1.0');
 
-      const response = await fetch('/api/floor-plans', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Import failed');
-      }
-      return response.json();
-    },
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          setCadUploadProgress(Math.round((e.loaded / e.total) * 85));
+        }
+      };
+      xhr.onload = () => {
+        setCadUploadProgress(100);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText)); } catch { resolve({}); }
+        } else {
+          try { reject(new Error(JSON.parse(xhr.responseText)?.error || 'Import failed')); }
+          catch { reject(new Error('Import failed')); }
+        }
+      };
+      xhr.onerror = () => reject(new Error('Upload failed — check your connection'));
+      xhr.open('POST', '/api/floor-plans');
+      xhr.withCredentials = true;
+      xhr.send(formData);
+    }),
     onSuccess: () => {
       toast({ title: "CAD drawing imported successfully" });
       setCadFile(null);
@@ -263,10 +272,12 @@ export default function FloorPlansPage() {
       setCadProjectId("");
       setCadName("");
       setCadImportDialogOpen(false);
+      setCadUploadProgress(0);
       queryClient.invalidateQueries({ queryKey: ['/api/floor-plans'] });
     },
     onError: (error: Error) => {
       toast({ variant: "destructive", title: "Import failed", description: error.message });
+      setCadUploadProgress(0);
     },
   });
 
@@ -1099,15 +1110,36 @@ export default function FloorPlansPage() {
               )}
             </div>
 
+            {/* Upload progress */}
+            {cadImportMutation.isPending && (
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{cadUploadProgress < 100 ? 'Uploading file…' : 'Saving to cloud…'}</span>
+                  <span>{cadUploadProgress}%</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-primary h-1.5 rounded-full transition-all duration-200"
+                    style={{ width: `${cadUploadProgress}%` }}
+                  />
+                </div>
+                {cadFile && (
+                  <p className="text-xs text-muted-foreground">
+                    File: {cadFile.name} ({(cadFile.size / 1024 / 1024).toFixed(1)} MB)
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setCadImportDialogOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setCadImportDialogOpen(false)} disabled={cadImportMutation.isPending}>
                 Cancel
               </Button>
               <Button
                 onClick={() => cadImportMutation.mutate()}
                 disabled={!cadFile || !cadProjectId || !cadName.trim() || cadImportMutation.isPending}
               >
-                {cadImportMutation.isPending ? 'Importing...' : 'Import Drawing'}
+                {cadImportMutation.isPending ? `Importing… ${cadUploadProgress}%` : 'Import Drawing'}
               </Button>
             </div>
           </div>

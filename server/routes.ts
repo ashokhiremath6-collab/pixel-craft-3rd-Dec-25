@@ -1974,7 +1974,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const uploadMoodboard = multer({
     storage: multer.memoryStorage(), // Store in memory, then upload to object storage
     limits: {
-      fileSize: 10 * 1024 * 1024, // 10MB limit
+      fileSize: 100 * 1024 * 1024, // 100MB limit (CAD/DWG files can be large)
       files: 1, // Only allow single file upload
     },
   });
