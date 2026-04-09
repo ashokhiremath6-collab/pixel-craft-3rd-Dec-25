@@ -67,6 +67,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
       }
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       onLoginSuccess?.();
+      navigate("/");
     } catch (err: any) {
       toast({ title: "Sign in failed", description: err.message, variant: "destructive" });
     } finally {

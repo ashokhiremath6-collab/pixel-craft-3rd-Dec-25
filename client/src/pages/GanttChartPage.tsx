@@ -289,6 +289,7 @@ export default function GanttChartPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/schedules/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       setReimportScheduleId(null);
       toast({ 
@@ -1039,22 +1040,29 @@ export default function GanttChartPage() {
         });
 
         // Sort tasks based on mode
-        const sortedTasks = taskSortMode === 'original' 
-          ? filteredTasks  // Preserve server order (Excel row order)
-          : [...filteredTasks].sort((a, b) => {
-              if (taskSortMode === 'category') {
-                const catA = extractCategory(a.name || '');
-                const catB = extractCategory(b.name || '');
-                if (catA !== catB) return catA.localeCompare(catB);
-                const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
-                const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
-                return dateA - dateB;
-              } else {
-                const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
-                const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
-                return dateA - dateB;
-              }
-            });
+        const sortedTasks = [...filteredTasks].sort((a, b) => {
+          if (taskSortMode === 'original') {
+            // Primary: rowIndex (original Excel row position), nulls last
+            const rowA = a.rowIndex !== null && a.rowIndex !== undefined ? a.rowIndex : Infinity;
+            const rowB = b.rowIndex !== null && b.rowIndex !== undefined ? b.rowIndex : Infinity;
+            if (rowA !== rowB) return rowA - rowB;
+            // Fallback: insertion order (createdAt)
+            const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return createdA - createdB;
+          } else if (taskSortMode === 'category') {
+            const catA = extractCategory(a.name || '');
+            const catB = extractCategory(b.name || '');
+            if (catA !== catB) return catA.localeCompare(catB);
+            const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+            const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+            return dateA - dateB;
+          } else {
+            const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+            const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+            return dateA - dateB;
+          }
+        });
 
         // Group tasks by phase (or category when sorting by category)
         const groupedTasks: { phase: string; tasks: Task[] }[] = [];

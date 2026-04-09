@@ -595,10 +595,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Replit Auth handles login automatically at /api/login
-  
-  // Replit Auth handles logout automatically at /api/logout
-
   // Role management endpoint for admins
   app.post("/api/auth/role", requireAdminOnly, async (req, res) => {
     try {

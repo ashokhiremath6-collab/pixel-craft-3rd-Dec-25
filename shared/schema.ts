@@ -194,6 +194,12 @@ export const tasks = pgTable("tasks", {
   approvedBy: varchar("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
   priority: text("priority").notNull().default("medium"), // low, medium, high, critical
+  materials: text("materials"), // materials or resources from MS Project / Excel
+  owner: text("owner"), // owner or responsible person from schedule file
+  targetStartDate: date("target_start_date"), // baseline/target start date
+  targetEndDate: date("target_end_date"), // baseline/target finish date
+  outlineLevel: integer("outline_level"), // WBS hierarchy level (1 = top-level phase, 2+ = sub-tasks)
+  color: text("color"), // optional color code for visual differentiation
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });

@@ -66,6 +66,7 @@ export default function DashboardPage() {
   const { data: allTasksData } = useQuery<Task[]>({
     queryKey: ['/api/tasks'],
     staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const handleNavigate = (path: string) => {
