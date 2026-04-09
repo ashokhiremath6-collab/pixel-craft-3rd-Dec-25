@@ -1,6 +1,6 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -29,6 +29,8 @@ import AIRendersPage from "@/pages/AIRendersPage";
 import AssetIngestionPage from "@/pages/AssetIngestionPage";
 import AIAssistantPage from "@/pages/AIAssistantPage";
 import LoginPage from "@/pages/LoginPage";
+import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Shield, User, Crown } from "lucide-react";
@@ -131,9 +133,11 @@ function AuthenticatedApp() {
 }
 
 function AppContent() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
 
-  console.log('AppContent render:', { isAuthenticated, isLoading, user });
+  if (location === "/forgot-password") return <ForgotPasswordPage />;
+  if (location.startsWith("/reset-password")) return <ResetPasswordPage />;
 
   if (isLoading) {
     return (
@@ -149,7 +153,7 @@ function AppContent() {
   if (isAuthenticated) {
     return <AuthenticatedApp />;
   } else {
-    return <LoginPage onLoginSuccess={() => {}} />;
+    return <LoginPage />;
   }
 }
 

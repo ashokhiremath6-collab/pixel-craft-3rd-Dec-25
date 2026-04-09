@@ -106,10 +106,15 @@ import { eq, inArray, isNull, and, or, desc, sql, asc, getTableColumns } from "d
 // you might need
 
 export interface IStorage {
-  // Users - Replit Auth required methods
+  // Users
   getUser(id: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
   upsertUser(userData: UpsertUser): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByResetToken(token: string): Promise<User | undefined>;
+  setPasswordResetToken(userId: string, token: string, expiry: Date): Promise<void>;
+  resetPassword(userId: string, passwordHash: string): Promise<void>;
+  verifyEmail(token: string): Promise<User | undefined>;
   
   // User Project Access (for client role project assignment)
   createUserProjectAccess(access: { userId: string; projectId: string }): Promise<{ userId: string; projectId: string }>;
@@ -422,25 +427,22 @@ export class MemStorage implements IStorage {
 
   // Removed dummy data methods - using database storage
 
-  // User methods - Replit Auth
+  // User methods
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
   }
 
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+
   async upsertUser(userData: UpsertUser): Promise<User> {
     const existingUser = this.users.get(userData.id!);
-    
     if (existingUser) {
-      // Update existing user
-      const updatedUser: User = {
-        ...existingUser,
-        ...userData,
-        updatedAt: new Date(),
-      };
+      const updatedUser: User = { ...existingUser, ...userData, updatedAt: new Date() };
       this.users.set(existingUser.id, updatedUser);
       return updatedUser;
     } else {
-      // Create new user
       const id = userData.id || randomUUID();
       const user: User = {
         id,
@@ -448,12 +450,55 @@ export class MemStorage implements IStorage {
         firstName: userData.firstName || null,
         lastName: userData.lastName || null,
         profileImageUrl: userData.profileImageUrl || null,
+        passwordHash: userData.passwordHash || null,
+        emailVerifiedAt: userData.emailVerifiedAt || null,
+        emailVerificationToken: userData.emailVerificationToken || null,
+        passwordResetToken: userData.passwordResetToken || null,
+        passwordResetTokenExpiry: userData.passwordResetTokenExpiry || null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
       this.users.set(id, user);
       return user;
     }
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.email?.toLowerCase() === email.toLowerCase());
+  }
+
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.passwordResetToken === token);
+  }
+
+  async setPasswordResetToken(userId: string, token: string, expiry: Date): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      user.passwordResetToken = token;
+      user.passwordResetTokenExpiry = expiry;
+      this.users.set(userId, user);
+    }
+  }
+
+  async resetPassword(userId: string, passwordHash: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      user.passwordHash = passwordHash;
+      user.passwordResetToken = null;
+      user.passwordResetTokenExpiry = null;
+      this.users.set(userId, user);
+    }
+  }
+
+  async verifyEmail(token: string): Promise<User | undefined> {
+    const user = Array.from(this.users.values()).find(u => u.emailVerificationToken === token);
+    if (user) {
+      user.emailVerifiedAt = new Date();
+      user.emailVerificationToken = null;
+      this.users.set(user.id, user);
+      return user;
+    }
+    return undefined;
   }
 
   // User Roles methods
@@ -1264,6 +1309,42 @@ export class DBStorage implements IStorage {
           updatedAt: new Date(),
         },
       })
+      .returning();
+    return result[0];
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+    return result[0];
+  }
+
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.passwordResetToken, token));
+    return result[0];
+  }
+
+  async setPasswordResetToken(userId: string, token: string, expiry: Date): Promise<void> {
+    await db.update(users)
+      .set({ passwordResetToken: token, passwordResetTokenExpiry: expiry, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  async resetPassword(userId: string, passwordHash: string): Promise<void> {
+    await db.update(users)
+      .set({
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetTokenExpiry: null,
+        emailVerifiedAt: new Date(), // Password reset counts as verification
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async verifyEmail(token: string): Promise<User | undefined> {
+    const result = await db.update(users)
+      .set({ emailVerifiedAt: new Date(), emailVerificationToken: null, updatedAt: new Date() })
+      .where(eq(users.emailVerificationToken, token))
       .returning();
     return result[0];
   }

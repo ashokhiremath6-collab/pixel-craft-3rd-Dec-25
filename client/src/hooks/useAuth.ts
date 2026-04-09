@@ -1,63 +1,46 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 interface User {
   id: string;
   email: string | null;
-  name: string | null;
-  username: string | null;
-  image: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  profileImageUrl: string | null;
   role: 'admin' | 'designer' | 'project_manager' | 'client';
-  isActive: boolean;
-}
-
-interface ReplitAuthData {
-  id: string;
-  email: string;
-  name: string;
-  username: string;
-  imageUrl: string;
 }
 
 export function useAuth() {
-  const { toast } = useToast();
+  const [, navigate] = useLocation();
 
-  // Check current authentication status using real Replit Auth
-  const { data: user, isLoading, error } = useQuery<User>({
+  const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ['/api/auth/user'],
     queryFn: async () => {
-      const response = await fetch('/api/auth/user', {
-        credentials: 'include'
-      });
-      
-      // Handle 401 gracefully - return null for unauthenticated state
-      if (response.status === 401) {
-        return null;
-      }
-      
-      if (!response.ok) {
-        throw new Error(`Authentication check failed: ${response.status}`);
-      }
-      
+      const response = await fetch('/api/auth/user', { credentials: 'include' });
+      if (response.status === 401) return null;
+      if (!response.ok) throw new Error(`Auth check failed: ${response.status}`);
       return response.json();
     },
     retry: false,
     refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000,
   });
 
-  // Login function for Replit Auth - redirect to /api/login
   const login = () => {
-    window.location.href = '/api/login';
+    navigate("/login");
   };
 
-  // Logout function for Replit Auth - redirect to /api/logout
-  const logout = () => {
-    window.location.href = '/api/logout';
+  const logout = async () => {
+    try {
+      await apiRequest("POST", "/api/auth/logout");
+    } catch {}
+    queryClient.clear();
+    navigate("/login");
   };
 
   return {
-    user,
+    user: user ?? null,
     isLoading,
     isAuthenticated: !!user,
     login,

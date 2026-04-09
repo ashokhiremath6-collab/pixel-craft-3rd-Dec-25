@@ -26,6 +26,7 @@ Preferred communication style: Simple, everyday language.
 - **Schema Management**: Drizzle Kit for migrations
 - **Session Management**: Express sessions with PostgreSQL store
 - **API Design**: RESTful endpoints
+- **Authentication**: Custom email/password auth via passport-local + bcrypt. Endpoints: POST /api/auth/login, /api/auth/logout, /api/auth/register, /api/auth/forgot-password, /api/auth/reset-password, GET /api/auth/verify-email/:token. Implemented in server/localAuth.ts. Email sending via nodemailer (server/email.ts) — configure SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM env vars; without SMTP, reset tokens are logged to console.
 - **Role-Based Access Control (RBAC)**: Admin, Designer, Client roles with tiered permissions for uploads and access.
 - **Data Storage**: Replit Object Storage (Google Cloud Storage) for permanent file persistence. Smart download strategy optimizes large file handling.
 

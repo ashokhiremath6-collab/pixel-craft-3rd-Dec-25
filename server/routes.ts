@@ -17,7 +17,7 @@ import libre from "libreoffice-convert";
 import { randomUUID } from "crypto";
 import { sql } from "drizzle-orm";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated } from "./localAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { RENDER_STYLES, generateInteriorRender, generateConceptRender, generatePhotorealConversion, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
@@ -83,7 +83,7 @@ const requireAdmin = async (req: express.Request, res: express.Response, next: e
   }
   
   try {
-    const userId = (req.user as any).claims.sub;
+    const userId = (req.user as any).id;
     const userRole = await storage.getUserRole(userId);
     // Normalize role to lowercase for case-insensitive comparison
     const role = userRole?.role?.toLowerCase();
@@ -105,7 +105,7 @@ const requireAdminOnly = async (req: express.Request, res: express.Response, nex
   }
   
   try {
-    const userId = (req.user as any).claims.sub;
+    const userId = (req.user as any).id;
     const userRole = await storage.getUserRole(userId);
     // Normalize role to lowercase for case-insensitive comparison
     const role = userRole?.role?.toLowerCase();
@@ -126,7 +126,7 @@ const requireProjectAccess = async (req: express.Request, res: express.Response,
   }
   
   try {
-    const userId = (req.user as any).claims.sub;
+    const userId = (req.user as any).id;
     const userRole = await storage.getUserRole(userId);
     // Normalize role to lowercase for case-insensitive comparison
     const role = userRole?.role?.toLowerCase();
@@ -161,7 +161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Endpoint to serve private objects from object storage
   app.get("/objects/:objectPath(*)", requireAuth, async (req, res) => {
     console.log("📥 OBJECT DOWNLOAD REQUEST:", req.path);
-    const userId = (req.user as any).claims.sub;
+    const userId = (req.user as any).id;
     console.log("👤 User ID:", userId);
     
     try {
@@ -220,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const objectFile = await objectStorageService.getObjectEntityFile(filePath);
       
       // Check access permissions
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const canAccess = await objectStorageService.canAccessObjectEntity({
         objectFile,
         userId: userId,
@@ -343,7 +343,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const objectStorageService = new ObjectStorageService();
         try {
           const objectFile = await objectStorageService.getObjectEntityFile(actualPath);
-          const userId = (req.user as any).claims.sub;
+          const userId = (req.user as any).id;
           const canAccess = await objectStorageService.canAccessObjectEntity({
             objectFile,
             userId: userId,
@@ -389,7 +389,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (associatedProjectVendor) {
           // Check if user has access to this project
-          const userId = (req.user as any).claims.sub;
+          const userId = (req.user as any).id;
           const userRole = await storage.getUserRole(userId);
           
           // If no role found, treat as 'client' (users without designer/admin role)
@@ -410,7 +410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } else {
           // File not associated with any project - only designer or admin can access
-          const userId = (req.user as any).claims.sub;
+          const userId = (req.user as any).id;
           const userRole = await storage.getUserRole(userId);
           if (!userRole || (userRole.role !== 'designer' && userRole.role !== 'admin')) {
             return res.status(403).json({ error: 'Access denied - file not associated with accessible project' });
@@ -459,7 +459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const objectStorageService = new ObjectStorageService();
         try {
           const objectFile = await objectStorageService.getObjectEntityFile(actualPath);
-          const userId = (req.user as any).claims.sub;
+          const userId = (req.user as any).id;
           const canAccess = await objectStorageService.canAccessObjectEntity({
             objectFile,
             userId: userId,
@@ -505,7 +505,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (associatedFloorPlan) {
           // Check if user has access to this project
-          const userId = (req.user as any).claims.sub;
+          const userId = (req.user as any).id;
           const userRole = await storage.getUserRole(userId);
           
           // If no role found, treat as 'client' (users without designer/admin role)
@@ -526,7 +526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } else {
           // File not associated with any project - only designer or admin can access
-          const userId = (req.user as any).claims.sub;
+          const userId = (req.user as any).id;
           const userRole = await storage.getUserRole(userId);
           if (!userRole || (userRole.role !== 'designer' && userRole.role !== 'admin')) {
             return res.status(403).json({ error: 'Access denied - floor plan not associated with accessible project' });
@@ -575,7 +575,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const objectStorageService = new ObjectStorageService();
         try {
           const objectFile = await objectStorageService.getObjectEntityFile(actualPath);
-          const userId = (req.user as any).claims.sub;
+          const userId = (req.user as any).id;
           const canAccess = await objectStorageService.canAccessObjectEntity({
             objectFile,
             userId: userId,
@@ -657,7 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Real auth endpoint to get current user
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
@@ -702,7 +702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedRole = await storage.updateUserRole(userId, role);
       if (!updatedRole) {
         // Create new role if none exists
-        const currentUserId = (req.user as any).claims.sub;
+        const currentUserId = (req.user as any).id;
         await storage.createUserRole({
           userId,
           role,
@@ -804,7 +804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const { userId, projectId } = parseResult.data;
-      const currentUserId = (req.user as any).claims.sub;
+      const currentUserId = (req.user as any).id;
       
       const assignment = await storage.assignUserToProject({
         userId,
@@ -940,7 +940,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Vendors Routes
   app.get("/api/vendors", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       
       // If no role found, treat as 'client' (users without designer/admin role)
@@ -956,7 +956,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/vendors-with-projects", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       
       // If no role found, treat as 'client' (users without designer/admin role)
@@ -1036,7 +1036,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Log activity
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const user = await storage.getUser(userId);
       if (user) {
         const userName = user.firstName && user.lastName 
@@ -1076,7 +1076,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Log activity
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const user = await storage.getUser(userId);
       if (user) {
         const userName = user.firstName && user.lastName 
@@ -1124,7 +1124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Log activity
       if (vendor) {
-        const userId = (req.user as any).claims.sub;
+        const userId = (req.user as any).id;
         const user = await storage.getUser(userId);
         if (user) {
           const userName = user.firstName && user.lastName 
@@ -1218,7 +1218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/projects", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       
       // If no role found, treat as 'client' (users without designer/admin role)
@@ -1235,7 +1235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/projects/:id", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       
       // If no role found, treat as 'client' (users without designer/admin role)
@@ -1268,7 +1268,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/projects/:id", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role || 'client';
       
@@ -1321,7 +1321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // PATCH route for updating specific project fields (like ganttChartLink)
   app.patch("/api/projects/:id", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role || 'client';
       
@@ -1385,7 +1385,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/projects/:id/categories-with-quotes", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role || 'client';
       
@@ -1406,7 +1406,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/projects/:id/quotes", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role || 'client';
       
@@ -1471,7 +1471,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Project Vendors Routes
   app.get("/api/project-vendors", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       
       // If no role found, treat as 'client' (users without designer/admin role)
@@ -1488,7 +1488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/project-vendors/project/:projectId", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const projectId = req.params.projectId;
       
@@ -1541,7 +1541,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete a project vendor
   app.delete("/api/project-vendors/:id", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const { id } = req.params;
       
       // Get the project vendor before deletion for logging
@@ -1586,7 +1586,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Quotations API - aggregated data for comparative quotes (protected)
   app.get("/api/quotations", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRoleData = await storage.getUserRole(userId);
       
       // If no role found, treat as 'client' (users without designer/admin role)
@@ -2743,7 +2743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       // Upload file to object storage
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const objectPath = await uploadToObjectStorage(
         req.file.buffer,
         req.file.originalname,
@@ -2938,7 +2938,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       // Upload file to object storage
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const objectPath = await uploadToObjectStorage(
         tempData.buffer,
         tempData.originalname,
@@ -3206,7 +3206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get BOQ items for a project vendor (protected)
   app.get("/api/project-vendors/:id/boq", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const projectVendorId = req.params.id;
       
@@ -3225,7 +3225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get quote files for a project vendor (protected)
   app.get("/api/project-vendors/:id/files", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const projectVendorId = req.params.id;
       
@@ -3816,7 +3816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Floor Plans Routes (protected)
   app.get("/api/floor-plans", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       
       // If no role found, treat as 'client' (users without designer/admin role)
@@ -3833,7 +3833,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/floor-plans/project/:projectId", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const { projectId } = req.params;
       
@@ -3851,7 +3851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/floor-plans/:id", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const { id } = req.params;
       
@@ -3919,7 +3919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Upload file to object storage
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const objectPath = await uploadToObjectStorage(
         req.file.buffer,
         req.file.originalname,
@@ -3997,7 +3997,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/floor-plans/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       // Get the floor plan first to delete the file
       const floorPlan = await storage.getFloorPlan(id);
@@ -4056,7 +4056,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.set('Pragma', 'no-cache');
       res.set('Expires', '0');
       
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const { projectId, assetType } = req.query;
       const validAssetType = typeof assetType === 'string' ? assetType : undefined;
@@ -4139,7 +4139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Upload file to object storage if not link-only
       let objectPath = null;
       if (!isLinkOnly && req.file) {
-        const userId = (req.user as any).claims.sub;
+        const userId = (req.user as any).id;
         objectPath = await uploadToObjectStorage(
           req.file.buffer,
           req.file.originalname,
@@ -4148,7 +4148,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
 
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const moodboardData = isLinkOnly ? {
         projectId: validatedProjectId,
         assetType: assetType || 'moodboard',
@@ -4184,7 +4184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Log activity (only for file uploads, not link-only)
       if (!isLinkOnly && req.file) {
-        const userId = (req.user as any).claims.sub;
+        const userId = (req.user as any).id;
         const user = await storage.getUser(userId);
         if (user) {
           const userName = user.firstName && user.lastName 
@@ -4254,7 +4254,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/moodboards/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       // Get the moodboard first to delete the file
       const moodboard = await storage.getMoodboard(id);
@@ -4598,7 +4598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Image data is required" });
       }
 
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       // Extract room name from original filename (e.g., "Chitra's Bedroom" from "Chitra's bedroom 1.jpg")
       // This is used for display purposes
@@ -5243,7 +5243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Project ID required" });
       }
 
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       // Upload file to object storage
       const filePath = await uploadToObjectStorage(
@@ -5701,7 +5701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/schedules/:scheduleId/download-original", requireAuth, async (req, res) => {
     try {
       const { scheduleId } = req.params;
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       const schedule = await storage.getProjectSchedule(scheduleId);
       if (!schedule) {
@@ -5753,7 +5753,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/schedules/:scheduleId/designer-export", requireAuth, async (req, res) => {
     try {
       const { scheduleId } = req.params;
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       // Get the schedule and its tasks
       const schedule = await storage.getProjectSchedule(scheduleId);
@@ -6118,7 +6118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/schedules/:scheduleId/designer-reimport", requireAuth, upload.single('file'), async (req, res) => {
     try {
       const { scheduleId } = req.params;
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -6599,7 +6599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/vendors/:vendorId/invoices", requireAdmin, async (req, res) => {
     try {
       const { vendorId } = req.params;
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       const invoiceData = insertVendorInvoiceSchema.parse({
         ...req.body,
@@ -6650,7 +6650,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/invoices/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       // Omit createdBy and vendorId from updates to prevent tampering
       const updates = insertVendorInvoiceSchema.omit({ createdBy: true, vendorId: true }).partial().parse(req.body);
@@ -6721,7 +6721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/invoices/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       // Get invoice details before deleting
       const invoice = await storage.getVendorInvoice(id);
@@ -6794,7 +6794,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/vendors/:vendorId/payments", requireAdmin, async (req, res) => {
     try {
       const { vendorId } = req.params;
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       const paymentData = insertVendorPaymentSchema.parse({
         ...req.body,
@@ -6903,7 +6903,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       // Upload file to object storage
       const objectPath = await uploadToObjectStorage(
@@ -6960,7 +6960,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "fileName is required" });
       }
 
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const objectId = randomUUID();
       const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
       
@@ -7223,7 +7223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const item = await storage.createCatalogueItem(validatedData);
       
       // Log activity
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const user = await storage.getUser(userId);
       if (user) {
         const userName = user.firstName && user.lastName 
@@ -7278,7 +7278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Log activity
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const user = await storage.getUser(userId);
       if (user) {
         const userName = user.firstName && user.lastName 
@@ -7320,7 +7320,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Log the deletion activity
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const user = await storage.getUser(userId);
       if (item && user) {
         const userName = user.firstName && user.lastName 
@@ -7413,7 +7413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Image file is required" });
         }
 
-        const userId = (req.user as any).claims.sub;
+        const userId = (req.user as any).id;
         const userObjectType = req.body.objectType; // Optional: user can pre-select type
         
         // Upload original file to object storage
@@ -7877,7 +7877,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.linkAssetToCatalogue(asset.id, catalogueItem.id);
 
       // Log activity
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const user = await storage.getUser(userId);
       if (user) {
         await storage.createActivity({
@@ -7948,7 +7948,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Upload file to object storage
-        const userId = (req.user as any).claims.sub;
+        const userId = (req.user as any).id;
         const objectPath = await uploadToObjectStorage(
           req.file.buffer,
           req.file.originalname,
@@ -8012,7 +8012,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Handle file upload if provided
       if (req.file) {
-        const userId = (req.user as any).claims.sub;
+        const userId = (req.user as any).id;
         const objectPath = await uploadToObjectStorage(
           req.file.buffer,
           req.file.originalname,
@@ -8050,7 +8050,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Log deletion activity
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const user = await storage.getUser(userId);
       if (user) {
         try {
@@ -8110,7 +8110,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/saved-assets", requireAdmin, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const { displayName, description, tags, filePath, thumbnailPath, sourceType, objectAssetId, catalogueItemId, aiPromptHints } = req.body;
       
       if (!displayName || !filePath || !sourceType) {
@@ -8223,7 +8223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Upload file to object storage
-        const userId = (req.user as any).claims.sub;
+        const userId = (req.user as any).id;
         const objectPath = await uploadToObjectStorage(
           req.file.buffer,
           req.file.originalname,
@@ -8299,7 +8299,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Handle file upload if provided
       if (req.file) {
-        const userId = (req.user as any).claims.sub;
+        const userId = (req.user as any).id;
         const objectPath = await uploadToObjectStorage(
           req.file.buffer,
           req.file.originalname,
@@ -8339,7 +8339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Log deletion activity
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const user = await storage.getUser(userId);
       if (user) {
         try {
@@ -8522,7 +8522,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   // Get all templates (role-based access)
   app.get("/api/works-order-templates", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       if (!userRole) {
         return res.status(403).json({ error: "User role not found" });
@@ -8539,7 +8539,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   // Get single template (with role-based access control)
   app.get("/api/works-order-templates/:id", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       if (!userRole) {
         return res.status(403).json({ error: "User role not found" });
@@ -8569,7 +8569,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       }
 
       const { categoryId, categoryName, description } = req.body;
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
 
       // Validate file type - only allow specific document types
       const allowedMimeTypes = [
@@ -8657,7 +8657,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   app.post("/api/works-order-templates", requireAdmin, async (req, res) => {
     try {
       const validated = insertWorksOrderTemplateSchema.parse(req.body);
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       const template = await storage.createWorksOrderTemplate({
         ...validated,
@@ -8702,7 +8702,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   // Update template (admin/designer only)
   app.put("/api/works-order-templates/:id", requireAdmin, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const validated = insertWorksOrderTemplateSchema.partial().parse(req.body);
       const template = await storage.updateWorksOrderTemplate(req.params.id, validated);
       
@@ -8748,7 +8748,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   // Delete template (admin/designer only)
   app.delete("/api/works-order-templates/:id", requireAdmin, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       // Get template details before deleting
       const template = await storage.getWorksOrderTemplate(req.params.id);
@@ -8798,7 +8798,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   // Get all works orders (role-based access, optional project filter)
   app.get("/api/works-orders", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       if (!userRole) {
         return res.status(403).json({ error: "User role not found" });
@@ -8857,7 +8857,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   // Get single works order with relations
   app.get("/api/works-orders/:id", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       if (!userRole) {
         return res.status(403).json({ error: "User role not found" });
@@ -8890,7 +8890,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   // Create works order (admin/designer only)
   app.post("/api/works-orders", requireProjectAccess, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       
       // Generate order number
       const orderNumber = await storage.generateOrderNumber();
@@ -8967,7 +8967,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   // Send works order (mark as sent, admin/designer only)
   app.post("/api/works-orders/:id/send", requireProjectAccess, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const order = await storage.getWorksOrder(req.params.id);
       
       if (!order) {
@@ -9025,7 +9025,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   // Void works order (admin/designer only)
   app.post("/api/works-orders/:id/void", requireProjectAccess, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const { reason } = req.body;
       const order = await storage.getWorksOrder(req.params.id);
       
@@ -9079,7 +9079,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   // Delete works order (admin/designer only)
   app.delete("/api/works-orders/:id", requireProjectAccess, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
       const order = await storage.getWorksOrder(req.params.id);
       
       if (!order) {
@@ -9248,7 +9248,7 @@ Return your response in the following JSON format only (no markdown, no code blo
         return res.status(400).json({ error: "Project, category, and vendor are required" });
       }
 
-      const userId = (req.user as any).claims.sub;
+      const userId = (req.user as any).id;
 
       // Get or create projectVendor for this vendor
       let projectVendorId: string;
