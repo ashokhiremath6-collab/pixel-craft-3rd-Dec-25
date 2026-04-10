@@ -103,7 +103,7 @@ export default function MoodboardsPage() {
         invalidFileTypeTitle: "Invalid file type",
         invalidFileTypeDescription: "Please upload images (JPEG, PNG, SVG, WebP), PDFs, or CAD files (DXF, DWG).",
         fileTooLargeTitle: "File too large",
-        fileTooLargeDescription: "Please select a file smaller than 10MB.",
+        fileTooLargeDescription: "Please select a file smaller than 21MB.",
         descriptionPlaceholder: "Describe this working drawing...",
       };
     }
@@ -138,7 +138,7 @@ export default function MoodboardsPage() {
         invalidFileTypeTitle: "Invalid file type",
         invalidFileTypeDescription: "Please upload images (JPEG, PNG, SVG, WebP) or PDFs.",
         fileTooLargeTitle: "File too large",
-        fileTooLargeDescription: "Please select a file smaller than 10MB.",
+        fileTooLargeDescription: "Please select a file smaller than 21MB.",
         descriptionPlaceholder: "Describe this render...",
       };
     }
@@ -172,7 +172,7 @@ export default function MoodboardsPage() {
       invalidFileTypeTitle: "Invalid file type",
       invalidFileTypeDescription: "Please upload images (JPEG, PNG, SVG, WebP) or PDFs from Canva.",
       fileTooLargeTitle: "File too large",
-      fileTooLargeDescription: "Please select a file smaller than 10MB.",
+      fileTooLargeDescription: "Please select a file smaller than 21MB.",
       descriptionPlaceholder: "Describe this moodboard...",
     };
   }, [assetType]);
