@@ -398,8 +398,15 @@ export async function chatWithDesignAssistant(
       for (const att of msg.attachments) {
         const ext = att.name.split(".").pop()?.toLowerCase();
         const isCadFile = ext === "dxf" || ext === "obj";
+        const isSkp = ext === "skp";
 
-        if (isCadFile) {
+        if (isSkp) {
+          // SketchUp native binary — Claude cannot decode it; send a descriptive note instead
+          content.push({
+            type: "text",
+            text: `[SketchUp native file attached: ${att.name}]\nNote: This is a binary .skp file. You cannot read its geometry directly. Acknowledge that you have received the file, explain that the .skp format is a proprietary binary that you cannot decode, and advise the user to export from SketchUp as:\n• DXF (File → Export → 2D Graphic → AutoCAD DXF) for floor plans/elevations\n• OBJ (File → Export → 3D Model → OBJ) for 3D geometry\nThen they can re-attach the exported file for full geometry analysis.`,
+          });
+        } else if (isCadFile) {
           // DXF/OBJ are text formats — decode from base64 and send as readable text
           const rawText = Buffer.from(att.data, "base64").toString("utf-8");
           // Truncate very large files to avoid token overflow (~100KB text limit)
