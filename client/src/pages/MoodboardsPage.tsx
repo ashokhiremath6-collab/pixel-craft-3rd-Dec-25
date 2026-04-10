@@ -484,11 +484,14 @@ export default function MoodboardsPage() {
     const file = files[0];
     
     // Validate file type — working drawings also allow DXF (SketchUp/AutoCAD exports)
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml', 'image/webp', 'application/pdf'];
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml', 'image/webp', 'application/pdf', 'application/vnd.sketchup.skp'];
     const ext = file.name.split('.').pop()?.toLowerCase();
     const allowedExtensions = ['jpg', 'jpeg', 'png', 'svg', 'webp', 'pdf'];
     if (assetType === 'working_drawing') {
       allowedExtensions.push('dxf', 'dwg');
+    }
+    if (assetType === 'render') {
+      allowedExtensions.push('skp');
     }
     if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(ext || '')) {
       toast({
@@ -1219,7 +1222,9 @@ export default function MoodboardsPage() {
             <p className="text-sm text-muted-foreground">
               {assetType === 'working_drawing'
                 ? 'Support for JPEG, PNG, SVG, WebP, PDF, DXF, and DWG files up to 10MB'
-                : 'Support for JPEG, PNG, SVG, WebP, and PDF files up to 10MB'}
+                : assetType === 'render'
+                  ? 'Support for JPEG, PNG, SVG, WebP, PDF, and SketchUp (.skp) files up to 10MB'
+                  : 'Support for JPEG, PNG, SVG, WebP, and PDF files up to 10MB'}
             </p>
             
             <input
@@ -1228,7 +1233,9 @@ export default function MoodboardsPage() {
               className="hidden"
               accept={assetType === 'working_drawing'
                 ? "image/jpeg,image/png,image/svg+xml,image/webp,application/pdf,.dxf,.dwg"
-                : "image/jpeg,image/png,image/svg+xml,image/webp,application/pdf"}
+                : assetType === 'render'
+                  ? "image/jpeg,image/png,image/svg+xml,image/webp,application/pdf,.skp,application/vnd.sketchup.skp"
+                  : "image/jpeg,image/png,image/svg+xml,image/webp,application/pdf"}
               onChange={(e) => handleFileSelect(e.target.files)}
               data-testid="input-file"
             />
