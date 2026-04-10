@@ -48,7 +48,7 @@ const SUGGESTED_PROMPTS = [
   "Standard kitchen worktop height and overhang dimensions",
 ];
 
-const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/heic,application/pdf,.dxf,.obj";
+const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/heic,application/pdf,.dxf,.obj,.skp";
 const MAX_FILE_MB = 20;
 
 function MarkdownRenderer({ text }: { text: string }) {
@@ -269,6 +269,24 @@ export default function AIAssistantPage() {
 
       const newAttachments: Attachment[] = [];
       for (const file of files) {
+        const ext = file.name.split(".").pop()?.toLowerCase();
+
+        // SketchUp native files (.skp) are binary and cannot be read by the AI.
+        // Guide the user to export as DXF or OBJ first.
+        if (ext === "skp") {
+          toast({
+            title: "SketchUp native file (.skp) not supported",
+            description:
+              "The AI cannot read .skp files directly. Please export from SketchUp first:\n" +
+              "• Floor plans / elevations → File → Export → 2D Graphic → DXF\n" +
+              "• 3D models → File → Export → 3D Model → OBJ\n" +
+              "Then attach the exported .dxf or .obj file here.",
+            variant: "destructive",
+            duration: 10000,
+          });
+          continue;
+        }
+
         if (file.size > MAX_FILE_MB * 1024 * 1024) {
           toast({
             title: "File too large",
@@ -1206,7 +1224,7 @@ export default function AIAssistantPage() {
           </div>
 
           <p className="text-xs text-muted-foreground/60 text-center mt-2">
-            Enter to send · Shift+Enter for new line · Attach images, PDFs, or SketchUp exports (.dxf, .obj) up to {MAX_FILE_MB}MB
+            Enter to send · Shift+Enter for new line · Attach images, PDFs, or SketchUp exports (.dxf, .obj) up to {MAX_FILE_MB}MB · Note: export from SketchUp as DXF or OBJ first — .skp files cannot be read directly
           </p>
         </div>
       </div>
