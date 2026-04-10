@@ -104,7 +104,8 @@ export default function SettingsPage() {
   // Mutation to generate a password reset link (admin copies and shares directly)
   const resetLinkMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return apiRequest("POST", `/api/admin/users/${userId}/reset-link`);
+      const res = await apiRequest("POST", `/api/admin/users/${userId}/reset-link`);
+      return res.json();
     },
     onSuccess: async (data: any, userId: string) => {
       try {
