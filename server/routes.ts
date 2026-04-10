@@ -671,9 +671,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ error: "User not found" });
 
-      const token = randomUUID();
-      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-      await storage.setPasswordResetToken(userId, token, expiry);
+      // Reuse existing valid token to avoid invalidating a link already shared
+      let token: string;
+      let expiry: Date;
+      const existingTokenStillValid =
+        user.passwordResetToken &&
+        user.passwordResetTokenExpiry &&
+        user.passwordResetTokenExpiry > new Date();
+
+      if (existingTokenStillValid) {
+        token = user.passwordResetToken!;
+        expiry = user.passwordResetTokenExpiry!;
+      } else {
+        token = randomUUID();
+        expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+        await storage.setPasswordResetToken(userId, token, expiry);
+      }
 
       const domains = process.env.REPLIT_DOMAINS;
       const baseUrl =
