@@ -1036,9 +1036,14 @@ export default function MoodboardsPage() {
                               <div className="flex items-center gap-2 shrink-0">
                                 {getPreviewUrl(moodboard) && (
                                   isCAD ? (
-                                    <Button variant="outline" size="sm" onClick={() => downloadFile(moodboard)} title="Export CAD file" data-testid={`button-download-${moodboard.id}`}>
-                                      <Download className="h-3.5 w-3.5 mr-1.5" />Export
-                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                      <Button variant="ghost" size="icon" onClick={() => setPreviewImage(moodboard)} title="Preview CAD drawing" data-testid={`button-view-${moodboard.id}`}>
+                                        <Eye className="h-4 w-4" />
+                                      </Button>
+                                      <Button variant="outline" size="sm" onClick={() => downloadFile(moodboard)} title="Download for AutoCAD" data-testid={`button-download-${moodboard.id}`}>
+                                        <Download className="h-3.5 w-3.5 mr-1.5" />Download
+                                      </Button>
+                                    </div>
                                   ) : (
                                     <Button variant="ghost" size="icon" onClick={() => setPreviewImage(moodboard)} data-testid={`button-view-${moodboard.id}`}>
                                       <Eye className="h-4 w-4" />

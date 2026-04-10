@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Download, Trash2, Edit, FileImage, File, Plus, ExternalLink, FileCode2, Layers, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, Download, Trash2, Edit, FileImage, File, Plus, ExternalLink, FileCode2, Layers, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
@@ -751,13 +751,12 @@ export default function FloorPlansPage() {
                             </div>
                           </div>
                           <div className="flex space-x-1 shrink-0">
-                            {isCAD ? (
-                              <Button size="icon" variant="ghost" onClick={() => handleDownload(floorPlan)} title="Export / Download CAD file" data-testid={`button-download-${floorPlan.id}`}>
+                            <Button size="icon" variant="ghost" onClick={() => handleView(floorPlan)} title={isCAD ? "Preview CAD drawing" : "View"} data-testid={`button-view-${floorPlan.id}`}>
+                              {isCAD ? <Eye className="h-3 w-3" /> : <ExternalLink className="h-3 w-3" />}
+                            </Button>
+                            {isCAD && (
+                              <Button size="icon" variant="ghost" onClick={() => handleDownload(floorPlan)} title="Download for AutoCAD" data-testid={`button-download-${floorPlan.id}`}>
                                 <Download className="h-3 w-3" />
-                              </Button>
-                            ) : (
-                              <Button size="icon" variant="ghost" onClick={() => handleView(floorPlan)} data-testid={`button-view-${floorPlan.id}`} title="View">
-                                <ExternalLink className="h-3 w-3" />
                               </Button>
                             )}
                             <Button size="icon" variant="ghost" onClick={() => handleEdit(floorPlan)} data-testid={`button-edit-${floorPlan.id}`}>
@@ -854,13 +853,12 @@ export default function FloorPlansPage() {
                             </div>
                           </div>
                           <div className="flex space-x-1 shrink-0">
-                            {isCAD ? (
-                              <Button size="icon" variant="ghost" onClick={() => handleDownload(floorPlan)} title="Export / Download CAD file" data-testid={`button-download-${floorPlan.id}`}>
+                            <Button size="icon" variant="ghost" onClick={() => handleView(floorPlan)} title={isCAD ? "Preview CAD drawing" : "View"} data-testid={`button-view-${floorPlan.id}`}>
+                              {isCAD ? <Eye className="h-3 w-3" /> : <ExternalLink className="h-3 w-3" />}
+                            </Button>
+                            {isCAD && (
+                              <Button size="icon" variant="ghost" onClick={() => handleDownload(floorPlan)} title="Download for AutoCAD" data-testid={`button-download-${floorPlan.id}`}>
                                 <Download className="h-3 w-3" />
-                              </Button>
-                            ) : (
-                              <Button size="icon" variant="ghost" onClick={() => handleView(floorPlan)} data-testid={`button-view-${floorPlan.id}`} title="View">
-                                <ExternalLink className="h-3 w-3" />
                               </Button>
                             )}
                             <Button size="icon" variant="ghost" onClick={() => handleEdit(floorPlan)} data-testid={`button-edit-${floorPlan.id}`}>

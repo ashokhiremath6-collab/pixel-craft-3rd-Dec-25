@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { X, ExternalLink, Download, ZoomIn, ZoomOut, RotateCcw, Maximize2, Loader2 } from "lucide-react";
 import { openPdf } from "@/lib/fileUtils";
+import { DxfViewer, DwgWarning } from "@/components/DxfViewer";
 
 interface FileViewerModalProps {
   isOpen: boolean;
@@ -11,7 +12,7 @@ interface FileViewerModalProps {
   fileName?: string;
 }
 
-type FileType = "pdf" | "image" | "text" | "word" | "excel" | "detecting";
+type FileType = "pdf" | "image" | "text" | "word" | "excel" | "cad-dxf" | "cad-dwg" | "detecting";
 
 function guessTypeFromName(fileName?: string, fileUrl?: string): FileType | null {
   const name = (fileName || fileUrl || "").toLowerCase();
@@ -20,6 +21,8 @@ function guessTypeFromName(fileName?: string, fileUrl?: string): FileType | null
   if (name.endsWith(".txt")) return "text";
   if (/\.docx?/.test(name)) return "word";
   if (/\.(xlsx?|pptx?)/.test(name)) return "excel";
+  if (name.endsWith(".dxf")) return "cad-dxf";
+  if (name.endsWith(".dwg")) return "cad-dwg";
   return null;
 }
 
@@ -87,6 +90,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   };
 
   const canZoom = fileType === "pdf" || fileType === "image" || fileType === "word";
+  const isCad = fileType === "cad-dxf" || fileType === "cad-dwg";
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
@@ -129,8 +133,12 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
           </div>
         </DialogHeader>
 
-        <div className="flex-1 bg-muted/30" style={{ height: "calc(95vh - 56px)", overflow: "hidden" }}>
-          {fileType === "detecting" ? (
+        <div className="flex-1 bg-muted/30" style={{ height: "calc(95vh - 56px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          {fileType === "cad-dxf" ? (
+            <DxfViewer fileUrl={fileUrl} fileName={fileName} onDownload={handleDownload} />
+          ) : fileType === "cad-dwg" ? (
+            <DwgWarning fileName={fileName} onDownload={handleDownload} />
+          ) : fileType === "detecting" ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
