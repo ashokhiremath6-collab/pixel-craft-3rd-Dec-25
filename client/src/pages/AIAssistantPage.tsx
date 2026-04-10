@@ -48,7 +48,7 @@ const SUGGESTED_PROMPTS = [
   "Standard kitchen worktop height and overhang dimensions",
 ];
 
-const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/heic,application/pdf,.dxf,.obj,.skp";
+const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/heic,application/pdf,.dxf,.obj,.skp,application/vnd.sketchup.skp";
 const MAX_FILE_MB = 20;
 
 function MarkdownRenderer({ text }: { text: string }) {
