@@ -502,8 +502,8 @@ export default function MoodboardsPage() {
       return;
     }
     
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
+    // Validate file size (max 21MB)
+    if (file.size > 21 * 1024 * 1024) {
       toast({
         variant: "destructive", 
         title: labels.fileTooLargeTitle,
@@ -1221,10 +1221,10 @@ export default function MoodboardsPage() {
             </p>
             <p className="text-sm text-muted-foreground">
               {assetType === 'working_drawing'
-                ? 'Support for JPEG, PNG, SVG, WebP, PDF, DXF, and DWG files up to 10MB'
+                ? 'Support for JPEG, PNG, SVG, WebP, PDF, DXF, and DWG files up to 21MB'
                 : assetType === 'render'
-                  ? 'Support for JPEG, PNG, SVG, WebP, PDF, and SketchUp (.skp) files up to 10MB'
-                  : 'Support for JPEG, PNG, SVG, WebP, and PDF files up to 10MB'}
+                  ? 'Support for JPEG, PNG, SVG, WebP, PDF, and SketchUp (.skp) files up to 21MB'
+                  : 'Support for JPEG, PNG, SVG, WebP, and PDF files up to 21MB'}
             </p>
             
             <input

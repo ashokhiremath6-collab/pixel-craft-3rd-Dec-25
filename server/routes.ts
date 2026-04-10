@@ -1906,7 +1906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const upload = multer({
     storage: multer.memoryStorage(), // Store in memory, then upload to object storage
     limits: {
-      fileSize: 10 * 1024 * 1024, // 10MB limit
+      fileSize: 21 * 1024 * 1024, // 21MB limit
       files: 1, // Only allow single file upload
     },
     fileFilter: (req, file, cb) => {
@@ -6840,7 +6840,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const invoiceUpload = multer({
     storage: multer.memoryStorage(),
     limits: {
-      fileSize: 20 * 1024 * 1024, // 20MB limit for invoice PDFs
+      fileSize: 21 * 1024 * 1024, // 21MB limit for invoice PDFs
       files: 1,
     },
     fileFilter: (req, file, cb) => {

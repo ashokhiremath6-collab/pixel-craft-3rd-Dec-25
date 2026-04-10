@@ -223,11 +223,11 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
       return;
     }
     
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > 21 * 1024 * 1024) {
       toast({
         variant: "destructive",
         title: "File too large",
-        description: "File size must be less than 10MB.",
+        description: "File size must be less than 21MB.",
       });
       return;
     }

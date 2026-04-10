@@ -49,7 +49,7 @@ const SUGGESTED_PROMPTS = [
 ];
 
 
-const MAX_FILE_MB = 20;
+const MAX_FILE_MB = 21;
 
 function MarkdownRenderer({ text }: { text: string }) {
   const renderMarkdown = (md: string) => {
