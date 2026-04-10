@@ -664,6 +664,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Generate a password reset link for any user (admin only — for sharing via WhatsApp/email)
+  app.post("/api/admin/users/:userId/reset-link", requireAdminOnly, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      const token = randomUUID();
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      await storage.setPasswordResetToken(userId, token, expiry);
+
+      const domains = process.env.REPLIT_DOMAINS;
+      const baseUrl =
+        process.env.APP_URL ||
+        (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
+
+      const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+      res.json({ resetUrl, email: user.email });
+    } catch (error) {
+      console.error("Generate reset link error:", error);
+      res.status(500).json({ error: "Failed to generate reset link" });
+    }
+  });
+
   // User project access routes
   app.post("/api/user-project-access", requireAdmin, async (req, res) => {
     try {

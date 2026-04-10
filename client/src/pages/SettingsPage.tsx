@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Settings, UserCog, Shield, Eye, Briefcase } from "lucide-react";
+import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check } from "lucide-react";
 import type { User, Project, UserProjectAssignment } from "@shared/schema";
 
 type UserWithRole = User & {
@@ -19,6 +19,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>("");
+  const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
 
   // Fetch all users with their roles
   const { data: users, isLoading } = useQuery<UserWithRole[]>({
@@ -95,6 +96,37 @@ export default function SettingsPage() {
       toast({
         title: "Error unassigning project",
         description: error.message || "Failed to unassign project",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation to generate a password reset link (admin copies and shares directly)
+  const resetLinkMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest("POST", `/api/admin/users/${userId}/reset-link`);
+    },
+    onSuccess: async (data: any, userId: string) => {
+      try {
+        await navigator.clipboard.writeText(data.resetUrl);
+        setCopiedUserId(userId);
+        setTimeout(() => setCopiedUserId(null), 3000);
+        toast({
+          title: "Login link copied",
+          description: `Reset link for ${data.email} copied to clipboard. Send it via WhatsApp or email — valid for 24 hours.`,
+        });
+      } catch {
+        // Clipboard API unavailable — show the link in a toast
+        toast({
+          title: "Login link generated",
+          description: data.resetUrl,
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to generate link",
+        description: error.message,
         variant: "destructive",
       });
     },
@@ -233,7 +265,20 @@ export default function SettingsPage() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => resetLinkMutation.mutate(user.id)}
+                        disabled={resetLinkMutation.isPending && resetLinkMutation.variables === user.id}
+                        title="Generate a password reset link to share with this user"
+                      >
+                        {copiedUserId === user.id ? (
+                          <><Check className="h-3.5 w-3.5 mr-1.5" />Copied</>
+                        ) : (
+                          <><Link2 className="h-3.5 w-3.5 mr-1.5" />Copy Login Link</>
+                        )}
+                      </Button>
                       {isEditing ? (
                         <>
                           <Select value={selectedRole} onValueChange={setSelectedRole}>
