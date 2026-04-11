@@ -4800,6 +4800,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update task remarks (open to any authenticated user, not just admin)
+  app.patch("/api/tasks/:id/remarks", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { remarks } = req.body;
+      const task = await storage.updateTask(id, { remarks: remarks ?? null });
+      if (!task) return res.status(404).json({ error: "Task not found" });
+      res.json(task);
+    } catch (error) {
+      console.error('Error updating task remarks:', error);
+      res.status(500).json({ error: "Failed to update remarks" });
+    }
+  });
+
   // Delete task
   app.delete("/api/tasks/:id", requireAuth, async (req, res) => {
     try {

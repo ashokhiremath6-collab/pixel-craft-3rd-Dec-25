@@ -200,6 +200,7 @@ export const tasks = pgTable("tasks", {
   targetEndDate: date("target_end_date"), // baseline/target finish date
   outlineLevel: integer("outline_level"), // WBS hierarchy level (1 = top-level phase, 2+ = sub-tasks)
   color: text("color"), // optional color code for visual differentiation
+  remarks: text("remarks"), // free-text field for project manager notes, delay reasons, stage updates
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });

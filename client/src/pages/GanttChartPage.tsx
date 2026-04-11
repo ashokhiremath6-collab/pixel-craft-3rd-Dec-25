@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette, ArrowUpDown } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette, ArrowUpDown, MessageSquare } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useForm } from "react-hook-form";
@@ -65,6 +65,7 @@ export default function GanttChartPage() {
     retry: false,
   });
   const isAdmin = currentUser?.role === 'admin';
+  const canEditRemarks = currentUser?.role === 'admin' || currentUser?.role === 'designer';
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -90,6 +91,10 @@ export default function GanttChartPage() {
   // Inline editing for dates
   const [editingEndDateTaskId, setEditingEndDateTaskId] = useState<string | null>(null);
   const [editingStartDateTaskId, setEditingStartDateTaskId] = useState<string | null>(null);
+
+  // Remarks popover
+  const [remarksOpenTaskId, setRemarksOpenTaskId] = useState<string | null>(null);
+  const [remarksValue, setRemarksValue] = useState<string>("");
   
   // Re-import Designer Export
   const [reimportScheduleId, setReimportScheduleId] = useState<string | null>(null);
@@ -273,6 +278,22 @@ export default function GanttChartPage() {
         description: error.message || "Failed to update start date",
         variant: "destructive" 
       });
+    },
+  });
+
+  // Update task remarks mutation (available to all authenticated users)
+  const updateRemarksMutation = useMutation({
+    mutationFn: async ({ taskId, remarks }: { taskId: string; remarks: string }) => {
+      return await apiRequest('PATCH', `/api/tasks/${taskId}/remarks`, { remarks });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      setRemarksOpenTaskId(null);
+      toast({ title: "Remarks saved" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to save remarks", variant: "destructive" });
     },
   });
 
@@ -1436,19 +1457,83 @@ export default function GanttChartPage() {
                                       </td>
                                     )}
                                     <td className="py-2.5 px-2 text-center">
-                                      <Button 
-                                        size="icon" 
-                                        variant="ghost" 
-                                        className="h-7 w-7 opacity-50 hover:opacity-100"
-                                        onClick={() => {
-                                          if (confirm(`Delete task "${task.name}"?`)) {
-                                            deleteTaskMutation.mutate(task.id);
-                                          }
-                                        }}
-                                        data-testid={`button-delete-task-row-${task.id}`}
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
+                                      <div className="flex items-center justify-center gap-0.5">
+                                        {/* Remarks button — visible to all; editable by admin/designer */}
+                                        <Popover
+                                          open={remarksOpenTaskId === task.id}
+                                          onOpenChange={(open) => {
+                                            if (open) {
+                                              setRemarksOpenTaskId(task.id);
+                                              setRemarksValue((task as any).remarks || "");
+                                            } else {
+                                              setRemarksOpenTaskId(null);
+                                            }
+                                          }}
+                                        >
+                                          <PopoverTrigger asChild>
+                                            <Button
+                                              size="icon"
+                                              variant="ghost"
+                                              className={`h-7 w-7 transition-opacity ${(task as any).remarks ? 'opacity-100 text-blue-500 dark:text-blue-400' : 'opacity-40 hover:opacity-100'}`}
+                                              title={(task as any).remarks ? `Remarks: ${(task as any).remarks}` : canEditRemarks ? "Add remarks" : "No remarks"}
+                                              data-testid={`button-remarks-${task.id}`}
+                                            >
+                                              <MessageSquare className={`h-3.5 w-3.5 ${(task as any).remarks ? 'fill-blue-100 dark:fill-blue-900' : ''}`} />
+                                            </Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-80 p-4" align="end">
+                                            <div className="space-y-3">
+                                              <div>
+                                                <p className="text-sm font-medium">Remarks</p>
+                                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{task.name}</p>
+                                              </div>
+                                              {canEditRemarks ? (
+                                                <>
+                                                  <Textarea
+                                                    value={remarksValue}
+                                                    onChange={(e) => setRemarksValue(e.target.value)}
+                                                    placeholder="Add notes, reason for delay, stage of completion..."
+                                                    className="text-sm min-h-[90px] resize-none"
+                                                    onKeyDown={(e) => { if (e.key === 'Escape') setRemarksOpenTaskId(null); }}
+                                                    autoFocus
+                                                  />
+                                                  <div className="flex justify-end gap-2">
+                                                    <Button size="sm" variant="ghost" onClick={() => setRemarksOpenTaskId(null)}>Cancel</Button>
+                                                    <Button
+                                                      size="sm"
+                                                      onClick={() => updateRemarksMutation.mutate({ taskId: task.id, remarks: remarksValue })}
+                                                      disabled={updateRemarksMutation.isPending}
+                                                    >
+                                                      Save
+                                                    </Button>
+                                                  </div>
+                                                </>
+                                              ) : (
+                                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                                  {(task as any).remarks || "No remarks added yet."}
+                                                </p>
+                                              )}
+                                            </div>
+                                          </PopoverContent>
+                                        </Popover>
+
+                                        {/* Delete — admin only */}
+                                        {isAdmin && (
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-7 w-7 opacity-40 hover:opacity-100"
+                                            onClick={() => {
+                                              if (confirm(`Delete task "${task.name}"?`)) {
+                                                deleteTaskMutation.mutate(task.id);
+                                              }
+                                            }}
+                                            data-testid={`button-delete-task-row-${task.id}`}
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </Button>
+                                        )}
+                                      </div>
                                     </td>
                                   </tr>
                                 );
