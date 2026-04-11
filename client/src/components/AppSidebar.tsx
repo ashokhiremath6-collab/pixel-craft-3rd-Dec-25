@@ -168,7 +168,7 @@ export function AppSidebar() {
       <SidebarHeader className="px-3 py-3 border-b">
         <div className="flex items-center gap-2.5">
           <img src="/logo.png" alt="PixelCraft Designer" className="h-7 w-7 object-contain shrink-0" />
-          <span className="font-semibold text-sm leading-tight">PixelCraft Designer</span>
+          <span className="font-semibold text-xs leading-tight">PixelCraft Designer</span>
         </div>
       </SidebarHeader>
       <SidebarContent className="pb-4">
