@@ -4779,7 +4779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update task
-  app.put("/api/tasks/:id", requireAuth, async (req, res) => {
+  app.put("/api/tasks/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       

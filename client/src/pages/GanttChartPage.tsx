@@ -59,6 +59,12 @@ const getProgressState = (task: Task): 'Completed' | 'Incomplete' => {
 
 export default function GanttChartPage() {
   const { toast } = useToast();
+
+  const { data: currentUser } = useQuery<{ role: string }>({
+    queryKey: ['/api/auth/user'],
+    retry: false,
+  });
+  const isAdmin = currentUser?.role === 'admin';
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -1331,7 +1337,7 @@ export default function GanttChartPage() {
                                               data-testid={`input-startdate-${task.id}`}
                                             />
                                           </div>
-                                        ) : (
+                                        ) : isAdmin ? (
                                           <button 
                                             className="flex items-center gap-1 hover:bg-muted/50 rounded px-1.5 py-0.5 transition-colors cursor-pointer group"
                                             onClick={() => setEditingStartDateTaskId(task.id)}
@@ -1343,6 +1349,10 @@ export default function GanttChartPage() {
                                             </span>
                                             <CalendarIcon className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                                           </button>
+                                        ) : (
+                                          <span className="px-1.5 py-0.5">
+                                            {task.startDate ? parseLocalDate(task.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
+                                          </span>
                                         )}
                                       </td>
                                     )}
@@ -1369,7 +1379,7 @@ export default function GanttChartPage() {
                                               data-testid={`input-enddate-${task.id}`}
                                             />
                                           </div>
-                                        ) : (
+                                        ) : isAdmin ? (
                                           <button 
                                             className="flex items-center gap-1 hover:bg-muted/50 rounded px-1.5 py-0.5 transition-colors cursor-pointer group"
                                             onClick={() => setEditingEndDateTaskId(task.id)}
@@ -1381,6 +1391,10 @@ export default function GanttChartPage() {
                                             </span>
                                             <CalendarIcon className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                                           </button>
+                                        ) : (
+                                          <span className="px-1.5 py-0.5">
+                                            {task.endDate ? parseLocalDate(task.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
+                                          </span>
                                         )}
                                       </td>
                                     )}
@@ -1393,12 +1407,12 @@ export default function GanttChartPage() {
                                       <td className="py-2.5 px-2 text-center">
                                         {getProgressState(task) === 'Completed' ? (
                                           <Badge 
-                                            className="text-xs cursor-pointer bg-green-500 text-white border-green-600 hover:bg-red-500 hover:border-red-600 transition-colors shadow-sm"
-                                            onClick={() => {
+                                            className={`text-xs bg-green-500 text-white border-green-600 shadow-sm ${isAdmin ? 'cursor-pointer hover:bg-red-500 hover:border-red-600 transition-colors' : 'cursor-default'}`}
+                                            onClick={isAdmin ? () => {
                                               updateProgressMutation.mutate({ taskId: task.id, progressPercentage: 0 });
                                               toast({ title: "Task marked incomplete", description: task.name });
-                                            }}
-                                            title="Click to toggle → Incomplete"
+                                            } : undefined}
+                                            title={isAdmin ? "Click to toggle → Incomplete" : undefined}
                                             data-testid={`progress-completed-${task.id}`}
                                           >
                                             <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -1407,12 +1421,12 @@ export default function GanttChartPage() {
                                         ) : (
                                           <Badge 
                                             variant="outline"
-                                            className="text-xs cursor-pointer border-gray-300 text-gray-600 dark:border-gray-600 dark:text-gray-400 hover:bg-green-500 hover:border-green-500 hover:text-white dark:hover:bg-green-600 transition-colors shadow-sm"
-                                            onClick={() => {
+                                            className={`text-xs border-gray-300 text-gray-600 dark:border-gray-600 dark:text-gray-400 shadow-sm ${isAdmin ? 'cursor-pointer hover:bg-green-500 hover:border-green-500 hover:text-white dark:hover:bg-green-600 transition-colors' : 'cursor-default'}`}
+                                            onClick={isAdmin ? () => {
                                               updateProgressMutation.mutate({ taskId: task.id, progressPercentage: 100 });
                                               toast({ title: "Task completed!", description: task.name });
-                                            }}
-                                            title="Click to toggle → Completed"
+                                            } : undefined}
+                                            title={isAdmin ? "Click to toggle → Completed" : undefined}
                                             data-testid={`progress-incomplete-${task.id}`}
                                           >
                                             <Clock className="h-3 w-3 mr-1" />
