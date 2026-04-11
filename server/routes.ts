@@ -4800,6 +4800,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update task subcategory (admin and designer only)
+  app.patch("/api/tasks/:id/subcategory", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any)?.id;
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role || 'client';
+      if (role === 'client') return res.status(403).json({ error: "Not authorised" });
+      const { id } = req.params;
+      const { subcategory } = req.body;
+      const task = await storage.updateTask(id, { subcategory: subcategory ?? null });
+      if (!task) return res.status(404).json({ error: "Task not found" });
+      res.json(task);
+    } catch (error) {
+      console.error('Error updating task subcategory:', error);
+      res.status(500).json({ error: "Failed to update subcategory" });
+    }
+  });
+
   // Update task remarks (open to any authenticated user, not just admin)
   app.patch("/api/tasks/:id/remarks", requireAuth, async (req, res) => {
     try {

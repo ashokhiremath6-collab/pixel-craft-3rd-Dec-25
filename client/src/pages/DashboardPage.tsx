@@ -67,6 +67,7 @@ export default function DashboardPage() {
     queryKey: ['/api/tasks'],
     staleTime: 0,
     refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   const handleNavigate = (path: string) => {

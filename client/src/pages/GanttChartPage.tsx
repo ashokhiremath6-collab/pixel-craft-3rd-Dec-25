@@ -95,11 +95,19 @@ export default function GanttChartPage() {
   // Remarks popover
   const [remarksOpenTaskId, setRemarksOpenTaskId] = useState<string | null>(null);
   const [remarksValue, setRemarksValue] = useState<string>("");
+
+  // Subcategory inline editing
+  const [editingSubcategoryTaskId, setEditingSubcategoryTaskId] = useState<string | null>(null);
+  const [subcategoryDraft, setSubcategoryDraft] = useState<string>("");
+
+  // Expanded subcategory groups: key = "phaseKey|||subcategoryName"
+  const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
   
   // Re-import Designer Export
   const [reimportScheduleId, setReimportScheduleId] = useState<string | null>(null);
   const reimportInputRef = useRef<HTMLInputElement>(null);
   const [visibleColumns, setVisibleColumns] = useState({
+    subcategory: true,
     startDate: true,
     endDate: true,
     assigned: false, // Hidden by default - designers may not need
@@ -127,6 +135,7 @@ export default function GanttChartPage() {
       projectId: selectedProjectId,
       name: "",
       description: "",
+      subcategory: "",
       startDate: "",
       endDate: "",
       status: "not_started",
@@ -278,6 +287,21 @@ export default function GanttChartPage() {
         description: error.message || "Failed to update start date",
         variant: "destructive" 
       });
+    },
+  });
+
+  // Update task subcategory mutation (admin + designer)
+  const updateSubcategoryMutation = useMutation({
+    mutationFn: async ({ taskId, subcategory }: { taskId: string; subcategory: string }) => {
+      return await apiRequest('PATCH', `/api/tasks/${taskId}/subcategory`, { subcategory });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      setEditingSubcategoryTaskId(null);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update subcategory", variant: "destructive" });
     },
   });
 
@@ -812,6 +836,19 @@ export default function GanttChartPage() {
                             </FormItem>
                           )}
                         />
+                        <FormField
+                          control={form.control}
+                          name="subcategory"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Subcategory <span className="text-muted-foreground text-xs">(optional)</span></FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="e.g. Plumbing, Electrical, Finishing..." data-testid="input-task-subcategory" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                         <div className="grid grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
@@ -1067,16 +1104,22 @@ export default function GanttChartPage() {
         });
 
         // Sort tasks based on mode
+        // Build an index map from the original API-returned order (backend already sorts correctly)
+        const apiOrderIndex = new Map<string, number>();
+        filteredTasks.forEach((t, i) => apiOrderIndex.set(t.id, i));
+
         const sortedTasks = [...filteredTasks].sort((a, b) => {
           if (taskSortMode === 'original') {
             // Primary: rowIndex (original Excel row position), nulls last
             const rowA = a.rowIndex !== null && a.rowIndex !== undefined ? a.rowIndex : Infinity;
             const rowB = b.rowIndex !== null && b.rowIndex !== undefined ? b.rowIndex : Infinity;
             if (rowA !== rowB) return rowA - rowB;
-            // Fallback: insertion order (createdAt)
+            // Secondary: createdAt (insertion time) — tasks in same batch may share rowIndex across imports
             const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
             const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-            return createdA - createdB;
+            if (createdA !== createdB) return createdA - createdB;
+            // Final tiebreaker: preserve the order the backend returned (schedule uploadedAt is already baked in)
+            return (apiOrderIndex.get(a.id) ?? 0) - (apiOrderIndex.get(b.id) ?? 0);
           } else if (taskSortMode === 'category') {
             const catA = extractCategory(a.name || '');
             const catB = extractCategory(b.name || '');
@@ -1164,6 +1207,7 @@ export default function GanttChartPage() {
                         <p className="text-sm font-medium mb-2">Show/Hide Columns</p>
                         {Object.entries(visibleColumns).map(([key, value]) => {
                           const labelMap: Record<string, string> = {
+                            subcategory: 'Subcategory',
                             startDate: 'Start Date',
                             endDate: 'End Date',
                             assigned: 'Assigned',
@@ -1270,6 +1314,7 @@ export default function GanttChartPage() {
                     <thead>
                       <tr className="border-b bg-muted/50">
                         <th className="text-left py-3 px-3 font-medium">Task</th>
+                        {visibleColumns.subcategory && <th className="text-left py-3 px-2 font-medium">Subcategory</th>}
                         {visibleColumns.startDate && <th className="text-left py-3 px-2 font-medium">Start</th>}
                         {visibleColumns.endDate && <th className="text-left py-3 px-2 font-medium">End</th>}
                         {visibleColumns.assigned && <th className="text-left py-3 px-2 font-medium">Assigned</th>}
@@ -1309,11 +1354,53 @@ export default function GanttChartPage() {
                           {(group.phase === 'General Tasks' || expandedPhases.has(group.phase) || !isPhaseHeader(group.tasks[0]?.name || '')) && 
                             group.tasks
                               .filter((task, idx) => !(isPhaseHeader(task.name) && idx === 0 && group.phase !== 'General Tasks'))
-                              .map((task, index) => {
+                              .flatMap((task, index, arr) => {
+                                const subcat = (task as any).subcategory || '';
+                                const subcatKey = `${group.phase}|||${subcat}`;
+                                const isFirstInSubcat = !!(subcat && arr.filter(t => ((t as any).subcategory || '') === subcat)[0]?.id === task.id);
+                                const subcatIsCollapsed = !!(subcat && !expandedSubcategories.has(subcatKey));
+                                const completedInSubcat = arr.filter(t => ((t as any).subcategory || '') === subcat && Number(t.progressPercentage || 0) >= 100).length;
+                                const totalInSubcat = arr.filter(t => ((t as any).subcategory || '') === subcat).length;
+                                const subcatPct = totalInSubcat > 0 ? Math.round((completedInSubcat / totalInSubcat) * 100) : 0;
+                                const overdueInSubcat = arr.filter(t => ((t as any).subcategory || '') === subcat && isTaskOverdue(t)).length;
+                                const colSpan = Object.values(visibleColumns).filter(Boolean).length + 2;
+
+                                const subcatHeaderRow = (isFirstInSubcat && subcat) ? (
+                                  <tr key={`subcat-header-${subcatKey}`}
+                                      className="bg-violet-50/80 dark:bg-violet-950/30 border-b border-violet-100 dark:border-violet-900 cursor-pointer hover:bg-violet-100/60 dark:hover:bg-violet-900/40 transition-colors"
+                                      onClick={() => {
+                                        const s = new Set(expandedSubcategories);
+                                        if (s.has(subcatKey)) s.delete(subcatKey); else s.add(subcatKey);
+                                        setExpandedSubcategories(new Set(s));
+                                      }}
+                                  >
+                                    <td colSpan={colSpan} className="py-2 pl-8 pr-4">
+                                      <div className="flex items-center gap-3">
+                                        {expandedSubcategories.has(subcatKey)
+                                          ? <ChevronDown className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                                          : <ChevronRight className="h-3.5 w-3.5 text-violet-500 shrink-0" />}
+                                        <span className="text-sm font-medium text-violet-700 dark:text-violet-300">{subcat}</span>
+                                        <Badge variant="outline" className="text-xs border-violet-300 text-violet-600 dark:border-violet-700 dark:text-violet-400 shrink-0">
+                                          {totalInSubcat} task{totalInSubcat !== 1 ? 's' : ''}
+                                        </Badge>
+                                        {overdueInSubcat > 0 && (
+                                          <Badge variant="destructive" className="text-xs shrink-0">{overdueInSubcat} overdue</Badge>
+                                        )}
+                                        <div className="flex-1 flex items-center gap-2 max-w-[200px]">
+                                          <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                                            <div className="bg-violet-500 h-1.5 rounded-full transition-all" style={{ width: `${subcatPct}%` }} />
+                                          </div>
+                                          <span className="text-xs text-muted-foreground w-8 text-right shrink-0">{subcatPct}%</span>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ) : null;
+
                                 const overdue = isTaskOverdue(task);
                                 const isPhase = isPhaseHeader(task.name);
                                 
-                                return (
+                                const taskRow = (
                                   <tr 
                                     key={task.id} 
                                     className={`border-b transition-colors ${
@@ -1335,6 +1422,49 @@ export default function GanttChartPage() {
                                         </div>
                                       </div>
                                     </td>
+                                    {visibleColumns.subcategory && !isPhase && (
+                                      <td className="py-2.5 px-2 min-w-[120px]">
+                                        {editingSubcategoryTaskId === task.id ? (
+                                          <input
+                                            autoFocus
+                                            className="border rounded px-2 py-0.5 text-xs w-full bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                                            value={subcategoryDraft}
+                                            onChange={(e) => setSubcategoryDraft(e.target.value)}
+                                            onBlur={() => {
+                                              updateSubcategoryMutation.mutate({ taskId: task.id, subcategory: subcategoryDraft });
+                                            }}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') updateSubcategoryMutation.mutate({ taskId: task.id, subcategory: subcategoryDraft });
+                                              if (e.key === 'Escape') setEditingSubcategoryTaskId(null);
+                                            }}
+                                            list={`subcats-${group.phase.replace(/\s/g, '-')}`}
+                                          />
+                                        ) : canEditRemarks ? (
+                                          <button
+                                            className={`text-xs px-2 py-0.5 rounded border transition-colors hover:border-primary/50 ${(task as any).subcategory ? 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800' : 'border-dashed border-muted-foreground/30 text-muted-foreground/50 hover:text-muted-foreground'}`}
+                                            onClick={() => { setEditingSubcategoryTaskId(task.id); setSubcategoryDraft((task as any).subcategory || ''); }}
+                                            title="Click to set subcategory"
+                                          >
+                                            {(task as any).subcategory || '+ add'}
+                                          </button>
+                                        ) : (
+                                          <span className={`text-xs px-2 py-0.5 rounded ${(task as any).subcategory ? 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300' : 'text-muted-foreground/40'}`}>
+                                            {(task as any).subcategory || '—'}
+                                          </span>
+                                        )}
+                                        {/* Datalist for autocomplete from existing subcategories in this phase */}
+                                        <datalist id={`subcats-${group.phase.replace(/\s/g, '-')}`}>
+                                          {Array.from(new Set(
+                                            group.tasks
+                                              .map(t => (t as any).subcategory)
+                                              .filter(Boolean)
+                                          )).map(s => <option key={s} value={s} />)}
+                                        </datalist>
+                                      </td>
+                                    )}
+                                    {visibleColumns.subcategory && isPhase && (
+                                      <td className="py-2.5 px-2" />
+                                    )}
                                     {visibleColumns.startDate && (
                                       <td className="py-2.5 px-2 text-muted-foreground whitespace-nowrap">
                                         {editingStartDateTaskId === task.id ? (
@@ -1537,6 +1667,7 @@ export default function GanttChartPage() {
                                     </td>
                                   </tr>
                                 );
+                                return [subcatHeaderRow, subcatIsCollapsed ? null : taskRow].filter((x): x is JSX.Element => x !== null);
                               })
                           }
                         </Fragment>
