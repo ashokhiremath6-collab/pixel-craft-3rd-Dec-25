@@ -202,6 +202,7 @@ export const tasks = pgTable("tasks", {
   color: text("color"), // optional color code for visual differentiation
   subcategory: text("subcategory"), // designer-defined sub-grouping within a category, e.g. "Master Bedroom"
   remarks: text("remarks"), // free-text field for project manager notes, delay reasons, stage updates
+  deadlineHistory: jsonb("deadline_history").$type<Array<{ previousDeadline: string; newDeadline: string; reason: string; extendedBy: string; extendedByName: string; extendedAt: string }>>().default([]), // log of all deadline extensions
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });

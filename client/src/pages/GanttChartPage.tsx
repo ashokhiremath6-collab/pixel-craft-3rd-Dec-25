@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette, ArrowUpDown, MessageSquare } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette, ArrowUpDown, MessageSquare, History } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useForm } from "react-hook-form";
@@ -102,6 +102,14 @@ export default function GanttChartPage() {
 
   // Expanded subcategory groups: key = "phaseKey|||subcategoryName"
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
+
+  // Deadline extension dialog
+  const [extendDeadlineTask, setExtendDeadlineTask] = useState<Task | null>(null);
+  const [extendDeadlineNewDate, setExtendDeadlineNewDate] = useState<string>("");
+  const [extendDeadlineReason, setExtendDeadlineReason] = useState<string>("");
+
+  // Deadline history popover
+  const [deadlineHistoryTaskId, setDeadlineHistoryTaskId] = useState<string | null>(null);
   
   // Re-import Designer Export
   const [reimportScheduleId, setReimportScheduleId] = useState<string | null>(null);
@@ -287,6 +295,25 @@ export default function GanttChartPage() {
         description: error.message || "Failed to update start date",
         variant: "destructive" 
       });
+    },
+  });
+
+  // Extend deadline mutation (admin only) — records missed deadline history
+  const extendDeadlineMutation = useMutation({
+    mutationFn: async ({ taskId, newEndDate, reason }: { taskId: string; newEndDate: string; reason: string }) => {
+      return await apiRequest('PATCH', `/api/tasks/${taskId}/extend-deadline`, { newEndDate, reason });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
+      setExtendDeadlineTask(null);
+      setExtendDeadlineNewDate('');
+      setExtendDeadlineReason('');
+      toast({ title: "Deadline Extended", description: "The new deadline has been saved and the extension has been recorded." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to extend deadline", variant: "destructive" });
     },
   });
 
@@ -1531,21 +1558,107 @@ export default function GanttChartPage() {
                                             />
                                           </div>
                                         ) : isAdmin ? (
-                                          <button 
-                                            className="flex items-center gap-1 hover:bg-muted/50 rounded px-1.5 py-0.5 transition-colors cursor-pointer group"
-                                            onClick={() => setEditingEndDateTaskId(task.id)}
-                                            title="Click to change end date"
-                                            data-testid={`button-edit-enddate-${task.id}`}
-                                          >
+                                          <div className="flex items-center gap-1">
+                                            <button 
+                                              className="flex items-center gap-1 hover:bg-muted/50 rounded px-1.5 py-0.5 transition-colors cursor-pointer group"
+                                              onClick={() => {
+                                                if (overdue) {
+                                                  // Overdue: open extension dialog with reason capture
+                                                  setExtendDeadlineTask(task);
+                                                  setExtendDeadlineNewDate(task.endDate ? task.endDate.split('T')[0] : '');
+                                                  setExtendDeadlineReason('');
+                                                } else {
+                                                  setEditingEndDateTaskId(task.id);
+                                                }
+                                              }}
+                                              title={overdue ? "This task is overdue — click to extend deadline" : "Click to change end date"}
+                                              data-testid={`button-edit-enddate-${task.id}`}
+                                            >
+                                              <span>
+                                                {task.endDate ? parseLocalDate(task.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
+                                              </span>
+                                              <CalendarIcon className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            </button>
+                                            {/* Deadline history indicator */}
+                                            {Array.isArray((task as any).deadlineHistory) && (task as any).deadlineHistory.length > 0 && (
+                                              <Popover open={deadlineHistoryTaskId === task.id} onOpenChange={(open) => setDeadlineHistoryTaskId(open ? task.id : null)}>
+                                                <PopoverTrigger asChild>
+                                                  <button
+                                                    className="ml-0.5 p-0.5 rounded hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                                                    title={`${(task as any).deadlineHistory.length} deadline extension(s) recorded`}
+                                                  >
+                                                    <History className="h-3 w-3 text-orange-500" />
+                                                  </button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-80 p-0" align="end">
+                                                  <div className="p-3 border-b">
+                                                    <p className="text-sm font-semibold flex items-center gap-2">
+                                                      <History className="h-4 w-4 text-orange-500" />
+                                                      Deadline Extension History
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{task.name}</p>
+                                                  </div>
+                                                  <div className="max-h-64 overflow-y-auto">
+                                                    {((task as any).deadlineHistory as Array<{ previousDeadline: string; newDeadline: string; reason: string; extendedByName: string; extendedAt: string }>).map((entry, idx) => (
+                                                      <div key={idx} className="p-3 border-b last:border-0 text-xs space-y-1">
+                                                        <div className="flex items-center gap-2 text-muted-foreground">
+                                                          <span className="font-medium text-foreground">{new Date(entry.extendedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                                          <span>by {entry.extendedByName}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                          <span className="line-through text-red-500">{entry.previousDeadline}</span>
+                                                          <span className="text-muted-foreground">→</span>
+                                                          <span className="text-green-600 dark:text-green-400 font-medium">{entry.newDeadline}</span>
+                                                        </div>
+                                                        <p className="text-muted-foreground italic">"{entry.reason}"</p>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                </PopoverContent>
+                                              </Popover>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center gap-1 px-1.5 py-0.5">
                                             <span>
                                               {task.endDate ? parseLocalDate(task.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
                                             </span>
-                                            <CalendarIcon className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                                          </button>
-                                        ) : (
-                                          <span className="px-1.5 py-0.5">
-                                            {task.endDate ? parseLocalDate(task.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
-                                          </span>
+                                            {/* Show history icon for non-admins too */}
+                                            {Array.isArray((task as any).deadlineHistory) && (task as any).deadlineHistory.length > 0 && (
+                                              <Popover open={deadlineHistoryTaskId === task.id} onOpenChange={(open) => setDeadlineHistoryTaskId(open ? task.id : null)}>
+                                                <PopoverTrigger asChild>
+                                                  <button className="p-0.5 rounded hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors" title="Deadline history">
+                                                    <History className="h-3 w-3 text-orange-500" />
+                                                  </button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-80 p-0" align="end">
+                                                  <div className="p-3 border-b">
+                                                    <p className="text-sm font-semibold flex items-center gap-2">
+                                                      <History className="h-4 w-4 text-orange-500" />
+                                                      Deadline Extension History
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{task.name}</p>
+                                                  </div>
+                                                  <div className="max-h-64 overflow-y-auto">
+                                                    {((task as any).deadlineHistory as Array<{ previousDeadline: string; newDeadline: string; reason: string; extendedByName: string; extendedAt: string }>).map((entry, idx) => (
+                                                      <div key={idx} className="p-3 border-b last:border-0 text-xs space-y-1">
+                                                        <div className="flex items-center gap-2 text-muted-foreground">
+                                                          <span className="font-medium text-foreground">{new Date(entry.extendedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                                          <span>by {entry.extendedByName}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                          <span className="line-through text-red-500">{entry.previousDeadline}</span>
+                                                          <span className="text-muted-foreground">→</span>
+                                                          <span className="text-green-600 dark:text-green-400 font-medium">{entry.newDeadline}</span>
+                                                        </div>
+                                                        <p className="text-muted-foreground italic">"{entry.reason}"</p>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                </PopoverContent>
+                                              </Popover>
+                                            )}
+                                          </div>
                                         )}
                                       </td>
                                     )}
@@ -1705,9 +1818,78 @@ export default function GanttChartPage() {
               <div className="w-px h-4 bg-primary" />
               <span>Today</span>
             </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <History className="h-3.5 w-3.5 text-orange-500" />
+              <span className="text-orange-600 dark:text-orange-400">Deadline extended (click to view history)</span>
+            </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Extend Deadline Dialog */}
+      <Dialog open={!!extendDeadlineTask} onOpenChange={(open) => { if (!open) { setExtendDeadlineTask(null); setExtendDeadlineReason(''); setExtendDeadlineNewDate(''); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5 text-orange-500" />
+              Extend Deadline
+            </DialogTitle>
+            <DialogDescription>
+              This task's deadline has passed. A reason is required to record this extension.
+            </DialogDescription>
+          </DialogHeader>
+          {extendDeadlineTask && (
+            <div className="space-y-4 pt-2">
+              <div className="bg-red-50 dark:bg-red-950/30 rounded-md p-3 text-sm">
+                <p className="font-medium text-foreground line-clamp-2">{extendDeadlineTask.name}</p>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  Original deadline: <span className="text-red-600 dark:text-red-400 font-medium">{extendDeadlineTask.endDate}</span>
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">New Deadline</label>
+                <Input
+                  type="date"
+                  value={extendDeadlineNewDate}
+                  onChange={(e) => setExtendDeadlineNewDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  data-testid="input-extend-deadline-date"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Reason for Extension <span className="text-destructive">*</span></label>
+                <Textarea
+                  placeholder="e.g. Material delivery delayed, site access issue, scope change..."
+                  value={extendDeadlineReason}
+                  onChange={(e) => setExtendDeadlineReason(e.target.value)}
+                  rows={3}
+                  data-testid="textarea-extend-deadline-reason"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => { setExtendDeadlineTask(null); setExtendDeadlineReason(''); setExtendDeadlineNewDate(''); }}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={!extendDeadlineNewDate || !extendDeadlineReason.trim() || extendDeadlineMutation.isPending}
+                  onClick={() => {
+                    if (extendDeadlineTask && extendDeadlineNewDate && extendDeadlineReason.trim()) {
+                      extendDeadlineMutation.mutate({
+                        taskId: extendDeadlineTask.id,
+                        newEndDate: extendDeadlineNewDate,
+                        reason: extendDeadlineReason,
+                      });
+                    }
+                  }}
+                  data-testid="button-confirm-extend-deadline"
+                >
+                  {extendDeadlineMutation.isPending ? "Saving..." : "Save Extension"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

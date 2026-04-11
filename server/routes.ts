@@ -4832,6 +4832,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Extend task deadline with reason (admin only) — records missed deadline history
+  app.patch("/api/tasks/:id/extend-deadline", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { newEndDate, reason } = req.body;
+      if (!newEndDate || !reason?.trim()) {
+        return res.status(400).json({ error: "newEndDate and reason are required" });
+      }
+
+      const currentTask = await storage.getTask(id);
+      if (!currentTask) return res.status(404).json({ error: "Task not found" });
+
+      const userId = (req.user as any)?.id;
+      const userRow = userId ? await storage.getUser(userId) : null;
+      const extenderName = userRow ? `${userRow.firstName || ''} ${userRow.lastName || ''}`.trim() || userRow.email : 'Unknown';
+
+      const previousDeadline = currentTask.endDate as string;
+      const entry = {
+        previousDeadline,
+        newDeadline: newEndDate,
+        reason: reason.trim(),
+        extendedBy: userId || '',
+        extendedByName: extenderName,
+        extendedAt: new Date().toISOString(),
+      };
+
+      const existingHistory: typeof entry[] = Array.isArray((currentTask as any).deadlineHistory)
+        ? (currentTask as any).deadlineHistory
+        : [];
+      const updatedHistory = [...existingHistory, entry];
+
+      const task = await storage.updateTask(id, {
+        endDate: newEndDate,
+        deadlineHistory: updatedHistory as any,
+      });
+
+      // Also log to activity log
+      await storage.createActivity({
+        projectId: currentTask.projectId,
+        userId: userId || null,
+        activityType: 'schedule' as any,
+        description: `Deadline extended for task "${currentTask.name}": ${previousDeadline} → ${newEndDate}. Reason: ${reason.trim()}`,
+        metadata: { taskId: id, previousDeadline, newDeadline: newEndDate, reason: reason.trim() },
+      } as any);
+
+      res.json(task);
+    } catch (error) {
+      console.error('Error extending task deadline:', error);
+      res.status(500).json({ error: "Failed to extend deadline" });
+    }
+  });
+
   // Delete task
   app.delete("/api/tasks/:id", requireAuth, async (req, res) => {
     try {
