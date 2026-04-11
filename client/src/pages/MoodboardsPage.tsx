@@ -412,8 +412,25 @@ export default function MoodboardsPage() {
       });
     }
     
+    // For working drawings: also ensure projects that have floor plans but no drawings still get a group
+    if (assetType === "working_drawing") {
+      allFloorPlans.forEach((fp: FloorPlan) => {
+        const pid = fp.projectId;
+        if (!pid) return;
+        // Apply project filter consistent with moodboards query
+        if (filterProjectId && filterProjectId !== "all" && pid !== filterProjectId) return;
+        if (!groups[pid]) {
+          groups[pid] = {
+            projectName: getProjectName(pid),
+            items: [],
+            folderGroups: {},
+          };
+        }
+      });
+    }
+
     return groups;
-  }, [moodboards, projects, assetType]);
+  }, [moodboards, projects, assetType, allFloorPlans, filterProjectId]);
 
   // Upload moodboard mutation
   const uploadMutation = useMutation({
