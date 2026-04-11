@@ -44,7 +44,7 @@ function Router() {
       <Route path="/gantt-chart" component={GanttChartPage} />
       <Route path="/gantt" component={GanttChartPage} />
       <Route path="/schedule" component={GanttChartPage} />
-      <Route path="/floor-plans" component={FloorPlansPage} />
+      <Route path="/floor-plans" component={() => { window.location.replace('/working-drawings'); return null; }} />
       <Route path="/vendors" component={VendorsPage} />
       <Route path="/quotes" component={QuotesPage} />
       <Route path="/unit-rates" component={UnitRatesPage} />

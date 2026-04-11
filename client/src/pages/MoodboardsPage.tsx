@@ -23,7 +23,7 @@ import {
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
-import type { Moodboard, Project, User } from "@shared/schema";
+import type { Moodboard, Project, User, FloorPlan } from "@shared/schema";
 import { User as UserIcon } from "lucide-react";
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
@@ -230,6 +230,25 @@ export default function MoodboardsPage() {
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });
+
+  // Floor plans query — fetched when on working-drawings route and a project is selected
+  const { data: allFloorPlans = [] } = useQuery<FloorPlan[]>({
+    queryKey: ["/api/floor-plans"],
+    enabled: assetType === "working_drawing" && !!filterProjectId,
+    queryFn: async () => {
+      const response = await fetch("/api/floor-plans", { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to fetch floor plans");
+      return response.json();
+    },
+    staleTime: 30000,
+  });
+
+  // Group floor plans by projectId for easy lookup
+  const floorPlansByProject = allFloorPlans.reduce((acc, fp) => {
+    if (!acc[fp.projectId]) acc[fp.projectId] = [];
+    acc[fp.projectId].push(fp);
+    return acc;
+  }, {} as Record<string, FloorPlan[]>);
 
   // Helper function to get project name
   const getProjectName = (projectId: string | null) => {
@@ -963,7 +982,12 @@ export default function MoodboardsPage() {
                 ) : assetType === "working_drawing" && group.folderGroups ? (
                   /* For working drawings, show grouped by folder */
                   <div className="space-y-6">
-                    {Object.entries(group.folderGroups).map(([folderName, folderItems]) => (
+                    {Object.entries(group.folderGroups).map(([folderName, folderItems]) => {
+                      // Identify the latest item in this folder by uploadedAt
+                      const latestId = folderItems.reduce((latestItem: Moodboard | null, item: Moodboard) =>
+                        !latestItem || new Date(item.uploadedAt) > new Date(latestItem.uploadedAt) ? item : latestItem
+                      , null)?.id;
+                      return (
                       <div key={folderName} className="space-y-3">
                         <div className="flex items-center gap-2 pb-2 border-b">
                           <FolderOpen className="h-4 w-4 text-muted-foreground" />
@@ -978,8 +1002,15 @@ export default function MoodboardsPage() {
                           {folderItems.map((moodboard: Moodboard) => {
                             const cadMeta = parseCadMeta(moodboard.description);
                             const isCAD = isCadFile(moodboard);
+                            const isLatest = moodboard.id === latestId;
                             return (
-                            <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate" data-testid={`drawing-item-${moodboard.id}`}>
+                            <div key={moodboard.id}
+                              className={`flex items-center justify-between gap-4 p-4 rounded-lg hover-elevate ${
+                                isLatest
+                                  ? "border-2 border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/30"
+                                  : "border"
+                              }`}
+                              data-testid={`drawing-item-${moodboard.id}`}>
                               <div className="flex-1 min-w-0 flex items-start gap-3">
                                 {isCAD && <FileCode2 className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />}
                                 <div className="min-w-0 flex-1">
@@ -987,6 +1018,11 @@ export default function MoodboardsPage() {
                                     <h4 className="font-medium text-base truncate" title={getDisplayTitle(moodboard)}>
                                       {getDisplayTitle(moodboard) || labels.listMetadataText}
                                     </h4>
+                                    {isLatest && (
+                                      <Badge className="text-[10px] shrink-0 bg-emerald-600 hover:bg-emerald-600 text-white">
+                                        Latest Version
+                                      </Badge>
+                                    )}
                                     {isCAD && <Badge variant="secondary" className="text-xs shrink-0 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">CAD</Badge>}
                                   </div>
                                   <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
@@ -1095,7 +1131,96 @@ export default function MoodboardsPage() {
                           })}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
+
+                    {/* Floor Plans subcategory — shown only in working-drawings view */}
+                    {assetType === "working_drawing" && group.projectId && (() => {
+                      const fps = floorPlansByProject[group.projectId] ?? [];
+                      if (fps.length === 0) return null;
+                      const latestFpId = fps.reduce((a: FloorPlan | null, b: FloorPlan) =>
+                        !a || new Date(b.uploadedAt) > new Date(a.uploadedAt) ? b : a
+                      , null)?.id;
+                      return (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 pb-2 border-b border-teal-300 dark:border-teal-700">
+                            <FolderOpen className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                            <h4 className="font-bold text-sm uppercase tracking-wide text-teal-700 dark:text-teal-400">
+                              Floor Plans
+                            </h4>
+                            <Badge variant="outline" className="text-xs">
+                              {fps.length}
+                            </Badge>
+                          </div>
+                          <div className="space-y-3 pl-2">
+                            {fps.map((fp: FloorPlan) => {
+                              const isLatest = fp.id === latestFpId;
+                              const isCAD = fp.fileType === "dxf" || fp.fileType === "dwg" || fp.fileName?.toLowerCase().endsWith(".dxf") || fp.fileName?.toLowerCase().endsWith(".dwg");
+                              return (
+                                <div key={fp.id}
+                                  className={`flex items-center justify-between gap-4 p-4 rounded-lg hover-elevate ${
+                                    isLatest
+                                      ? "border-2 border-teal-400 bg-teal-50 dark:border-teal-600 dark:bg-teal-950/30"
+                                      : "border"
+                                  }`}>
+                                  <div className="flex-1 min-w-0 flex items-start gap-3">
+                                    {isCAD && <FileCode2 className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />}
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                                        <h4 className="font-medium text-base truncate" title={fp.name}>
+                                          {fp.name}
+                                        </h4>
+                                        {isLatest && (
+                                          <Badge className="text-[10px] shrink-0 bg-teal-600 hover:bg-teal-600 text-white">
+                                            Latest Version
+                                          </Badge>
+                                        )}
+                                        {fp.version && (
+                                          <Badge variant="outline" className="text-[10px] shrink-0">
+                                            v{fp.version}
+                                          </Badge>
+                                        )}
+                                        {fp.isActive && (
+                                          <Badge className="text-[10px] shrink-0 bg-blue-600 hover:bg-blue-600 text-white">
+                                            Active
+                                          </Badge>
+                                        )}
+                                        {isCAD && (
+                                          <Badge variant="secondary" className="text-xs shrink-0 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">CAD</Badge>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                                        {fp.fileName && <span>{fp.fileName}</span>}
+                                        {fp.fileName && <span>•</span>}
+                                        <span>{format(new Date(fp.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+                                        {fp.description && (
+                                          <>
+                                            <span>•</span>
+                                            <span className="italic">{fp.description}</span>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {fp.filePath && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => window.open(fp.filePath, "_blank")}
+                                        title="Download floor plan"
+                                      >
+                                        <Download className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : (
                   /* For moodboards, show flat list */

@@ -38,11 +38,6 @@ const mainItems: NavigationItem[] = [
     icon: GanttChart,
   },
   {
-    title: "Floor Plans",
-    url: "/floor-plans",
-    icon: Map,
-  },
-  {
     title: "Moodboards",
     url: "/moodboards",
     icon: ImageIcon,
