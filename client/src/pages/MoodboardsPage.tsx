@@ -999,6 +999,74 @@ export default function MoodboardsPage() {
                 ) : assetType === "working_drawing" && group.folderGroups ? (
                   /* For working drawings, show grouped by folder */
                   <div className="space-y-6">
+                    {/* Floor Plans from the dedicated floor plans library — shown first */}
+                    {(() => {
+                      const fps = floorPlansByProject[projectId] ?? [];
+                      if (fps.length === 0) return null;
+                      const latestFpId = fps.reduce((a: FloorPlan | null, b: FloorPlan) =>
+                        !a || new Date(b.uploadedAt) > new Date(a.uploadedAt) ? b : a
+                      , null)?.id;
+                      return (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 pb-2 border-b">
+                            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                            <h4 className="font-bold text-sm uppercase tracking-wide">Floor Plans</h4>
+                            <Badge variant="outline" className="text-xs">{fps.length}</Badge>
+                          </div>
+                          <div className="space-y-3 pl-2">
+                            {fps.map((fp: FloorPlan) => {
+                              const isLatest = fp.id === latestFpId;
+                              const isCAD = fp.fileType === "dxf" || fp.fileType === "dwg" || fp.fileName?.toLowerCase().endsWith(".dxf") || fp.fileName?.toLowerCase().endsWith(".dwg");
+                              return (
+                                <div key={fp.id}
+                                  className={`flex items-center justify-between gap-4 p-4 rounded-lg hover-elevate ${
+                                    isLatest
+                                      ? "border-2 border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/30"
+                                      : "border"
+                                  }`}>
+                                  <div className="flex-1 min-w-0 flex items-start gap-3">
+                                    {isCAD && <FileCode2 className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />}
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                                        <h4 className="font-medium text-base truncate" title={fp.name}>{fp.name}</h4>
+                                        {isLatest && (
+                                          <Badge className="text-[10px] shrink-0 bg-emerald-600 hover:bg-emerald-600 text-white">Latest Version</Badge>
+                                        )}
+                                        {fp.version && (
+                                          <Badge variant="outline" className="text-[10px] shrink-0">v{fp.version}</Badge>
+                                        )}
+                                        {fp.isActive && (
+                                          <Badge className="text-[10px] shrink-0 bg-blue-600 hover:bg-blue-600 text-white">Active</Badge>
+                                        )}
+                                        {isCAD && (
+                                          <Badge variant="secondary" className="text-xs shrink-0 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">CAD</Badge>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                                        {fp.fileName && <span>{fp.fileName}</span>}
+                                        {fp.fileName && <span>•</span>}
+                                        <span>{format(new Date(fp.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+                                        {fp.description && <><span>•</span><span className="italic">{fp.description}</span></>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {fp.filePath && (
+                                      <Button variant="ghost" size="icon"
+                                        onClick={() => window.open(fp.filePath, "_blank")}
+                                        title="Download floor plan">
+                                        <Download className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {Object.entries(group.folderGroups).map(([folderName, folderItems]) => {
                       // Identify the latest item in this folder by uploadedAt
                       const latestId = folderItems.reduce((latestItem: Moodboard | null, item: Moodboard) =>
@@ -1151,93 +1219,6 @@ export default function MoodboardsPage() {
                       );
                     })}
 
-                    {/* Floor Plans subcategory — shown only in working-drawings view */}
-                    {assetType === "working_drawing" && group.projectId && (() => {
-                      const fps = floorPlansByProject[group.projectId] ?? [];
-                      if (fps.length === 0) return null;
-                      const latestFpId = fps.reduce((a: FloorPlan | null, b: FloorPlan) =>
-                        !a || new Date(b.uploadedAt) > new Date(a.uploadedAt) ? b : a
-                      , null)?.id;
-                      return (
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2 pb-2 border-b border-teal-300 dark:border-teal-700">
-                            <FolderOpen className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                            <h4 className="font-bold text-sm uppercase tracking-wide text-teal-700 dark:text-teal-400">
-                              Floor Plans
-                            </h4>
-                            <Badge variant="outline" className="text-xs">
-                              {fps.length}
-                            </Badge>
-                          </div>
-                          <div className="space-y-3 pl-2">
-                            {fps.map((fp: FloorPlan) => {
-                              const isLatest = fp.id === latestFpId;
-                              const isCAD = fp.fileType === "dxf" || fp.fileType === "dwg" || fp.fileName?.toLowerCase().endsWith(".dxf") || fp.fileName?.toLowerCase().endsWith(".dwg");
-                              return (
-                                <div key={fp.id}
-                                  className={`flex items-center justify-between gap-4 p-4 rounded-lg hover-elevate ${
-                                    isLatest
-                                      ? "border-2 border-teal-400 bg-teal-50 dark:border-teal-600 dark:bg-teal-950/30"
-                                      : "border"
-                                  }`}>
-                                  <div className="flex-1 min-w-0 flex items-start gap-3">
-                                    {isCAD && <FileCode2 className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />}
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                                        <h4 className="font-medium text-base truncate" title={fp.name}>
-                                          {fp.name}
-                                        </h4>
-                                        {isLatest && (
-                                          <Badge className="text-[10px] shrink-0 bg-teal-600 hover:bg-teal-600 text-white">
-                                            Latest Version
-                                          </Badge>
-                                        )}
-                                        {fp.version && (
-                                          <Badge variant="outline" className="text-[10px] shrink-0">
-                                            v{fp.version}
-                                          </Badge>
-                                        )}
-                                        {fp.isActive && (
-                                          <Badge className="text-[10px] shrink-0 bg-blue-600 hover:bg-blue-600 text-white">
-                                            Active
-                                          </Badge>
-                                        )}
-                                        {isCAD && (
-                                          <Badge variant="secondary" className="text-xs shrink-0 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">CAD</Badge>
-                                        )}
-                                      </div>
-                                      <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-                                        {fp.fileName && <span>{fp.fileName}</span>}
-                                        {fp.fileName && <span>•</span>}
-                                        <span>{format(new Date(fp.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
-                                        {fp.description && (
-                                          <>
-                                            <span>•</span>
-                                            <span className="italic">{fp.description}</span>
-                                          </>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    {fp.filePath && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => window.open(fp.filePath, "_blank")}
-                                        title="Download floor plan"
-                                      >
-                                        <Download className="h-4 w-4" />
-                                      </Button>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })()}
                   </div>
                 ) : (
                   /* For moodboards, show flat list */
