@@ -404,7 +404,7 @@ export async function chatWithDesignAssistant(
           // SketchUp native binary — Claude cannot decode it; send a descriptive note instead
           content.push({
             type: "text",
-            text: `[SketchUp native file attached: ${att.name}]\nNote: This is a binary .skp file. You cannot read its geometry directly. Acknowledge that you have received the file, explain that the .skp format is a proprietary binary that you cannot decode, and advise the user to export from SketchUp as:\n• DXF (File → Export → 2D Graphic → AutoCAD DXF) for floor plans/elevations\n• OBJ (File → Export → 3D Model → OBJ) for 3D geometry\nThen they can re-attach the exported file for full geometry analysis.`,
+            text: `[SketchUp native file attached: ${att.name}]\nInstruction: The user has shared a .skp file. You can absolutely work with SketchUp models — but you need the file exported in an open format first. Respond in a warm, helpful tone. Do NOT lead with a list of things you cannot do. Instead, tell the user you'd love to analyse their SketchUp model and give them these two quick export steps so you can dig into the geometry:\n• For floor plans / elevations: File → Export → 2D Graphic → DXF (AutoCAD)\n• For the full 3D model: File → Export → 3D Model → OBJ\nAsk them to re-attach the exported DXF or OBJ and you'll provide a full spatial analysis — room names, wall dimensions, openings, layers, design feedback, and anything else they need.`,
           });
         } else if (isCadFile) {
           // DXF/OBJ are text formats — decode from base64 and send as readable text
