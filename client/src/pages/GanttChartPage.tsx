@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette, ArrowUpDown, MessageSquare, History } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette, ArrowUpDown, MessageSquare, History, X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useForm } from "react-hook-form";
@@ -66,6 +66,7 @@ export default function GanttChartPage() {
   });
   const isAdmin = currentUser?.role === 'admin';
   const canEditRemarks = currentUser?.role === 'admin' || currentUser?.role === 'designer';
+  const canEditProgress = currentUser?.role === 'admin' || currentUser?.role === 'designer' || currentUser?.role === 'project_manager';
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -237,11 +238,10 @@ export default function GanttChartPage() {
     },
   });
   
-  // Update task progress mutation
+  // Update task progress mutation — accessible to admin, designer, project_manager
   const updateProgressMutation = useMutation({
     mutationFn: async ({ taskId, progressPercentage }: { taskId: string; progressPercentage: number }) => {
-      // Send progressPercentage as string since the schema uses decimal type
-      return await apiRequest('PUT', `/api/tasks/${taskId}`, { progressPercentage: String(progressPercentage) });
+      return await apiRequest('PATCH', `/api/tasks/${taskId}/progress`, { progressPercentage });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
@@ -1669,33 +1669,59 @@ export default function GanttChartPage() {
                                     )}
                                     {visibleColumns.progress && (
                                       <td className="py-2.5 px-2 text-center">
-                                        {getProgressState(task) === 'Completed' ? (
-                                          <Badge 
-                                            className={`text-xs bg-green-500 text-white border-green-600 shadow-sm ${isAdmin ? 'cursor-pointer hover:bg-red-500 hover:border-red-600 transition-colors' : 'cursor-default'}`}
-                                            onClick={isAdmin ? () => {
-                                              updateProgressMutation.mutate({ taskId: task.id, progressPercentage: 0 });
-                                              toast({ title: "Task marked incomplete", description: task.name });
-                                            } : undefined}
-                                            title={isAdmin ? "Click to toggle → Incomplete" : undefined}
-                                            data-testid={`progress-completed-${task.id}`}
-                                          >
-                                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                                            Completed
-                                          </Badge>
+                                        {editingProgressTaskId === task.id ? (
+                                          <div className="flex items-center gap-1 justify-center" onClick={e => e.stopPropagation()}>
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              max={100}
+                                              className="w-14 text-center text-sm border rounded px-1 py-0.5 bg-background"
+                                              value={editingProgressValue}
+                                              onChange={e => setEditingProgressValue(Math.min(100, Math.max(0, Number(e.target.value))))}
+                                              autoFocus
+                                              onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                  updateProgressMutation.mutate({ taskId: task.id, progressPercentage: editingProgressValue });
+                                                } else if (e.key === 'Escape') {
+                                                  setEditingProgressTaskId(null);
+                                                }
+                                              }}
+                                            />
+                                            <span className="text-xs text-muted-foreground">%</span>
+                                            <Button size="icon" variant="ghost" className="h-6 w-6"
+                                              onClick={() => updateProgressMutation.mutate({ taskId: task.id, progressPercentage: editingProgressValue })}>
+                                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                                            </Button>
+                                            <Button size="icon" variant="ghost" className="h-6 w-6"
+                                              onClick={() => setEditingProgressTaskId(null)}>
+                                              <X className="h-3.5 w-3.5" />
+                                            </Button>
+                                          </div>
                                         ) : (
-                                          <Badge 
-                                            variant="outline"
-                                            className={`text-xs border-gray-300 text-gray-600 dark:border-gray-600 dark:text-gray-400 shadow-sm ${isAdmin ? 'cursor-pointer hover:bg-green-500 hover:border-green-500 hover:text-white dark:hover:bg-green-600 transition-colors' : 'cursor-default'}`}
-                                            onClick={isAdmin ? () => {
-                                              updateProgressMutation.mutate({ taskId: task.id, progressPercentage: 100 });
-                                              toast({ title: "Task completed!", description: task.name });
+                                          <div
+                                            className={`flex flex-col items-center gap-1 ${canEditProgress ? 'cursor-pointer group' : ''}`}
+                                            title={canEditProgress ? "Click to set % completion" : undefined}
+                                            onClick={canEditProgress ? () => {
+                                              setEditingProgressValue(Number(task.progressPercentage) || 0);
+                                              setEditingProgressTaskId(task.id);
                                             } : undefined}
-                                            title={isAdmin ? "Click to toggle → Completed" : undefined}
-                                            data-testid={`progress-incomplete-${task.id}`}
+                                            data-testid={`progress-display-${task.id}`}
                                           >
-                                            <Clock className="h-3 w-3 mr-1" />
-                                            Incomplete
-                                          </Badge>
+                                            {(() => {
+                                              const pct = Number(task.progressPercentage) || 0;
+                                              const color = pct >= 100 ? 'bg-green-500' : pct >= 50 ? 'bg-blue-500' : pct > 0 ? 'bg-amber-500' : 'bg-gray-200 dark:bg-gray-700';
+                                              return (
+                                                <>
+                                                  <span className={`text-xs font-semibold ${pct >= 100 ? 'text-green-600 dark:text-green-400' : pct > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                                    {pct}%
+                                                  </span>
+                                                  <div className="w-16 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                                                    <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+                                                  </div>
+                                                </>
+                                              );
+                                            })()}
+                                          </div>
                                         )}
                                       </td>
                                     )}

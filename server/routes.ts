@@ -4818,6 +4818,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update task progress percentage (admin, designer, project_manager)
+  app.patch("/api/tasks/:id/progress", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any)?.id;
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role || 'client';
+      if (role === 'client') return res.status(403).json({ error: "Not authorised" });
+      const { id } = req.params;
+      const { progressPercentage } = req.body;
+      const pct = Number(progressPercentage);
+      if (isNaN(pct) || pct < 0 || pct > 100) {
+        return res.status(400).json({ error: "progressPercentage must be between 0 and 100" });
+      }
+      // Auto-derive status from percentage
+      let status: string | undefined;
+      if (pct === 0) status = 'not_started';
+      else if (pct >= 100) status = 'completed';
+      else status = 'in_progress';
+      const task = await storage.updateTask(id, { progressPercentage: String(pct), status });
+      if (!task) return res.status(404).json({ error: "Task not found" });
+      res.json(task);
+    } catch (error) {
+      console.error('Error updating task progress:', error);
+      res.status(500).json({ error: "Failed to update progress" });
+    }
+  });
+
   // Update task remarks (open to any authenticated user, not just admin)
   app.patch("/api/tasks/:id/remarks", requireAuth, async (req, res) => {
     try {
