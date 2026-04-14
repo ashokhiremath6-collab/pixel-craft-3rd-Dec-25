@@ -119,8 +119,9 @@ export default function GanttChartPage() {
     subcategory: true,
     startDate: true,
     endDate: true,
-    assigned: false, // Hidden by default - designers may not need
+    assigned: false,
     progress: true,
+    remarks: true,
   });
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
 
@@ -1346,6 +1347,7 @@ export default function GanttChartPage() {
                         {visibleColumns.endDate && <th className="text-left py-3 px-2 font-medium">End</th>}
                         {visibleColumns.assigned && <th className="text-left py-3 px-2 font-medium">Assigned</th>}
                         {visibleColumns.progress && <th className="text-center py-3 px-2 font-medium" title="Click badges to toggle status">Status</th>}
+                        {visibleColumns.remarks && <th className="text-left py-3 px-2 font-medium min-w-[200px]">Remarks</th>}
                         <th className="text-center py-3 px-2 font-medium w-16"></th>
                       </tr>
                     </thead>
@@ -1721,6 +1723,51 @@ export default function GanttChartPage() {
                                                 </>
                                               );
                                             })()}
+                                          </div>
+                                        )}
+                                      </td>
+                                    )}
+                                    {/* Inline Remarks column */}
+                                    {visibleColumns.remarks && (
+                                      <td
+                                        className="py-1.5 px-2 align-top"
+                                        onClick={e => e.stopPropagation()}
+                                      >
+                                        {remarksOpenTaskId === task.id ? (
+                                          <div className="flex flex-col gap-1">
+                                            <textarea
+                                              autoFocus
+                                              rows={4}
+                                              className="w-full text-sm border rounded px-2 py-1 bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring min-w-[200px]"
+                                              value={remarksValue}
+                                              onChange={e => setRemarksValue(e.target.value)}
+                                              placeholder="Add notes, reason for delay, stage of completion..."
+                                              onKeyDown={e => {
+                                                if (e.key === 'Escape') setRemarksOpenTaskId(null);
+                                                if (e.key === 'Enter' && e.ctrlKey) {
+                                                  updateRemarksMutation.mutate({ taskId: task.id, remarks: remarksValue });
+                                                }
+                                              }}
+                                            />
+                                            <div className="flex gap-1 justify-end">
+                                              <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => setRemarksOpenTaskId(null)}>Cancel</Button>
+                                              <Button size="sm" className="h-6 text-xs px-2"
+                                                disabled={updateRemarksMutation.isPending}
+                                                onClick={() => updateRemarksMutation.mutate({ taskId: task.id, remarks: remarksValue })}>
+                                                Save
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div
+                                            className={`text-sm whitespace-pre-wrap leading-snug ${canEditRemarks ? 'cursor-pointer rounded hover-elevate min-h-[28px] px-1 py-0.5' : ''} ${(task as any).remarks ? 'text-foreground' : 'text-muted-foreground/50'}`}
+                                            title={canEditRemarks ? "Click to edit remarks" : undefined}
+                                            onClick={canEditRemarks ? () => {
+                                              setRemarksValue((task as any).remarks || "");
+                                              setRemarksOpenTaskId(task.id);
+                                            } : undefined}
+                                          >
+                                            {(task as any).remarks || (canEditRemarks ? <span className="italic text-xs">Click to add remarks…</span> : '')}
                                           </div>
                                         )}
                                       </td>
