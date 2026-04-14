@@ -65,7 +65,7 @@ export default function GanttChartPage() {
     retry: false,
   });
   const isAdmin = currentUser?.role === 'admin';
-  const canEditRemarks = currentUser?.role === 'admin' || currentUser?.role === 'designer';
+  const canEditRemarks = currentUser?.role === 'admin' || currentUser?.role === 'designer' || currentUser?.role === 'project_manager';
   const canEditProgress = currentUser?.role === 'admin' || currentUser?.role === 'designer' || currentUser?.role === 'project_manager';
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
