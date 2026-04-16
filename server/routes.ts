@@ -1866,7 +1866,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/quote-templates", requireAdmin, async (req, res) => {
+  app.post("/api/quote-templates", requireProjectManagerOrAdmin, async (req, res) => {
     try {
       const parsed = insertQuoteTemplateSchema.parse(req.body);
       const template = await storage.createQuoteTemplate(parsed);
@@ -1876,7 +1876,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/quote-templates/:id", requireAdmin, async (req, res) => {
+  app.put("/api/quote-templates/:id", requireProjectManagerOrAdmin, async (req, res) => {
     try {
       const parsed = insertQuoteTemplateSchema.partial().parse(req.body);
       const template = await storage.updateQuoteTemplate(req.params.id, parsed);
@@ -1889,7 +1889,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/quote-templates/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/quote-templates/:id", requireProjectManagerOrAdmin, async (req, res) => {
     try {
       const success = await storage.deleteQuoteTemplate(req.params.id);
       if (!success) {
@@ -2573,7 +2573,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }>();
 
   // Quote Import Routes
-  app.post("/api/quotes/import", requireAdmin, upload.single('quoteFile'), async (req, res) => {
+  app.post("/api/quotes/import", requireProjectManagerOrAdmin, upload.single('quoteFile'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -2782,7 +2782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Resolve import conflict - when user decides if it's option or new item
-  app.post("/api/quotes/import/resolve", requireAdmin, async (req, res) => {
+  app.post("/api/quotes/import/resolve", requireProjectManagerOrAdmin, async (req, res) => {
     try {
       const { 
         tempFileId, 
@@ -3079,7 +3079,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Template Import Routes
-  app.post("/api/quote-templates/import", requireAdmin, upload.single('templateFile'), async (req, res) => {
+  app.post("/api/quote-templates/import", requireProjectManagerOrAdmin, upload.single('templateFile'), async (req, res) => {
     let statusCode = 500;
     let responseData: any = { error: "Failed to import template" };
 
