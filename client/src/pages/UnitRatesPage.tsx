@@ -31,9 +31,11 @@ export default function UnitRatesPage() {
     queryKey: ['/api/vendor-categories/tree'],
   });
 
-  // Fetch real quotations data from API
+  // Fetch real quotations data from API — always fresh on mount
   const { data: quotationsData, isLoading: quotationsLoading, error: quotationsError } = useQuery<QuotationsResponse>({
     queryKey: ['/api/quotations'],
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   // Mutation for updating quotation status

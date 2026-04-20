@@ -127,16 +127,22 @@ export default function GanttChartPage() {
 
   const { data: quotationsData, isLoading: isLoadingProjects } = useQuery<QuotationsResponse>({
     queryKey: ['/api/quotations'],
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const { data: tasks = [], isLoading: isLoadingTasks } = useQuery<Task[]>({
     queryKey: ['/api/tasks/project', selectedProjectId],
     enabled: !!selectedProjectId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const { data: schedules = [] } = useQuery<ProjectSchedule[]>({
     queryKey: ['/api/schedules/project', selectedProjectId],
     enabled: !!selectedProjectId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const form = useForm<z.infer<typeof taskFormSchema>>({
