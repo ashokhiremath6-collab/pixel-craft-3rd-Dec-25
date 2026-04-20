@@ -226,9 +226,9 @@ export default function MoodboardsPage() {
       if (!response.ok) throw new Error("Failed to fetch moodboards");
       return response.json();
     },
-    staleTime: 30000,
+    staleTime: 0,
     refetchOnWindowFocus: true,
-    refetchOnMount: true,
+    refetchOnMount: 'always',
   });
 
   // Floor plans query — fetched when on working-drawings route and a project is selected
@@ -240,7 +240,8 @@ export default function MoodboardsPage() {
       if (!response.ok) throw new Error("Failed to fetch floor plans");
       return response.json();
     },
-    staleTime: 30000,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   // Group floor plans by projectId for easy lookup
