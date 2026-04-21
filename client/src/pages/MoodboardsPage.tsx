@@ -45,6 +45,7 @@ export default function MoodboardsPage() {
   // Require project selection - no "all" option
   const [filterProjectId, setFilterProjectId] = useState<string>("");
   const [previewImage, setPreviewImage] = useState<Moodboard | null>(null);
+  const [floorPlanViewer, setFloorPlanViewer] = useState<{url: string, name: string} | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // CAD import state (Working Drawings only)
@@ -1054,9 +1055,9 @@ export default function MoodboardsPage() {
                                   <div className="flex items-center gap-2">
                                     {fp.filePath && (
                                       <Button variant="ghost" size="icon"
-                                        onClick={() => window.open(fp.filePath, "_blank")}
-                                        title="Download floor plan">
-                                        <Download className="h-4 w-4" />
+                                        onClick={() => setFloorPlanViewer({ url: fp.filePath, name: fp.fileName || 'Floor Plan' })}
+                                        title="View floor plan">
+                                        <Eye className="h-4 w-4" />
                                       </Button>
                                     )}
                                   </div>
@@ -1566,6 +1567,15 @@ export default function MoodboardsPage() {
           onClose={() => setPreviewImage(null)}
           fileUrl={getPreviewUrl(previewImage) || ''}
           fileName={previewImage.description || previewImage.fileName || "Preview"}
+        />
+      )}
+
+      {floorPlanViewer && (
+        <FileViewerModal
+          isOpen={!!floorPlanViewer}
+          onClose={() => setFloorPlanViewer(null)}
+          fileUrl={floorPlanViewer.url}
+          fileName={floorPlanViewer.name}
         />
       )}
 

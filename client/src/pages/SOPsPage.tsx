@@ -23,8 +23,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Pencil, Trash2, Download, FileText, ChevronRight, BookOpen } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, FileText, ChevronRight, BookOpen, Eye } from "lucide-react";
 import { RecentBadge } from "@/components/RecentBadge";
+import { FileViewerModal } from "@/components/FileViewerModal";
 
 interface Sop {
   id: string;
@@ -67,6 +68,7 @@ export default function SOPsPage() {
   const [editingSop, setEditingSop] = useState<Sop | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [deleteTarget, setDeleteTarget] = useState<Sop | null>(null);
+  const [viewerFile, setViewerFile] = useState<{url: string, name: string} | null>(null);
 
   const { data: currentUser } = useQuery<{ role: string }>({
     queryKey: ["/api/auth/user"],
@@ -311,10 +313,10 @@ export default function SOPsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => window.open(`/api/sops/${selectedSop.id}/download`, "_blank")}
+                      onClick={() => setViewerFile({ url: `/api/sops/${selectedSop.id}/download`, name: selectedSop.fileName || 'Attachment' })}
                     >
-                      <Download className="h-3.5 w-3.5 mr-1.5" />
-                      {selectedSop.fileName || "Download"}
+                      <Eye className="h-3.5 w-3.5 mr-1.5" />
+                      {selectedSop.fileName || "View Attachment"}
                     </Button>
                   )}
                   {canWrite && (
@@ -459,6 +461,15 @@ export default function SOPsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {viewerFile && (
+        <FileViewerModal
+          isOpen={!!viewerFile}
+          onClose={() => setViewerFile(null)}
+          fileUrl={viewerFile.url}
+          fileName={viewerFile.name}
+        />
+      )}
     </div>
   );
 }
