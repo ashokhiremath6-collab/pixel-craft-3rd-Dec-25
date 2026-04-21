@@ -4980,6 +4980,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           const taskData = {
             projectId,
+            rowIndex: i,
             name: row.name || row.Name || row.task || row.Task || row.TASK,
             description: row.description || row.Description || row.DESCRIPTION || row.Notes || '',
             startDate: row.startDate || row.start_date || row['Start Date'] || row.START_DATE || row.Start,

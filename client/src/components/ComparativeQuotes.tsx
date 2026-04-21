@@ -13,7 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import StatusBadge from "./StatusBadge";
 import QuoteDetailModal from "./QuoteDetailModal";
-import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2 } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2, Paperclip } from "lucide-react";
+import { FileViewerModal } from "@/components/FileViewerModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -63,6 +64,9 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const [modalData, setModalData] = useState<{ vendorName: string; projectName: string } | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingQuote, setEditingQuote] = useState<QuotationData | null>(null);
+  const [fileViewerOpen, setFileViewerOpen] = useState(false);
+  const [fileViewerUrl, setFileViewerUrl] = useState("");
+  const [fileViewerName, setFileViewerName] = useState("");
   const [editFormData, setEditFormData] = useState({
     quotationName: "",
     quotationValue: "",
@@ -95,6 +99,24 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     setIsModalOpen(false);
     setSelectedQuoteId(null);
     setModalData(null);
+  };
+
+  const handleViewFile = (quotation: QuotationData) => {
+    if (!quotation.quotationFile) return;
+    const fileName = quotation.quotationFile.split('/').pop() || `${quotation.vendorName}_quote`;
+    setFileViewerUrl(quotation.quotationFile);
+    setFileViewerName(fileName);
+    setFileViewerOpen(true);
+  };
+
+  const handleDownloadFile = (quotation: QuotationData) => {
+    if (!quotation.quotationFile) return;
+    const link = document.createElement('a');
+    link.href = quotation.quotationFile;
+    link.download = quotation.quotationFile.split('/').pop() || `${quotation.vendorName}_quote`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleEditQuote = (quotation: QuotationData) => {
@@ -734,23 +756,25 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         const quotationValue = quotation.quotationValue ? parseFloat(quotation.quotationValue) : 0;
                         const isLowest = quotationValue > 0 && quotationValue === lowestQuote;
                         const isFirstQuoteForVendor = quotationIndex === 0;
+                        const isSelected = quotation.status === "Selected";
                         
                         return (
                           <TableRow 
                             key={quotation.id}
-                            className={`h-10 ${quotation.status === "Selected" ? "bg-green-50 dark:bg-green-900/10" : ""}`}
+                            className={`h-10 border-l-4 ${isSelected ? "bg-emerald-50 dark:bg-emerald-900/25 border-l-emerald-500" : "border-l-transparent"}`}
                             data-testid={`quotation-row-${quotation.id}`}
                           >
                             <TableCell className="font-medium text-sm py-2" data-testid="text-vendor-name">
                               <div className="flex flex-col">
                                 {/* Show vendor name only for first quotation */}
                                 {isFirstQuoteForVendor && (
-                                  <div className="font-semibold text-gray-900 dark:text-gray-100">
+                                  <div className={`font-semibold ${isSelected ? "text-emerald-800 dark:text-emerald-300" : "text-gray-900 dark:text-gray-100"}`}>
                                     {quotation.vendorName}
+                                    {isSelected && <span className="ml-2 text-xs font-normal text-emerald-600 dark:text-emerald-400">(selected)</span>}
                                   </div>
                                 )}
                                 {/* Show quotation name and type */}
-                                <div className={`text-xs ${isFirstQuoteForVendor ? 'text-gray-600 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300 ml-2'} flex items-center gap-1`}>
+                                <div className={`text-xs ${isFirstQuoteForVendor ? (isSelected ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-400') : (isSelected ? 'text-emerald-700 dark:text-emerald-400 ml-2' : 'text-gray-700 dark:text-gray-300 ml-2')} flex items-center gap-1`}>
                                   {quotation.quotationType === "option" && <span className="text-orange-500">└</span>}
                                   <span className="font-medium">
                                     {quotation.unitRateSubtype === 'comparative' 
@@ -927,6 +951,18 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
+                            {quotation.quotationFile && (
+                              <Button
+                                size="icon"
+                                className="h-6 w-6"
+                                variant="ghost"
+                                onClick={() => handleViewFile(quotation)}
+                                data-testid={`button-view-file-${quotation.id}`}
+                                title="View uploaded quote file"
+                              >
+                                <Paperclip className="h-3 w-3" />
+                              </Button>
+                            )}
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -945,8 +981,28 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                   className="text-xs"
                                 >
                                   <Eye className="mr-2 h-3 w-3" />
-                                  View Quote
+                                  View Quote Details
                                 </DropdownMenuItem>
+                                {quotation.quotationFile && (
+                                  <>
+                                    <DropdownMenuItem 
+                                      onClick={() => handleViewFile(quotation)}
+                                      data-testid={`view-file-${quotation.id}`}
+                                      className="text-xs"
+                                    >
+                                      <Paperclip className="mr-2 h-3 w-3" />
+                                      View Attached File
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => handleDownloadFile(quotation)}
+                                      data-testid={`download-file-${quotation.id}`}
+                                      className="text-xs"
+                                    >
+                                      <Download className="mr-2 h-3 w-3" />
+                                      Download Attached File
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                                 <DropdownMenuItem 
                                   onClick={() => handleIndividualQuoteExport(quotation, group, 'pdf')}
                                   data-testid={`export-quote-pdf-${quotation.id}`}
@@ -1074,23 +1130,25 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                             const quotationValue = quotation.quotationValue ? parseFloat(quotation.quotationValue) : 0;
                             const isLowest = quotationValue > 0 && quotationValue === lowestQuote;
                             const isFirstQuoteForVendor = quotationIndex === 0;
+                            const isSelected = quotation.status === "Selected";
                             
                             return (
                               <TableRow 
                                 key={quotation.id}
-                                className={`h-10 ${quotation.status === "Selected" ? "bg-green-50 dark:bg-green-900/10" : ""}`}
+                                className={`h-10 border-l-4 ${isSelected ? "bg-emerald-50 dark:bg-emerald-900/25 border-l-emerald-500" : "border-l-transparent"}`}
                                 data-testid={`quotation-row-${quotation.id}`}
                               >
                                 <TableCell className="font-medium text-sm py-2" data-testid="text-vendor-name">
                                   <div className="flex flex-col">
                                     {/* Show vendor name only for first quotation */}
                                     {isFirstQuoteForVendor && (
-                                      <div className="font-semibold text-gray-900 dark:text-gray-100">
+                                      <div className={`font-semibold ${isSelected ? "text-emerald-800 dark:text-emerald-300" : "text-gray-900 dark:text-gray-100"}`}>
                                         {quotation.vendorName}
+                                        {isSelected && <span className="ml-2 text-xs font-normal text-emerald-600 dark:text-emerald-400">(selected)</span>}
                                       </div>
                                     )}
                                     {/* Show quotation name and type */}
-                                    <div className={`text-xs ${isFirstQuoteForVendor ? 'text-gray-600 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300 ml-2'} flex items-center gap-1`}>
+                                    <div className={`text-xs ${isFirstQuoteForVendor ? (isSelected ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-400') : (isSelected ? 'text-emerald-700 dark:text-emerald-400 ml-2' : 'text-gray-700 dark:text-gray-300 ml-2')} flex items-center gap-1`}>
                                       {quotation.quotationType === "option" && <span className="text-orange-500">└</span>}
                                       <span className="font-medium">
                                         Unit rate comparative statement
@@ -1265,6 +1323,18 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                     </AlertDialogFooter>
                                   </AlertDialogContent>
                                 </AlertDialog>
+                                {quotation.quotationFile && (
+                                  <Button
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    variant="ghost"
+                                    onClick={() => handleViewFile(quotation)}
+                                    data-testid={`button-view-file-${quotation.id}`}
+                                    title="View uploaded quote file"
+                                  >
+                                    <Paperclip className="h-3 w-3" />
+                                  </Button>
+                                )}
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button
@@ -1283,8 +1353,28 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                       className="text-xs"
                                     >
                                       <Eye className="mr-2 h-3 w-3" />
-                                      View Quote
+                                      View Quote Details
                                     </DropdownMenuItem>
+                                    {quotation.quotationFile && (
+                                      <>
+                                        <DropdownMenuItem 
+                                          onClick={() => handleViewFile(quotation)}
+                                          data-testid={`view-file-${quotation.id}`}
+                                          className="text-xs"
+                                        >
+                                          <Paperclip className="mr-2 h-3 w-3" />
+                                          View Attached File
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem 
+                                          onClick={() => handleDownloadFile(quotation)}
+                                          data-testid={`download-file-${quotation.id}`}
+                                          className="text-xs"
+                                        >
+                                          <Download className="mr-2 h-3 w-3" />
+                                          Download Attached File
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
                                     <DropdownMenuItem 
                                       onClick={() => handleIndividualQuoteExport(quotation, group, 'pdf')}
                                       data-testid={`export-quote-pdf-${quotation.id}`}
@@ -1424,6 +1514,13 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <FileViewerModal
+        isOpen={fileViewerOpen}
+        onClose={() => setFileViewerOpen(false)}
+        fileUrl={fileViewerUrl}
+        fileName={fileViewerName}
+      />
     </div>
   );
 }
