@@ -23,6 +23,7 @@ import MoodboardsPage from "@/pages/MoodboardsPage";
 import AccountsPage from "@/pages/AccountsPage";
 import CataloguePage from "@/pages/CataloguePage";
 import SpecificationsPage from "@/pages/SpecificationsPage";
+import SOPsPage from "@/pages/SOPsPage";
 import MeetingMinutesPage from "@/pages/MeetingMinutesPage";
 import WorksOrdersPage from "@/pages/WorksOrdersPage";
 import AIRendersPage from "@/pages/AIRendersPage";
@@ -63,6 +64,7 @@ function Router() {
       <Route path="/asset-ingestion" component={AssetIngestionPage} />
       <Route path="/ai-assistant" component={AIAssistantPage} />
       <Route path="/client-access" component={ClientAccessPage} />
+      <Route path="/sops" component={SOPsPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

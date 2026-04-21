@@ -44,6 +44,7 @@ Preferred communication style: Simple, everyday language.
 - **AI Render Generation**: Uses Gemini 2.5 Flash Image model to generate renders with style presets, catalogue item integration, reference photo support, and a grid overlay system. Includes smart modification tools for editing existing renders.
 - **Asset Ingestion System**: Two-mode workflow (Analyze-Only, AI-Edit) for processing images, generating descriptions, and providing prompt hints. Supports AI-based image editing (e.g., background removal).
 - **Saved Assets System**: Central repository for processed images, reusable across AI renders, with search, tags, and source type tracking. Integrates with Asset Ingestion and AI Renders via an asset picker component.
+- **SOPs System**: Standard Operating Procedures repository with category-based organisation, rich text content, optional file attachments, two-panel list/detail layout. View: all authenticated users. Create/Edit: Admin, Designer, Project Manager. Delete: Admin only.
 
 ### User Interface
 - **Navigation**: Collapsible sidebar.

@@ -8153,6 +8153,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── SOP Routes ────────────────────────────────────────────────────────────
+  const sopUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 },
+  });
+
+  app.get("/api/sops", requireAuth, async (req, res) => {
+    try {
+      const data = await storage.getAllSops();
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch SOPs" });
+    }
+  });
+
+  app.get("/api/sops/categories", requireAuth, async (req, res) => {
+    try {
+      const categories = await storage.getSopCategories();
+      res.json(categories);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch SOP categories" });
+    }
+  });
+
+  app.get("/api/sops/:id", requireAuth, async (req, res) => {
+    try {
+      const sop = await storage.getSop(req.params.id);
+      if (!sop) return res.status(404).json({ error: "SOP not found" });
+      res.json(sop);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch SOP" });
+    }
+  });
+
+  app.post("/api/sops", requireProjectManagerOrAdmin, sopUpload.single('file'), async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      let fileName: string | undefined;
+      let filePath: string | undefined;
+
+      if (req.file) {
+        const { uploadFile } = await import("./objectStorage");
+        const ext = req.file.originalname.split('.').pop() || 'bin';
+        const key = `.private/sops/${Date.now()}_${req.file.originalname}`;
+        await uploadFile(key, req.file.buffer, req.file.mimetype);
+        fileName = req.file.originalname;
+        filePath = key;
+      }
+
+      const sop = await storage.createSop({
+        title: req.body.title,
+        category: req.body.category,
+        description: req.body.description || null,
+        content: req.body.content || null,
+        fileName: fileName || null,
+        filePath: filePath || null,
+        createdBy: userId,
+      });
+      res.status(201).json(sop);
+    } catch (error) {
+      console.error("Error creating SOP:", error);
+      res.status(500).json({ error: "Failed to create SOP" });
+    }
+  });
+
+  app.put("/api/sops/:id", requireProjectManagerOrAdmin, sopUpload.single('file'), async (req, res) => {
+    try {
+      const existing = await storage.getSop(req.params.id);
+      if (!existing) return res.status(404).json({ error: "SOP not found" });
+
+      let fileName = existing.fileName;
+      let filePath = existing.filePath;
+
+      if (req.file) {
+        const { uploadFile } = await import("./objectStorage");
+        const key = `.private/sops/${Date.now()}_${req.file.originalname}`;
+        await uploadFile(key, req.file.buffer, req.file.mimetype);
+        fileName = req.file.originalname;
+        filePath = key;
+      }
+
+      const updated = await storage.updateSop(req.params.id, {
+        title: req.body.title,
+        category: req.body.category,
+        description: req.body.description || null,
+        content: req.body.content || null,
+        fileName,
+        filePath,
+      });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating SOP:", error);
+      res.status(500).json({ error: "Failed to update SOP" });
+    }
+  });
+
+  app.delete("/api/sops/:id", requireAdmin, async (req, res) => {
+    try {
+      const deleted = await storage.deleteSop(req.params.id);
+      if (!deleted) return res.status(404).json({ error: "SOP not found" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete SOP" });
+    }
+  });
+
+  app.get("/api/sops/:id/download", requireAuth, async (req, res) => {
+    try {
+      const sop = await storage.getSop(req.params.id);
+      if (!sop || !sop.filePath) return res.status(404).json({ error: "File not found" });
+      const { downloadFile } = await import("./objectStorage");
+      const fileBuffer = await downloadFile(sop.filePath);
+      res.setHeader("Content-Disposition", `attachment; filename="${sop.fileName || 'download'}"`);
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.send(fileBuffer);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to download file" });
+    }
+  });
+  // ────────────────────────────────────────────────────────────────────────────
+
   // Saved Assets Routes - Admin/Designer only
   app.get("/api/saved-assets", requireAdmin, async (req, res) => {
     try {

@@ -876,3 +876,28 @@ export type UserProjectAssignment = typeof userProjectAssignments.$inferSelect;
 
 export type InsertDesignerAllowlist = z.infer<typeof insertDesignerAllowlistSchema>;
 export type DesignerAllowlist = typeof designerAllowlist.$inferSelect;
+
+// SOPs (Standard Operating Procedures)
+export const sops = pgTable("sops", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  category: text("category").notNull(),
+  description: text("description"),
+  content: text("content"),
+  fileName: text("file_name"),
+  filePath: text("file_path"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+}, (table) => ({
+  categoryIdx: index("sops_category_idx").on(table.category),
+}));
+
+export const insertSopSchema = createInsertSchema(sops).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertSop = z.infer<typeof insertSopSchema>;
+export type Sop = typeof sops.$inferSelect;

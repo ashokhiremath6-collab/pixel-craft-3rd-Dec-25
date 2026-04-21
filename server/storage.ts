@@ -97,6 +97,9 @@ import {
   worksOrderSignatures,
   worksOrderItems,
   worksOrderFiles,
+  sops,
+  type InsertSop,
+  type Sop,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -311,6 +314,15 @@ export interface IStorage {
   createSpecification(spec: InsertSpecification): Promise<Specification>;
   updateSpecification(id: string, spec: Partial<InsertSpecification>): Promise<Specification | undefined>;
   deleteSpecification(id: string): Promise<boolean>;
+
+  // SOPs
+  getAllSops(): Promise<Sop[]>;
+  getSop(id: string): Promise<Sop | undefined>;
+  getSopsByCategory(category: string): Promise<Sop[]>;
+  getSopCategories(): Promise<string[]>;
+  createSop(sop: InsertSop): Promise<Sop>;
+  updateSop(id: string, sop: Partial<InsertSop>): Promise<Sop | undefined>;
+  deleteSop(id: string): Promise<boolean>;
   
   // Saved Assets
   getAllSavedAssets(): Promise<SavedAsset[]>;
@@ -3123,6 +3135,43 @@ export class DBStorage implements IStorage {
       .where(eq(objectAssets.id, assetId))
       .returning();
     return result[0];
+  }
+
+  // SOPs
+  async getAllSops(): Promise<Sop[]> {
+    return await db.select().from(sops).orderBy(sops.category, sops.title);
+  }
+
+  async getSop(id: string): Promise<Sop | undefined> {
+    const result = await db.select().from(sops).where(eq(sops.id, id));
+    return result[0];
+  }
+
+  async getSopsByCategory(category: string): Promise<Sop[]> {
+    return await db.select().from(sops).where(eq(sops.category, category)).orderBy(sops.title);
+  }
+
+  async getSopCategories(): Promise<string[]> {
+    const rows = await db.selectDistinct({ category: sops.category }).from(sops).orderBy(sops.category);
+    return rows.map(r => r.category);
+  }
+
+  async createSop(sop: InsertSop): Promise<Sop> {
+    const result = await db.insert(sops).values(sop).returning();
+    return result[0];
+  }
+
+  async updateSop(id: string, sop: Partial<InsertSop>): Promise<Sop | undefined> {
+    const result = await db.update(sops)
+      .set({ ...sop, updatedAt: new Date() })
+      .where(eq(sops.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteSop(id: string): Promise<boolean> {
+    const result = await db.delete(sops).where(eq(sops.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 }
 

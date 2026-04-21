@@ -82,6 +82,11 @@ const mainItems: NavigationItem[] = [
     url: "/accounts",
     icon: Wallet,
   },
+  {
+    title: "SOPs",
+    url: "/sops",
+    icon: BookOpen,
+  },
 ];
 
 const settingsItems: NavigationItem[] = [
