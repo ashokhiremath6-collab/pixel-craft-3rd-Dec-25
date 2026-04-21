@@ -1054,11 +1054,23 @@ export default function MoodboardsPage() {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     {fp.filePath && (
-                                      <Button variant="ghost" size="icon"
-                                        onClick={() => setFloorPlanViewer({ url: fp.filePath, name: fp.fileName || 'Floor Plan' })}
-                                        title="View floor plan">
-                                        <Eye className="h-4 w-4" />
-                                      </Button>
+                                      <>
+                                        <Button variant="ghost" size="icon"
+                                          onClick={() => setFloorPlanViewer({ url: fp.filePath, name: fp.fileName || 'Floor Plan' })}
+                                          title="View floor plan">
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon"
+                                          onClick={() => {
+                                            const a = document.createElement('a');
+                                            a.href = fp.filePath;
+                                            a.download = fp.fileName || 'floor-plan';
+                                            a.click();
+                                          }}
+                                          title="Download floor plan">
+                                          <Download className="h-4 w-4" />
+                                        </Button>
+                                      </>
                                     )}
                                   </div>
                                 </div>
