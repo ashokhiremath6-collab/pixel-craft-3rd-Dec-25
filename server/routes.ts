@@ -5294,7 +5294,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/schedules/:scheduleId", requireAuth, async (req, res) => {
     try {
       const { scheduleId } = req.params;
-      await storage.deleteProjectSchedule(scheduleId);
+      const userId = (req.user as any).id;
+
+      // Fetch schedule info before deletion so we can log it
+      const schedule = await storage.getProjectSchedule(scheduleId);
+
+      const deleted = await storage.deleteProjectSchedule(scheduleId);
+
+      // Log the deletion activity only when the row was actually removed
+      if (deleted && schedule) {
+        try {
+          const user = await storage.getUser(userId);
+          if (user) {
+            const userName = user.firstName && user.lastName
+              ? `${user.firstName} ${user.lastName}`
+              : user.email || 'Unknown';
+            await storage.createActivity({
+              userId: user.id,
+              userName,
+              userEmail: user.email || '',
+              projectId: schedule.projectId,
+              activityType: 'schedule_delete',
+              fileName: schedule.fileName,
+              description: `deleted schedule ${schedule.fileName} (v${schedule.version})`,
+              metadata: {
+                scheduleId: schedule.id,
+                version: schedule.version,
+              }
+            });
+          }
+        } catch (activityError) {
+          console.error('Error logging schedule deletion activity:', activityError);
+        }
+      }
+
       res.json({ success: true, message: "Schedule deleted successfully" });
     } catch (error) {
       console.error('Error deleting schedule:', error);
