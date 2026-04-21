@@ -69,6 +69,7 @@ import type {
 } from "@shared/schema";
 import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RecentBadge } from "@/components/RecentBadge";
 
 const STATUS_COLORS = {
   draft: "bg-gray-500",
@@ -1385,7 +1386,10 @@ export default function WorksOrdersPage() {
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <FileText className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{file.fileName}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-sm font-medium truncate">{file.fileName}</p>
+                              <RecentBadge date={file.uploadedAt} />
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               {(parseInt(file.fileSize) / 1024).toFixed(1)} KB
                               {file.uploadedAt && ` • ${format(new Date(file.uploadedAt), 'MMM d, yyyy')}`}

@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Project, VendorCategory } from "@shared/schema";
 import { formatCurrencyCompact, formatVendorNameWithCategory } from "@/lib/currencyUtils";
 import { format } from "date-fns";
+import { RecentBadge } from "@/components/RecentBadge";
 
 interface QuotationData {
   id: string;
@@ -841,7 +842,10 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         <TableCell className="py-2 text-xs" data-testid="text-uploaded-at">
                           {quotation.uploadedAt ? (
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-xs">{format(new Date(quotation.uploadedAt), "MMM d, yyyy")}</span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs">{format(new Date(quotation.uploadedAt), "MMM d, yyyy")}</span>
+                                <RecentBadge date={quotation.uploadedAt} />
+                              </div>
                               <span className="text-xs text-muted-foreground">{format(new Date(quotation.uploadedAt), "h:mm a")}</span>
                               {quotation.uploaderName && (
                                 <span className="text-xs text-muted-foreground">By {quotation.uploaderName}</span>

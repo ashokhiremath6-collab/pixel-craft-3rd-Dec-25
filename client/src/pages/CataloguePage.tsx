@@ -43,6 +43,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { RecentBadge } from "@/components/RecentBadge";
 
 export default function CataloguePage() {
   const { toast } = useToast();
@@ -511,16 +512,19 @@ export default function CataloguePage() {
                         </td>
                         <td className="py-3 px-4 text-sm">
                           {item.fileName && item.filePath ? (
-                            <a
-                              href={item.filePath}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-primary hover:underline"
-                              data-testid={`link-file-${item.id}`}
-                            >
-                              <FileText className="h-4 w-4" />
-                              {item.fileName}
-                            </a>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <a
+                                href={item.filePath}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 text-primary hover:underline"
+                                data-testid={`link-file-${item.id}`}
+                              >
+                                <FileText className="h-4 w-4" />
+                                {item.fileName}
+                              </a>
+                              <RecentBadge date={item.createdAt} />
+                            </div>
                           ) : item.catalogueUrl ? (
                             <a
                               href={item.catalogueUrl}

@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import type { Specification, VendorCategory } from "@shared/schema";
+import { RecentBadge } from "@/components/RecentBadge";
 
 export default function SpecificationsPage() {
   const { toast } = useToast();
@@ -312,7 +313,10 @@ export default function SpecificationsPage() {
                             <div className="flex items-center gap-2">
                               <FileText className="h-4 w-4 text-primary flex-shrink-0" />
                               <div className="min-w-0">
-                                <h4 className="font-medium text-sm">{spec.title}</h4>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <h4 className="font-medium text-sm">{spec.title}</h4>
+                                  <RecentBadge date={spec.uploadedAt} />
+                                </div>
                                 {spec.description && (
                                   <p className="text-xs text-muted-foreground">{spec.description}</p>
                                 )}

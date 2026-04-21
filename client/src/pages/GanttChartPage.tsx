@@ -20,6 +20,7 @@ import type { Project, Task, ProjectSchedule } from "@shared/schema";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { RecentBadge } from "@/components/RecentBadge";
 
 interface QuotationsResponse {
   projects: Project[];
@@ -403,6 +404,7 @@ export default function GanttChartPage() {
         queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       }
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       toast({ title: "Schedule Deleted", description: "Schedule and associated tasks have been removed" });
     },
     onError: (error: any) => {
@@ -974,8 +976,11 @@ export default function GanttChartPage() {
                           <div className="flex items-center gap-3 flex-1">
                             <FileText className="h-8 w-8 text-primary" />
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium truncate" data-testid={`text-schedule-name-${schedule.id}`}>
-                                {schedule.fileName}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="font-medium truncate" data-testid={`text-schedule-name-${schedule.id}`}>
+                                  {schedule.fileName}
+                                </div>
+                                <RecentBadge date={schedule.uploadedAt} />
                               </div>
                               <div className="text-sm text-muted-foreground">v{schedule.version}</div>
                               <div className="text-xs text-muted-foreground mt-1">

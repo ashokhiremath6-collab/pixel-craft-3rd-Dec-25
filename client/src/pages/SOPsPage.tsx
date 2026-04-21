@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Plus, Search, Pencil, Trash2, Download, FileText, ChevronRight, BookOpen } from "lucide-react";
+import { RecentBadge } from "@/components/RecentBadge";
 
 interface Sop {
   id: string;
@@ -286,7 +287,8 @@ export default function SOPsPage() {
                         ? "bg-accent text-accent-foreground"
                         : "hover:bg-muted text-foreground"}`}
                   >
-                    <span className="truncate font-medium">{sop.title}</span>
+                    <span className="truncate font-medium flex-1">{sop.title}</span>
+                    <RecentBadge date={sop.updatedAt} days={3} />
                     <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   </button>
                 ))}

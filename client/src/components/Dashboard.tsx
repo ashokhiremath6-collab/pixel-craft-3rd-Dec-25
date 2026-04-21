@@ -47,6 +47,7 @@ interface DashboardProps {
     completionCountdown: TaskWithMeta[];
     overdue: TaskWithMeta[];
   };
+  totalActiveTasks?: number;
   onNavigate?: (path: string) => void;
 }
 
@@ -68,6 +69,9 @@ const ACTIVITY_CONFIG: Record<string, {
   quote_upload:             { label: "Quotation",         icon: FileText,        accent: "#f0fdf4", iconBg: "#bbf7d0", iconColor: "#15803d" },
   quote_file_delete:        { label: "Quotation",         icon: FileText,        accent: "#fef2f2", iconBg: "#fecaca", iconColor: "#dc2626" },
   schedule_upload:          { label: "Project Schedule",  icon: CalendarDays,    accent: "#eff6ff", iconBg: "#bfdbfe", iconColor: "#1d4ed8" },
+  schedule_reimport:        { label: "Project Schedule",  icon: CalendarDays,    accent: "#eff6ff", iconBg: "#bfdbfe", iconColor: "#1d4ed8" },
+  schedule_delete:          { label: "Project Schedule",  icon: CalendarDays,    accent: "#fef2f2", iconBg: "#fecaca", iconColor: "#dc2626" },
+  schedule:                 { label: "Schedule Update",   icon: CalendarDays,    accent: "#eff6ff", iconBg: "#bfdbfe", iconColor: "#1d4ed8" },
   specification_upload:     { label: "Specification",     icon: BookOpen,        accent: "#fdf4ff", iconBg: "#e9d5ff", iconColor: "#7e22ce" },
   specification_delete:     { label: "Specification",     icon: BookOpen,        accent: "#fef2f2", iconBg: "#fecaca", iconColor: "#dc2626" },
   catalogue_upload:         { label: "Catalogue Item",    icon: Package,         accent: "#fefce8", iconBg: "#fef08a", iconColor: "#a16207" },
@@ -88,6 +92,7 @@ function getActivityConfig(type: string) {
 }
 
 function getActivityVerb(type: string) {
+  if (type === "schedule_reimport") return "re-imported";
   if (type.endsWith("_delete")) return "deleted";
   if (type.endsWith("_upload")) return "uploaded";
   if (type.endsWith("_create")) return "added";
@@ -152,6 +157,7 @@ export default function Dashboard({
   allQuotations,
   activities = [],
   taskAlerts = { upcomingStart: [], completionCountdown: [], overdue: [] },
+  totalActiveTasks = 0,
   onNavigate,
 }: DashboardProps) {
   const [isQuotationDetailModalOpen, setIsQuotationDetailModalOpen] = useState(false);
@@ -384,10 +390,11 @@ export default function Dashboard({
             </ContentCard>
 
             {/* Summary stat strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {[
                 { label: "Vendors", value: vendors.length, sub: "in database", onClick: () => handleNavigate("/vendors"), testId: "stat-total-vendors" },
                 { label: "Active Projects", value: activeProjects, sub: `${completedProjects} completed`, onClick: () => handleNavigate("/projects"), testId: "stat-active-projects" },
+                { label: "Active Tasks", value: totalActiveTasks, sub: "from schedules", onClick: () => handleNavigate("/gantt"), testId: "stat-active-tasks" },
                 { label: "Selected Value", value: formatCurrencyCompact(totalQuotationValue), sub: "quotations", onClick: () => setIsQuotationDetailModalOpen(true), testId: "stat-total-quotations" },
                 { label: "Categories", value: Object.keys(vendorsByCategory).length, sub: "vendor types", onClick: () => handleNavigate("/vendors"), testId: "stat-categories" },
               ].map(s => (

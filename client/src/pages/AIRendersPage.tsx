@@ -18,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { AssetPicker, type SelectedAsset } from "@/components/AssetPicker";
+import { RecentBadge } from "@/components/RecentBadge";
 import type { Project, Moodboard } from "@shared/schema";
 import { 
   Upload, 
@@ -2284,9 +2285,12 @@ export default function AIRendersPage() {
                         className="w-full h-32 object-cover"
                       />
                       <div className="p-2 bg-background">
-                        <p className="text-sm font-medium truncate">
-                          {render.name || render.roomType || "Untitled"}
-                        </p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-medium truncate flex-1">
+                            {render.name || render.roomType || "Untitled"}
+                          </p>
+                          <RecentBadge date={render.createdAt} />
+                        </div>
                         <p className="text-xs text-muted-foreground truncate">
                           {projectName}
                         </p>

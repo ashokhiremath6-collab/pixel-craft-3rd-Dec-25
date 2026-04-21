@@ -189,7 +189,7 @@ export default function DashboardPage() {
       if (task.startDate) {
         const startDate = startOfDay(new Date(task.startDate));
         const daysUntilStart = differenceInDays(startDate, today);
-        if (daysUntilStart >= 0 && daysUntilStart <= 30) {
+        if (daysUntilStart >= 0 && daysUntilStart <= 90) {
           upcomingStart.push({ ...task, projectName, daysUntilStart });
         }
       }
@@ -201,7 +201,7 @@ export default function DashboardPage() {
           overdue.push({ ...task, projectName, daysOverdue });
         } else if (endDate) {
           const daysToGo = differenceInDays(startOfDay(endDate), today);
-          if (daysToGo >= 1 && daysToGo <= 5) {
+          if (daysToGo >= 1 && daysToGo <= 14) {
             completionCountdown.push({ ...task, projectName, daysToGo });
           }
         }
@@ -217,6 +217,10 @@ export default function DashboardPage() {
 
   const taskAlerts = getTaskAlerts();
 
+  const totalActiveTasks = allTasksData
+    ? allTasksData.filter(t => t.status !== 'completed' && t.startDate !== '2099-12-31').length
+    : 0;
+
   return (
     <div>
       <Dashboard 
@@ -226,6 +230,7 @@ export default function DashboardPage() {
         allQuotations={filteredQuotations}
         activities={activitiesData || []}
         taskAlerts={taskAlerts}
+        totalActiveTasks={totalActiveTasks}
         onNavigate={handleNavigate}
       />
     </div>
