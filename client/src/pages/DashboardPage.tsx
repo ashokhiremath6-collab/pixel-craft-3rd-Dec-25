@@ -217,9 +217,43 @@ export default function DashboardPage() {
 
   const taskAlerts = getTaskAlerts();
 
+  const isActionableTask = (task: Task) => {
+    if (task.startDate === '2099-12-31' || task.endDate === '2099-12-31') return false;
+    const taskName = task.name?.toUpperCase() || '';
+    if (taskName.startsWith('PHASE') || taskName.startsWith('PACKAGE') || taskName.startsWith('EXECUTE')) return false;
+    return true;
+  };
+
+  const isTaskCompleted = (task: Task) => {
+    if (task.status === 'completed') return true;
+    const progress = Number(task.progressPercentage) || 0;
+    return progress >= 100;
+  };
+
   const totalActiveTasks = allTasksData
-    ? allTasksData.filter(t => t.status !== 'completed' && t.startDate !== '2099-12-31').length
+    ? allTasksData.filter(t => isActionableTask(t) && !isTaskCompleted(t)).length
     : 0;
+
+  const projectTaskBreakdown = (() => {
+    if (!allTasksData) return [];
+    const map: Record<string, { projectId: string; projectName: string; total: number; completed: number }> = {};
+    allTasksData.forEach(task => {
+      if (!task.projectId) return;
+      if (!isActionableTask(task)) return;
+      const pName = projectNameMap[task.projectId] || 'Unknown Project';
+      if (!map[task.projectId]) {
+        map[task.projectId] = { projectId: task.projectId, projectName: pName, total: 0, completed: 0 };
+      }
+      map[task.projectId].total += 1;
+      if (isTaskCompleted(task)) {
+        map[task.projectId].completed += 1;
+      }
+    });
+    return Object.values(map)
+      .map(entry => ({ ...entry, remaining: entry.total - entry.completed }))
+      .filter(entry => entry.total > 0)
+      .sort((a, b) => b.remaining - a.remaining);
+  })();
 
   return (
     <div>
@@ -231,6 +265,7 @@ export default function DashboardPage() {
         activities={activitiesData || []}
         taskAlerts={taskAlerts}
         totalActiveTasks={totalActiveTasks}
+        projectTaskBreakdown={projectTaskBreakdown}
         onNavigate={handleNavigate}
       />
     </div>

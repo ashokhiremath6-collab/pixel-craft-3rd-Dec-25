@@ -36,6 +36,14 @@ interface TaskWithMeta extends Task {
   daysOverdue?: number;
 }
 
+interface ProjectTaskBreakdownEntry {
+  projectId: string;
+  projectName: string;
+  total: number;
+  completed: number;
+  remaining: number;
+}
+
 interface DashboardProps {
   vendors: VendorWithCategory[];
   projects: Project[];
@@ -48,6 +56,7 @@ interface DashboardProps {
     overdue: TaskWithMeta[];
   };
   totalActiveTasks?: number;
+  projectTaskBreakdown?: ProjectTaskBreakdownEntry[];
   onNavigate?: (path: string) => void;
 }
 
@@ -158,6 +167,7 @@ export default function Dashboard({
   activities = [],
   taskAlerts = { upcomingStart: [], completionCountdown: [], overdue: [] },
   totalActiveTasks = 0,
+  projectTaskBreakdown = [],
   onNavigate,
 }: DashboardProps) {
   const [isQuotationDetailModalOpen, setIsQuotationDetailModalOpen] = useState(false);
@@ -416,6 +426,54 @@ export default function Dashboard({
                 </button>
               ))}
             </div>
+
+            {/* Project Task Breakdown */}
+            {projectTaskBreakdown.length > 0 && (
+              <ContentCard>
+                <div className="px-6 pt-6 pb-4 flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" style={{ color: "#6366f1" }} />
+                  <h2 className="text-[18px] font-semibold" style={{ color: "#111827" }}>
+                    Tasks by Project
+                  </h2>
+                </div>
+                <div className="px-6 pb-6 flex flex-col gap-3" data-testid="project-task-breakdown">
+                  {projectTaskBreakdown.map(entry => {
+                    const pct = entry.total > 0 ? Math.round((entry.completed / entry.total) * 100) : 0;
+                    return (
+                      <button
+                        key={entry.projectId}
+                        data-testid={`breakdown-project-${entry.projectId}`}
+                        onClick={() => handleNavigate(`/gantt?projectId=${entry.projectId}`)}
+                        className="w-full text-left flex flex-col gap-1.5 p-3 rounded-[12px] hover-elevate active-elevate-2"
+                        style={{ background: "#f9fafb" }}
+                      >
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-xs font-medium truncate flex-1 min-w-0" style={{ color: "#111827" }}>
+                            {entry.projectName}
+                          </span>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span className="text-[11px] font-semibold" style={{ color: "#6366f1" }}>
+                              {entry.completed}/{entry.total}
+                            </span>
+                            <span className="text-[11px] px-1.5 py-0.5 rounded-full font-semibold"
+                              style={{ background: entry.remaining === 0 ? "#dcfce7" : "#eff6ff", color: entry.remaining === 0 ? "#166534" : "#1d4ed8" }}>
+                              {entry.remaining === 0 ? "Done" : `${entry.remaining} left`}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="w-full rounded-full overflow-hidden" style={{ height: 5, background: "#e5e7eb" }}>
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${pct}%`, background: pct === 100 ? "#22c55e" : "#6366f1" }}
+                          />
+                        </div>
+                        <span className="text-[10px]" style={{ color: "#9ca3af" }}>{pct}% complete</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </ContentCard>
+            )}
           </div>
 
           {/* Right Column */}

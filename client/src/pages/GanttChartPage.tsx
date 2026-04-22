@@ -68,7 +68,10 @@ export default function GanttChartPage() {
   const isAdmin = currentUser?.role === 'admin';
   const canEditRemarks = currentUser?.role === 'admin' || currentUser?.role === 'designer' || currentUser?.role === 'project_manager';
   const canEditProgress = currentUser?.role === 'admin' || currentUser?.role === 'designer' || currentUser?.role === 'project_manager';
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("projectId") || "";
+  });
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importProjectId, setImportProjectId] = useState<string>("");
