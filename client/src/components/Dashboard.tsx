@@ -171,6 +171,7 @@ export default function Dashboard({
   onNavigate,
 }: DashboardProps) {
   const [isQuotationDetailModalOpen, setIsQuotationDetailModalOpen] = useState(false);
+  const [showAllProjects, setShowAllProjects] = useState(false);
 
   const handleNavigate = (path: string) => onNavigate?.(path);
 
@@ -439,7 +440,7 @@ export default function Dashboard({
                   </h2>
                 </div>
                 <div className="px-6 pb-6 flex flex-col gap-3" data-testid="project-task-breakdown">
-                  {projectTaskBreakdown.map(entry => {
+                  {(showAllProjects ? projectTaskBreakdown : projectTaskBreakdown.slice(0, 5)).map(entry => {
                     const pct = entry.total > 0 ? Math.round((entry.completed / entry.total) * 100) : 0;
                     return (
                       <button
@@ -473,6 +474,17 @@ export default function Dashboard({
                       </button>
                     );
                   })}
+                  {projectTaskBreakdown.length > 5 && (
+                    <button
+                      onClick={() => setShowAllProjects(prev => !prev)}
+                      className="w-full text-center text-[12px] font-medium py-2 rounded-[12px] hover-elevate active-elevate-2"
+                      style={{ color: "#6366f1", background: "#f5f3ff" }}
+                    >
+                      {showAllProjects
+                        ? "Show less"
+                        : `Show all ${projectTaskBreakdown.length} projects`}
+                    </button>
+                  )}
                 </div>
               </ContentCard>
             )}
