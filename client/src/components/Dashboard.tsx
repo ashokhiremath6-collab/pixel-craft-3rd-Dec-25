@@ -258,6 +258,8 @@ export default function Dashboard({
                 const cfg = getActivityConfig(activity.activityType);
                 const IconComp = cfg.icon;
                 const proj = projects.find(p => p.id === activity.projectId);
+                const activityMeta = activity.metadata as { projectName?: string | null } | null;
+                const projectName = proj?.projectName ?? activityMeta?.projectName ?? null;
                 const recent = isVeryRecent(activity.createdAt);
                 const verb = getActivityVerb(activity.activityType);
 
@@ -311,11 +313,11 @@ export default function Dashboard({
                         <span className="text-xs font-medium" style={{ color: "#374151" }} data-testid={`text-user-${activity.id}`}>
                           {activity.userName}
                         </span>
-                        {proj && (
+                        {projectName && (
                           <>
                             <span className="text-xs">·</span>
                             <span className="text-xs truncate max-w-[100px]" data-testid={`text-project-${activity.id}`}>
-                              {proj.projectName}
+                              {projectName}
                             </span>
                           </>
                         )}

@@ -5309,6 +5309,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const userName = user.firstName && user.lastName
               ? `${user.firstName} ${user.lastName}`
               : user.email || 'Unknown';
+            const scheduleProject = await storage.getProject(schedule.projectId);
             await storage.createActivity({
               userId: user.id,
               userName,
@@ -5320,6 +5321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               metadata: {
                 scheduleId: schedule.id,
                 version: schedule.version,
+                projectName: scheduleProject?.projectName ?? null,
               }
             });
           }
