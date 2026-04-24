@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download, FolderInput, MoreVertical, FileCode2, Layers, ChevronDown, ChevronUp, Sparkles, Save } from "lucide-react";
+import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download, FolderInput, MoreVertical, FileCode2, Layers, ChevronDown, ChevronUp } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,15 +64,6 @@ export default function MoodboardsPage() {
   const [cadLayers, setCadLayers] = useState<string[]>([]);
   const [cadLayersExpanded, setCadLayersExpanded] = useState(false);
   const [cadUploadProgress, setCadUploadProgress] = useState(0);
-
-  // Photoreal conversion state
-  const photorealInputRef = useRef<HTMLInputElement>(null);
-  const [photorealFile, setPhotorealFile] = useState<File | null>(null);
-  const [photorealDragActive, setPhotorealDragActive] = useState(false);
-  const [photorealAlterations, setPhotorealAlterations] = useState("");
-  const [photorealResult, setPhotorealResult] = useState<{ imageData: string; mimeType: string } | null>(null);
-  const [photorealSaveName, setPhotorealSaveName] = useState("");
-  const [photorealSaveProjectId, setPhotorealSaveProjectId] = useState("");
   
   // Determine asset type based on route
   const assetType = useMemo(() => {
@@ -837,57 +828,6 @@ export default function MoodboardsPage() {
     },
   });
 
-  const photorealGenerateMutation = useMutation({
-    mutationFn: async () => {
-      if (!photorealFile) throw new Error("No file selected");
-      const formData = new FormData();
-      formData.append("image", photorealFile);
-      if (photorealAlterations.trim()) formData.append("alterationNotes", photorealAlterations.trim());
-      const res = await fetch("/api/ai-renders/photoreal", { method: "POST", body: formData, credentials: "include" });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Conversion failed"); }
-      return res.json() as Promise<{ imageData: string; mimeType: string }>;
-    },
-    onSuccess: (data) => {
-      setPhotorealResult(data);
-      setPhotorealSaveName(photorealFile ? photorealFile.name.replace(/\.[^.]+$/, "") + " - Photorealistic" : "Photorealistic Render");
-      toast({ title: "Conversion complete", description: "Your photorealistic render is ready to save." });
-    },
-    onError: (e: any) => toast({ variant: "destructive", title: "Conversion failed", description: e.message }),
-  });
-
-  const photorealSaveMutation = useMutation({
-    mutationFn: async () => {
-      if (!photorealResult) throw new Error("No result to save");
-      const res = await fetch("/api/ai-renders/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          imageData: photorealResult.imageData,
-          mimeType: photorealResult.mimeType,
-          projectId: photorealSaveProjectId || null,
-          name: photorealSaveName || "Photorealistic Render",
-          customName: photorealSaveName || "Photorealistic Render",
-          description: photorealAlterations.trim() || undefined,
-          styleId: "photorealistic",
-          originalFilename: photorealSaveName,
-        }),
-      });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Save failed"); }
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Render saved", description: "Added to your renders library." });
-      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
-      setPhotorealFile(null);
-      setPhotorealResult(null);
-      setPhotorealAlterations("");
-      setPhotorealSaveName("");
-      setPhotorealSaveProjectId("");
-    },
-    onError: (e: any) => toast({ variant: "destructive", title: "Save failed", description: e.message }),
-  });
-
   return (
     <div className="space-y-3 p-4">
       {/* Header */}
@@ -1640,144 +1580,6 @@ export default function MoodboardsPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Convert to Photorealistic — renders only */}
-      {assetType === 'render' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-bold">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Convert to Photorealistic
-            </CardTitle>
-            <CardDescription>
-              Upload a SketchUp screenshot or any 3D render and AI will convert it into a photorealistic interior photograph. Optionally describe any design changes you'd like applied.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Dropzone */}
-            <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                photorealDragActive
-                  ? "border-primary bg-primary/5"
-                  : photorealFile
-                    ? "border-primary/60 bg-primary/5"
-                    : "border-muted-foreground/25 hover:border-primary/50"
-              }`}
-              onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setPhotorealDragActive(true); }}
-              onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setPhotorealDragActive(false); }}
-              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-              onDrop={(e) => {
-                e.preventDefault(); e.stopPropagation(); setPhotorealDragActive(false);
-                const f = e.dataTransfer.files?.[0];
-                if (f) { setPhotorealFile(f); setPhotorealResult(null); }
-              }}
-              onClick={() => photorealInputRef.current?.click()}
-            >
-              {photorealFile ? (
-                <div className="flex items-center justify-center gap-3">
-                  <ImageIcon className="h-6 w-6 text-primary" />
-                  <div className="text-left">
-                    <p className="font-medium text-sm">{photorealFile.name}</p>
-                    <p className="text-xs text-muted-foreground">{(photorealFile.size / 1024 / 1024).toFixed(1)} MB</p>
-                  </div>
-                  <button
-                    className="ml-2 text-muted-foreground hover:text-destructive"
-                    onClick={(e) => { e.stopPropagation(); setPhotorealFile(null); setPhotorealResult(null); }}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <ImageIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm font-medium mb-1">Drop your SketchUp render or 3D screenshot here</p>
-                  <p className="text-xs text-muted-foreground">JPEG, PNG, WebP supported — up to 21 MB</p>
-                </>
-              )}
-              <input
-                ref={photorealInputRef}
-                type="file"
-                className="hidden"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) { setPhotorealFile(f); setPhotorealResult(null); }
-                }}
-              />
-            </div>
-
-            {/* Alteration notes */}
-            <div className="space-y-1">
-              <Label>Design Alterations (optional)</Label>
-              <Textarea
-                placeholder="e.g. Change the sofa to navy blue leather, replace the flooring with dark walnut wood, add warm pendant lighting..."
-                value={photorealAlterations}
-                onChange={(e) => setPhotorealAlterations(e.target.value)}
-                rows={3}
-                className="resize-none"
-              />
-              <p className="text-xs text-muted-foreground">Describe material or finish changes you want. Geometry (object positions, room structure) cannot be altered.</p>
-            </div>
-
-            {/* Generate button */}
-            <Button
-              className="w-full"
-              disabled={!photorealFile || photorealGenerateMutation.isPending}
-              onClick={() => photorealGenerateMutation.mutate()}
-            >
-              {photorealGenerateMutation.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating photorealistic render…</>
-              ) : (
-                <><Sparkles className="h-4 w-4 mr-2" />Convert to Photorealistic</>
-              )}
-            </Button>
-
-            {/* Result preview + save */}
-            {photorealResult && (
-              <div className="space-y-4 pt-2 border-t">
-                <p className="text-sm font-medium">Result preview</p>
-                <img
-                  src={`data:${photorealResult.mimeType};base64,${photorealResult.imageData}`}
-                  alt="Photorealistic render"
-                  className="w-full rounded-lg object-contain max-h-[480px]"
-                />
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label>Render Name</Label>
-                    <Input
-                      value={photorealSaveName}
-                      onChange={(e) => setPhotorealSaveName(e.target.value)}
-                      placeholder="e.g. Living Room - Photorealistic"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Project (optional)</Label>
-                    <Select value={photorealSaveProjectId} onValueChange={setPhotorealSaveProjectId}>
-                      <SelectTrigger><SelectValue placeholder="No project" /></SelectTrigger>
-                      <SelectContent>
-                        {projects.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>{p.projectName} — {p.clientName}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <Button
-                  className="w-full"
-                  disabled={photorealSaveMutation.isPending}
-                  onClick={() => photorealSaveMutation.mutate()}
-                >
-                  {photorealSaveMutation.isPending ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</>
-                  ) : (
-                    <><Save className="h-4 w-4 mr-2" />Save to Renders</>
-                  )}
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {previewImage && (
         <FileViewerModal

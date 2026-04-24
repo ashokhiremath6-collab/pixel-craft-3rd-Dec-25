@@ -4481,11 +4481,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const imageBase64 = imageFile.buffer.toString('base64');
       const mimeType = imageFile.mimetype;
-      const alterationNotes = req.body?.alterationNotes?.trim() || undefined;
 
       console.log("[Photoreal] Processing image, size:", imageFile.buffer.length, "bytes");
 
-      const result = await generatePhotorealConversion(imageBase64, mimeType, alterationNotes);
+      const result = await generatePhotorealConversion(imageBase64, mimeType);
 
       res.json({
         success: true,

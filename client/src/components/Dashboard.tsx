@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -173,9 +172,7 @@ export default function Dashboard({
   onNavigate,
 }: DashboardProps) {
   const [isQuotationDetailModalOpen, setIsQuotationDetailModalOpen] = useState(false);
-  const [showAllProjects, setShowAllProjects] = useState(
-    () => localStorage.getItem("dashboard_showAllProjects") === "true"
-  );
+  const [showAllProjects, setShowAllProjects] = useState(false);
 
   const handleNavigate = (path: string) => onNavigate?.(path);
 
@@ -321,20 +318,9 @@ export default function Dashboard({
                         {projectName && (
                           <>
                             <span className="text-xs">·</span>
-                            {proj ? (
-                              <Link
-                                href={`/projects/${activity.projectId}`}
-                                className="text-xs truncate max-w-[100px] hover:underline"
-                                style={{ color: "#0071e3" }}
-                                data-testid={`text-project-${activity.id}`}
-                              >
-                                {projectName}
-                              </Link>
-                            ) : (
-                              <span className="text-xs truncate max-w-[100px]" data-testid={`text-project-${activity.id}`}>
-                                {projectName}
-                              </span>
-                            )}
+                            <span className="text-xs truncate max-w-[100px]" data-testid={`text-project-${activity.id}`}>
+                              {projectName}
+                            </span>
                           </>
                         )}
                         <span className="text-xs">·</span>
@@ -459,14 +445,11 @@ export default function Dashboard({
                     const pct = entry.total > 0 ? Math.round((entry.completed / entry.total) * 100) : 0;
                     const hasOverdue = (entry.overdueCount ?? 0) > 0;
                     return (
-                      <div
+                      <button
                         key={entry.projectId}
                         data-testid={`breakdown-project-${entry.projectId}`}
                         onClick={() => handleNavigate(`/gantt?projectId=${entry.projectId}`)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleNavigate(`/gantt?projectId=${entry.projectId}`); }}
-                        className="w-full text-left flex flex-col gap-1.5 p-3 rounded-[12px] hover-elevate active-elevate-2 cursor-pointer"
+                        className="w-full text-left flex flex-col gap-1.5 p-3 rounded-[12px] hover-elevate active-elevate-2"
                         style={{ background: "#f9fafb" }}
                       >
                         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -475,18 +458,13 @@ export default function Dashboard({
                           </span>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             {hasOverdue && (
-                              <button
-                                type="button"
-                                className="text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full hover-elevate"
+                              <span
+                                className="text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
                                 style={{ background: "#fef2f2", color: "#991b1b" }}
                                 data-testid={`breakdown-overdue-badge-${entry.projectId}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleNavigate(`/gantt?projectId=${entry.projectId}&showOverdue=true`);
-                                }}
                               >
                                 {entry.overdueCount} overdue
-                              </button>
+                              </span>
                             )}
                             <span className="text-[11px] font-semibold" style={{ color: "#6366f1" }}>
                               {entry.completed}/{entry.total}
@@ -504,16 +482,12 @@ export default function Dashboard({
                           />
                         </div>
                         <span className="text-[10px]" style={{ color: "#9ca3af" }}>{pct}% complete</span>
-                      </div>
+                      </button>
                     );
                   })}
                   {projectTaskBreakdown.length > 5 && (
                     <button
-                      onClick={() => setShowAllProjects(prev => {
-                        const next = !prev;
-                        localStorage.setItem("dashboard_showAllProjects", String(next));
-                        return next;
-                      })}
+                      onClick={() => setShowAllProjects(prev => !prev)}
                       className="w-full text-center text-[12px] font-medium py-2 rounded-[12px] hover-elevate active-elevate-2"
                       style={{ color: "#6366f1", background: "#f5f3ff" }}
                     >
