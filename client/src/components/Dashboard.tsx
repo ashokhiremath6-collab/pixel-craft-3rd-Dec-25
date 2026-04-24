@@ -173,7 +173,9 @@ export default function Dashboard({
   onNavigate,
 }: DashboardProps) {
   const [isQuotationDetailModalOpen, setIsQuotationDetailModalOpen] = useState(false);
-  const [showAllProjects, setShowAllProjects] = useState(false);
+  const [showAllProjects, setShowAllProjects] = useState(
+    () => localStorage.getItem("dashboard_showAllProjects") === "true"
+  );
 
   const handleNavigate = (path: string) => onNavigate?.(path);
 
@@ -499,7 +501,11 @@ export default function Dashboard({
                   })}
                   {projectTaskBreakdown.length > 5 && (
                     <button
-                      onClick={() => setShowAllProjects(prev => !prev)}
+                      onClick={() => setShowAllProjects(prev => {
+                        const next = !prev;
+                        localStorage.setItem("dashboard_showAllProjects", String(next));
+                        return next;
+                      })}
                       className="w-full text-center text-[12px] font-medium py-2 rounded-[12px] hover-elevate active-elevate-2"
                       style={{ color: "#6366f1", background: "#f5f3ff" }}
                     >
