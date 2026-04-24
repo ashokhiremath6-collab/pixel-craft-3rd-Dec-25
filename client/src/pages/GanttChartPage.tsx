@@ -96,7 +96,7 @@ export default function GanttChartPage() {
   
   // Task table filters and settings
   const [taskSearchQuery, setTaskSearchQuery] = useState("");
-  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  const [showOverdueOnly, setShowOverdueOnly] = useState(() => new URLSearchParams(search).get("showOverdue") === "true");
   const [taskSortMode, setTaskSortMode] = useState<'original' | 'date' | 'category'>('original');
   
   // Inline editing for progress

@@ -459,11 +459,14 @@ export default function Dashboard({
                     const pct = entry.total > 0 ? Math.round((entry.completed / entry.total) * 100) : 0;
                     const hasOverdue = (entry.overdueCount ?? 0) > 0;
                     return (
-                      <button
+                      <div
                         key={entry.projectId}
                         data-testid={`breakdown-project-${entry.projectId}`}
                         onClick={() => handleNavigate(`/gantt?projectId=${entry.projectId}`)}
-                        className="w-full text-left flex flex-col gap-1.5 p-3 rounded-[12px] hover-elevate active-elevate-2"
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleNavigate(`/gantt?projectId=${entry.projectId}`); }}
+                        className="w-full text-left flex flex-col gap-1.5 p-3 rounded-[12px] hover-elevate active-elevate-2 cursor-pointer"
                         style={{ background: "#f9fafb" }}
                       >
                         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -472,13 +475,18 @@ export default function Dashboard({
                           </span>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             {hasOverdue && (
-                              <span
-                                className="text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                              <button
+                                type="button"
+                                className="text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full hover-elevate"
                                 style={{ background: "#fef2f2", color: "#991b1b" }}
                                 data-testid={`breakdown-overdue-badge-${entry.projectId}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleNavigate(`/gantt?projectId=${entry.projectId}&showOverdue=true`);
+                                }}
                               >
                                 {entry.overdueCount} overdue
-                              </span>
+                              </button>
                             )}
                             <span className="text-[11px] font-semibold" style={{ color: "#6366f1" }}>
                               {entry.completed}/{entry.total}
@@ -496,7 +504,7 @@ export default function Dashboard({
                           />
                         </div>
                         <span className="text-[10px]" style={{ color: "#9ca3af" }}>{pct}% complete</span>
-                      </button>
+                      </div>
                     );
                   })}
                   {projectTaskBreakdown.length > 5 && (
