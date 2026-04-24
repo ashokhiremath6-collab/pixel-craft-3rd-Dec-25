@@ -1517,6 +1517,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userName = user.firstName && user.lastName 
             ? `${user.firstName} ${user.lastName}` 
             : user.email || 'Unknown';
+          const quoteProject = await storage.getProject(projectVendor.projectId);
           await storage.createActivity({
             userId: user.id,
             userName: userName,
@@ -1529,6 +1530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             metadata: {
               projectVendorId: id,
               vendorId: projectVendor.vendorId,
+              projectName: quoteProject?.projectName ?? null,
             },
           });
         }
@@ -2753,7 +2755,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               vendorId: vendorId || null,
               categoryId: isComparativeStatement ? categoryId : null,
               categoryName: isComparativeStatement ? categoryName : null,
-              quotationValue: results.projectVendor.quotationValue
+              quotationValue: results.projectVendor.quotationValue,
+              projectName: project.projectName,
             }
           });
           console.log(`Activity logged for quote upload: ${req.file.originalname}`);
@@ -2943,7 +2946,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               projectVendorId: results.projectVendor.id,
               vendorId: vendorId,
               quotationValue: results.projectVendor.quotationValue,
-              quotationType: resolutionType
+              quotationType: resolutionType,
+              projectName: project?.projectName ?? null,
             }
           });
           console.log(`Activity logged for quote upload: ${tempData.originalname}`);
@@ -3909,6 +3913,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userName = user.firstName && user.lastName 
           ? `${user.firstName} ${user.lastName}` 
           : user.email || 'Unknown';
+        const floorPlanProject = await storage.getProject(projectId);
         await storage.createActivity({
           userId: user.id,
           userName: userName,
@@ -3917,7 +3922,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fileName: req.file.originalname,
           description: `uploaded floor plan: ${name}`,
           projectId: projectId,
-          metadata: { floorPlanId: floorPlan.id, version: floorPlan.version }
+          metadata: { floorPlanId: floorPlan.id, version: floorPlan.version, projectName: floorPlanProject?.projectName ?? null }
         });
       }
       
@@ -3985,6 +3990,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userName = user.firstName && user.lastName 
           ? `${user.firstName} ${user.lastName}` 
           : user.email || 'Unknown';
+        const floorPlanDelProject = await storage.getProject(floorPlan.projectId);
         await storage.createActivity({
           userId: user.id,
           userName: userName,
@@ -3995,6 +4001,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           filePath: floorPlan.filePath,
           description: `deleted Floor Plan "${floorPlan.name}"`,
           timestamp: new Date(),
+          metadata: { projectName: floorPlanDelProject?.projectName ?? null },
         });
       }
       
@@ -4149,6 +4156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userName = user.firstName && user.lastName 
             ? `${user.firstName} ${user.lastName}` 
             : user.email || 'Unknown';
+          const moodboardUploadProject = validatedProjectId ? await storage.getProject(validatedProjectId) : null;
           await storage.createActivity({
             userId: user.id,
             userName: userName,
@@ -4157,7 +4165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             fileName: req.file.originalname,
             description: `uploaded ${assetType === 'render' ? 'render' : assetType === 'working_drawing' ? 'working drawing' : 'moodboard'}: ${req.file.originalname}`,
             projectId: validatedProjectId,
-            metadata: { moodboardId: moodboard.id, assetType: moodboard.assetType }
+            metadata: { moodboardId: moodboard.id, assetType: moodboard.assetType, projectName: moodboardUploadProject?.projectName ?? null }
           });
         }
       }
@@ -4244,6 +4252,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : user.email || 'Unknown';
         const assetTypeLabel = moodboard.assetType === 'render' ? 'Render' : 
                                moodboard.assetType === 'working_drawing' ? 'Working Drawing' : 'Moodboard';
+        const moodboardProject = moodboard.projectId ? await storage.getProject(moodboard.projectId) : null;
         await storage.createActivity({
           userId: user.id,
           userName: userName,
@@ -4254,6 +4263,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           filePath: moodboard.filePath || undefined,
           description: `deleted ${assetTypeLabel} "${moodboard.name}"`,
           timestamp: new Date(),
+          metadata: { projectName: moodboardProject?.projectName ?? null },
         });
       }
       
@@ -4702,6 +4712,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           activityMetadata.referenceItems = referenceMetadataForStorage;
           activityMetadata.referenceCount = referenceMetadataForStorage.length;
         }
+
+        if (validatedProjectId) {
+          const renderProject = await storage.getProject(validatedProjectId);
+          activityMetadata.projectName = renderProject?.projectName ?? null;
+        }
         
         await storage.createActivity({
           userId: user.id,
@@ -4896,12 +4911,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Also log to activity log
+      const deadlineExtProject = currentTask.projectId ? await storage.getProject(currentTask.projectId) : null;
       await storage.createActivity({
         projectId: currentTask.projectId,
         userId: userId || null,
         activityType: 'schedule' as any,
         description: `Deadline extended for task "${currentTask.name}": ${previousDeadline} → ${newEndDate}. Reason: ${reason.trim()}`,
-        metadata: { taskId: id, previousDeadline, newDeadline: newEndDate, reason: reason.trim() },
+        metadata: { taskId: id, previousDeadline, newDeadline: newEndDate, reason: reason.trim(), projectName: deadlineExtProject?.projectName ?? null },
       } as any);
 
       res.json(task);
@@ -5375,6 +5391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userName = user.firstName && user.lastName 
           ? `${user.firstName} ${user.lastName}` 
           : user.email || 'Unknown';
+        const scheduleUploadProject = await storage.getProject(projectId);
         await storage.createActivity({
           userId: user.id,
           userName: userName,
@@ -5383,7 +5400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           description: `Uploaded project schedule: ${req.file.originalname}`,
           fileName: req.file.originalname,
           projectId: projectId,
-          metadata: { scheduleId: schedule.id, version: schedule.version }
+          metadata: { scheduleId: schedule.id, version: schedule.version, projectName: scheduleUploadProject?.projectName ?? null }
         });
       }
 
@@ -6424,14 +6441,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? `${user.claims.first_name} ${user.claims.last_name}` 
         : user?.claims?.email || 'Unknown';
       
+      const reimportProject = schedule.projectId ? await storage.getProject(schedule.projectId) : null;
       await storage.createActivity({
         userId,
         userName: userName,
         userEmail: user?.claims?.email || '',
+        projectId: schedule.projectId,
         activityType: 'schedule_reimport' as any,
         fileName: schedule.originalFilename || 'schedule',
         description: `re-imported Designer Export: ${successCount} tasks updated, ${failCount} failed`,
-        metadata: { scheduleId, successCount, failCount },
+        metadata: { scheduleId, successCount, failCount, projectName: reimportProject?.projectName ?? null },
       });
       
       res.json({
@@ -8483,6 +8502,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const userName = user.firstName && user.lastName 
               ? `${user.firstName} ${user.lastName}` 
               : user.email || 'Unknown';
+            const momUploadProject = req.body.projectId ? await storage.getProject(req.body.projectId) : null;
             await storage.createActivity({
               userId: user.id,
               userName: userName,
@@ -8496,6 +8516,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 meetingDate: req.body.meetingDate,
                 meetingType: req.body.meetingType,
                 projectId: req.body.projectId,
+                projectName: momUploadProject?.projectName ?? null,
               },
             });
           } catch (activityError) {
@@ -8573,6 +8594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userName = user.firstName && user.lastName 
             ? `${user.firstName} ${user.lastName}` 
             : user.email || 'Unknown';
+          const momDelProject = minutes.projectId ? await storage.getProject(minutes.projectId) : null;
           await storage.createActivity({
             userId: user.id,
             userName: userName,
@@ -8586,6 +8608,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               meetingDate: minutes.meetingDate,
               meetingType: minutes.meetingType,
               projectId: minutes.projectId,
+              projectName: momDelProject?.projectName ?? null,
             },
           });
         } catch (activityError) {
@@ -9142,6 +9165,8 @@ Return your response in the following JSON format only (no markdown, no code blo
           const userName = user.firstName && user.lastName 
             ? `${user.firstName} ${user.lastName}` 
             : user.email || 'Unknown';
+          const woCreatePV = await storage.getProjectVendor(order.projectVendorId);
+          const woCreateProject = woCreatePV?.projectId ? await storage.getProject(woCreatePV.projectId) : null;
           await storage.createActivity({
             userId: user.id,
             userName: userName,
@@ -9154,6 +9179,7 @@ Return your response in the following JSON format only (no markdown, no code blo
               worksOrderId: order.id,
               orderNumber: order.orderNumber,
               projectVendorId: order.projectVendorId,
+              projectName: woCreateProject?.projectName ?? null,
             },
           });
         } catch (activityError) {
@@ -9223,6 +9249,8 @@ Return your response in the following JSON format only (no markdown, no code blo
           const userName = user.firstName && user.lastName 
             ? `${user.firstName} ${user.lastName}` 
             : user.email || 'Unknown';
+          const woSendPV = await storage.getProjectVendor(order.projectVendorId);
+          const woSendProject = woSendPV?.projectId ? await storage.getProject(woSendPV.projectId) : null;
           await storage.createActivity({
             userId: user.id,
             userName: userName,
@@ -9235,6 +9263,7 @@ Return your response in the following JSON format only (no markdown, no code blo
               worksOrderId: order.id,
               orderNumber: order.orderNumber,
               projectVendorId: order.projectVendorId,
+              projectName: woSendProject?.projectName ?? null,
             },
           });
         } catch (activityError) {
@@ -9276,6 +9305,8 @@ Return your response in the following JSON format only (no markdown, no code blo
           const userName = user.firstName && user.lastName 
             ? `${user.firstName} ${user.lastName}` 
             : user.email || 'Unknown';
+          const woVoidPV = await storage.getProjectVendor(order.projectVendorId);
+          const woVoidProject = woVoidPV?.projectId ? await storage.getProject(woVoidPV.projectId) : null;
           await storage.createActivity({
             userId: user.id,
             userName: userName,
@@ -9289,6 +9320,7 @@ Return your response in the following JSON format only (no markdown, no code blo
               orderNumber: order.orderNumber,
               projectVendorId: order.projectVendorId,
               voidReason: reason,
+              projectName: woVoidProject?.projectName ?? null,
             },
           });
         } catch (activityError) {
@@ -9325,6 +9357,8 @@ Return your response in the following JSON format only (no markdown, no code blo
           const userName = user.firstName && user.lastName 
             ? `${user.firstName} ${user.lastName}` 
             : user.email || 'Unknown';
+          const woDelPV = await storage.getProjectVendor(order.projectVendorId);
+          const woDelProject = woDelPV?.projectId ? await storage.getProject(woDelPV.projectId) : null;
           await storage.createActivity({
             userId: user.id,
             userName: userName,
@@ -9337,6 +9371,7 @@ Return your response in the following JSON format only (no markdown, no code blo
               worksOrderId: order.id,
               orderNumber: order.orderNumber,
               projectVendorId: order.projectVendorId,
+              projectName: woDelProject?.projectName ?? null,
             },
           });
         } catch (activityError) {
@@ -9419,6 +9454,8 @@ Return your response in the following JSON format only (no markdown, no code blo
       
       // Log activity (no user context for public signatures)
       try {
+        const woSignPV = await storage.getProjectVendor(order.projectVendorId);
+        const woSignProject = woSignPV?.projectId ? await storage.getProject(woSignPV.projectId) : null;
         await storage.createActivity({
           userId: '', // No user for public signatures
           userName: validated.signerName,
@@ -9433,6 +9470,7 @@ Return your response in the following JSON format only (no markdown, no code blo
             signatureId: signature.id,
             signerName: validated.signerName,
             signerEmail: validated.signerEmail,
+            projectName: woSignProject?.projectName ?? null,
           },
         });
       } catch (activityError) {
@@ -9568,6 +9606,7 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       // Log activity
       try {
+        const woImportProject = await storage.getProject(projectId);
         await storage.createActivity({
           userId,
           userName: (req.user as any).claims.name || 'Unknown',
@@ -9584,6 +9623,7 @@ Return your response in the following JSON format only (no markdown, no code blo
             projectId,
             imported: true,
             fileCount: files.length,
+            projectName: woImportProject?.projectName ?? null,
           },
         });
       } catch (activityError) {
