@@ -263,7 +263,13 @@ export default function DashboardPage() {
         overdueCount: overdueCountByProject[entry.projectId] || 0,
       }))
       .filter(entry => entry.total > 0)
-      .sort((a, b) => b.remaining - a.remaining);
+      .sort((a, b) => {
+        const aOverdue = a.overdueCount > 0;
+        const bOverdue = b.overdueCount > 0;
+        if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
+        if (aOverdue && bOverdue) return b.overdueCount - a.overdueCount;
+        return b.remaining - a.remaining;
+      });
   })();
 
   return (
