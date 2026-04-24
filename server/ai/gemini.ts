@@ -671,7 +671,8 @@ OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image.`;
 
 export async function generatePhotorealConversion(
   imageBase64: string,
-  mimeType: string
+  mimeType: string,
+  alterationNotes?: string
 ): Promise<{ imageData: string; mimeType: string }> {
   console.log("[Gemini] Starting photoreal conversion...");
 
@@ -774,7 +775,15 @@ PHOTOGRAPHIC QUALITY — DSLR ARCHITECTURAL SHOOT
 ═══════════════════════════════════════════════════════
 OUTPUT STANDARD
 ═══════════════════════════════════════════════════════
-The output must be indistinguishable from a photograph published in Architectural Digest or AD100. A viewer must genuinely question whether it is a photograph or a render. Generate at the highest possible resolution and quality. The geometry of every object is identical to the input — only the material quality, lighting, and photographic properties have been transformed.`;
+The output must be indistinguishable from a photograph published in Architectural Digest or AD100. A viewer must genuinely question whether it is a photograph or a render. Generate at the highest possible resolution and quality. The geometry of every object is identical to the input — only the material quality, lighting, and photographic properties have been transformed.${alterationNotes ? `
+
+═══════════════════════════════════════════════════════
+REQUESTED DESIGN ALTERATIONS
+═══════════════════════════════════════════════════════
+While maintaining the geometry lock above, apply these specific design changes to the materials, colours, or finishes only — do NOT add or remove any objects:
+${alterationNotes.trim()}
+
+These alterations must be applied as realistic material/colour/finish changes only. Do not alter room structure, object placement, or count.` : ''}`;
 
     const parts: any[] = [
       { text: prompt },
