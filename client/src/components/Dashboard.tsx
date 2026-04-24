@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -318,9 +319,20 @@ export default function Dashboard({
                         {projectName && (
                           <>
                             <span className="text-xs">·</span>
-                            <span className="text-xs truncate max-w-[100px]" data-testid={`text-project-${activity.id}`}>
-                              {projectName}
-                            </span>
+                            {proj ? (
+                              <Link
+                                href={`/projects/${activity.projectId}`}
+                                className="text-xs truncate max-w-[100px] hover:underline"
+                                style={{ color: "#0071e3" }}
+                                data-testid={`text-project-${activity.id}`}
+                              >
+                                {projectName}
+                              </Link>
+                            ) : (
+                              <span className="text-xs truncate max-w-[100px]" data-testid={`text-project-${activity.id}`}>
+                                {projectName}
+                              </span>
+                            )}
                           </>
                         )}
                         <span className="text-xs">·</span>
