@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { RecentBadge } from "@/components/RecentBadge";
 import { format } from "date-fns";
 import type { Moodboard, Project, User, FloorPlan } from "@shared/schema";
 import { User as UserIcon } from "lucide-react";
@@ -937,9 +938,12 @@ export default function MoodboardsPage() {
                           {roomItems.map((moodboard: Moodboard) => (
                             <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate" data-testid={`render-item-${moodboard.id}`}>
                               <div className="flex-1 min-w-0">
-                                <h4 className="font-semibold text-base truncate mb-1" title={moodboard.name}>
-                                  {moodboard.name}
-                                </h4>
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  <h4 className="font-semibold text-base truncate" title={moodboard.name}>
+                                    {moodboard.name}
+                                  </h4>
+                                  <RecentBadge date={moodboard.uploadedAt} />
+                                </div>
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                                   <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
                                   {(moodboard as any).savedBy && getSavedByName((moodboard as any).savedBy) && (
@@ -1123,6 +1127,7 @@ export default function MoodboardsPage() {
                                       </Badge>
                                     )}
                                     {isCAD && <Badge variant="secondary" className="text-xs shrink-0 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">CAD</Badge>}
+                                    <RecentBadge date={moodboard.uploadedAt} />
                                   </div>
                                   <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                                     {cadMeta ? (
@@ -1241,9 +1246,12 @@ export default function MoodboardsPage() {
                       <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate" data-testid={`drawing-item-${moodboard.id}`}>
                         {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-base truncate mb-1" title={getDisplayTitle(moodboard)}>
-                            {getDisplayTitle(moodboard) || labels.listMetadataText}
-                          </h4>
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <h4 className="font-medium text-base truncate" title={getDisplayTitle(moodboard)}>
+                              {getDisplayTitle(moodboard) || labels.listMetadataText}
+                            </h4>
+                            <RecentBadge date={moodboard.uploadedAt} />
+                          </div>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                             {moodboard.description && moodboard.fileName && (
                               <>
