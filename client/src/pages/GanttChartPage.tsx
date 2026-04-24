@@ -1,4 +1,5 @@
 import { useState, useMemo, Fragment, useRef } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -68,10 +69,19 @@ export default function GanttChartPage() {
   const isAdmin = currentUser?.role === 'admin';
   const canEditRemarks = currentUser?.role === 'admin' || currentUser?.role === 'designer' || currentUser?.role === 'project_manager';
   const canEditProgress = currentUser?.role === 'admin' || currentUser?.role === 'designer' || currentUser?.role === 'project_manager';
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("projectId") || "";
-  });
+  const [location, setLocation] = useLocation();
+  const search = useSearch();
+  const selectedProjectId = new URLSearchParams(search).get("projectId") || "";
+  const setSelectedProjectId = (value: string) => {
+    const params = new URLSearchParams(search);
+    if (value) {
+      params.set("projectId", value);
+    } else {
+      params.delete("projectId");
+    }
+    const qs = params.toString();
+    setLocation(qs ? `${location}?${qs}` : location);
+  };
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importProjectId, setImportProjectId] = useState<string>("");
