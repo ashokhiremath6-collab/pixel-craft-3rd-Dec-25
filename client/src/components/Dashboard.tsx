@@ -42,6 +42,7 @@ interface ProjectTaskBreakdownEntry {
   total: number;
   completed: number;
   remaining: number;
+  overdueCount?: number;
 }
 
 interface DashboardProps {
@@ -442,6 +443,7 @@ export default function Dashboard({
                 <div className="px-6 pb-6 flex flex-col gap-3" data-testid="project-task-breakdown">
                   {(showAllProjects ? projectTaskBreakdown : projectTaskBreakdown.slice(0, 5)).map(entry => {
                     const pct = entry.total > 0 ? Math.round((entry.completed / entry.total) * 100) : 0;
+                    const hasOverdue = (entry.overdueCount ?? 0) > 0;
                     return (
                       <button
                         key={entry.projectId}
@@ -455,6 +457,15 @@ export default function Dashboard({
                             {entry.projectName}
                           </span>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {hasOverdue && (
+                              <span
+                                className="text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                                style={{ background: "#fef2f2", color: "#991b1b" }}
+                                data-testid={`breakdown-overdue-badge-${entry.projectId}`}
+                              >
+                                {entry.overdueCount} overdue
+                              </span>
+                            )}
                             <span className="text-[11px] font-semibold" style={{ color: "#6366f1" }}>
                               {entry.completed}/{entry.total}
                             </span>

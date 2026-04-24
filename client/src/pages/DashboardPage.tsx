@@ -234,6 +234,13 @@ export default function DashboardPage() {
     ? allTasksData.filter(t => isActionableTask(t) && !isTaskCompleted(t)).length
     : 0;
 
+  const overdueCountByProject = taskAlerts.overdue.reduce((acc, task) => {
+    if (task.projectId) {
+      acc[task.projectId] = (acc[task.projectId] || 0) + 1;
+    }
+    return acc;
+  }, {} as Record<string, number>);
+
   const projectTaskBreakdown = (() => {
     if (!allTasksData) return [];
     const map: Record<string, { projectId: string; projectName: string; total: number; completed: number }> = {};
@@ -250,7 +257,11 @@ export default function DashboardPage() {
       }
     });
     return Object.values(map)
-      .map(entry => ({ ...entry, remaining: entry.total - entry.completed }))
+      .map(entry => ({
+        ...entry,
+        remaining: entry.total - entry.completed,
+        overdueCount: overdueCountByProject[entry.projectId] || 0,
+      }))
       .filter(entry => entry.total > 0)
       .sort((a, b) => b.remaining - a.remaining);
   })();
