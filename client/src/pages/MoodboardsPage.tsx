@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,20 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 export default function MoodboardsPage() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
+  const search = useSearch();
+  const filterProjectId = new URLSearchParams(search).get("projectId") || "";
+  const setFilterProjectId = (value: string) => {
+    const params = new URLSearchParams(search);
+    if (value) {
+      params.set("projectId", value);
+    } else {
+      params.delete("projectId");
+    }
+    const qs = params.toString();
+    setLocation(qs ? `${location}?${qs}` : location);
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cadFileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -43,8 +56,6 @@ export default function MoodboardsPage() {
   const [canvaLink, setCanvaLink] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
   const [selectedFolder, setSelectedFolder] = useState<string>(""); // For working drawings folder
-  // Require project selection - no "all" option
-  const [filterProjectId, setFilterProjectId] = useState<string>("");
   const [previewImage, setPreviewImage] = useState<Moodboard | null>(null);
   const [floorPlanViewer, setFloorPlanViewer] = useState<{url: string, name: string} | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);

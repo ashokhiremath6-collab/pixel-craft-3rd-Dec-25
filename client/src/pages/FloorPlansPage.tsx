@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,12 +39,25 @@ const editFormSchema = z.object({
 type EditFormData = z.infer<typeof editFormSchema>;
 
 export default function FloorPlansPage() {
+  const [location, setLocation] = useLocation();
+  const search = useSearch();
+  const selectedProjectId = new URLSearchParams(search).get("projectId") || "";
+  const setSelectedProjectId = (value: string) => {
+    const params = new URLSearchParams(search);
+    if (value) {
+      params.set("projectId", value);
+    } else {
+      params.delete("projectId");
+    }
+    const qs = params.toString();
+    setLocation(qs ? `${location}?${qs}` : location);
+  };
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingFloorPlan, setEditingFloorPlan] = useState<FloorPlan | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [viewingFloorPlan, setViewingFloorPlan] = useState<FloorPlan | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
