@@ -49,4 +49,4 @@ RESEND_API_KEY = "re_YqUaP7bV_CmvvVfsT9LQqqGmsDetsEzG7"
 
 [postMerge]
 path = "scripts/post-merge.sh"
-timeoutMs = 20000
+timeoutMs = 60000
