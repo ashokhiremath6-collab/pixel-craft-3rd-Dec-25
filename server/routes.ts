@@ -6011,11 +6011,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return idA - idB;
       });
       
-      // Track row numbers for blank row insertion
-      const blankRowsAfter = [7, 130]; // Insert 2 blank rows after these task numbers
-      
       // Add data rows
       let seq = 1;
+      let totalDataRows = 0;
       for (const task of sortedTasks) {
         const isPhase = isPhaseHeader(task.name || '');
         const taskOverdue = isOverdue(task);
@@ -6068,13 +6066,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Get reference to progress cell for styling
         const progressCell = row.getCell('progress');
         
-        // Insert blank rows after specified task numbers
-        if (blankRowsAfter.includes(seq)) {
-          worksheet.addRow({});
-          worksheet.addRow({});
-        }
-        
         seq++;
+        totalDataRows++;
         
         // Style phase header rows
         if (isPhase) {
@@ -6168,7 +6161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Auto-filter for the data (6 visible columns now - Priority moved to hidden)
       worksheet.autoFilter = {
         from: { row: 1, column: 1 },
-        to: { row: sortedTasks.length + 1, column: 6 }
+        to: { row: totalDataRows + 1, column: 6 }
       };
       
       // Add Instructions sheet SECOND (so it's the 2nd tab)
