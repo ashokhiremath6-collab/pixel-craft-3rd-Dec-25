@@ -41,26 +41,36 @@ export default function DashboardPage() {
     queryKey: ['/api/vendors'],
     enabled: isDesignerOrAdmin,
     staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery<VendorCategory[]>({
     queryKey: ['/api/vendor-categories/tree'],
     staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   const { data: quotationsData, isLoading: quotationsLoading } = useQuery<QuotationsResponse>({
     queryKey: ['/api/quotations'],
     staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   const { data: projectsData } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
     staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   const { data: activitiesData, isLoading: activitiesLoading } = useQuery<ActivityLog[]>({
     queryKey: ['/api/activities'],
     staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   const { data: allTasksData } = useQuery<Task[]>({

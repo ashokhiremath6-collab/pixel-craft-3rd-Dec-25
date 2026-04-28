@@ -4862,6 +4862,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk-complete a set of tasks (admin, designer, project_manager)
+  app.patch("/api/tasks/bulk-complete", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any)?.id;
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role || 'client';
+      if (role === 'client') return res.status(403).json({ error: "Not authorised" });
+      const { taskIds } = req.body;
+      if (!Array.isArray(taskIds) || taskIds.length === 0) {
+        return res.status(400).json({ error: "taskIds array required" });
+      }
+      const updated = await Promise.all(
+        taskIds.map(id => storage.updateTask(id, { progressPercentage: '100', status: 'completed' }))
+      );
+      res.json({ updated: updated.filter(Boolean).length });
+    } catch (error) {
+      console.error('Error bulk completing tasks:', error);
+      res.status(500).json({ error: "Failed to bulk complete tasks" });
+    }
+  });
+
   // Update task remarks (open to any authenticated user, not just admin)
   app.patch("/api/tasks/:id/remarks", requireAuth, async (req, res) => {
     try {
@@ -5674,6 +5695,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const createdTasks = [];
       const errors: Array<{ row: number; error: string }> = [];
       let skippedEmpty = 0;
+      // Separate insertion index so blank/skipped rows don't consume rowIndex slots.
+      // This ensures tasks are numbered 0, 1, 2... in insertion order, not by raw Excel row position.
+      let rowInsertIndex = 0;
       const HEADER_PLACEHOLDER_DATE = '2099-12-31';
       
       for (let i = 0; i < taskData.length; i++) {
@@ -5758,7 +5782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             projectId,
             scheduleId: schedule.id,
             taskId,
-            rowIndex: i,
+            rowIndex: rowInsertIndex++,
             name: finalName,
             description: safeStr(getCol(row, 'Description', 'Remarks', 'Notes', 'Comments')) || '',
             startDate,
@@ -6006,11 +6030,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return new Date(task.endDate) < new Date();
       };
       
-      // Sort tasks by task_id to preserve original Excel order
+      // Sort tasks by rowIndex (original Excel row position) then createdAt as tiebreaker
+      // rowIndex is dense (0-based) from import; createdAt preserves insertion batch order
       const sortedTasks = [...tasks].sort((a, b) => {
-        const idA = parseInt(a.taskId || '0', 10);
-        const idB = parseInt(b.taskId || '0', 10);
-        return idA - idB;
+        const rowA = a.rowIndex !== null && a.rowIndex !== undefined ? a.rowIndex : Infinity;
+        const rowB = b.rowIndex !== null && b.rowIndex !== undefined ? b.rowIndex : Infinity;
+        if (rowA !== rowB) return rowA - rowB;
+        const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return createdA - createdB;
       });
       
       // Add data rows

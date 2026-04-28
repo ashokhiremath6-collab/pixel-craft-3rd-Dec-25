@@ -400,6 +400,22 @@ export default function GanttChartPage() {
     },
   });
 
+  // Bulk-complete overdue tasks
+  const bulkCompleteMutation = useMutation({
+    mutationFn: async (taskIds: string[]) => {
+      return await apiRequest('PATCH', '/api/tasks/bulk-complete', { taskIds });
+    },
+    onSuccess: (_, taskIds) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      setPendingExcelChanges(prev => prev + taskIds.length);
+      toast({ title: `${taskIds.length} task${taskIds.length !== 1 ? 's' : ''} marked as completed` });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to complete tasks", variant: "destructive" });
+    },
+  });
+
   // Re-import Designer Export mutation
   const reimportMutation = useMutation({
     mutationFn: async ({ scheduleId, file }: { scheduleId: string; file: File }) => {
@@ -1239,7 +1255,8 @@ export default function GanttChartPage() {
         }
 
         // Count stats
-        const overdueCount = tasks.filter(isTaskOverdue).length;
+        const overdueTasks = tasks.filter(isTaskOverdue);
+        const overdueCount = overdueTasks.length;
         const completedCount = tasks.filter(t => t.status === 'completed').length;
         const inProgressCount = tasks.filter(t => t.status === 'in_progress').length;
 
@@ -1327,6 +1344,23 @@ export default function GanttChartPage() {
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4 text-red-500" />
                     <span className="text-sm"><strong>{overdueCount}</strong> overdue</span>
+                    {overdueCount > 0 && canEditProgress && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1 border-red-300 text-red-700 dark:border-red-700 dark:text-red-400"
+                        disabled={bulkCompleteMutation.isPending}
+                        onClick={() => {
+                          if (confirm(`Mark all ${overdueCount} overdue task${overdueCount !== 1 ? 's' : ''} as completed?`)) {
+                            bulkCompleteMutation.mutate(overdueTasks.map(t => t.id));
+                          }
+                        }}
+                        data-testid="button-bulk-complete-overdue"
+                      >
+                        <CheckCircle2 className="h-3 w-3" />
+                        Mark all done
+                      </Button>
+                    )}
                   </div>
                   <div className="flex-1" />
                   {pendingExcelChanges > 0 && selectedProjectId && (
