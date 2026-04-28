@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment, useRef } from "react";
+import { useState, useMemo, Fragment, useRef, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -126,6 +126,32 @@ export default function GanttChartPage() {
   // Deadline history popover
   const [deadlineHistoryTaskId, setDeadlineHistoryTaskId] = useState<string | null>(null);
   
+  // Excel sync indicator: counts task edits made since last download
+  const [pendingExcelChanges, setPendingExcelChanges] = useState(0);
+  useEffect(() => { setPendingExcelChanges(0); }, [selectedProjectId]);
+
+  const downloadLatestExcel = async () => {
+    if (!selectedProjectId) return;
+    try {
+      const response = await fetch(`/api/schedules/export/${selectedProjectId}`);
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const cd = response.headers.get('Content-Disposition');
+      const match = cd?.match(/filename="(.+)"/);
+      a.download = match ? match[1] : 'Project_Schedule.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setPendingExcelChanges(0);
+    } catch {
+      toast({ title: "Export Failed", description: "Could not download schedule", variant: "destructive" });
+    }
+  };
+
   // Re-import Designer Export
   const [reimportScheduleId, setReimportScheduleId] = useState<string | null>(null);
   const reimportInputRef = useRef<HTMLInputElement>(null);
@@ -268,6 +294,7 @@ export default function GanttChartPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       setEditingProgressTaskId(null);
+      setPendingExcelChanges(prev => prev + 1);
       toast({ title: "Success", description: "Progress updated" });
     },
     onError: (error: any) => {
@@ -288,6 +315,7 @@ export default function GanttChartPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       setEditingEndDateTaskId(null);
+      setPendingExcelChanges(prev => prev + 1);
       toast({ title: "Success", description: "End date updated" });
     },
     onError: (error: any) => {
@@ -308,6 +336,7 @@ export default function GanttChartPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       setEditingStartDateTaskId(null);
+      setPendingExcelChanges(prev => prev + 1);
       toast({ title: "Success", description: "Start date updated" });
     },
     onError: (error: any) => {
@@ -331,6 +360,7 @@ export default function GanttChartPage() {
       setExtendDeadlineTask(null);
       setExtendDeadlineNewDate('');
       setExtendDeadlineReason('');
+      setPendingExcelChanges(prev => prev + 1);
       toast({ title: "Deadline Extended", description: "The new deadline has been saved and the extension has been recorded." });
     },
     onError: (error: any) => {
@@ -362,6 +392,7 @@ export default function GanttChartPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       setRemarksOpenTaskId(null);
+      setPendingExcelChanges(prev => prev + 1);
       toast({ title: "Remarks saved" });
     },
     onError: (error: any) => {
@@ -1298,9 +1329,17 @@ export default function GanttChartPage() {
                     <span className="text-sm"><strong>{overdueCount}</strong> overdue</span>
                   </div>
                   <div className="flex-1" />
-                  <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 px-2 py-1 rounded border border-blue-200 dark:border-blue-800">
-                    Tip: Click status badges to toggle complete/incomplete
-                  </div>
+                  {pendingExcelChanges > 0 && selectedProjectId && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                      onClick={downloadLatestExcel}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download Updated Excel ({pendingExcelChanges} change{pendingExcelChanges !== 1 ? 's' : ''})
+                    </Button>
+                  )}
                   <div className="text-sm text-muted-foreground">
                     {Math.round((completedCount / tasks.length) * 100)}% complete
                   </div>
