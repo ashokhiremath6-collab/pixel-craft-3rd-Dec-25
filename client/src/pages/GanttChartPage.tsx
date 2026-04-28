@@ -155,27 +155,6 @@ export default function GanttChartPage() {
     setExpandedPhases(new Set());
   }, [selectedProjectId]);
 
-  // Auto-expand all phase groups when tasks first load for a project
-  useEffect(() => {
-    if (tasks.length === 0) return;
-    // Guard against stale cached tasks from a different project
-    if (selectedProjectId && !tasks.some(t => t.projectId === selectedProjectId)) return;
-    setExpandedPhases(prev => {
-      // Only auto-expand on fresh load (empty set); preserve user's manual choices after that
-      if (prev.size > 0) return prev;
-      const isPhase = (name: string | null | undefined) => {
-        if (!name) return false;
-        const upper = name.toUpperCase();
-        return upper.startsWith('PHASE') || upper.startsWith('PACKAGE') || upper.startsWith('EXECUTE');
-      };
-      const phases = new Set<string>();
-      tasks.forEach(task => {
-        if (isPhase(task.name)) phases.add(task.name || '');
-      });
-      return phases;
-    });
-  }, [tasks, selectedProjectId]);
-
   const downloadLatestExcel = async () => {
     if (!selectedProjectId) return;
     try {
@@ -223,6 +202,26 @@ export default function GanttChartPage() {
     staleTime: 0,
     refetchOnMount: 'always',
   });
+
+  // Auto-expand all phase groups when tasks first load for a project.
+  // Must be declared AFTER `tasks` to avoid a Temporal Dead Zone crash.
+  useEffect(() => {
+    if (tasks.length === 0) return;
+    if (selectedProjectId && !tasks.some(t => t.projectId === selectedProjectId)) return;
+    setExpandedPhases(prev => {
+      if (prev.size > 0) return prev;
+      const isPhase = (name: string | null | undefined) => {
+        if (!name) return false;
+        const upper = name.toUpperCase();
+        return upper.startsWith('PHASE') || upper.startsWith('PACKAGE') || upper.startsWith('EXECUTE');
+      };
+      const phases = new Set<string>();
+      tasks.forEach(task => {
+        if (isPhase(task.name)) phases.add(task.name || '');
+      });
+      return phases;
+    });
+  }, [tasks, selectedProjectId]);
 
   const { data: schedules = [] } = useQuery<ProjectSchedule[]>({
     queryKey: ['/api/schedules/project', selectedProjectId],
