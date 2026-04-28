@@ -5390,11 +5390,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = (req.user as any).id;
       
-      // Replace existing schedules for this project so old tasks don't accumulate
+      // Snapshot existing schedule IDs BEFORE creating new data.
+      // We delete old schedules AFTER the new import succeeds to prevent data loss
+      // if the upload or task creation fails midway.
       const existingSchedules = await storage.getProjectSchedules(projectId);
-      for (const existingSched of existingSchedules) {
-        await storage.deleteProjectSchedule(existingSched.id);
-      }
+      const oldScheduleIds = existingSchedules.map(s => s.id);
 
       // Upload file to object storage
       const filePath = await uploadToObjectStorage(
@@ -5836,6 +5836,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log(`[Schedule Import] COMPLETE: ${createdTasks.length} created, ${errors.length} failed, ${skippedEmpty} empty rows skipped, ${taskData.length} total`);
+
+      // Now that new import succeeded, delete the old schedules (and their tasks/dependencies)
+      for (const oldId of oldScheduleIds) {
+        try {
+          await storage.deleteProjectSchedule(oldId);
+        } catch (delErr) {
+          console.error(`[Schedule Import] Failed to delete old schedule ${oldId}:`, delErr);
+          // Non-fatal: new import already succeeded, old data just lingers
+        }
+      }
       
       res.status(201).json({
         message: `Imported ${createdTasks.length} of ${taskData.length} rows${skippedEmpty > 0 ? ` (${skippedEmpty} empty rows skipped)` : ''}${errors.length > 0 ? ` - ${errors.length} rows had errors` : ''}`,

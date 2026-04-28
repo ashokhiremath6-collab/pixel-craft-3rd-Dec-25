@@ -582,19 +582,28 @@ export default function GanttChartPage() {
     return new Date(dateStr);
   };
 
-  // Calculate date range for the chart
+  // Calculate date range for the chart.
+  // Exclude the placeholder "2099-12-31" sentinel used for phase headers without dates —
+  // including it would create a ~70-year chart span, freezing the browser.
+  const PLACEHOLDER_DATE = '2099-12-31';
+  const isPlaceholder = (d: string | null | undefined) => d === PLACEHOLDER_DATE;
+
   const allDates = projects.flatMap(p => [
-    parseLocalDate(p.startDate),
-    parseLocalDate(p.endDate)
+    isPlaceholder(p.startDate) ? null : parseLocalDate(p.startDate),
+    isPlaceholder(p.endDate)   ? null : parseLocalDate(p.endDate),
   ].filter(Boolean) as Date[]);
 
   // Include task dates if a project is selected
   if (selectedProjectId && tasks.length > 0) {
     tasks.forEach(task => {
-      const start = parseLocalDate(task.startDate);
-      const end = parseLocalDate(task.endDate);
-      if (start) allDates.push(start);
-      if (end) allDates.push(end);
+      if (!isPlaceholder(task.startDate)) {
+        const start = parseLocalDate(task.startDate);
+        if (start) allDates.push(start);
+      }
+      if (!isPlaceholder(task.endDate)) {
+        const end = parseLocalDate(task.endDate);
+        if (end) allDates.push(end);
+      }
     });
   }
 
@@ -621,7 +630,7 @@ export default function GanttChartPage() {
   const monthMarkers: { label: string; position: number }[] = [];
   const currentMarker = new Date(paddedMinDate.getFullYear(), paddedMinDate.getMonth(), 1);
 
-  while (currentMarker <= paddedMaxDate) {
+  while (currentMarker <= paddedMaxDate && monthMarkers.length < 500) {
     const position = ((currentMarker.getTime() - paddedMinDate.getTime()) / (paddedMaxDate.getTime() - paddedMinDate.getTime())) * 100;
     
     // Only add if no marker within 8% to prevent overlap
