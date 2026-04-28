@@ -534,9 +534,11 @@ export default function MoodboardsPage() {
     const file = files[0];
     
     // Validate file type — working drawings also allow DXF (SketchUp/AutoCAD exports)
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml', 'image/webp', 'application/pdf', 'application/vnd.sketchup.skp'];
+    // HEIC/HEIF included for iOS photo library compatibility (Safari auto-converts to JPEG but
+    // some paths may preserve the original MIME type)
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml', 'image/webp', 'image/heic', 'image/heif', 'application/pdf', 'application/vnd.sketchup.skp'];
     const ext = file.name.split('.').pop()?.toLowerCase();
-    const allowedExtensions = ['jpg', 'jpeg', 'png', 'svg', 'webp', 'pdf'];
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'svg', 'webp', 'pdf', 'heic', 'heif'];
     if (assetType === 'working_drawing') {
       allowedExtensions.push('dxf', 'dwg');
     }
@@ -1387,11 +1389,12 @@ export default function MoodboardsPage() {
               ref={fileInputRef}
               type="file"
               className="hidden"
+              multiple
               accept={assetType === 'working_drawing'
-                ? "image/jpeg,image/png,image/svg+xml,image/webp,application/pdf,.dxf,.dwg"
+                ? "image/*,application/pdf,.dxf,.dwg"
                 : assetType === 'render'
-                  ? "image/jpeg,image/png,image/svg+xml,image/webp,application/pdf,.skp,application/vnd.sketchup.skp"
-                  : "image/jpeg,image/png,image/svg+xml,image/webp,application/pdf"}
+                  ? "image/*,application/pdf,.skp,application/vnd.sketchup.skp"
+                  : "image/*,application/pdf"}
               onChange={(e) => handleFileSelect(e.target.files)}
               data-testid="input-file"
             />

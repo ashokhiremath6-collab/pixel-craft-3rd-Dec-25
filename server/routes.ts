@@ -1953,17 +1953,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'image/png',
         'image/svg+xml',
         'image/webp',
+        'image/heic',  // iOS photo library (HEIC format)
+        'image/heif',  // iOS photo library (HEIF format)
         'application/pdf', // PDF exports from Canva
       ];
       
       // Also check file extension as MIME types can be unreliable
-      const allowedExtensions = ['.jpg', '.jpeg', '.png', '.svg', '.webp', '.pdf'];
+      const allowedExtensions = ['.jpg', '.jpeg', '.png', '.svg', '.webp', '.pdf', '.heic', '.heif'];
       const fileExtension = path.extname(file.originalname).toLowerCase();
       
       if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
         cb(null, true);
       } else {
-        cb(new Error('Invalid file type. Only images (JPEG, PNG, SVG, WebP) and PDF files are allowed.'));
+        cb(new Error('Invalid file type. Only images (JPEG, PNG, SVG, WebP, HEIC) and PDF files are allowed.'));
       }
     }
   });
