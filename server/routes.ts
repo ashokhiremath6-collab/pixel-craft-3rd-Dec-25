@@ -5097,8 +5097,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Project not found" });
       }
       
-      // Get all tasks for this project
-      const tasks = await storage.getProjectTasks(projectId);
+      // Get all tasks for this project (ordered by rowIndex to preserve original Excel sequence)
+      const tasks = await storage.getTasksByProject(projectId);
       
       // Create a map of task ID to external task ID (with fallback that avoids collisions)
       const taskIdMap: Record<string, string> = {};
