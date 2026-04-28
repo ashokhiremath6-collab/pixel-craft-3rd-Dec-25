@@ -8533,6 +8533,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               activityType: 'meeting_minutes_upload',
               fileName: req.file.originalname,
               filePath: objectPath,
+              projectId: req.body.projectId || null,
               description: `uploaded meeting minutes: ${req.body.meetingTitle} (${req.body.meetingType})`,
               metadata: {
                 momId: minutes.id,
@@ -8625,6 +8626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             activityType: 'meeting_minutes_delete',
             fileName: minutes.fileName,
             filePath: minutes.filePath,
+            projectId: minutes.projectId || null,
             description: `deleted meeting minutes: ${minutes.meetingTitle} (${minutes.meetingType})`,
             metadata: {
               momId: minutes.id,
@@ -9197,6 +9199,7 @@ Return your response in the following JSON format only (no markdown, no code blo
             activityType: 'works_order_create',
             fileName: `${orderNumber}.pdf`,
             filePath: '',
+            projectId: woCreateProject?.id || null,
             description: `created works order ${orderNumber}`,
             metadata: {
               worksOrderId: order.id,
@@ -9281,6 +9284,7 @@ Return your response in the following JSON format only (no markdown, no code blo
             activityType: 'works_order_send',
             fileName: `${order.orderNumber}.pdf`,
             filePath: '',
+            projectId: woSendProject?.id || null,
             description: `sent works order ${order.orderNumber} to client`,
             metadata: {
               worksOrderId: order.id,
@@ -9337,6 +9341,7 @@ Return your response in the following JSON format only (no markdown, no code blo
             activityType: 'works_order_void',
             fileName: `${order.orderNumber}.pdf`,
             filePath: '',
+            projectId: woVoidProject?.id || null,
             description: `voided works order ${order.orderNumber}${reason ? `: ${reason}` : ''}`,
             metadata: {
               worksOrderId: order.id,
@@ -9389,6 +9394,7 @@ Return your response in the following JSON format only (no markdown, no code blo
             activityType: 'works_order_delete',
             fileName: `${order.orderNumber}.pdf`,
             filePath: '',
+            projectId: woDelProject?.id || null,
             description: `deleted works order ${order.orderNumber}`,
             metadata: {
               worksOrderId: order.id,
@@ -9486,6 +9492,7 @@ Return your response in the following JSON format only (no markdown, no code blo
           activityType: 'works_order_sign',
           fileName: `${order.orderNumber}.pdf`,
           filePath: '',
+          projectId: woSignProject?.id || null,
           description: `signed works order ${order.orderNumber}`,
           metadata: {
             worksOrderId: order.id,
@@ -9637,6 +9644,7 @@ Return your response in the following JSON format only (no markdown, no code blo
           activityType: 'works_order_create',
           fileName: `${files.length} file(s)`,
           filePath: uploadedFiles[0]?.path || '',
+          projectId: projectId || null,
           description: `created works order ${worksOrder.orderNumber} with ${files.length} file(s)`,
           metadata: {
             worksOrderId: worksOrder.id,

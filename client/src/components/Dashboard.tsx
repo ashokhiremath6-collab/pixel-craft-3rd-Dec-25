@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,14 @@ import {
   Users, Building2, FileText, TrendingUp, ArrowRight, Clock, Download,
   AlertCircle, ImageIcon, LayoutDashboard, FileCheck2, CalendarDays,
   BookOpen, Package, Trash2, Pencil, Plus, Bell, FileUp,
+  ChevronDown, ChevronRight, ExternalLink, ArrowUpDown,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Vendor, Project, ActivityLog, Task } from "@shared/schema";
 import { formatCurrencyCompact, formatVendorNameWithProjectAndCategory } from "@/lib/currencyUtils";
 import { format, formatDistanceToNow, differenceInHours, differenceInDays, startOfDay } from "date-fns";
@@ -123,6 +130,29 @@ function isVeryRecent(dateStr: string) {
   return differenceInHours(new Date(), new Date(dateStr)) < 12;
 }
 
+function getActivityNavPath(activityType: string, projectId: string | null, meta: Record<string, unknown> | null): string | null {
+  const pid = projectId || (meta?.projectId as string | null);
+  if (activityType.startsWith('floor_plan_')) return pid ? `/floor-plans?projectId=${pid}` : '/floor-plans';
+  if (activityType.startsWith('moodboard_')) return pid ? `/moodboards?projectId=${pid}` : '/moodboards';
+  if (activityType.startsWith('render_')) return pid ? `/renders?projectId=${pid}` : '/renders';
+  if (activityType.startsWith('working_drawing_')) return pid ? `/working-drawings?projectId=${pid}` : '/working-drawings';
+  if (activityType.startsWith('schedule_') || activityType === 'schedule') return pid ? `/gantt?projectId=${pid}` : '/gantt';
+  if (activityType.startsWith('quote_') || activityType.startsWith('boq_')) return pid ? `/projects` : '/quotes';
+  if (activityType.startsWith('specification_')) return '/specifications';
+  if (activityType.startsWith('catalogue_')) return '/catalogue';
+  if (activityType.startsWith('meeting_minutes_')) return pid ? `/gantt?projectId=${pid}` : null;
+  if (activityType.startsWith('works_order_')) return pid ? `/gantt?projectId=${pid}` : null;
+  return null;
+}
+
+type BreakdownSortMode = 'overdue' | 'remaining' | 'alpha' | 'least_complete';
+const BREAKDOWN_SORT_LABELS: Record<BreakdownSortMode, string> = {
+  overdue: 'Most overdue',
+  remaining: 'Most remaining',
+  alpha: 'Alphabetical',
+  least_complete: 'Least complete',
+};
+
 function ContentCard({
   children,
   className = "",
@@ -172,7 +202,37 @@ export default function Dashboard({
   onNavigate,
 }: DashboardProps) {
   const [isQuotationDetailModalOpen, setIsQuotationDetailModalOpen] = useState(false);
-  const [showAllProjects, setShowAllProjects] = useState(false);
+  const [showAllProjects, setShowAllProjects] = useState(() => localStorage.getItem('dashboard_show_all_projects') === 'true');
+  const [breakdownSortMode, setBreakdownSortMode] = useState<BreakdownSortMode>(() => {
+    const saved = localStorage.getItem('dashboard_breakdown_sort') as BreakdownSortMode | null;
+    return (saved && saved in BREAKDOWN_SORT_LABELS) ? saved : 'overdue';
+  });
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('dashboard_expanded_projects');
+      return saved ? new Set(JSON.parse(saved) as string[]) : new Set();
+    } catch { return new Set(); }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_show_all_projects', showAllProjects ? 'true' : 'false');
+  }, [showAllProjects]);
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_breakdown_sort', breakdownSortMode);
+  }, [breakdownSortMode]);
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_expanded_projects', JSON.stringify(Array.from(expandedProjectIds)));
+  }, [expandedProjectIds]);
+
+  const toggleProjectExpand = (projectId: string) => {
+    setExpandedProjectIds(prev => {
+      const next = new Set(prev);
+      if (next.has(projectId)) { next.delete(projectId); } else { next.add(projectId); }
+      return next;
+    });
+  };
 
   const handleNavigate = (path: string) => onNavigate?.(path);
 
@@ -208,6 +268,35 @@ export default function Dashboard({
   const sortedActivities = [...activities].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
+
+  // Sort breakdown based on user's chosen mode
+  const sortedBreakdown = [...projectTaskBreakdown].sort((a, b) => {
+    if (breakdownSortMode === 'overdue') {
+      if ((b.overdueCount ?? 0) !== (a.overdueCount ?? 0)) return (b.overdueCount ?? 0) - (a.overdueCount ?? 0);
+      return b.remaining - a.remaining;
+    }
+    if (breakdownSortMode === 'remaining') return b.remaining - a.remaining;
+    if (breakdownSortMode === 'alpha') return a.projectName.localeCompare(b.projectName);
+    if (breakdownSortMode === 'least_complete') {
+      const pctA = a.total > 0 ? a.completed / a.total : 0;
+      const pctB = b.total > 0 ? b.completed / b.total : 0;
+      return pctA - pctB;
+    }
+    return 0;
+  });
+
+  // Index where overdue projects end (for section divider)
+  const firstNonOverdueIdx = sortedBreakdown.findIndex(e => (e.overdueCount ?? 0) === 0);
+
+  // Overdue tasks grouped by project
+  const overdueByProject: Record<string, TaskWithMeta[]> = {};
+  taskAlerts.overdue.forEach(t => {
+    if (!t.projectId) return;
+    if (!overdueByProject[t.projectId]) overdueByProject[t.projectId] = [];
+    overdueByProject[t.projectId].push(t);
+  });
+  // Sort overdue tasks within each project: most overdue first (largest daysOverdue)
+  Object.values(overdueByProject).forEach(arr => arr.sort((a, b) => (b.daysOverdue ?? 0) - (a.daysOverdue ?? 0)));
 
   return (
     <div className="min-h-full px-4 py-6 sm:px-8 sm:py-10" style={{ background: "hsl(var(--background))" }}>
@@ -259,11 +348,13 @@ export default function Dashboard({
               {sortedActivities.slice(0, 18).map(activity => {
                 const cfg = getActivityConfig(activity.activityType);
                 const IconComp = cfg.icon;
-                const proj = projects.find(p => p.id === activity.projectId);
-                const activityMeta = activity.metadata as { projectName?: string | null } | null;
+                const activityMeta = activity.metadata as { projectName?: string | null; projectId?: string | null } | null;
+                const effectiveProjectId = activity.projectId || activityMeta?.projectId || null;
+                const proj = projects.find(p => p.id === effectiveProjectId);
                 const projectName = proj?.projectName ?? activityMeta?.projectName ?? null;
                 const recent = isVeryRecent(activity.createdAt);
                 const verb = getActivityVerb(activity.activityType);
+                const navPath = getActivityNavPath(activity.activityType, effectiveProjectId, activityMeta as Record<string, unknown> | null);
 
                 return (
                   <div
@@ -300,14 +391,27 @@ export default function Dashboard({
 
                       {/* File name */}
                       {activity.fileName && (
-                        <div
-                          className="text-sm font-medium mt-0.5 truncate"
-                          style={{ color: "#111827" }}
-                          data-testid={`text-filename-${activity.id}`}
-                          title={activity.fileName}
-                        >
-                          {activity.fileName}
-                        </div>
+                        navPath ? (
+                          <button
+                            className="text-sm font-medium mt-0.5 truncate flex items-center gap-1 hover:underline text-left w-full"
+                            style={{ color: "#111827" }}
+                            data-testid={`text-filename-${activity.id}`}
+                            title={activity.fileName}
+                            onClick={e => { e.stopPropagation(); handleNavigate(navPath); }}
+                          >
+                            <span className="truncate">{activity.fileName}</span>
+                            <ExternalLink className="h-3 w-3 flex-shrink-0" style={{ color: "#9ca3af" }} />
+                          </button>
+                        ) : (
+                          <div
+                            className="text-sm font-medium mt-0.5 truncate"
+                            style={{ color: "#111827" }}
+                            data-testid={`text-filename-${activity.id}`}
+                            title={activity.fileName}
+                          >
+                            {activity.fileName}
+                          </div>
+                        )
                       )}
 
                       {/* Who + project + time */}
@@ -432,60 +536,128 @@ export default function Dashboard({
             </div>
 
             {/* Project Task Breakdown */}
-            {projectTaskBreakdown.length > 0 && (
+            {sortedBreakdown.length > 0 && (
               <ContentCard>
-                <div className="px-6 pt-6 pb-4 flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" style={{ color: "#6366f1" }} />
-                  <h2 className="text-[18px] font-semibold" style={{ color: "#111827" }}>
-                    Tasks by Project
-                  </h2>
+                <div className="px-6 pt-6 pb-4 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" style={{ color: "#6366f1" }} />
+                    <h2 className="text-[18px] font-semibold" style={{ color: "#111827" }}>
+                      Tasks by Project
+                    </h2>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" style={{ color: "#6366f1" }}>
+                        <ArrowUpDown className="h-3 w-3" />
+                        {BREAKDOWN_SORT_LABELS[breakdownSortMode]}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {(Object.keys(BREAKDOWN_SORT_LABELS) as BreakdownSortMode[]).map(mode => (
+                        <DropdownMenuItem
+                          key={mode}
+                          onClick={() => setBreakdownSortMode(mode)}
+                          className={breakdownSortMode === mode ? "font-semibold" : ""}
+                        >
+                          {BREAKDOWN_SORT_LABELS[mode]}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 <div className="px-6 pb-6 flex flex-col gap-3" data-testid="project-task-breakdown">
-                  {(showAllProjects ? projectTaskBreakdown : projectTaskBreakdown.slice(0, 5)).map(entry => {
+                  {(showAllProjects ? sortedBreakdown : sortedBreakdown.slice(0, 5)).map((entry, idx) => {
                     const pct = entry.total > 0 ? Math.round((entry.completed / entry.total) * 100) : 0;
                     const hasOverdue = (entry.overdueCount ?? 0) > 0;
+                    const isExpanded = expandedProjectIds.has(entry.projectId);
+                    const projectOverdueTasks = overdueByProject[entry.projectId] ?? [];
+                    // Section divider before first on-track project (only in 'overdue' sort mode)
+                    const showDivider = breakdownSortMode === 'overdue' &&
+                      firstNonOverdueIdx > 0 && idx === firstNonOverdueIdx;
                     return (
-                      <button
-                        key={entry.projectId}
-                        data-testid={`breakdown-project-${entry.projectId}`}
-                        onClick={() => handleNavigate(`/gantt?projectId=${entry.projectId}`)}
-                        className="w-full text-left flex flex-col gap-1.5 p-3 rounded-[12px] hover-elevate active-elevate-2"
-                        style={{ background: "#f9fafb" }}
-                      >
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className="text-xs font-medium truncate flex-1 min-w-0" style={{ color: "#111827" }}>
-                            {entry.projectName}
-                          </span>
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            {hasOverdue && (
-                              <span
-                                className="text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                                style={{ background: "#fef2f2", color: "#991b1b" }}
-                                data-testid={`breakdown-overdue-badge-${entry.projectId}`}
-                              >
-                                {entry.overdueCount} overdue
-                              </span>
-                            )}
-                            <span className="text-[11px] font-semibold" style={{ color: "#6366f1" }}>
-                              {entry.completed}/{entry.total}
-                            </span>
-                            <span className="text-[11px] px-1.5 py-0.5 rounded-full font-semibold"
-                              style={{ background: entry.remaining === 0 ? "#dcfce7" : "#eff6ff", color: entry.remaining === 0 ? "#166534" : "#1d4ed8" }}>
-                              {entry.remaining === 0 ? "Done" : `${entry.remaining} left`}
-                            </span>
+                      <div key={entry.projectId}>
+                        {showDivider && (
+                          <div className="flex items-center gap-2 py-1">
+                            <div className="flex-1 border-t" style={{ borderColor: "#e5e7eb" }} />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider px-2" style={{ color: "#9ca3af" }}>On Track</span>
+                            <div className="flex-1 border-t" style={{ borderColor: "#e5e7eb" }} />
                           </div>
+                        )}
+                        <div
+                          className="flex flex-col gap-0 rounded-[12px] overflow-hidden"
+                          style={{ background: "#f9fafb", border: "1px solid #f3f4f6" }}
+                        >
+                          <div className="flex items-stretch">
+                            <button
+                              data-testid={`breakdown-project-${entry.projectId}`}
+                              onClick={() => handleNavigate(`/gantt?projectId=${entry.projectId}`)}
+                              className="flex-1 text-left flex flex-col gap-1.5 p-3 hover-elevate active-elevate-2"
+                            >
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <span className="text-xs font-medium truncate flex-1 min-w-0" style={{ color: "#111827" }}>
+                                  {entry.projectName}
+                                </span>
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  {hasOverdue && (
+                                    <span
+                                      className="text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                                      style={{ background: "#fef2f2", color: "#991b1b" }}
+                                      data-testid={`breakdown-overdue-badge-${entry.projectId}`}
+                                    >
+                                      {entry.overdueCount} overdue
+                                    </span>
+                                  )}
+                                  <span className="text-[11px] font-semibold" style={{ color: "#6366f1" }}>
+                                    {entry.completed}/{entry.total}
+                                  </span>
+                                  <span className="text-[11px] px-1.5 py-0.5 rounded-full font-semibold"
+                                    style={{ background: entry.remaining === 0 ? "#dcfce7" : "#eff6ff", color: entry.remaining === 0 ? "#166534" : "#1d4ed8" }}>
+                                    {entry.remaining === 0 ? "Done" : `${entry.remaining} left`}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="w-full rounded-full overflow-hidden" style={{ height: 5, background: "#e5e7eb" }}>
+                                <div
+                                  className="h-full rounded-full transition-all"
+                                  style={{ width: `${pct}%`, background: pct === 100 ? "#22c55e" : "#6366f1" }}
+                                />
+                              </div>
+                              <span className="text-[10px]" style={{ color: "#9ca3af" }}>{pct}% complete</span>
+                            </button>
+                            {projectOverdueTasks.length > 0 && (
+                              <button
+                                onClick={() => toggleProjectExpand(entry.projectId)}
+                                className="px-2 flex items-start pt-3 hover-elevate"
+                                title={isExpanded ? "Collapse" : "Show overdue tasks"}
+                                style={{ color: "#9ca3af" }}
+                              >
+                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              </button>
+                            )}
+                          </div>
+                          {isExpanded && projectOverdueTasks.length > 0 && (
+                            <div className="border-t flex flex-col gap-0" style={{ borderColor: "#e5e7eb" }}>
+                              {projectOverdueTasks.map(task => (
+                                <div
+                                  key={task.id}
+                                  className="flex items-center justify-between gap-2 px-3 py-2 text-[11px]"
+                                  style={{ borderBottom: "1px solid #f3f4f6" }}
+                                >
+                                  <span className="truncate flex-1" style={{ color: "#374151" }}>{task.name}</span>
+                                  {task.daysOverdue != null && task.daysOverdue > 0 && (
+                                    <span className="flex-shrink-0 font-semibold" style={{ color: "#dc2626" }}>
+                                      {task.daysOverdue}d overdue
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <div className="w-full rounded-full overflow-hidden" style={{ height: 5, background: "#e5e7eb" }}>
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{ width: `${pct}%`, background: pct === 100 ? "#22c55e" : "#6366f1" }}
-                          />
-                        </div>
-                        <span className="text-[10px]" style={{ color: "#9ca3af" }}>{pct}% complete</span>
-                      </button>
+                      </div>
                     );
                   })}
-                  {projectTaskBreakdown.length > 5 && (
+                  {sortedBreakdown.length > 5 && (
                     <button
                       onClick={() => setShowAllProjects(prev => !prev)}
                       className="w-full text-center text-[12px] font-medium py-2 rounded-[12px] hover-elevate active-elevate-2"
@@ -493,7 +665,7 @@ export default function Dashboard({
                     >
                       {showAllProjects
                         ? "Show less"
-                        : `Show all ${projectTaskBreakdown.length} projects`}
+                        : `Show all ${sortedBreakdown.length} projects`}
                     </button>
                   )}
                 </div>

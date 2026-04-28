@@ -272,8 +272,7 @@ export default function DashboardPage() {
         remaining: entry.total - entry.completed,
         overdueCount: overdueCountByProject[entry.projectId] || 0,
       }))
-      .filter(entry => entry.total > 0)
-      .sort((a, b) => b.remaining - a.remaining);
+      .filter(entry => entry.remaining > 0);
   })();
 
   return (

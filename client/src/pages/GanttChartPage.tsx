@@ -96,7 +96,10 @@ export default function GanttChartPage() {
   
   // Task table filters and settings
   const [taskSearchQuery, setTaskSearchQuery] = useState("");
-  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  const [showOverdueOnly, setShowOverdueOnly] = useState(() => {
+    const key = `gantt_overdue_filter_${new URLSearchParams(window.location.search).get('projectId') || ''}`;
+    return localStorage.getItem(key) === 'true';
+  });
   const [taskSortMode, setTaskSortMode] = useState<'original' | 'date' | 'category'>('original');
   
   // Inline editing for progress
@@ -129,6 +132,23 @@ export default function GanttChartPage() {
   // Excel sync indicator: counts task edits made since last download
   const [pendingExcelChanges, setPendingExcelChanges] = useState(0);
   useEffect(() => { setPendingExcelChanges(0); }, [selectedProjectId]);
+
+  // Persist overdue filter per project in localStorage
+  useEffect(() => {
+    const key = `gantt_overdue_filter_${selectedProjectId}`;
+    localStorage.setItem(key, showOverdueOnly ? 'true' : 'false');
+  }, [showOverdueOnly, selectedProjectId]);
+
+  // Restore overdue filter when project changes
+  useEffect(() => {
+    const key = `gantt_overdue_filter_${selectedProjectId}`;
+    const saved = localStorage.getItem(key);
+    if (saved !== null) {
+      setShowOverdueOnly(saved === 'true');
+    } else {
+      setShowOverdueOnly(false);
+    }
+  }, [selectedProjectId]);
 
   const downloadLatestExcel = async () => {
     if (!selectedProjectId) return;
