@@ -1216,6 +1216,12 @@ export default function AccountsPage() {
           <PaymentsSummary />
         </TabsContent>
       </Tabs>
+      <FileViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        fileUrl={viewerUrl}
+        fileName={viewerFileName}
+      />
     </div>
   );
 }
@@ -1451,12 +1457,6 @@ function PaymentsSummary() {
           })}
         </div>
       )}
-      <FileViewerModal
-        isOpen={viewerOpen}
-        onClose={() => setViewerOpen(false)}
-        fileUrl={viewerUrl}
-        fileName={viewerFileName}
-      />
     </div>
   );
 }

@@ -5390,6 +5390,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = (req.user as any).id;
       
+      // Replace existing schedules for this project so old tasks don't accumulate
+      const existingSchedules = await storage.getProjectSchedules(projectId);
+      for (const existingSched of existingSchedules) {
+        await storage.deleteProjectSchedule(existingSched.id);
+      }
+
       // Upload file to object storage
       const filePath = await uploadToObjectStorage(
         req.file.buffer,
