@@ -210,10 +210,11 @@ export default function GanttChartPage() {
     if (selectedProjectId && !tasks.some(t => t.projectId === selectedProjectId)) return;
     setExpandedPhases(prev => {
       if (prev.size > 0) return prev;
+      // Must mirror isPhaseHeader() exactly — uses .includes(), not .startsWith()
       const isPhase = (name: string | null | undefined) => {
         if (!name) return false;
         const upper = name.toUpperCase();
-        return upper.startsWith('PHASE') || upper.startsWith('PACKAGE') || upper.startsWith('EXECUTE');
+        return upper.includes('PHASE') || upper.includes('PACKAGE') || upper.includes('EXECUTE');
       };
       const phases = new Set<string>();
       tasks.forEach(task => {
