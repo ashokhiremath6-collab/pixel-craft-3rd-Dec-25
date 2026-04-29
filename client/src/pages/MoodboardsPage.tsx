@@ -1133,10 +1133,25 @@ export default function MoodboardsPage() {
                     })()}
 
                     {Object.entries(group.folderGroups).map(([folderName, folderItems]) => {
-                      // Identify the latest item in this folder by uploadedAt
-                      const latestId = folderItems.reduce((latestItem: Moodboard | null, item: Moodboard) =>
-                        !latestItem || new Date(item.uploadedAt) > new Date(latestItem.uploadedAt) ? item : latestItem
-                      , null)?.id;
+                      // Build per-name duplicate groups to detect which items share a name
+                      const nameToIds: Record<string, string[]> = {};
+                      folderItems.forEach((item: Moodboard) => {
+                        const title = getDisplayTitle(item) || item.id;
+                        if (!nameToIds[title]) nameToIds[title] = [];
+                        nameToIds[title].push(item.id);
+                      });
+                      // Latest-of-name IDs: newest item per name group, but only when duplicates exist
+                      const latestOfNameIds = new Set<string>();
+                      const olderVersionIds = new Set<string>();
+                      Object.values(nameToIds).forEach(ids => {
+                        if (ids.length < 2) return;
+                        const candidates = folderItems.filter((i: Moodboard) => ids.includes(i.id));
+                        const latest = candidates.reduce((a: Moodboard, b: Moodboard) =>
+                          new Date(a.uploadedAt) > new Date(b.uploadedAt) ? a : b
+                        );
+                        latestOfNameIds.add(latest.id);
+                        candidates.forEach((c: Moodboard) => { if (c.id !== latest.id) olderVersionIds.add(c.id); });
+                      });
                       return (
                       <div key={folderName} className="space-y-3">
                         <div className="flex items-center gap-2 pb-2 border-b">
@@ -1152,13 +1167,16 @@ export default function MoodboardsPage() {
                           {folderItems.map((moodboard: Moodboard) => {
                             const cadMeta = parseCadMeta(moodboard.description);
                             const isCAD = isCadFile(moodboard);
-                            const isLatest = moodboard.id === latestId;
+                            const isLatest = latestOfNameIds.has(moodboard.id);
+                            const isOlder = olderVersionIds.has(moodboard.id);
                             return (
                             <div key={moodboard.id}
                               className={`flex items-center justify-between gap-4 p-4 rounded-lg hover-elevate ${
                                 isLatest
                                   ? "border-2 border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/30"
-                                  : "border"
+                                  : isOlder
+                                    ? "border border-dashed opacity-70"
+                                    : "border"
                               }`}
                               data-testid={`drawing-item-${moodboard.id}`}>
                               <div className="flex-1 min-w-0 flex items-start gap-3">
@@ -1171,6 +1189,11 @@ export default function MoodboardsPage() {
                                     {isLatest && (
                                       <Badge className="text-[10px] shrink-0 bg-emerald-600 hover:bg-emerald-600 text-white">
                                         Latest Version
+                                      </Badge>
+                                    )}
+                                    {isOlder && (
+                                      <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground">
+                                        Older Version
                                       </Badge>
                                     )}
                                     {isCAD && <Badge variant="secondary" className="text-xs shrink-0 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">CAD</Badge>}
