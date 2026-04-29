@@ -2391,11 +2391,11 @@ export default function AIRendersPage() {
           </DialogHeader>
           {generatedRender && (
             <div className="p-4 pt-2 overflow-auto">
-              <div className="relative inline-block mx-auto">
+              <div className="relative w-full">
                 <img 
                   src={`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`}
                   alt="Generated Render Full Size"
-                  className="max-w-full max-h-[70vh] rounded-lg"
+                  className="w-full object-contain max-h-[75vh] rounded-lg"
                   data-testid="image-generated-render-fullsize"
                 />
                 
