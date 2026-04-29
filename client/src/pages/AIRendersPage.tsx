@@ -116,6 +116,7 @@ export default function AIRendersPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showFullSize, setShowFullSize] = useState(false);
   const [showSavedRendersDialog, setShowSavedRendersDialog] = useState(false);
+  const [renderPickerMode, setRenderPickerMode] = useState<'source' | 'refPhoto' | 'modifyRefPhoto'>('source');
   const [selectedSavedRenderUrl, setSelectedSavedRenderUrl] = useState<string | null>(null);
   
   const [showCatalogueBrowser, setShowCatalogueBrowser] = useState(false);
@@ -1141,6 +1142,51 @@ export default function AIRendersPage() {
     }
   };
 
+  const openRendersPicker = (mode: 'source' | 'refPhoto' | 'modifyRefPhoto') => {
+    setRenderPickerMode(mode);
+    setShowSavedRendersDialog(true);
+  };
+
+  const handleSelectSavedRenderAsRefPhoto = async (render: Moodboard, target: 'refPhoto' | 'modifyRefPhoto') => {
+    const limitList = target === 'refPhoto' ? referencePhotos : modifyReferencePhotos;
+    if (limitList.length >= 5) {
+      toast({ title: "Limit Reached", description: "Maximum 5 reference photos allowed", variant: "destructive" });
+      return;
+    }
+    try {
+      const url = getPreviewUrl(render);
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch render');
+      const blob = await response.blob();
+      const fileName = render.name || render.fileName || 'saved-render.jpg';
+      const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+      const newPhoto: ReferencePhoto = {
+        id: `render-ref-${Date.now()}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        type: 'existing_space',
+        description: render.name || 'Saved render'
+      };
+      if (target === 'refPhoto') {
+        setReferencePhotos(prev => [...prev, newPhoto]);
+      } else {
+        setModifyReferencePhotos(prev => [...prev, newPhoto]);
+      }
+      setShowSavedRendersDialog(false);
+      toast({ title: "Render Added", description: `"${render.name || 'Saved render'}" added as reference photo` });
+    } catch {
+      toast({ title: "Error", description: "Failed to load the saved render", variant: "destructive" });
+    }
+  };
+
+  const handleSavedRenderDialogSelect = (render: Moodboard) => {
+    if (renderPickerMode === 'source') {
+      handleSelectSavedRender(render);
+    } else {
+      handleSelectSavedRenderAsRefPhoto(render, renderPickerMode);
+    }
+  };
+
   const handleGenerateFromImage = () => {
     if (!selectedFile || !selectedStyle) {
       toast({ 
@@ -1378,13 +1424,13 @@ export default function AIRendersPage() {
                     </Button>
                     <Button 
                       variant="outline" 
-                      onClick={() => setShowSavedRendersDialog(true)}
+                      onClick={() => openRendersPicker('source')}
                       disabled={savedRenders.length === 0}
                       data-testid="button-select-saved-render"
                       title="Use a previously generated render"
                     >
-                      <FolderOpen className="h-4 w-4 mr-2" />
-                      Saved
+                      <ImagePlus className="h-4 w-4 mr-2" />
+                      Renders
                     </Button>
                   </div>
                   {previewUrl && (
@@ -1533,10 +1579,21 @@ export default function AIRendersPage() {
                         <FolderOpen className="h-4 w-4 mr-1" />
                         Saved Assets
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openRendersPicker('refPhoto')}
+                        disabled={referencePhotos.length >= 5 || savedRenders.length === 0}
+                        data-testid="button-add-from-renders"
+                        title="Pick from previously saved renders"
+                      >
+                        <ImagePlus className="h-4 w-4 mr-1" />
+                        Renders
+                      </Button>
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Add existing space photos or select from your saved assets
+                    Add existing space photos, saved assets, or previously generated renders
                   </p>
                   
                   {referencePhotos.length === 0 ? (
@@ -1964,6 +2021,17 @@ export default function AIRendersPage() {
                             <ImageIcon className="h-4 w-4 mr-1" />
                             Existing
                           </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openRendersPicker('modifyRefPhoto')}
+                            disabled={modifyReferencePhotos.length >= 3 || savedRenders.length === 0}
+                            data-testid="button-modify-from-renders"
+                            title="Pick from previously saved renders"
+                          >
+                            <ImagePlus className="h-4 w-4 mr-1" />
+                            Renders
+                          </Button>
                         </div>
                         
                         {/* Display modify reference items */}
@@ -2258,8 +2326,13 @@ export default function AIRendersPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FolderOpen className="h-5 w-5" />
-              Select a Saved Render
+              {renderPickerMode === 'source' ? 'Select a Saved Render as Source Image' : 'Add a Saved Render as Reference Photo'}
             </DialogTitle>
+            <DialogDescription>
+              {renderPickerMode === 'source'
+                ? 'Click a render to use it as the base image for a new generation.'
+                : 'Click a render to add it as a reference photo for this generation.'}
+            </DialogDescription>
           </DialogHeader>
           <ScrollArea className="h-[60vh] pr-4">
             {savedRenders.length === 0 ? (
@@ -2276,7 +2349,7 @@ export default function AIRendersPage() {
                     <div
                       key={render.id}
                       className="group relative rounded-lg border overflow-hidden cursor-pointer hover-elevate"
-                      onClick={() => handleSelectSavedRender(render)}
+                      onClick={() => handleSavedRenderDialogSelect(render)}
                       data-testid={`saved-render-${render.id}`}
                     >
                       <img
