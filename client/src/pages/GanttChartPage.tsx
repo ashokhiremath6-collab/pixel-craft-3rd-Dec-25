@@ -1652,7 +1652,7 @@ export default function GanttChartPage() {
                                           <div className="flex items-center gap-1">
                                             <Input
                                               type="date"
-                                              defaultValue={task.startDate ? task.startDate.split('T')[0] : ''}
+                                              defaultValue={task.startDate && !isPlaceholder(task.startDate) ? task.startDate.split('T')[0] : ''}
                                               className="w-32 h-7 text-xs"
                                               autoFocus
                                               onChange={(e) => {
@@ -1677,13 +1677,13 @@ export default function GanttChartPage() {
                                             data-testid={`button-edit-startdate-${task.id}`}
                                           >
                                             <span>
-                                              {task.startDate ? parseLocalDate(task.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
+                                              {task.startDate && !isPlaceholder(task.startDate) ? parseLocalDate(task.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
                                             </span>
                                             <CalendarIcon className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                                           </button>
                                         ) : (
                                           <span className="px-1.5 py-0.5">
-                                            {task.startDate ? parseLocalDate(task.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
+                                            {task.startDate && !isPlaceholder(task.startDate) ? parseLocalDate(task.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
                                           </span>
                                         )}
                                       </td>
@@ -1694,7 +1694,7 @@ export default function GanttChartPage() {
                                           <div className="flex items-center gap-1">
                                             <Input
                                               type="date"
-                                              defaultValue={task.endDate ? task.endDate.split('T')[0] : ''}
+                                              defaultValue={task.endDate && !isPlaceholder(task.endDate) ? task.endDate.split('T')[0] : ''}
                                               className="w-32 h-7 text-xs"
                                               autoFocus
                                               onChange={(e) => {
@@ -1729,7 +1729,7 @@ export default function GanttChartPage() {
                                               data-testid={`button-edit-enddate-${task.id}`}
                                             >
                                               <span>
-                                                {task.endDate ? parseLocalDate(task.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
+                                                {task.endDate && !isPlaceholder(task.endDate) ? parseLocalDate(task.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
                                               </span>
                                               <CalendarIcon className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                                             </button>
@@ -1775,7 +1775,7 @@ export default function GanttChartPage() {
                                         ) : (
                                           <div className="flex items-center gap-1 px-1.5 py-0.5">
                                             <span>
-                                              {task.endDate ? parseLocalDate(task.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
+                                              {task.endDate && !isPlaceholder(task.endDate) ? parseLocalDate(task.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
                                             </span>
                                             {/* Show history icon for non-admins too */}
                                             {Array.isArray((task as any).deadlineHistory) && (task as any).deadlineHistory.length > 0 && (
