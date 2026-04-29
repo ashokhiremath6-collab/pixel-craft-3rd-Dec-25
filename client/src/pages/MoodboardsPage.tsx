@@ -426,6 +426,40 @@ export default function MoodboardsPage() {
       });
     }
     
+    // Sort items within each folder: latest version of each duplicate-name group floats to the top
+    if (assetType === "working_drawing") {
+      Object.values(groups).forEach(group => {
+        if (!group.folderGroups) return;
+        Object.keys(group.folderGroups).forEach(folderName => {
+          const items = group.folderGroups![folderName];
+          // Build name → ids map
+          const byName: Record<string, string[]> = {};
+          items.forEach(item => {
+            const title = getDisplayTitle(item) || item.id;
+            if (!byName[title]) byName[title] = [];
+            byName[title].push(item.id);
+          });
+          // Collect IDs of the latest item per name group (only when there are actual duplicates)
+          const latestDuplicateIds = new Set<string>();
+          Object.values(byName).forEach(ids => {
+            if (ids.length < 2) return;
+            const latest = items
+              .filter(i => ids.includes(i.id))
+              .reduce((a, b) => new Date(a.uploadedAt) > new Date(b.uploadedAt) ? a : b);
+            latestDuplicateIds.add(latest.id);
+          });
+          // Sort: latest-of-duplicate-name items first, then by uploadedAt descending
+          group.folderGroups![folderName] = [...items].sort((a, b) => {
+            const aTop = latestDuplicateIds.has(a.id);
+            const bTop = latestDuplicateIds.has(b.id);
+            if (aTop && !bTop) return -1;
+            if (!aTop && bTop) return 1;
+            return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime();
+          });
+        });
+      });
+    }
+
     // For working drawings: also ensure projects that have floor plans but no drawings still get a group
     if (assetType === "working_drawing") {
       allFloorPlans.forEach((fp: FloorPlan) => {
