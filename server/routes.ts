@@ -5269,7 +5269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const instructions = [
         ['PixelCraft Designer - Project Schedule Export'],
         [''],
-        [`Project: ${project.name}`],
+        [`Project: ${project.projectName}`],
         [`Exported: ${new Date().toISOString().split('T')[0]}`],
         [`Total Tasks: ${tasks.length}`],
         [''],
@@ -5306,7 +5306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const excelBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
       
       // Send file
-      const filename = `${project.name.replace(/[^a-z0-9]/gi, '_')}_Schedule_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const filename = `${(project.projectName || 'Project').replace(/[^a-z0-9]/gi, '_')}_Schedule_${new Date().toISOString().split('T')[0]}.xlsx`;
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(excelBuffer);
