@@ -205,7 +205,7 @@ export default function Dashboard({
   const [showAllProjects, setShowAllProjects] = useState(() => localStorage.getItem('dashboard_show_all_projects') === 'true');
   const [breakdownSortMode, setBreakdownSortMode] = useState<BreakdownSortMode>(() => {
     const saved = localStorage.getItem('dashboard_breakdown_sort') as BreakdownSortMode | null;
-    return (saved && saved in BREAKDOWN_SORT_LABELS) ? saved : 'overdue';
+    return (saved && saved in BREAKDOWN_SORT_LABELS) ? saved : 'remaining';
   });
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(() => {
     try {
