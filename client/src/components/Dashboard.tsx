@@ -571,12 +571,20 @@ export default function Dashboard({
                     const hasOverdue = (entry.overdueCount ?? 0) > 0;
                     const isExpanded = expandedProjectIds.has(entry.projectId);
                     const projectOverdueTasks = overdueByProject[entry.projectId] ?? [];
-                    // Section divider before first on-track project (only in 'overdue' sort mode)
-                    const showDivider = breakdownSortMode === 'overdue' &&
-                      firstNonOverdueIdx > 0 && idx === firstNonOverdueIdx;
+                    // Section labels: only in 'overdue' sort mode when there are overdue projects
+                    const hasAnyOverdue = firstNonOverdueIdx > 0;
+                    const showOverdueLabel = breakdownSortMode === 'overdue' && hasAnyOverdue && idx === 0;
+                    const showOnTrackDivider = breakdownSortMode === 'overdue' && hasAnyOverdue && idx === firstNonOverdueIdx;
                     return (
                       <div key={entry.projectId}>
-                        {showDivider && (
+                        {showOverdueLabel && (
+                          <div className="flex items-center gap-2 pb-1">
+                            <div className="flex-1 border-t" style={{ borderColor: "#fecaca" }} />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider px-2" style={{ color: "#dc2626" }}>Overdue</span>
+                            <div className="flex-1 border-t" style={{ borderColor: "#fecaca" }} />
+                          </div>
+                        )}
+                        {showOnTrackDivider && (
                           <div className="flex items-center gap-2 py-1">
                             <div className="flex-1 border-t" style={{ borderColor: "#e5e7eb" }} />
                             <span className="text-[10px] font-semibold uppercase tracking-wider px-2" style={{ color: "#9ca3af" }}>On Track</span>
