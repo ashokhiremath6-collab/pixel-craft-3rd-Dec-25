@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
@@ -36,6 +37,21 @@ import { RecentBadge } from "@/components/RecentBadge";
 
 export default function SpecificationsPage() {
   const { toast } = useToast();
+  const [location, setLocation] = useLocation();
+  const search = useSearch();
+  const filterProjectId = new URLSearchParams(search).get("projectId") || "";
+
+  const handleProjectChange = (value: string) => {
+    const params = new URLSearchParams(search);
+    if (value && value !== "all") {
+      params.set("projectId", value);
+    } else {
+      params.delete("projectId");
+    }
+    const qs = params.toString();
+    setLocation(qs ? `${location}?${qs}` : location);
+  };
+
   const [category, setCategory] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSpec, setEditingSpec] = useState<Specification | null>(null);
@@ -49,6 +65,10 @@ export default function SpecificationsPage() {
   });
 
   // Fetch specifications
+  const { data: projects = [] } = useQuery<{ id: string; projectName: string }[]>({
+    queryKey: ["/api/projects"],
+  });
+
   const { data: specs = [], isLoading } = useQuery<Specification[]>({
     queryKey: ["/api/specifications", category],
     queryFn: async () => {
@@ -258,26 +278,51 @@ export default function SpecificationsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Filter by Category</CardTitle>
+            <CardTitle>Filter</CardTitle>
           </CardHeader>
           <CardContent>
-            <Select
-              value={category}
-              onValueChange={setCategory}
-              data-testid="select-category"
-            >
-              <SelectTrigger className="w-full md:w-64">
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[300px]">
-                <SelectItem value="all">All Categories</SelectItem>
-                {categoryNames.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Project</label>
+                <Select
+                  value={filterProjectId || "all"}
+                  onValueChange={handleProjectChange}
+                  data-testid="select-project"
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Projects" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    <SelectItem value="all">All Projects</SelectItem>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.projectName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Category</label>
+                <Select
+                  value={category}
+                  onValueChange={setCategory}
+                  data-testid="select-category"
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categoryNames.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

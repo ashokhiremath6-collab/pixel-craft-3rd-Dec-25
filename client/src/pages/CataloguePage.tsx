@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertCatalogueItemSchema } from "@shared/schema";
-import type { InsertCatalogueItem, CatalogueItem } from "@shared/schema";
+import type { InsertCatalogueItem, CatalogueItem, Project } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
@@ -47,6 +48,21 @@ import { RecentBadge } from "@/components/RecentBadge";
 
 export default function CataloguePage() {
   const { toast } = useToast();
+  const [location, setLocation] = useLocation();
+  const search = useSearch();
+  const filterProjectId = new URLSearchParams(search).get("projectId") || "";
+
+  const handleProjectChange = (value: string) => {
+    const params = new URLSearchParams(search);
+    if (value && value !== "all") {
+      params.set("projectId", value);
+    } else {
+      params.delete("projectId");
+    }
+    const qs = params.toString();
+    setLocation(qs ? `${location}?${qs}` : location);
+  };
+
   const [mainCategory, setMainCategory] = useState<string>("all");
   const [subcategory, setSubcategory] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -68,6 +84,10 @@ export default function CataloguePage() {
   });
 
   // Fetch catalogue items
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: ["/api/projects"],
+  });
+
   const { data: items = [], isLoading, error: itemsError } = useQuery<CatalogueItem[]>({
     queryKey: ["/api/catalogue", mainCategory, subcategory],
     queryFn: async () => {
@@ -411,7 +431,27 @@ export default function CataloguePage() {
             <CardTitle className="text-base">Filter Products</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 p-4 pt-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Project</label>
+                <Select
+                  value={filterProjectId || "all"}
+                  onValueChange={handleProjectChange}
+                  data-testid="select-project"
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Projects" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    <SelectItem value="all">All Projects</SelectItem>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.projectName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Main Category</label>
                 <Select
