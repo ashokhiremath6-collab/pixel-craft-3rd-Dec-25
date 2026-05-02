@@ -1829,10 +1829,10 @@ export default function GanttChartPage() {
                                               type="text"
                                               inputMode="numeric"
                                               pattern="[0-9]*"
-                                              autoComplete="off"
+                                              autoComplete="one-time-code"
                                               data-form-type="other"
                                               data-lpignore="true"
-                                              data-1p-ignore
+                                              data-1p-ignore="true"
                                               className="w-14 text-center text-sm border rounded px-1 py-0.5 bg-background"
                                               value={editingProgressValue}
                                               placeholder={String(Number(task.progressPercentage) || 0)}
