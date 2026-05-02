@@ -1826,10 +1826,10 @@ export default function GanttChartPage() {
                                         {editingProgressTaskId === task.id ? (
                                           <div className="flex items-center gap-1 justify-center" onClick={e => e.stopPropagation()}>
                                             <input
-                                              type="text"
+                                              type="tel"
                                               inputMode="numeric"
                                               pattern="[0-9]*"
-                                              autoComplete="one-time-code"
+                                              autoComplete="off"
                                               data-form-type="other"
                                               data-lpignore="true"
                                               data-1p-ignore="true"
