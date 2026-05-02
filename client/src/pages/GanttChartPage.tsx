@@ -158,7 +158,7 @@ export default function GanttChartPage() {
   const downloadLatestExcel = async () => {
     if (!selectedProjectId) return;
     try {
-      const response = await fetch(`/api/schedules/export/${selectedProjectId}`);
+      const response = await fetch(`/api/schedules/export/${selectedProjectId}`, { credentials: "include" });
       if (!response.ok) throw new Error('Export failed');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -728,7 +728,7 @@ export default function GanttChartPage() {
     }
 
     try {
-      const response = await fetch(`/api/schedules/export/${selectedProjectId}`);
+      const response = await fetch(`/api/schedules/export/${selectedProjectId}`, { credentials: "include" });
       if (!response.ok) throw new Error('Export failed');
       
       const blob = await response.blob();
@@ -1833,6 +1833,7 @@ export default function GanttChartPage() {
                                               value={editingProgressValue}
                                               onChange={e => setEditingProgressValue(Math.min(100, Math.max(0, Number(e.target.value))))}
                                               autoFocus
+                                              onFocus={e => e.target.select()}
                                               onKeyDown={e => {
                                                 if (e.key === 'Enter') {
                                                   updateProgressMutation.mutate({ taskId: task.id, progressPercentage: editingProgressValue });
