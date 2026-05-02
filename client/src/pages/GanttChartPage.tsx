@@ -104,7 +104,7 @@ export default function GanttChartPage() {
   
   // Inline editing for progress
   const [editingProgressTaskId, setEditingProgressTaskId] = useState<string | null>(null);
-  const [editingProgressValue, setEditingProgressValue] = useState<number>(0);
+  const [editingProgressValue, setEditingProgressValue] = useState<string>("");
   
   // Inline editing for dates
   const [editingEndDateTaskId, setEditingEndDateTaskId] = useState<string | null>(null);
@@ -1826,17 +1826,23 @@ export default function GanttChartPage() {
                                         {editingProgressTaskId === task.id ? (
                                           <div className="flex items-center gap-1 justify-center" onClick={e => e.stopPropagation()}>
                                             <input
-                                              type="number"
-                                              min={0}
-                                              max={100}
+                                              type="text"
+                                              inputMode="numeric"
+                                              pattern="[0-9]*"
                                               className="w-14 text-center text-sm border rounded px-1 py-0.5 bg-background"
                                               value={editingProgressValue}
-                                              onChange={e => setEditingProgressValue(Math.min(100, Math.max(0, Number(e.target.value))))}
+                                              placeholder={String(Number(task.progressPercentage) || 0)}
+                                              onChange={e => {
+                                                const raw = e.target.value.replace(/[^0-9]/g, '');
+                                                if (raw === '') { setEditingProgressValue(''); return; }
+                                                const n = Math.min(100, Math.max(0, parseInt(raw, 10)));
+                                                setEditingProgressValue(String(n));
+                                              }}
                                               autoFocus
-                                              onFocus={e => e.target.select()}
                                               onKeyDown={e => {
                                                 if (e.key === 'Enter') {
-                                                  updateProgressMutation.mutate({ taskId: task.id, progressPercentage: editingProgressValue });
+                                                  const val = editingProgressValue === '' ? (Number(task.progressPercentage) || 0) : Math.min(100, Math.max(0, parseInt(editingProgressValue, 10) || 0));
+                                                  updateProgressMutation.mutate({ taskId: task.id, progressPercentage: val });
                                                 } else if (e.key === 'Escape') {
                                                   setEditingProgressTaskId(null);
                                                 }
@@ -1844,7 +1850,10 @@ export default function GanttChartPage() {
                                             />
                                             <span className="text-xs text-muted-foreground">%</span>
                                             <Button size="icon" variant="ghost" className="h-6 w-6"
-                                              onClick={() => updateProgressMutation.mutate({ taskId: task.id, progressPercentage: editingProgressValue })}>
+                                              onClick={() => {
+                                                const val = editingProgressValue === '' ? (Number(task.progressPercentage) || 0) : Math.min(100, Math.max(0, parseInt(editingProgressValue, 10) || 0));
+                                                updateProgressMutation.mutate({ taskId: task.id, progressPercentage: val });
+                                              }}>
                                               <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
                                             </Button>
                                             <Button size="icon" variant="ghost" className="h-6 w-6"
@@ -1857,7 +1866,7 @@ export default function GanttChartPage() {
                                             className={`flex flex-col items-center gap-1 ${canEditProgress ? 'cursor-pointer group' : ''}`}
                                             title={canEditProgress ? "Click to set % completion" : undefined}
                                             onClick={canEditProgress ? () => {
-                                              setEditingProgressValue(Number(task.progressPercentage) || 0);
+                                              setEditingProgressValue("");
                                               setEditingProgressTaskId(task.id);
                                             } : undefined}
                                             data-testid={`progress-display-${task.id}`}
