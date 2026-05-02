@@ -65,6 +65,7 @@ interface DashboardProps {
   };
   totalActiveTasks?: number;
   projectTaskBreakdown?: ProjectTaskBreakdownEntry[];
+  remainingTasksByProject?: Record<string, Array<Task & { projectName: string }>>;
   onNavigate?: (path: string) => void;
 }
 
@@ -199,6 +200,7 @@ export default function Dashboard({
   taskAlerts = { upcomingStart: [], completionCountdown: [], overdue: [] },
   totalActiveTasks = 0,
   projectTaskBreakdown = [],
+  remainingTasksByProject = {},
   onNavigate,
 }: DashboardProps) {
   const [isQuotationDetailModalOpen, setIsQuotationDetailModalOpen] = useState(false);
@@ -571,6 +573,8 @@ export default function Dashboard({
                     const hasOverdue = (entry.overdueCount ?? 0) > 0;
                     const isExpanded = expandedProjectIds.has(entry.projectId);
                     const projectOverdueTasks = overdueByProject[entry.projectId] ?? [];
+                    const projectRemainingTasks = remainingTasksByProject[entry.projectId] ?? [];
+                    const hasExpandableTasks = projectOverdueTasks.length > 0 || projectRemainingTasks.length > 0;
                     // Section labels: only in 'overdue' sort mode when there are overdue projects
                     const hasAnyOverdue = firstNonOverdueIdx > 0;
                     const showOverdueLabel = breakdownSortMode === 'overdue' && hasAnyOverdue && idx === 0;
@@ -632,18 +636,18 @@ export default function Dashboard({
                               </div>
                               <span className="text-[10px]" style={{ color: "#9ca3af" }}>{pct}% complete</span>
                             </button>
-                            {projectOverdueTasks.length > 0 && (
+                            {hasExpandableTasks && (
                               <button
                                 onClick={() => toggleProjectExpand(entry.projectId)}
                                 className="px-2 flex items-start pt-3 hover-elevate"
-                                title={isExpanded ? "Collapse" : "Show overdue tasks"}
+                                title={isExpanded ? "Collapse" : "Show tasks"}
                                 style={{ color: "#9ca3af" }}
                               >
                                 {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                               </button>
                             )}
                           </div>
-                          {isExpanded && projectOverdueTasks.length > 0 && (
+                          {isExpanded && hasExpandableTasks && (
                             <div className="border-t flex flex-col gap-0" style={{ borderColor: "#e5e7eb" }}>
                               {projectOverdueTasks.map(task => (
                                 <div
@@ -655,6 +659,20 @@ export default function Dashboard({
                                   {task.daysOverdue != null && task.daysOverdue > 0 && (
                                     <span className="flex-shrink-0 font-semibold" style={{ color: "#dc2626" }}>
                                       {task.daysOverdue}d overdue
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                              {projectRemainingTasks.map(task => (
+                                <div
+                                  key={task.id}
+                                  className="flex items-center justify-between gap-2 px-3 py-2 text-[11px]"
+                                  style={{ borderBottom: "1px solid #f3f4f6" }}
+                                >
+                                  <span className="truncate flex-1" style={{ color: "#6b7280" }}>{task.name}</span>
+                                  {task.endDate && (
+                                    <span className="flex-shrink-0" style={{ color: "#9ca3af" }}>
+                                      {format(new Date(task.endDate), "dd MMM")}
                                     </span>
                                   )}
                                 </div>

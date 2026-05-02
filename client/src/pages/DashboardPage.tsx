@@ -275,6 +275,16 @@ export default function DashboardPage() {
       .filter(entry => entry.remaining > 0);
   })();
 
+  const overdueTaskIds = new Set(taskAlerts.overdue.map(t => t.id));
+  const remainingTasksByProject: Record<string, Array<Task & { projectName: string }>> = {};
+  (allTasksData || []).forEach(task => {
+    if (!task.projectId || !isActionableTask(task) || isTaskCompleted(task)) return;
+    if (overdueTaskIds.has(task.id)) return;
+    if (!remainingTasksByProject[task.projectId]) remainingTasksByProject[task.projectId] = [];
+    const pName = projectNameMap[task.projectId] || 'Unknown Project';
+    remainingTasksByProject[task.projectId].push({ ...task, projectName: pName });
+  });
+
   return (
     <div>
       <Dashboard 
@@ -286,6 +296,7 @@ export default function DashboardPage() {
         taskAlerts={taskAlerts}
         totalActiveTasks={totalActiveTasks}
         projectTaskBreakdown={projectTaskBreakdown}
+        remainingTasksByProject={remainingTasksByProject}
         onNavigate={handleNavigate}
       />
     </div>
