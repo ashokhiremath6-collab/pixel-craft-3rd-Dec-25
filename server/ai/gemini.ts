@@ -362,6 +362,65 @@ async function compressImage(imageBase64: string, mimeType: string): Promise<{ d
   }
 }
 
+// Force the generated output to match the source image's exact aspect ratio and dimensions.
+// This corrects Gemini's tendency to zoom in or change the crop.
+async function matchSourceFraming(
+  outputBase64: string,
+  outputMimeType: string,
+  srcWidth: number,
+  srcHeight: number
+): Promise<{ data: string; mimeType: string }> {
+  try {
+    const outputBuffer = Buffer.from(outputBase64, 'base64');
+    const outMeta = await sharp(outputBuffer).metadata();
+    const outW = outMeta.width || srcWidth;
+    const outH = outMeta.height || srcHeight;
+
+    const srcRatio = srcWidth / srcHeight;
+    const outRatio = outW / outH;
+
+    console.log(`[Gemini] Framing correction — source: ${srcWidth}×${srcHeight} (${srcRatio.toFixed(3)}), output: ${outW}×${outH} (${outRatio.toFixed(3)})`);
+
+    // If ratios already match closely (within 2%), just resize to source dims
+    if (Math.abs(srcRatio - outRatio) / srcRatio < 0.02) {
+      const resized = await sharp(outputBuffer)
+        .resize(srcWidth, srcHeight, { fit: 'fill', kernel: 'lanczos3' })
+        .jpeg({ quality: 95 })
+        .toBuffer();
+      console.log(`[Gemini] Framing: ratios matched — resized to ${srcWidth}×${srcHeight}`);
+      return { data: resized.toString('base64'), mimeType: 'image/jpeg' };
+    }
+
+    // Ratios differ — center-crop the output to match source aspect ratio, then resize.
+    // Strategy: scale the output so the target aspect ratio fits inside, then crop.
+    let cropW: number, cropH: number;
+    if (outRatio > srcRatio) {
+      // Output is wider than source — crop left/right
+      cropH = outH;
+      cropW = Math.round(outH * srcRatio);
+    } else {
+      // Output is taller than source — crop top/bottom
+      cropW = outW;
+      cropH = Math.round(outW / srcRatio);
+    }
+
+    const left = Math.round((outW - cropW) / 2);
+    const top = Math.round((outH - cropH) / 2);
+
+    const corrected = await sharp(outputBuffer)
+      .extract({ left, top, width: cropW, height: cropH })
+      .resize(srcWidth, srcHeight, { fit: 'fill', kernel: 'lanczos3' })
+      .jpeg({ quality: 95 })
+      .toBuffer();
+
+    console.log(`[Gemini] Framing: cropped ${outW}×${outH} → ${cropW}×${cropH} at (${left},${top}), resized to ${srcWidth}×${srcHeight}`);
+    return { data: corrected.toString('base64'), mimeType: 'image/jpeg' };
+  } catch (err) {
+    console.error('[Gemini] Framing correction failed, returning original:', err);
+    return { data: outputBase64, mimeType: outputMimeType };
+  }
+}
+
 async function enhanceOutputImage(imageBase64: string, mimeType: string): Promise<{ data: string; mimeType: string }> {
   try {
     const imageBuffer = Buffer.from(imageBase64, 'base64');
@@ -678,10 +737,19 @@ OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with only the l
       };
     }, "Render generation");
     
+    // Apply framing correction before enhancement to lock the output to source crop/dimensions
+    console.log("[Gemini] Applying framing correction...");
+    const framed = await matchSourceFraming(
+      result.data,
+      result.mimeType,
+      compressed.width,
+      compressed.height
+    );
+
     console.log("[Gemini] Enhancing output resolution...");
     const enhanced = await enhanceOutputImage(
-      result.data, 
-      result.mimeType
+      framed.data, 
+      framed.mimeType
     );
     
     console.log("[Gemini] Successfully generated and enhanced render");
