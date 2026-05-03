@@ -4187,8 +4187,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      // Allow updating name, description, tags, canvaLink, and folder
-      const { name, description, tags, canvaLink, folder } = req.body;
+      // Allow updating name, description, tags, canvaLink, folder, and roomType
+      const { name, description, tags, canvaLink, folder, roomType } = req.body;
       const updates: any = {};
       
       if (name !== undefined) updates.name = name;
@@ -4205,6 +4205,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (folder !== undefined) {
         updates.folder = folder && typeof folder === 'string' ? folder.trim() : null;
+      }
+      if (roomType !== undefined) {
+        updates.roomType = roomType && typeof roomType === 'string' ? roomType.trim() : null;
       }
       
       const updatedMoodboard = await storage.updateMoodboard(id, updates);

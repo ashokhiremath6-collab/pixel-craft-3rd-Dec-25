@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download, FolderInput, MoreVertical, FileCode2, Layers, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download, FolderInput, MoreVertical, FileCode2, Layers, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,6 +59,11 @@ export default function MoodboardsPage() {
   const [previewImage, setPreviewImage] = useState<Moodboard | null>(null);
   const [floorPlanViewer, setFloorPlanViewer] = useState<{url: string, name: string} | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Edit render state
+  const [editingRender, setEditingRender] = useState<Moodboard | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRoomType, setEditRoomType] = useState("");
 
   // CAD import state (Working Drawings only)
   const [cadImportOpen, setCadImportOpen] = useState(false);
@@ -569,6 +574,21 @@ export default function MoodboardsPage() {
     },
   });
 
+  // Update render name / room type mutation
+  const updateRenderMutation = useMutation({
+    mutationFn: async ({ id, name, roomType }: { id: string; name: string; roomType: string }) => {
+      return await apiRequest("PUT", `/api/moodboards/${id}`, { name: name.trim(), roomType });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+      setEditingRender(null);
+      toast({ title: "Render updated", description: "Name and room type saved." });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Update failed", description: error.message });
+    },
+  });
+
   // Move to folder mutation (for working drawings)
   const moveFolderMutation = useMutation({
     mutationFn: async ({ id, folder }: { id: string; folder: string }) => {
@@ -1038,6 +1058,20 @@ export default function MoodboardsPage() {
                                     <Eye className="h-4 w-4" />
                                   </Button>
                                 )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => {
+                                    setEditingRender(moodboard);
+                                    setEditName(moodboard.name || "");
+                                    const stored = (moodboard as any).roomType;
+                                    setEditRoomType((stored && stored !== "General") ? stored : inferRoomType(moodboard.name || ""));
+                                  }}
+                                  data-testid={`button-edit-${moodboard.id}`}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -1826,6 +1860,55 @@ export default function MoodboardsPage() {
               <Button type="button" variant="outline" onClick={() => { setCadImportOpen(false); resetCadForm(); }} disabled={cadImportMutation.isPending}>Cancel</Button>
               <Button onClick={() => cadImportMutation.mutate()} disabled={!cadFile || !cadProjectId || !cadName.trim() || !cadFolder || cadImportMutation.isPending}>
                 {cadImportMutation.isPending ? `Importing… ${cadUploadProgress}%` : 'Import Drawing'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Render — name + room type */}
+      <Dialog open={!!editingRender} onOpenChange={(open) => { if (!open) setEditingRender(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Render</DialogTitle>
+            <DialogDescription>Update the name and room type for this render.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-render-name">Name</Label>
+              <Input
+                id="edit-render-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Render name"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-render-room">Room Type</Label>
+              <Select value={editRoomType} onValueChange={setEditRoomType}>
+                <SelectTrigger id="edit-render-room">
+                  <SelectValue placeholder="Select room type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["Living Room", "Foyer", "Bedroom", "Kitchen", "Dining Room", "Bathroom", "Study", "Kids Room", "Guest Room", "Puja Room", "Hallway", "Walk-in Closet", "Balcony", "General"].map((room) => (
+                    <SelectItem key={room} value={room}>{room}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setEditingRender(null)} disabled={updateRenderMutation.isPending}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!editingRender || !editName.trim()) return;
+                  updateRenderMutation.mutate({ id: editingRender.id, name: editName, roomType: editRoomType || "General" });
+                }}
+                disabled={!editName.trim() || updateRenderMutation.isPending}
+              >
+                {updateRenderMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save
               </Button>
             </div>
           </div>
