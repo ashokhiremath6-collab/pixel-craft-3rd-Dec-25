@@ -308,10 +308,34 @@ export default function MoodboardsPage() {
 
   // Room type order for sorting
   const roomTypeOrder = [
-    "Living Room", "Bedroom", "Kitchen", "Dining Room", "Bathroom", 
+    "Living Room", "Foyer", "Bedroom", "Kitchen", "Dining Room", "Bathroom", 
     "Study", "Kids Room", "Guest Room", "Puja Room", "Hallway", 
     "Walk-in Closet", "Balcony", "General"
   ];
+
+  // Client-side room type inference — mirrors server-side detectRoomType in gemini.ts.
+  // Used as a display fallback when a render's stored roomType is "General" or unset,
+  // so all existing renders are automatically grouped correctly without DB changes.
+  const inferRoomType = (name: string): string => {
+    if (!name) return "General";
+    const n = name.toLowerCase().replace(/[-_]/g, " ");
+    if (/foyer/.test(n)) return "Foyer";
+    if (/living|lounge|sitting|family room|great room/.test(n)) return "Living Room";
+    if (/bedroom|master|kids room|children room/.test(n)) return "Bedroom";
+    if (/kitchen|pantry|cook/.test(n)) return "Kitchen";
+    if (/dining|dinner room|breakfast/.test(n)) return "Dining Room";
+    if (/bathroom|toilet|washroom|powder room|bath/.test(n)) return "Bathroom";
+    if (/study|library|work room|den/.test(n)) return "Study";
+    if (/\boffice\b/.test(n)) return "Study";
+    if (/nursery|playroom/.test(n)) return "Kids Room";
+    if (/\bkids\b|\bchildren\b/.test(n)) return "Kids Room";
+    if (/\bguest\b/.test(n)) return "Guest Room";
+    if (/puja|prayer|pooja|temple|mandir/.test(n)) return "Puja Room";
+    if (/hallway|corridor|entrance|entry/.test(n)) return "Hallway";
+    if (/closet|wardrobe|dressing/.test(n)) return "Walk-in Closet";
+    if (/balcony|terrace|patio|verandah/.test(n)) return "Balcony";
+    return "General";
+  };
 
   // Folder options for working drawings
   const workingDrawingFolders = [
@@ -362,9 +386,14 @@ export default function MoodboardsPage() {
       }
       groups[projectId].items.push(moodboard);
       
-      // For renders, also group by room type
+      // For renders, also group by room type.
+      // When the stored roomType is absent or "General", infer it from the render name
+      // so that existing renders are correctly grouped without needing a DB update.
       if (assetType === "render" && groups[projectId].roomGroups) {
-        const roomType = (moodboard as any).roomType || "General";
+        const storedRoomType = (moodboard as any).roomType;
+        const roomType = (storedRoomType && storedRoomType !== "General")
+          ? storedRoomType
+          : inferRoomType(moodboard.name || moodboard.description || '');
         if (!groups[projectId].roomGroups![roomType]) {
           groups[projectId].roomGroups![roomType] = [];
         }
