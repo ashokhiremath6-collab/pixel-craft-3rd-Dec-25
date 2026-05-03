@@ -117,7 +117,7 @@ export default function AIRendersPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showFullSize, setShowFullSize] = useState(false);
   const [showSavedRendersDialog, setShowSavedRendersDialog] = useState(false);
-  const [renderPickerMode, setRenderPickerMode] = useState<'source' | 'refPhoto' | 'modifyRefPhoto'>('source');
+  const [renderPickerMode, setRenderPickerMode] = useState<'source' | 'refPhoto'>('source');
   const [selectedSavedRenderUrl, setSelectedSavedRenderUrl] = useState<string | null>(null);
   
   const [showCatalogueBrowser, setShowCatalogueBrowser] = useState(false);
@@ -139,12 +139,6 @@ export default function AIRendersPage() {
   const [gridInteractive, setGridInteractive] = useState(false);
   const gridContainerRef = useRef<HTMLDivElement>(null);
   
-  const [showModifyTools, setShowModifyTools] = useState(false);
-  const [modificationPrompt, setModificationPrompt] = useState("");
-  const [modifyReferenceItems, setModifyReferenceItems] = useState<ReferenceItem[]>([]);
-  const [modifyReferencePhotos, setModifyReferencePhotos] = useState<ReferencePhoto[]>([]);
-  const [showModifyAssetPicker, setShowModifyAssetPicker] = useState(false);
-  const modifyPhotoInputRef = useRef<HTMLInputElement>(null);
   
   const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -283,117 +277,6 @@ export default function AIRendersPage() {
       rows: Math.ceil(height / gridSize)
     };
   };
-  const modifyRenderMutation = useMutation({
-    mutationFn: async (params: { 
-      prompt: string; 
-      gridCell?: { col: number; row: number } | null;
-      referenceItems?: ReferenceItem[];
-      referencePhotos?: ReferencePhoto[];
-    }) => {
-      if (!generatedRender) throw new Error("No render to modify");
-      
-      abortControllerRef.current = new AbortController();
-      
-      // Convert base64 to blob, then compress for API
-      const base64Response = await fetch(`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`);
-      const blob = await base64Response.blob();
-      const file = new File([blob], 'render-to-modify.png', { type: generatedRender.mimeType });
-      
-      // Compress the image before sending
-      const compressedBlob = await compressImageOnClient(file);
-      const compressedFile = new File([compressedBlob], 'compressed.jpg', { type: 'image/jpeg' });
-      
-      // Build prompt with grid context if a cell is selected
-      let finalPrompt = params.prompt;
-      if (params.gridCell) {
-        const cellLabel = getCellLabel(params.gridCell.col, params.gridCell.row);
-        const { cols, rows } = getGridDimensions();
-        // Compute percentage extents of the selected cell within the image
-        const xStart = Math.round((params.gridCell.col / cols) * 100);
-        const xEnd = Math.round(((params.gridCell.col + 1) / cols) * 100);
-        const yStart = Math.round((params.gridCell.row / rows) * 100);
-        const yEnd = Math.round(((params.gridCell.row + 1) / rows) * 100);
-        const colPosition = params.gridCell.col < cols / 3 ? 'left' : params.gridCell.col > (2 * cols) / 3 ? 'right' : 'centre';
-        const rowPosition = params.gridCell.row < rows / 3 ? 'upper' : params.gridCell.row > (2 * rows) / 3 ? 'lower' : 'middle';
-        finalPrompt = `TARGETED AREA: Apply the change only within grid cell ${cellLabel} — the ${rowPosition}-${colPosition} section of the image, spanning approximately ${xStart}–${xEnd}% from the left and ${yStart}–${yEnd}% from the top of the image. Everything outside this cell must remain pixel-identical to the input.\n\nINSTRUCTION FOR CELL ${cellLabel}: ${params.prompt}`;
-      }
-      
-      const formData = new FormData();
-      formData.append('image', compressedFile);
-      formData.append('styleId', 'custom');
-      formData.append('customPrompt', finalPrompt);
-      
-      // Include reference items if provided
-      if (params.referenceItems && params.referenceItems.length > 0) {
-        formData.append('referenceItems', JSON.stringify(params.referenceItems));
-      }
-      
-      // Include reference photos if provided
-      if (params.referencePhotos && params.referencePhotos.length > 0) {
-        const compressedRefPhotos = await Promise.all(
-          params.referencePhotos.map(async (photo) => {
-            const refCompressed = await compressImageOnClient(photo.file);
-            return new File([refCompressed], photo.file.name, { type: 'image/jpeg' });
-          })
-        );
-        compressedRefPhotos.forEach((photo) => {
-          formData.append(`referencePhotos`, photo);
-        });
-        
-        const refPhotoMeta = params.referencePhotos.map(p => ({
-          type: p.type,
-          description: p.description
-        }));
-        formData.append('referencePhotosMeta', JSON.stringify(refPhotoMeta));
-      }
-      
-      const response = await fetch('/api/ai-renders/generate', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-        signal: abortControllerRef.current.signal,
-      });
-      
-      if (!response.ok) {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const error = await response.json();
-          throw new Error(error.error || 'Failed to modify render');
-        }
-        throw new Error(`Server error (${response.status}). Please try again.`);
-      }
-      
-      return response.json();
-    },
-    onSuccess: (data: any) => {
-      setGeneratedRender({
-        imageData: data.imageData,
-        mimeType: data.mimeType,
-        styleId: generatedRender?.styleId || "modified",
-        styleName: `Modified - ${generatedRender?.styleName || "Custom"}`
-      });
-      setModificationPrompt("");
-      setShowModifyTools(false);
-      setSelectedGridCell(null);
-      toast({
-        title: "Modification Complete",
-        description: "Your render has been modified successfully."
-      });
-    },
-    onError: (error: Error) => {
-      if (error.name === 'AbortError') {
-        return;
-      }
-      const isTimeout = error.message.includes('timed out') || error.message.includes('90 seconds');
-      toast({
-        title: isTimeout ? "Generation Timed Out" : "Modification Failed",
-        description: isTimeout 
-          ? "The AI took too long to respond. This can happen with complex images. Please try again." 
-          : error.message,
-        variant: "destructive"
-      });
-    }
-  });
   
   const photorealMutation = useMutation({
     mutationFn: async () => {
@@ -1159,14 +1042,13 @@ export default function AIRendersPage() {
     }
   };
 
-  const openRendersPicker = (mode: 'source' | 'refPhoto' | 'modifyRefPhoto') => {
+  const openRendersPicker = (mode: 'source' | 'refPhoto') => {
     setRenderPickerMode(mode);
     setShowSavedRendersDialog(true);
   };
 
-  const handleSelectSavedRenderAsRefPhoto = async (render: Moodboard, target: 'refPhoto' | 'modifyRefPhoto') => {
-    const limitList = target === 'refPhoto' ? referencePhotos : modifyReferencePhotos;
-    if (limitList.length >= 5) {
+  const handleSelectSavedRenderAsRefPhoto = async (render: Moodboard) => {
+    if (referencePhotos.length >= 5) {
       toast({ title: "Limit Reached", description: "Maximum 5 reference photos allowed", variant: "destructive" });
       return;
     }
@@ -1184,11 +1066,7 @@ export default function AIRendersPage() {
         type: 'existing_space',
         description: render.name || 'Saved render'
       };
-      if (target === 'refPhoto') {
-        setReferencePhotos(prev => [...prev, newPhoto]);
-      } else {
-        setModifyReferencePhotos(prev => [...prev, newPhoto]);
-      }
+      setReferencePhotos(prev => [...prev, newPhoto]);
       setShowSavedRendersDialog(false);
       toast({ title: "Render Added", description: `"${render.name || 'Saved render'}" added as reference photo` });
     } catch {
@@ -1196,11 +1074,32 @@ export default function AIRendersPage() {
     }
   };
 
+  const loadRenderAsSource = async () => {
+    if (!generatedRender) return;
+    try {
+      const base64Response = await fetch(`data:${generatedRender.mimeType};base64,${generatedRender.imageData}`);
+      const blob = await base64Response.blob();
+      const file = new File([blob], 'iteration.jpg', { type: generatedRender.mimeType });
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+      setActiveTab('image');
+      setLeftPanelCollapsed(false);
+      setCustomPrompt('');
+      setReferenceItems([]);
+      setReferencePhotos([]);
+      setGeneratedRender(null);
+      toast({ title: "Render loaded as source", description: "Write your next instruction in Custom Instructions and click Generate." });
+    } catch {
+      toast({ title: "Error", description: "Failed to load render as source image", variant: "destructive" });
+    }
+  };
+
   const handleSavedRenderDialogSelect = (render: Moodboard) => {
     if (renderPickerMode === 'source') {
       handleSelectSavedRender(render);
     } else {
-      handleSelectSavedRenderAsRefPhoto(render, renderPickerMode);
+      handleSelectSavedRenderAsRefPhoto(render);
     }
   };
 
@@ -1328,8 +1227,7 @@ export default function AIRendersPage() {
   };
 
   const isGenerating = generateFromImageMutation.isPending || generateFromDescriptionMutation.isPending;
-  const isModifying = modifyRenderMutation.isPending;
-  const isAnyAIWorking = isGenerating || isModifying;
+  const isAnyAIWorking = isGenerating;
 
   useEffect(() => {
     if (isAnyAIWorking && !generationStartTime) {
@@ -1832,7 +1730,6 @@ export default function AIRendersPage() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedGridCell(isSelected ? null : { col, row });
-                                  if (!showModifyTools) setShowModifyTools(true);
                                 }}
                                 title={getCellLabel(col, row)}
                                 data-testid={`grid-cell-${col}-${row}`}
@@ -1946,223 +1843,42 @@ export default function AIRendersPage() {
                 </p>
                 
                 <div className="border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2">
                       <Edit3 className="h-4 w-4 text-primary" />
-                      <Label className="text-sm font-medium">Smart Modification</Label>
+                      <Label className="text-sm font-medium">Iterate on this render</Label>
                     </div>
                     <Button
-                      variant={showModifyTools ? "default" : "outline"}
+                      variant="outline"
                       size="sm"
-                      onClick={() => setShowModifyTools(!showModifyTools)}
-                      data-testid="button-toggle-modify-tools"
+                      onClick={loadRenderAsSource}
+                      data-testid="button-edit-render"
                     >
-                      {showModifyTools ? "Hide" : "Edit Render"}
+                      <ImagePlus className="h-4 w-4 mr-1" />
+                      Edit Render
                     </Button>
                   </div>
-                  
-                  {showModifyTools && (
-                    <div className="space-y-3 mt-3">
-                      {selectedGridCell && (
-                        <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-md border border-primary/20">
-                          <Grid3X3 className="h-4 w-4 text-primary" />
-                          <span className="text-sm font-medium">Target: Cell {getCellLabel(selectedGridCell.col, selectedGridCell.row)}</span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5 ml-auto"
-                            onClick={() => setSelectedGridCell(null)}
-                            data-testid="button-clear-grid-selection"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                      
-                      <div className="grid grid-cols-3 gap-2">
-                        {quickModifications.map((mod, index) => (
-                          <Button
-                            key={index}
-                            variant="outline"
-                            size="sm"
-                            className="flex flex-col h-auto py-2 px-2"
-                            onClick={() => modifyRenderMutation.mutate({ prompt: mod.prompt, gridCell: selectedGridCell })}
-                            disabled={modifyRenderMutation.isPending}
-                            data-testid={`button-quick-mod-${index}`}
-                          >
-                            <mod.icon className="h-4 w-4 mb-1" />
-                            <span className="text-xs">{mod.label}</span>
-                          </Button>
-                        ))}
-                      </div>
-                      
-                      <Separator />
-                      
-                      <div>
-                        <Label className="text-xs">Custom Modification {selectedGridCell ? `(targeting cell ${getCellLabel(selectedGridCell.col, selectedGridCell.row)})` : ''}</Label>
-                        <Textarea
-                          placeholder={selectedGridCell 
-                            ? `Describe what to change in cell ${getCellLabel(selectedGridCell.col, selectedGridCell.row)} (e.g., 'add a potted plant here')`
-                            : "Describe your modification (e.g., 'replace the blue sofa with a grey sectional')"}
-                          value={modificationPrompt}
-                          onChange={(e) => setModificationPrompt(e.target.value)}
-                          className="mt-1 min-h-[60px]"
-                          data-testid="input-modification-prompt"
-                        />
-                      </div>
-                      
-                      {/* Reference items and photos for modifications */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs">Reference Items</Label>
-                          <Badge variant="outline" className="text-xs">{modifyReferenceItems.length}/3</Badge>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowModifyAssetPicker(true)}
-                            disabled={modifyReferenceItems.length >= 3}
-                            data-testid="button-modify-saved-assets"
-                          >
-                            <FolderOpen className="h-4 w-4 mr-1" />
-                            Saved Assets
-                          </Button>
-                          <input
-                            type="file"
-                            ref={modifyPhotoInputRef}
-                            className="hidden"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file && modifyReferencePhotos.length < 3) {
-                                const newPhoto: ReferencePhoto = {
-                                  id: `modify-photo-${Date.now()}`,
-                                  file,
-                                  previewUrl: URL.createObjectURL(file),
-                                  type: 'existing_space',
-                                  description: ''
-                                };
-                                setModifyReferencePhotos([...modifyReferencePhotos, newPhoto]);
-                              }
-                              e.target.value = '';
-                            }}
-                          />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => modifyPhotoInputRef.current?.click()}
-                            disabled={modifyReferencePhotos.length >= 3}
-                            data-testid="button-modify-existing-photo"
-                          >
-                            <ImageIcon className="h-4 w-4 mr-1" />
-                            Existing
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openRendersPicker('modifyRefPhoto')}
-                            disabled={modifyReferencePhotos.length >= 3 || savedRenders.length === 0}
-                            data-testid="button-modify-from-renders"
-                            title="Pick from previously saved renders"
-                          >
-                            <ImagePlus className="h-4 w-4 mr-1" />
-                            Renders
-                          </Button>
-                        </div>
-                        
-                        {/* Display modify reference items */}
-                        {modifyReferenceItems.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {modifyReferenceItems.map((item) => (
-                              <div key={item.id} className="flex items-center gap-1 bg-background rounded border px-2 py-1">
-                                {item.imagePath && (
-                                  <img src={item.imagePath} alt={item.name} className="w-6 h-6 object-cover rounded" />
-                                )}
-                                <span className="text-xs truncate max-w-[80px]">{item.name}</span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-4 w-4"
-                                  onClick={() => setModifyReferenceItems(items => items.filter(i => i.id !== item.id))}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        
-                        {/* Display modify reference photos */}
-                        {modifyReferencePhotos.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {modifyReferencePhotos.map((photo) => (
-                              <div key={photo.id} className="flex items-center gap-1 bg-background rounded border px-2 py-1">
-                                <img src={photo.previewUrl} alt="Reference" className="w-6 h-6 object-cover rounded" />
-                                <span className="text-xs">Ref</span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-4 w-4"
-                                  onClick={() => {
-                                    URL.revokeObjectURL(photo.previewUrl);
-                                    setModifyReferencePhotos(photos => photos.filter(p => p.id !== photo.id));
-                                  }}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        {modifyRenderMutation.isPending ? (
-                          <>
-                            <Button
-                              disabled
-                              className="flex-1"
-                              data-testid="button-apply-modification"
-                            >
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Modifying... {elapsedTime > 0 && `(${formatElapsedTime(elapsedTime)})`}
-                            </Button>
-                            <Button 
-                              variant="destructive" 
-                              onClick={cancelGeneration}
-                              data-testid="button-cancel-modification"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            onClick={() => {
-                              modifyRenderMutation.mutate({ 
-                                prompt: modificationPrompt, 
-                                gridCell: selectedGridCell,
-                                referenceItems: modifyReferenceItems.length > 0 ? modifyReferenceItems : undefined,
-                                referencePhotos: modifyReferencePhotos.length > 0 ? modifyReferencePhotos : undefined
-                              });
-                            }}
-                            disabled={!modificationPrompt.trim() && modifyReferenceItems.length === 0}
-                            className="w-full"
-                            data-testid="button-apply-modification"
-                          >
-                            <Wand2 className="h-4 w-4 mr-2" />
-                            Apply Modification
-                          </Button>
-                        )}
-                      </div>
-                      
-                      {modifyRenderMutation.isPending && elapsedTime > 30 && (
-                        <p className="text-xs text-muted-foreground text-center">
-                          AI modification can take up to 90 seconds. Click X to cancel.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Click <strong>Edit Render</strong> to load this image as your new source, then write your next instruction and generate. Or pick a quick suggestion to pre-fill the instruction for you.
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {quickModifications.map((mod, index) => (
+                      <Button
+                        key={index}
+                        variant="outline"
+                        size="sm"
+                        className="flex flex-col h-auto py-2 px-2"
+                        onClick={async () => {
+                          await loadRenderAsSource();
+                          setCustomPrompt(mod.prompt);
+                        }}
+                        data-testid={`button-quick-mod-${index}`}
+                      >
+                        <mod.icon className="h-4 w-4 mb-1" />
+                        <span className="text-xs">{mod.label}</span>
+                      </Button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="border rounded-lg p-3 bg-muted/30 flex items-center justify-between gap-3">
@@ -2695,45 +2411,6 @@ export default function AIRendersPage() {
         description="Choose furniture, finishes, or materials from your saved assets"
       />
 
-      {/* Asset picker for modification mode */}
-      <AssetPicker
-        open={showModifyAssetPicker}
-        onOpenChange={setShowModifyAssetPicker}
-        onSelect={(asset: SelectedAsset) => {
-          if (modifyReferenceItems.length >= 3) {
-            toast({
-              title: "Limit Reached",
-              description: "Maximum 3 reference items allowed",
-              variant: "destructive"
-            });
-            return;
-          }
-          const assetId = asset.id || `modify-asset-${Date.now()}`;
-          if (modifyReferenceItems.find(r => r.id === assetId)) {
-            toast({
-              title: "Already Added",
-              description: "This item is already in your references",
-              variant: "destructive"
-            });
-            return;
-          }
-          const newItem: ReferenceItem = {
-            id: assetId,
-            name: asset.displayName,
-            category: 'Reference',
-            subcategory: asset.type,
-            vendorBrand: undefined,
-            description: asset.description,
-            imagePath: asset.previewUrl || asset.filePath || asset.thumbnailPath,
-            aiPromptHints: asset.aiPromptHints,
-            placementInstruction: ''
-          };
-          setModifyReferenceItems([...modifyReferenceItems, newItem]);
-          setShowModifyAssetPicker(false);
-        }}
-        title="Select Reference Asset for Modification"
-        description="Choose an asset to add to your modification"
-      />
     </div>
   );
 }
