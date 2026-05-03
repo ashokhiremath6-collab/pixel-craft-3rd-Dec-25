@@ -381,40 +381,16 @@ async function matchSourceFraming(
 
     console.log(`[Gemini] Framing correction — source: ${srcWidth}×${srcHeight} (${srcRatio.toFixed(3)}), output: ${outW}×${outH} (${outRatio.toFixed(3)})`);
 
-    // If ratios already match closely (within 2%), just resize to source dims
-    if (Math.abs(srcRatio - outRatio) / srcRatio < 0.02) {
-      const resized = await sharp(outputBuffer)
-        .resize(srcWidth, srcHeight, { fit: 'fill', kernel: 'lanczos3' })
-        .jpeg({ quality: 95 })
-        .toBuffer();
-      console.log(`[Gemini] Framing: ratios matched — resized to ${srcWidth}×${srcHeight}`);
-      return { data: resized.toString('base64'), mimeType: 'image/jpeg' };
-    }
-
-    // Ratios differ — center-crop the output to match source aspect ratio, then resize.
-    // Strategy: scale the output so the target aspect ratio fits inside, then crop.
-    let cropW: number, cropH: number;
-    if (outRatio > srcRatio) {
-      // Output is wider than source — crop left/right
-      cropH = outH;
-      cropW = Math.round(outH * srcRatio);
-    } else {
-      // Output is taller than source — crop top/bottom
-      cropW = outW;
-      cropH = Math.round(outW / srcRatio);
-    }
-
-    const left = Math.round((outW - cropW) / 2);
-    const top = Math.round((outH - cropH) / 2);
-
-    const corrected = await sharp(outputBuffer)
-      .extract({ left, top, width: cropW, height: cropH })
+    // Always resize output to exact source dimensions using fit:'fill'.
+    // This applies a gentle stretch rather than cropping content away.
+    // A slight squish is far less destructive than losing edges of the room.
+    const resized = await sharp(outputBuffer)
       .resize(srcWidth, srcHeight, { fit: 'fill', kernel: 'lanczos3' })
       .jpeg({ quality: 95 })
       .toBuffer();
 
-    console.log(`[Gemini] Framing: cropped ${outW}×${outH} → ${cropW}×${cropH} at (${left},${top}), resized to ${srcWidth}×${srcHeight}`);
-    return { data: corrected.toString('base64'), mimeType: 'image/jpeg' };
+    console.log(`[Gemini] Framing: resized (fill) ${outW}×${outH} → ${srcWidth}×${srcHeight}`);
+    return { data: resized.toString('base64'), mimeType: 'image/jpeg' };
   } catch (err) {
     console.error('[Gemini] Framing correction failed, returning original:', err);
     return { data: outputBase64, mimeType: outputMimeType };
