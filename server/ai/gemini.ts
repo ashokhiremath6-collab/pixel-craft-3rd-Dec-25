@@ -362,6 +362,85 @@ async function compressImage(imageBase64: string, mimeType: string): Promise<{ d
   }
 }
 
+// Pad the source image with mirrored edges so Gemini's zoom-in behaviour
+// consumes padding rather than room content. Returns the padded buffer and
+// the fractional crop region needed to extract the original room after generation.
+async function padImageForFraming(
+  imageBuffer: Buffer,
+  padPercent: number = 0.15
+): Promise<{
+  paddedBuffer: Buffer;
+  paddedMimeType: string;
+  cropFracLeft: number;
+  cropFracTop: number;
+  cropFracW: number;
+  cropFracH: number;
+}> {
+  const meta = await sharp(imageBuffer).metadata();
+  const origW = meta.width!;
+  const origH = meta.height!;
+
+  const padX = Math.round(origW * padPercent);
+  const padY = Math.round(origH * padPercent);
+  const newW = origW + padX * 2;
+  const newH = origH + padY * 2;
+
+  // Mirror-extend edges so the padding looks like a natural continuation
+  const paddedBuffer = await sharp(imageBuffer)
+    .extend({ top: padY, bottom: padY, left: padX, right: padX, extendWith: 'mirror' })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+
+  console.log(`[Gemini] Padded image: ${origW}×${origH} → ${newW}×${newH} (${padPercent * 100}% padding per side)`);
+
+  return {
+    paddedBuffer,
+    paddedMimeType: 'image/jpeg',
+    cropFracLeft: padX / newW,
+    cropFracTop: padY / newH,
+    cropFracW: origW / newW,
+    cropFracH: origH / newH,
+  };
+}
+
+// After Gemini returns a result generated from a padded source,
+// crop the padding back off proportionally (resolution-agnostic).
+async function cropPaddingFromResult(
+  resultBase64: string,
+  resultMimeType: string,
+  cropFracLeft: number,
+  cropFracTop: number,
+  cropFracW: number,
+  cropFracH: number
+): Promise<{ data: string; mimeType: string }> {
+  try {
+    const buf = Buffer.from(resultBase64, 'base64');
+    const meta = await sharp(buf).metadata();
+    const outW = meta.width!;
+    const outH = meta.height!;
+
+    const left = Math.round(outW * cropFracLeft);
+    const top  = Math.round(outH * cropFracTop);
+    const w    = Math.round(outW * cropFracW);
+    const h    = Math.round(outH * cropFracH);
+
+    // Safety clamp so extract never exceeds image bounds
+    const safeW = Math.min(w, outW - left);
+    const safeH = Math.min(h, outH - top);
+
+    const cropped = await sharp(buf)
+      .extract({ left, top, width: safeW, height: safeH })
+      .jpeg({ quality: 95 })
+      .toBuffer();
+
+    console.log(`[Gemini] Cropped padding: ${outW}×${outH} → ${safeW}×${safeH} (extracted at ${left},${top})`);
+    return { data: cropped.toString('base64'), mimeType: 'image/jpeg' };
+  } catch (err) {
+    console.error('[Gemini] Padding crop failed, returning original:', err);
+    return { data: resultBase64, mimeType: resultMimeType };
+  }
+}
+
 // Force the generated output to match the source image's exact aspect ratio and dimensions.
 // This corrects Gemini's tendency to zoom in or change the crop.
 async function matchSourceFraming(
@@ -482,6 +561,13 @@ export async function generateInteriorRender(
     console.log("[Gemini] Compressing image...");
     const compressed = await compressImage(imageBase64, mimeType);
     console.log("[Gemini] Image compressed, size:", compressed.data.length, "bytes");
+
+    // Pad the compressed image with mirrored edges so any zoom-in by Gemini
+    // consumes padding instead of room content. We crop it back afterwards.
+    const compressedBuffer = Buffer.from(compressed.data, 'base64');
+    const { paddedBuffer, paddedMimeType, cropFracLeft, cropFracTop, cropFracW, cropFracH } =
+      await padImageForFraming(compressedBuffer, 0.15);
+    const paddedData = paddedBuffer.toString('base64');
 
     // Build reference items instruction block
     let referenceInstructions = '';
@@ -639,10 +725,10 @@ OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with only the l
     console.log("[Gemini] Calling AI API with model: gemini-2.5-flash-image");
     console.log("[Gemini] Timeout set to:", AI_TIMEOUT_MS / 1000, "seconds");
     
-    // Build parts array: text prompt + source image + reference images
+    // Build parts array: text prompt + PADDED source image + reference images
     const parts: any[] = [
       { text: prompt },
-      { inlineData: { mimeType: compressed.mimeType, data: compressed.data } },
+      { inlineData: { mimeType: paddedMimeType, data: paddedData } },
       ...referenceImageParts
     ];
     
@@ -699,10 +785,17 @@ OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with only the l
       };
     }, "Render generation");
     
+    // Crop the padding back off before enhancing
+    console.log("[Gemini] Cropping padding from result...");
+    const cropped = await cropPaddingFromResult(
+      result.data, result.mimeType,
+      cropFracLeft, cropFracTop, cropFracW, cropFracH
+    );
+
     console.log("[Gemini] Enhancing output resolution...");
     const enhanced = await enhanceOutputImage(
-      result.data,
-      result.mimeType
+      cropped.data,
+      cropped.mimeType
     );
     
     console.log("[Gemini] Successfully generated and enhanced render");
