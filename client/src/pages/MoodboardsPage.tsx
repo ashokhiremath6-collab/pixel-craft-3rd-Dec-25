@@ -1096,19 +1096,21 @@ export default function MoodboardsPage() {
                 ) : assetType === "working_drawing" && group.folderGroups ? (
                   /* For working drawings, show grouped by folder */
                   <div className="space-y-6">
-                    {/* Floor Plans from the dedicated floor plans library — shown first */}
+                    {/* Floor Plans — dedicated library + any working drawings uploaded to "Floor Plans" folder */}
                     {(() => {
                       const fps = floorPlansByProject[projectId] ?? [];
-                      if (fps.length === 0) return null;
+                      const moodboardFps = group.folderGroups?.["Floor Plans"] ?? [];
+                      if (fps.length === 0 && moodboardFps.length === 0) return null;
                       const latestFpId = fps.reduce((a: FloorPlan | null, b: FloorPlan) =>
                         !a || new Date(b.uploadedAt) > new Date(a.uploadedAt) ? b : a
                       , null)?.id;
+                      const totalCount = fps.length + moodboardFps.length;
                       return (
                         <div className="space-y-3">
                           <div className="flex items-center gap-2 pb-2 border-b">
                             <FolderOpen className="h-4 w-4 text-muted-foreground" />
                             <h4 className="font-bold text-sm uppercase tracking-wide">Floor Plans</h4>
-                            <Badge variant="outline" className="text-xs">{fps.length}</Badge>
+                            <Badge variant="outline" className="text-xs">{totalCount}</Badge>
                           </div>
                           <div className="space-y-3 pl-2">
                             {fps.map((fp: FloorPlan) => {
@@ -1171,12 +1173,54 @@ export default function MoodboardsPage() {
                                 </div>
                               );
                             })}
+                            {/* Moodboard/working-drawing items uploaded to "Floor Plans" folder */}
+                            {moodboardFps.map((moodboard: Moodboard) => {
+                              const cadMeta = parseCadMeta(moodboard.description);
+                              const isCAD = isCadFile(moodboard);
+                              return (
+                                <div key={moodboard.id}
+                                  className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate"
+                                  data-testid={`drawing-item-${moodboard.id}`}>
+                                  <div className="flex-1 min-w-0 flex items-start gap-3">
+                                    {isCAD && <FileCode2 className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />}
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                                        <h4 className="font-medium text-base truncate" title={getDisplayTitle(moodboard)}>
+                                          {getDisplayTitle(moodboard) || "Floor Plan"}
+                                        </h4>
+                                        {isCAD && <Badge variant="secondary" className="text-xs shrink-0 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">CAD</Badge>}
+                                        <RecentBadge date={moodboard.uploadedAt} />
+                                      </div>
+                                      <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                                        {cadMeta ? (
+                                          <>
+                                            {cadMeta.type && <span>{cadMeta.type}</span>}
+                                            {cadMeta.scale && <><span>•</span><span>{cadMeta.scale}</span></>}
+                                            <span>•</span>
+                                            <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy')}</span>
+                                          </>
+                                        ) : (
+                                          <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {getPreviewUrl(moodboard) && (
+                                      <Button variant="ghost" size="icon" onClick={() => setPreviewImage(moodboard)} title="Preview">
+                                        <Eye className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       );
                     })()}
 
-                    {Object.entries(group.folderGroups).map(([folderName, folderItems]) => {
+                    {Object.entries(group.folderGroups).filter(([folderName]) => folderName !== "Floor Plans").map(([folderName, folderItems]) => {
                       // Build per-name duplicate groups to detect which items share a name
                       const nameToIds: Record<string, string[]> = {};
                       folderItems.forEach((item: Moodboard) => {
