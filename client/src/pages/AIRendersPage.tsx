@@ -966,7 +966,6 @@ export default function AIRendersPage() {
         styleId: selectedStyle,
         styleName: style?.name || selectedStyle
       });
-      setLeftPanelCollapsed(true);
       toast({ title: "Render Generated", description: "Your AI render is ready!" });
     },
     onError: (error: any) => {
@@ -1029,7 +1028,6 @@ export default function AIRendersPage() {
         styleId: selectedStyle,
         styleName: style?.name || selectedStyle
       });
-      setLeftPanelCollapsed(true);
       toast({ title: "Render Generated", description: "Your concept render is ready!" });
     },
     onError: (error: any) => {
@@ -1462,10 +1460,9 @@ export default function AIRendersPage() {
                           From Saved
                         </Badge>
                       )}
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-2 right-2 h-6 w-6"
+                      <button
+                        type="button"
+                        className="absolute top-1 right-1 h-5 w-5 rounded-full bg-background/70 hover:bg-background flex items-center justify-center text-muted-foreground hover:text-foreground shadow-sm transition-colors"
                         onClick={() => {
                           setSelectedFile(null);
                           setPreviewUrl(null);
@@ -1476,7 +1473,7 @@ export default function AIRendersPage() {
                         title="Remove this image"
                       >
                         <X className="h-3 w-3" />
-                      </Button>
+                      </button>
                     </div>
                   )}
                 </div>
