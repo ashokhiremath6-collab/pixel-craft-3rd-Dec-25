@@ -562,13 +562,6 @@ export async function generateInteriorRender(
     const compressed = await compressImage(imageBase64, mimeType);
     console.log("[Gemini] Image compressed, size:", compressed.data.length, "bytes");
 
-    // Pad the compressed image with mirrored edges so any zoom-in by Gemini
-    // consumes padding instead of room content. We crop it back afterwards.
-    const compressedBuffer = Buffer.from(compressed.data, 'base64');
-    const { paddedBuffer, paddedMimeType, cropFracLeft, cropFracTop, cropFracW, cropFracH } =
-      await padImageForFraming(compressedBuffer, 0.15);
-    const paddedData = paddedBuffer.toString('base64');
-
     // Build reference items instruction block
     let referenceInstructions = '';
     const referenceImageParts: any[] = [];
@@ -652,41 +645,54 @@ export async function generateInteriorRender(
       const srcW = compressed.width;
       const srcH = compressed.height;
       
-      prompt = `You MUST generate an image. Do NOT respond with text.
+      prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text. Do NOT explain limitations. Generate the image now.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SURGICAL EDIT — ONE CHANGE ONLY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-You are making EXACTLY ONE targeted edit to this room photo.
-The output must look like the input photo with only that one thing changed.
-Do NOT redesign the room. Do NOT restyle it. Do NOT "improve" it.
-Treat the input as a photograph you are retouching, not a brief to redesign.
+⚠️ FRAMING LOCK — RULE #1 — HIGHEST PRIORITY:
+The input image is exactly ${srcW}×${srcH} pixels.
+Your output MUST be ${srcW}×${srcH} pixels with the IDENTICAL crop and field of view.
+- Do NOT zoom in. Do NOT zoom out. Do NOT pan. Do NOT rotate.
+- Every edge visible in the input (left wall, right wall, ceiling, floor) MUST appear at the SAME pixel position in the output.
+- The right-side wall edge, left-side wall edge, ceiling edge, and floor edge must all be visible and in the same position as the input.
+- If ANY room edge that is visible in the input is missing from your output, the output is WRONG.
+This framing rule is ABSOLUTE and overrides any other consideration.
 
-THE CHANGE TO MAKE:
+You are a precision interior design editor. Your job is surgical: apply EXACTLY the instruction below and leave everything else completely untouched.
+
+═══════════════════════════════════════════════════════
+YOUR INSTRUCTION — APPLY THIS AND ONLY THIS
+═══════════════════════════════════════════════════════
 ${customPrompt}
 ${hasReferencePhotos ? `
-REFERENCE PHOTOS (attached) — copy the visual content FROM these photos:
-- If the instruction says "replace X with the reference image/photo", reproduce the reference content in place of X (paint it on the wall, place it where X was, etc.)
-- Copy ONLY the target item from the reference. Ignore its background.
-- Do NOT leave a blank space — always replace with what the reference shows.
+REFERENCE PHOTOS (attached):
+- These photos are the EXACT visual content the user wants used — treat them as source material to copy FROM.
+- If the instruction says "replace X with the reference image/photo", reproduce the reference photo's content faithfully in place of X (e.g., paint it onto the wall, frame it, place it where X was).
+- If the instruction targets a furniture item, copy ONLY that item from the reference — ignore its background.
+- Do NOT simply remove X and leave a blank space — always replace with what the reference photo shows.
 ` : ''}${referenceInstructions}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EVERYTHING BELOW IS COMPLETELY FROZEN — DO NOT CHANGE:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Wall colours, wall materials, wall texture → identical to input
-- Floor colour, floor pattern, floor material → identical to input
-- Ceiling colour and material → identical to input
-- Every piece of furniture NOT named in the change → same position, same colour, same style
-- Room layout, spatial arrangement → identical to input
-- Lighting sources and brightness → identical to input
-- Overall room style, aesthetic, design language → identical to input
-- Camera position, angle, field of view → identical to input (${srcW}×${srcH}, no zoom, no pan)
-- Windows, doors, columns, architectural features → identical to input
+═══════════════════════════════════════════════════════
+SCOPE LOCK — DO NOT TOUCH ANYTHING ELSE
+═══════════════════════════════════════════════════════
+- Change ONLY what the instruction above explicitly requests. Nothing else.
+- Room structure (walls, ceiling, floor, windows, doors, columns) = pixel-identical to input
+- Camera angle and room perspective = identical to input
+- Every piece of furniture NOT mentioned in the instruction = unchanged, same position, same appearance
+- Every colour NOT mentioned in the instruction = unchanged
+- Every light source NOT mentioned in the instruction = unchanged
+- Every texture and material NOT mentioned in the instruction = unchanged
+- If the instruction targets a specific area or item, all other areas and items are frozen
 
-RULE: If something is not explicitly named in "THE CHANGE TO MAKE" above, it is frozen. Do less rather than more. When in doubt, leave it exactly as it is in the input.
+INTERPRETATION RULE: When the instruction is ambiguous, apply the narrowest reasonable interpretation — do less rather than more.
 
-OUTPUT: High resolution photorealistic image — the input photo with only the named change applied. Everything else pixel-identical.`;
+═══════════════════════════════════════════════════════
+QUALITY STANDARD
+═══════════════════════════════════════════════════════
+- Photorealistic quality matching the input image's style and lighting
+- Seamlessly blend changed elements with unchanged surroundings
+- Consistent shadows, reflections, and depth throughout
+- Output dimensions and aspect ratio must match the input image exactly
+
+OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with all changes applied cleanly and all unchanged areas preserved exactly.`;
     } else if (style) {
       prompt = `CRITICAL: You MUST generate an image. Do NOT respond with text explanations.
 
@@ -725,10 +731,10 @@ OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with only the l
     console.log("[Gemini] Calling AI API with model: gemini-2.5-flash-image");
     console.log("[Gemini] Timeout set to:", AI_TIMEOUT_MS / 1000, "seconds");
     
-    // Build parts array: text prompt + PADDED source image + reference images
+    // Build parts array: text prompt + source image + reference images
     const parts: any[] = [
       { text: prompt },
-      { inlineData: { mimeType: paddedMimeType, data: paddedData } },
+      { inlineData: { mimeType: compressed.mimeType, data: compressed.data } },
       ...referenceImageParts
     ];
     
@@ -785,17 +791,10 @@ OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with only the l
       };
     }, "Render generation");
     
-    // Crop the padding back off before enhancing
-    console.log("[Gemini] Cropping padding from result...");
-    const cropped = await cropPaddingFromResult(
-      result.data, result.mimeType,
-      cropFracLeft, cropFracTop, cropFracW, cropFracH
-    );
-
     console.log("[Gemini] Enhancing output resolution...");
     const enhanced = await enhanceOutputImage(
-      cropped.data,
-      cropped.mimeType
+      result.data,
+      result.mimeType
     );
     
     console.log("[Gemini] Successfully generated and enhanced render");
