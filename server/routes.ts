@@ -4563,7 +4563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Save generated render to project moodboards
   app.post("/api/ai-renders/save", requireAdmin, async (req, res) => {
     try {
-      const { imageData, mimeType, projectId, name, description, styleId, originalFilename, customName, referenceItems } = req.body;
+      const { imageData, mimeType, projectId, name, description, styleId, originalFilename, customName, roomType: explicitRoomType, referenceItems } = req.body;
       
       if (!imageData) {
         return res.status(400).json({ error: "Image data is required" });
@@ -4572,12 +4572,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as any).id;
       
       // Extract room name from original filename (e.g., "Chitra's Bedroom" from "Chitra's bedroom 1.jpg")
-      // This is used for display purposes
-      const roomName = extractRoomName(originalFilename || name || '');
+      // Prefer custom name as source of room name (user types "Living room 3rd May")
+      const roomName = extractRoomName(customName || originalFilename || name || '');
       
-      // Detect room type for grouping (uses keywords like "living", "bedroom", etc.)
-      // This ensures renders are properly grouped even when using saved renders as source
-      const roomTypeForGrouping = detectRoomType(originalFilename || name || '');
+      // Detect room type for grouping: explicit selection > custom name > original filename > name
+      // This ensures renders land in the correct room sub-group on the Renders page
+      const roomTypeForGrouping = explicitRoomType || detectRoomType(customName || originalFilename || name || '');
       
       // Get style name from styleId
       const style = RENDER_STYLES.find(s => s.id === styleId);
@@ -5804,7 +5804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             targetStartDate: parseDate(getCol(row, 'Target Start', 'Baseline Start', 'Original Start')),
             targetEndDate: parseDate(getCol(row, 'Target Finish', 'Baseline Finish', 'Original Finish', 'Target End')),
             remarks: safeStr(getCol(row, 'Remarks', 'Notes', 'Comments')),
-            outlineLevel: safeStr(getCol(row, 'Outline Level', 'Level', 'WBS Level', 'Indent')),
+            outlineLevel: (() => { const v = getCol(row, 'Outline Level', 'Level', 'WBS Level', 'Indent'); const n = parseInt(String(v ?? '')); return isNaN(n) ? null : n; })(),
             color: safeStr(getCol(row, 'Color', 'Colour', 'Color Code')),
           };
 

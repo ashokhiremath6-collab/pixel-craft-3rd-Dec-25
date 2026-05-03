@@ -113,6 +113,7 @@ export default function AIRendersPage() {
   const [customPrompt, setCustomPrompt] = useState("");
   const [textDescription, setTextDescription] = useState("");
   const [selectedProject, setSelectedProject] = useState<string>("");
+  const [selectedRoomType, setSelectedRoomType] = useState<string>("");
   const [customRenderName, setCustomRenderName] = useState<string>("");
   const [generatedRender, setGeneratedRender] = useState<GeneratedRender | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -950,6 +951,7 @@ export default function AIRendersPage() {
       description?: string;
       originalFilename?: string;
       customName?: string;
+      roomType?: string;
       referenceItems?: Array<{
         id: string;
         name: string;
@@ -1156,6 +1158,7 @@ export default function AIRendersPage() {
       description: customPrompt || textDescription || "",
       originalFilename: selectedFile?.name || textDescription || "",
       customName: customRenderName.trim() || undefined,
+      roomType: selectedRoomType || undefined,
       referenceItems: referenceItems.map(item => ({
         id: item.id,
         name: item.name,
@@ -1894,6 +1897,20 @@ export default function AIRendersPage() {
                         <SelectItem key={project.id} value={project.id}>
                           {project.projectName}
                         </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="save-room-type">Room Type</Label>
+                  <Select value={selectedRoomType} onValueChange={setSelectedRoomType}>
+                    <SelectTrigger className="mt-2" data-testid="select-room-type">
+                      <SelectValue placeholder="Select room type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["Living Room", "Bedroom", "Kitchen", "Dining Room", "Bathroom", "Study", "Kids Room", "Guest Room", "Puja Room", "Hallway", "Walk-in Closet", "Balcony", "General"].map((room) => (
+                        <SelectItem key={room} value={room}>{room}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

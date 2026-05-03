@@ -73,10 +73,9 @@ export default function DashboardPage() {
     refetchOnWindowFocus: true,
   });
 
-  const { data: allTasksData } = useQuery<Task[]>({
+  const { data: allTasksData, isLoading: tasksLoading } = useQuery<Task[]>({
     queryKey: ['/api/tasks'],
     staleTime: 0,
-    gcTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   });
@@ -85,7 +84,7 @@ export default function DashboardPage() {
     window.location.href = path;
   };
 
-  const isLoading = vendorsLoading || quotationsLoading || categoriesLoading || activitiesLoading;
+  const isLoading = vendorsLoading || quotationsLoading || categoriesLoading || activitiesLoading || tasksLoading;
 
   if (isLoading) {
     return (
