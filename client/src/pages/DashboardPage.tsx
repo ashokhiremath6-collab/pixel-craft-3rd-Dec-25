@@ -76,6 +76,7 @@ export default function DashboardPage() {
   const { data: allTasksData } = useQuery<Task[]>({
     queryKey: ['/api/tasks'],
     staleTime: 0,
+    gcTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   });
@@ -191,7 +192,7 @@ export default function DashboardPage() {
       if (progress >= 100) return;
       
       const taskName = task.name?.toUpperCase() || '';
-      if (taskName.startsWith('PHASE') || taskName.startsWith('PACKAGE') || taskName.startsWith('EXECUTE')) return;
+      if (taskName.includes('PHASE') || taskName.includes('PACKAGE') || taskName.includes('EXECUTE')) return;
       if (task.startDate === '2099-12-31' || task.endDate === '2099-12-31') return;
       
       const projectName = task.projectId ? (projectNameMap[task.projectId] || 'Unknown Project') : 'Unknown Project';
@@ -230,7 +231,7 @@ export default function DashboardPage() {
   const isActionableTask = (task: Task) => {
     if (task.startDate === '2099-12-31' || task.endDate === '2099-12-31') return false;
     const taskName = task.name?.toUpperCase() || '';
-    if (taskName.startsWith('PHASE') || taskName.startsWith('PACKAGE') || taskName.startsWith('EXECUTE')) return false;
+    if (taskName.includes('PHASE') || taskName.includes('PACKAGE') || taskName.includes('EXECUTE')) return false;
     return true;
   };
 

@@ -299,6 +299,7 @@ export default function GanttChartPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/schedules/project', variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       const parts = [`Successfully imported ${data.tasksCreated} tasks`];
       if (data.skippedEmpty > 0) parts.push(`${data.skippedEmpty} empty rows skipped`);
       if (data.tasksFailed > 0) parts.push(`${data.tasksFailed} rows failed`);
@@ -491,6 +492,7 @@ export default function GanttChartPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/schedules/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       setReimportScheduleId(null);
       toast({ 
         title: "Success", 
@@ -1225,9 +1227,9 @@ export default function GanttChartPage() {
           if (!task.endDate) return false;
           // Skip placeholder dates (2099-12-31) used for header rows without real dates
           if (task.endDate === '2099-12-31') return false;
-          // Skip header rows (PHASE, PACKAGE, EXECUTE)
+          // Skip header rows (PHASE, PACKAGE, EXECUTE) — use includes() to match isPhaseHeader()
           const name = (task.name || '').toUpperCase();
-          if (name.startsWith('PHASE') || name.startsWith('PACKAGE') || name.startsWith('EXECUTE')) return false;
+          if (name.includes('PHASE') || name.includes('PACKAGE') || name.includes('EXECUTE')) return false;
           const endDate = parseLocalDate(task.endDate);
           return endDate && endDate < new Date();
         };
@@ -1246,7 +1248,7 @@ export default function GanttChartPage() {
           if (colonMatch) return colonMatch[1].trim();
           // Check for common prefixes
           const upperName = name.toUpperCase();
-          if (upperName.startsWith('PHASE') || upperName.startsWith('PACKAGE') || upperName.startsWith('EXECUTE')) {
+          if (upperName.includes('PHASE') || upperName.includes('PACKAGE') || upperName.includes('EXECUTE')) {
             return 'Headers';
           }
           return 'General';
@@ -1272,15 +1274,11 @@ export default function GanttChartPage() {
 
         const sortedTasks = [...filteredTasks].sort((a, b) => {
           if (taskSortMode === 'original') {
-            // Primary: rowIndex (original Excel row position), nulls last
-            const rowA = a.rowIndex !== null && a.rowIndex !== undefined ? a.rowIndex : Infinity;
-            const rowB = b.rowIndex !== null && b.rowIndex !== undefined ? b.rowIndex : Infinity;
-            if (rowA !== rowB) return rowA - rowB;
-            // Secondary: createdAt (insertion time) — tasks in same batch may share rowIndex across imports
-            const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-            const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-            if (createdA !== createdB) return createdA - createdB;
-            // Final tiebreaker: preserve the order the backend returned (schedule uploadedAt is already baked in)
+            // Trust the API-returned order entirely.
+            // The backend sorts by: schedule uploadedAt ASC → rowIndex ASC → createdAt ASC,
+            // which correctly handles multiple imports for the same project (each starts
+            // rowIndex at 0, so only schedule upload time disambiguates them).
+            // Re-sorting by rowIndex/createdAt on the frontend would break multi-import order.
             return (apiOrderIndex.get(a.id) ?? 0) - (apiOrderIndex.get(b.id) ?? 0);
           } else if (taskSortMode === 'category') {
             const catA = extractCategory(a.name || '');
