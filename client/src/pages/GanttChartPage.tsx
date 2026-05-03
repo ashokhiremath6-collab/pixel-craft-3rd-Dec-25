@@ -1825,31 +1825,42 @@ export default function GanttChartPage() {
                                       <td className="py-2.5 px-2 text-center">
                                         {editingProgressTaskId === task.id ? (
                                           <div className="flex items-center gap-1 justify-center" onClick={e => e.stopPropagation()}>
-                                            <input
-                                              type="tel"
-                                              inputMode="numeric"
-                                              pattern="[0-9]*"
-                                              autoComplete="off"
-                                              data-form-type="other"
-                                              data-lpignore="true"
-                                              data-1p-ignore="true"
-                                              className="w-14 text-center text-sm border rounded px-1 py-0.5 bg-background"
-                                              value={editingProgressValue}
-                                              placeholder={String(Number(task.progressPercentage) || 0)}
-                                              onChange={e => {
-                                                const raw = e.target.value.replace(/[^0-9]/g, '');
+                                            <div
+                                              contentEditable
+                                              suppressContentEditableWarning
+                                              ref={(el) => {
+                                                if (el && document.activeElement !== el) {
+                                                  el.focus();
+                                                  const range = document.createRange();
+                                                  range.selectNodeContents(el);
+                                                  range.collapse(false);
+                                                  window.getSelection()?.removeAllRanges();
+                                                  window.getSelection()?.addRange(range);
+                                                }
+                                              }}
+                                              className="w-14 text-center text-sm border rounded px-1 py-0.5 bg-background outline-none focus:ring-1 focus:ring-ring cursor-text min-h-[1.25rem]"
+                                              onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                  e.preventDefault();
+                                                  const raw = e.currentTarget.innerText.replace(/[^0-9]/g, '');
+                                                  const val = raw === '' ? (Number(task.progressPercentage) || 0) : Math.min(100, Math.max(0, parseInt(raw, 10)));
+                                                  updateProgressMutation.mutate({ taskId: task.id, progressPercentage: val });
+                                                } else if (e.key === 'Escape') {
+                                                  setEditingProgressTaskId(null);
+                                                } else if (!/[0-9]|Backspace|Delete|ArrowLeft|ArrowRight|ArrowUp|ArrowDown|Tab|Home|End/.test(e.key)) {
+                                                  e.preventDefault();
+                                                }
+                                              }}
+                                              onInput={e => {
+                                                const raw = e.currentTarget.innerText.replace(/[^0-9]/g, '');
                                                 if (raw === '') { setEditingProgressValue(''); return; }
                                                 const n = Math.min(100, Math.max(0, parseInt(raw, 10)));
                                                 setEditingProgressValue(String(n));
                                               }}
-                                              autoFocus
-                                              onKeyDown={e => {
-                                                if (e.key === 'Enter') {
-                                                  const val = editingProgressValue === '' ? (Number(task.progressPercentage) || 0) : Math.min(100, Math.max(0, parseInt(editingProgressValue, 10) || 0));
-                                                  updateProgressMutation.mutate({ taskId: task.id, progressPercentage: val });
-                                                } else if (e.key === 'Escape') {
-                                                  setEditingProgressTaskId(null);
-                                                }
+                                              onPaste={e => {
+                                                e.preventDefault();
+                                                const text = e.clipboardData.getData('text').replace(/[^0-9]/g, '');
+                                                document.execCommand('insertText', false, text);
                                               }}
                                             />
                                             <span className="text-xs text-muted-foreground">%</span>
