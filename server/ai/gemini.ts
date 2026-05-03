@@ -566,55 +566,41 @@ export async function generateInteriorRender(
       const srcW = compressed.width;
       const srcH = compressed.height;
       
-      prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text. Do NOT explain limitations. Generate the image now.
+      prompt = `You MUST generate an image. Do NOT respond with text.
 
-⚠️ FRAMING LOCK — RULE #1 — HIGHEST PRIORITY:
-The input image is exactly ${srcW}×${srcH} pixels.
-Your output MUST be ${srcW}×${srcH} pixels with the IDENTICAL crop and field of view.
-- Do NOT zoom in. Do NOT zoom out. Do NOT pan. Do NOT rotate.
-- Every edge visible in the input (left wall, right wall, ceiling, floor) MUST appear at the SAME pixel position in the output.
-- The right-side wall edge, left-side wall edge, ceiling edge, and floor edge must all be visible and in the same position as the input.
-- If ANY room edge that is visible in the input is missing from your output, the output is WRONG.
-This framing rule is ABSOLUTE and overrides any other consideration.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SURGICAL EDIT — ONE CHANGE ONLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You are making EXACTLY ONE targeted edit to this room photo.
+The output must look like the input photo with only that one thing changed.
+Do NOT redesign the room. Do NOT restyle it. Do NOT "improve" it.
+Treat the input as a photograph you are retouching, not a brief to redesign.
 
-You are a precision interior design editor. Your job is surgical: apply EXACTLY the instruction below and leave everything else completely untouched.
-
-═══════════════════════════════════════════════════════
-YOUR INSTRUCTION — APPLY THIS AND ONLY THIS
-═══════════════════════════════════════════════════════
+THE CHANGE TO MAKE:
 ${customPrompt}
 ${hasReferencePhotos ? `
-REFERENCE PHOTOS (attached):
-- These photos are the EXACT visual content the user wants used — treat them as source material to copy FROM.
-- If the instruction says "replace X with the reference image/photo", reproduce the reference photo's content faithfully in place of X (e.g., paint it onto the wall, frame it, place it where X was).
-- If the instruction targets a furniture item, copy ONLY that item from the reference — ignore its background.
-- Do NOT simply remove X and leave a blank space — always replace with what the reference photo shows.
+REFERENCE PHOTOS (attached) — copy the visual content FROM these photos:
+- If the instruction says "replace X with the reference image/photo", reproduce the reference content in place of X (paint it on the wall, place it where X was, etc.)
+- Copy ONLY the target item from the reference. Ignore its background.
+- Do NOT leave a blank space — always replace with what the reference shows.
 ` : ''}${referenceInstructions}
 
-═══════════════════════════════════════════════════════
-SCOPE LOCK — DO NOT TOUCH ANYTHING ELSE
-═══════════════════════════════════════════════════════
-- Change ONLY what the instruction above explicitly requests. Nothing else.
-- Room structure (walls, ceiling, floor, windows, doors, columns) = pixel-identical to input
-- Camera angle and room perspective = identical to input
-- Every piece of furniture NOT mentioned in the instruction = unchanged, same position, same appearance
-- Every colour NOT mentioned in the instruction = unchanged
-- Every light source NOT mentioned in the instruction = unchanged
-- Every texture and material NOT mentioned in the instruction = unchanged
-- If the instruction targets a specific area or item, all other areas and items are frozen
-- FRAMING LOCK: Output must be ${srcW}×${srcH} pixels — identical field of view and crop as the input. Do NOT zoom in, pan, rotate, or crop. All four room edges visible in the input must remain visible in the output at the same scale.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EVERYTHING BELOW IS COMPLETELY FROZEN — DO NOT CHANGE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Wall colours, wall materials, wall texture → identical to input
+- Floor colour, floor pattern, floor material → identical to input
+- Ceiling colour and material → identical to input
+- Every piece of furniture NOT named in the change → same position, same colour, same style
+- Room layout, spatial arrangement → identical to input
+- Lighting sources and brightness → identical to input
+- Overall room style, aesthetic, design language → identical to input
+- Camera position, angle, field of view → identical to input (${srcW}×${srcH}, no zoom, no pan)
+- Windows, doors, columns, architectural features → identical to input
 
-INTERPRETATION RULE: When the instruction is ambiguous, apply the narrowest reasonable interpretation — do less rather than more.
+RULE: If something is not explicitly named in "THE CHANGE TO MAKE" above, it is frozen. Do less rather than more. When in doubt, leave it exactly as it is in the input.
 
-═══════════════════════════════════════════════════════
-QUALITY STANDARD
-═══════════════════════════════════════════════════════
-- Photorealistic quality matching the input image's style and lighting
-- Seamlessly blend changed elements with unchanged surroundings
-- Consistent shadows, reflections, and depth throughout
-- Output dimensions and aspect ratio must match the input image exactly
-
-OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with all changes applied cleanly and all unchanged areas preserved exactly.`;
+OUTPUT: High resolution photorealistic image — the input photo with only the named change applied. Everything else pixel-identical.`;
     } else if (style) {
       prompt = `CRITICAL: You MUST generate an image. Do NOT respond with text explanations.
 
@@ -713,19 +699,10 @@ OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with only the l
       };
     }, "Render generation");
     
-    // Apply framing correction before enhancement to lock the output to source crop/dimensions
-    console.log("[Gemini] Applying framing correction...");
-    const framed = await matchSourceFraming(
-      result.data,
-      result.mimeType,
-      compressed.width,
-      compressed.height
-    );
-
     console.log("[Gemini] Enhancing output resolution...");
     const enhanced = await enhanceOutputImage(
-      framed.data, 
-      framed.mimeType
+      result.data,
+      result.mimeType
     );
     
     console.log("[Gemini] Successfully generated and enhanced render");
