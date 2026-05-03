@@ -76,9 +76,6 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   const [selectedVendorForContacts, setSelectedVendorForContacts] = useState<Vendor | null>(null);
   const [editingContact, setEditingContact] = useState<VendorContact | null>(null);
   const [additionalContacts, setAdditionalContacts] = useState<Array<Omit<ContactFormData, 'isPrimary'>>>([]);
-  const [isQuotesDialogOpen, setIsQuotesDialogOpen] = useState(false);
-  const [selectedVendorForQuotes, setSelectedVendorForQuotes] = useState<(Vendor & { projects?: Array<{ projectId: string; projectName: string; clientName: string; status: string; quotationId?: string; quotationName?: string }> }) | null>(null);
-  const [quoteToDelete, setQuoteToDelete] = useState<{ id: string; name: string; projectName: string } | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -152,50 +149,6 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
     },
     enabled: !!selectedVendorForContacts,
   });
-
-  // Fetch quotes for a specific vendor
-  const { data: vendorQuotes = [], refetch: refetchQuotes } = useQuery<Array<{ id: string; projectId: string; projectName: string; quotationName: string; status: string; submittedAt: string }>>({
-    queryKey: ['/api/vendors', selectedVendorForQuotes?.id, 'quotes'],
-    queryFn: async () => {
-      if (!selectedVendorForQuotes) return [];
-      const response = await fetch(`/api/project-vendors?vendorId=${selectedVendorForQuotes.id}`, {
-        credentials: 'include',
-      });
-      return response.json();
-    },
-    enabled: !!selectedVendorForQuotes,
-  });
-
-  // Delete quote mutation
-  const deleteQuoteMutation = useMutation({
-    mutationFn: async (quoteId: string) => {
-      return apiRequest('DELETE', `/api/project-vendors/${quoteId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/project-vendors'] });
-      refetchQuotes();
-      setQuoteToDelete(null);
-      toast({
-        title: "Success",
-        description: "Quote deleted successfully",
-      });
-    },
-    onError: (error) => {
-      console.error('Failed to delete quote:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete quote. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Handle manage quotes click
-  const handleManageQuotes = (vendor: Vendor & { projects?: Array<{ projectId: string; projectName: string; clientName: string; status: string }> }) => {
-    setSelectedVendorForQuotes(vendor);
-    setIsQuotesDialogOpen(true);
-  };
 
   const handleSearch = (value: string) => {
     setSearchTerm(value);
@@ -1337,15 +1290,6 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                           <Button 
                             size="icon" 
                             variant="ghost" 
-                            onClick={() => handleManageQuotes(vendor)}
-                            data-testid="button-manage-quotes"
-                            title="Manage Quotes"
-                          >
-                            <FileText className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            size="icon" 
-                            variant="ghost" 
                             onClick={() => handleManageContacts(vendor)}
                             data-testid="button-manage-contacts"
                             title="Manage Contacts"
@@ -1590,90 +1534,6 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
         </DialogContent>
       </Dialog>
 
-      {/* Quotes Management Dialog */}
-      <Dialog open={isQuotesDialogOpen} onOpenChange={(open) => {
-        setIsQuotesDialogOpen(open);
-        if (!open) {
-          setSelectedVendorForQuotes(null);
-        }
-      }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              Manage Quotes - {selectedVendorForQuotes?.name}
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            {vendorQuotes.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">No quotes found for this vendor.</p>
-            ) : (
-              <div className="space-y-2">
-                {vendorQuotes.map((quote: any) => (
-                  <div key={quote.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{quote.quotationName || 'Main Quote'}</span>
-                        <Badge variant={quote.status === 'Selected' ? 'default' : quote.status === 'Rejected' ? 'destructive' : 'secondary'}>
-                          {quote.status || 'Quoted'}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                        <Building2 className="h-3 w-3" />
-                        <span>{quote.projectName || 'Unknown Project'}</span>
-                        {quote.submittedAt && (
-                          <>
-                            <span>•</span>
-                            <span>{new Date(quote.submittedAt).toLocaleDateString()}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setQuoteToDelete({
-                        id: quote.id,
-                        name: quote.quotationName || 'Main Quote',
-                        projectName: quote.projectName || 'Unknown Project'
-                      })}
-                      className="text-destructive hover:text-destructive"
-                      data-testid={`button-delete-quote-${quote.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Quote Confirmation */}
-      <AlertDialog open={!!quoteToDelete} onOpenChange={(open) => !open && setQuoteToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              Delete Quote
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{quoteToDelete?.name}" from project "{quoteToDelete?.projectName}"? 
-              This will remove all associated files and data. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => quoteToDelete && deleteQuoteMutation.mutate(quoteToDelete.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteQuoteMutation.isPending ? 'Deleting...' : 'Delete Quote'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
