@@ -50,7 +50,8 @@ import {
   Sun,
   Eraser,
   RotateCcw,
-  ScanEye
+  ScanEye,
+  ChevronDown
 } from "lucide-react";
 
 interface ReferenceItem {
@@ -148,6 +149,8 @@ export default function AIRendersPage() {
   const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [refMaterialsOpen, setRefMaterialsOpen] = useState(false);
+  const [refPhotosOpen, setRefPhotosOpen] = useState(false);
   
   // Retry state for 503 errors
   const [retryCountdown, setRetryCountdown] = useState<number>(0);
@@ -1493,171 +1496,187 @@ export default function AIRendersPage() {
                   />
                 </div>
 
-                <div className="border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="border rounded-lg bg-muted/30">
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between p-3 text-left"
+                    onClick={() => setRefMaterialsOpen(o => !o)}
+                  >
                     <div className="flex items-center gap-2">
                       <Palette className="h-4 w-4 text-primary" />
-                      <Label className="text-sm font-medium">Reference Materials</Label>
+                      <span className="text-sm font-medium">Reference Materials</span>
                       <Badge variant="outline" className="text-xs">{referenceItems.length}/3</Badge>
                     </div>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowCatalogueBrowser(true)}
-                        disabled={referenceItems.length >= 3}
-                        data-testid="button-add-from-catalogue"
-                      >
-                        <Palette className="h-4 w-4 mr-1" />
-                        Catalogue
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowAssetPickerForMaterials(true)}
-                        disabled={referenceItems.length >= 3}
-                        data-testid="button-add-from-saved-assets"
-                      >
-                        <FolderOpen className="h-4 w-4 mr-1" />
-                        Saved Assets
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Select furniture, finishes, or materials from your catalogue or saved assets
-                  </p>
-                  
-                  {referenceItems.length === 0 ? (
-                    <div className="text-center py-4 text-muted-foreground text-sm">
-                      No reference items added
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {referenceItems.map((item) => (
-                        <div key={item.id} className="bg-background rounded-md border p-2">
-                          <div className="flex items-start gap-2">
-                            {item.imagePath && (
-                              <img
-                                src={item.imagePath}
-                                alt={item.name}
-                                className="w-12 h-12 object-cover rounded"
-                              />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium truncate">{item.name}</span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 shrink-0"
-                                  onClick={() => removeReferenceItem(item.id)}
-                                  data-testid={`button-remove-reference-${item.id}`}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              </div>
-                              <span className="text-xs text-muted-foreground">{item.category}</span>
-                            </div>
-                          </div>
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${refMaterialsOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {refMaterialsOpen && (
+                    <div className="px-3 pb-3 space-y-2">
+                      <div className="flex gap-1 flex-wrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowCatalogueBrowser(true)}
+                          disabled={referenceItems.length >= 3}
+                          data-testid="button-add-from-catalogue"
+                        >
+                          <Palette className="h-4 w-4 mr-1" />
+                          Catalogue
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowAssetPickerForMaterials(true)}
+                          disabled={referenceItems.length >= 3}
+                          data-testid="button-add-from-saved-assets"
+                        >
+                          <FolderOpen className="h-4 w-4 mr-1" />
+                          Saved Assets
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Select furniture, finishes, or materials from your catalogue or saved assets
+                      </p>
+                      {referenceItems.length === 0 ? (
+                        <div className="text-center py-3 text-muted-foreground text-sm">
+                          No reference items added
                         </div>
-                      ))}
+                      ) : (
+                        <div className="space-y-2">
+                          {referenceItems.map((item) => (
+                            <div key={item.id} className="bg-background rounded-md border p-2">
+                              <div className="flex items-start gap-2">
+                                {item.imagePath && (
+                                  <img
+                                    src={item.imagePath}
+                                    alt={item.name}
+                                    className="w-12 h-12 object-cover rounded"
+                                  />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium truncate">{item.name}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 shrink-0"
+                                      onClick={() => removeReferenceItem(item.id)}
+                                      data-testid={`button-remove-reference-${item.id}`}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">{item.category}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
 
-                <div className="border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="border rounded-lg bg-muted/30">
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between p-3 text-left"
+                    onClick={() => setRefPhotosOpen(o => !o)}
+                  >
                     <div className="flex items-center gap-2">
                       <Camera className="h-4 w-4 text-primary" />
-                      <Label className="text-sm font-medium">Reference Photos</Label>
+                      <span className="text-sm font-medium">Reference Photos</span>
                       <Badge variant="outline" className="text-xs">{referencePhotos.length}/5</Badge>
                     </div>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const input = document.createElement('input');
-                          input.type = 'file';
-                          input.accept = 'image/*';
-                          input.multiple = true;
-                          input.onchange = (e) => handleReferencePhotoUpload(e as any, 'existing_space');
-                          input.click();
-                        }}
-                        disabled={referencePhotos.length >= 5}
-                        data-testid="button-add-existing-photo"
-                      >
-                        <Camera className="h-4 w-4 mr-1" />
-                        Existing
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowAssetPicker(true)}
-                        disabled={referencePhotos.length >= 5}
-                        data-testid="button-add-saved-asset"
-                      >
-                        <FolderOpen className="h-4 w-4 mr-1" />
-                        Saved Assets
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openRendersPicker('refPhoto')}
-                        disabled={referencePhotos.length >= 5 || savedRenders.length === 0}
-                        data-testid="button-add-from-renders"
-                        title="Pick from previously saved renders"
-                      >
-                        <ImagePlus className="h-4 w-4 mr-1" />
-                        Renders
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Add existing space photos, saved assets, or previously generated renders
-                  </p>
-                  
-                  {referencePhotos.length === 0 ? (
-                    <div className="text-center py-4 text-muted-foreground text-sm">
-                      No reference photos added
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {referencePhotos.map((photo) => (
-                        <div key={photo.id} className="flex gap-3 p-2 border rounded-lg bg-background">
-                          <div className="relative shrink-0">
-                            <img
-                              src={photo.previewUrl}
-                              alt={`Reference ${photo.type}`}
-                              className="w-16 h-16 object-cover rounded"
-                            />
-                            <Badge 
-                              className="absolute -top-1 -left-1 text-[10px] px-1 py-0"
-                              variant="secondary"
-                            >
-                              Ref
-                            </Badge>
-                          </div>
-                          <div className="flex-1 flex flex-col min-w-0">
-                            <Textarea
-                              placeholder="Describe what item to copy from this photo (e.g., 'the teal velvet sofa' or 'the wooden coffee table')"
-                              value={photo.description}
-                              onChange={(e) => updateReferencePhotoDescription(photo.id, e.target.value)}
-                              className="text-xs flex-1 min-h-[60px] resize-none"
-                              data-testid={`input-photo-desc-${photo.id}`}
-                            />
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
-                            onClick={() => removeReferencePhoto(photo.id)}
-                            data-testid={`button-remove-photo-${photo.id}`}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${refPhotosOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {refPhotosOpen && (
+                    <div className="px-3 pb-3 space-y-2">
+                      <div className="flex gap-1 flex-wrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = 'image/*';
+                            input.multiple = true;
+                            input.onchange = (e) => handleReferencePhotoUpload(e as any, 'existing_space');
+                            input.click();
+                          }}
+                          disabled={referencePhotos.length >= 5}
+                          data-testid="button-add-existing-photo"
+                        >
+                          <Camera className="h-4 w-4 mr-1" />
+                          Existing
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowAssetPicker(true)}
+                          disabled={referencePhotos.length >= 5}
+                          data-testid="button-add-saved-asset"
+                        >
+                          <FolderOpen className="h-4 w-4 mr-1" />
+                          Saved Assets
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openRendersPicker('refPhoto')}
+                          disabled={referencePhotos.length >= 5 || savedRenders.length === 0}
+                          data-testid="button-add-from-renders"
+                          title="Pick from previously saved renders"
+                        >
+                          <ImagePlus className="h-4 w-4 mr-1" />
+                          Renders
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Add existing space photos, saved assets, or previously generated renders
+                      </p>
+                      {referencePhotos.length === 0 ? (
+                        <div className="text-center py-3 text-muted-foreground text-sm">
+                          No reference photos added
                         </div>
-                      ))}
+                      ) : (
+                        <div className="space-y-3">
+                          {referencePhotos.map((photo) => (
+                            <div key={photo.id} className="flex gap-3 p-2 border rounded-lg bg-background">
+                              <div className="relative shrink-0">
+                                <img
+                                  src={photo.previewUrl}
+                                  alt={`Reference ${photo.type}`}
+                                  className="w-16 h-16 object-cover rounded"
+                                />
+                                <Badge 
+                                  className="absolute -top-1 -left-1 text-[10px] px-1 py-0"
+                                  variant="secondary"
+                                >
+                                  Ref
+                                </Badge>
+                              </div>
+                              <div className="flex-1 flex flex-col min-w-0">
+                                <Textarea
+                                  placeholder="Describe what item to copy from this photo (e.g., 'the teal velvet sofa' or 'the wooden coffee table')"
+                                  value={photo.description}
+                                  onChange={(e) => updateReferencePhotoDescription(photo.id, e.target.value)}
+                                  className="text-xs flex-1 min-h-[60px] resize-none"
+                                  data-testid={`input-photo-desc-${photo.id}`}
+                                />
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                                onClick={() => removeReferencePhoto(photo.id)}
+                                data-testid={`button-remove-photo-${photo.id}`}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
