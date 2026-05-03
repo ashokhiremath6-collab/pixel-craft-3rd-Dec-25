@@ -1048,6 +1048,19 @@ export default function AIRendersPage() {
     },
   });
 
+  const saveToAssetsMutation = useMutation({
+    mutationFn: async (data: { imageData: string; mimeType: string; displayName?: string; description?: string; aiPromptHints?: string }) => {
+      return apiRequest('POST', '/api/ai-renders/save-to-assets', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/saved-assets'] });
+      toast({ title: "Saved to Assets", description: "Image saved to your Saved Assets and ready to use as a reference" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Save Failed", description: error.message || "Failed to save to assets", variant: "destructive" });
+    },
+  });
+
   const saveRenderMutation = useMutation({
     mutationFn: async (data: { 
       imageData: string; 
@@ -2194,6 +2207,33 @@ export default function AIRendersPage() {
                     Download
                   </Button>
                 </div>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={saveToAssetsMutation.isPending}
+                  onClick={() => {
+                    if (!generatedRender) return;
+                    saveToAssetsMutation.mutate({
+                      imageData: generatedRender.imageData,
+                      mimeType: generatedRender.mimeType,
+                      description: customPrompt || textDescription || undefined,
+                      aiPromptHints: customPrompt || textDescription || undefined,
+                    });
+                  }}
+                  data-testid="button-save-to-assets"
+                >
+                  {saveToAssetsMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving to Assets...
+                    </>
+                  ) : (
+                    <>
+                      <FolderOpen className="h-4 w-4 mr-2" />
+                      Save to Saved Assets
+                    </>
+                  )}
+                </Button>
               </>
             ) : lastFormData ? (
               <div className="flex flex-col items-center justify-center h-64 text-muted-foreground border-2 border-dashed rounded-lg border-orange-300 bg-orange-50 dark:bg-orange-900/10">

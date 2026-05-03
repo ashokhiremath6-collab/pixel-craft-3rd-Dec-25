@@ -8459,6 +8459,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Save a generated AI render directly to Saved Assets (for iterative workflows)
+  app.post("/api/ai-renders/save-to-assets", requireAdmin, async (req, res) => {
+    try {
+      const { imageData, mimeType, displayName, description, aiPromptHints } = req.body;
+      if (!imageData) {
+        return res.status(400).json({ error: "Image data is required" });
+      }
+      const userId = (req.user as any).id;
+      const ext = (mimeType || 'image/png').split('/')[1] || 'png';
+      const fileName = `ai-render-${Date.now()}.${ext}`;
+      const buffer = Buffer.from(imageData, 'base64');
+      const objectPath = await uploadToObjectStorage(buffer, fileName, userId, mimeType || 'image/png');
+      const name = (displayName && displayName.trim()) ? displayName.trim() : `AI Render ${new Date().toLocaleString()}`;
+      const asset = await storage.createSavedAsset({
+        displayName: name,
+        description: description || null,
+        tags: 'ai-render',
+        filePath: objectPath,
+        thumbnailPath: null,
+        sourceType: 'ai_render',
+        objectAssetId: null,
+        catalogueItemId: null,
+        aiPromptHints: aiPromptHints || description || null,
+        savedBy: userId,
+      });
+      res.json(asset);
+    } catch (error: any) {
+      console.error('Error saving render to assets:', error);
+      res.status(500).json({ error: "Failed to save render to assets" });
+    }
+  });
+
   // Configure multer for meeting minutes file uploads
   const meetingMinutesUpload = multer({
     storage: multer.memoryStorage(),
