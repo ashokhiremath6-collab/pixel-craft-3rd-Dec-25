@@ -443,48 +443,39 @@ export async function generateInteriorRender(
     // Process reference photos (inspiration/existing space)
     if (referencePhotos && referencePhotos.length > 0) {
       console.log("[Gemini] Processing reference photos...");
-      referenceInstructions += '\n\nREFERENCE PHOTOS FOR GUIDANCE:\n';
+      referenceInstructions += '\n\nREFERENCE PHOTOS — VISUAL SOURCE MATERIAL:\n';
+      referenceInstructions += 'These photos provide the EXACT visual content the user wants inserted or replaced in the room.\n';
+      referenceInstructions += 'Treat them as source images to copy visuals FROM, not as room inspiration.\n\n';
       
-      const inspirationPhotos = referencePhotos.filter(p => p.type === 'inspiration');
-      const existingSpacePhotos = referencePhotos.filter(p => p.type === 'existing_space');
-      
-      if (inspirationPhotos.length > 0) {
-        referenceInstructions += '\nITEM REFERENCE PHOTOS (show what the specific item should look like):\n';
-        referenceInstructions += 'WARNING: These photos show ONLY what a specific furniture item looks like.\n';
-        referenceInstructions += 'DO NOT copy the room, walls, floors, lighting, or any other elements from these photos.\n';
-        referenceInstructions += 'ONLY extract the specific item (like a sofa or chair) from these reference photos.\n\n';
-        for (let i = 0; i < inspirationPhotos.length; i++) {
-          const photo = inspirationPhotos[i];
-          console.log(`[Gemini] Compressing inspiration photo ${i + 1}...`);
-          const compressed = await compressImage(photo.imageData, photo.mimeType);
-          referenceImageParts.push({
-            inlineData: { mimeType: compressed.mimeType, data: compressed.data }
-          });
-          const desc = photo.description || 'Item reference';
-          referenceInstructions += `- Reference ${i + 1}: ${desc} - copy ONLY the specific item from this photo, nothing else (image attached)\n`;
+      const allPhotos = referencePhotos;
+      for (let i = 0; i < allPhotos.length; i++) {
+        const photo = allPhotos[i];
+        console.log(`[Gemini] Compressing reference photo ${i + 1}...`);
+        const compressed = await compressImage(photo.imageData, photo.mimeType);
+        referenceImageParts.push({
+          inlineData: { mimeType: compressed.mimeType, data: compressed.data }
+        });
+        const desc = photo.description?.trim();
+        if (desc) {
+          // User described what to copy — be precise about it
+          referenceInstructions += `REFERENCE PHOTO ${i + 1}: "${desc}"\n`;
+          referenceInstructions += `  → Use the visual content from this photo for exactly what is described above.\n`;
+          referenceInstructions += `  → If it is a painting/artwork/image, reproduce it faithfully on the target surface.\n`;
+          referenceInstructions += `  → If it is a furniture item, copy ONLY that item — ignore the room/background in the photo.\n\n`;
+        } else {
+          // No description — treat the whole photo as visual content to place
+          referenceInstructions += `REFERENCE PHOTO ${i + 1}: (no description provided)\n`;
+          referenceInstructions += `  → Use the visual content of this photo as specified in the instruction above.\n`;
+          referenceInstructions += `  → If the instruction says "replace X with the reference image/photo", reproduce this photo's content faithfully in place of X.\n\n`;
         }
       }
       
-      if (existingSpacePhotos.length > 0) {
-        referenceInstructions += '\nEXISTING SPACE PHOTOS (reference for room context):\n';
-        for (let i = 0; i < existingSpacePhotos.length; i++) {
-          const photo = existingSpacePhotos[i];
-          console.log(`[Gemini] Compressing existing space photo ${i + 1}...`);
-          const compressed = await compressImage(photo.imageData, photo.mimeType);
-          referenceImageParts.push({
-            inlineData: { mimeType: compressed.mimeType, data: compressed.data }
-          });
-          const desc = photo.description || 'Existing space reference';
-          referenceInstructions += `- Existing space ${i + 1}: ${desc} (image attached)\n`;
-        }
-      }
-      
-      referenceInstructions += '\nCRITICAL RULES FOR USING REFERENCE PHOTOS:\n';
-      referenceInstructions += '- The reference photos show what ONE SPECIFIC ITEM should look like (e.g., a sofa, chair, or table)\n';
-      referenceInstructions += '- COPY ONLY THAT SPECIFIC ITEM into the original room - match its exact appearance, color, and style\n';
-      referenceInstructions += '- DO NOT change ANYTHING ELSE in the room - same walls, floors, other furniture, lighting, colors\n';
-      referenceInstructions += '- The background/room in the reference photo is IRRELEVANT - ignore it completely\n';
-      referenceInstructions += '- The output room should be 99% identical to the input room, with only the ONE item changed\n';
+      referenceInstructions += 'CRITICAL RULES FOR REFERENCE PHOTOS:\n';
+      referenceInstructions += '- If the user says "replace X with the reference image/photo", the reference photo IS the new content for X — reproduce it faithfully.\n';
+      referenceInstructions += '- A painting/artwork/photo reference: render it accurately on the wall/surface, keeping the same frame/location as the original.\n';
+      referenceInstructions += '- A furniture item reference: copy ONLY that item, ignore the background/room in the reference photo.\n';
+      referenceInstructions += '- DO NOT change ANYTHING ELSE in the room — walls, floors, furniture, lighting, all unchanged.\n';
+      referenceInstructions += '- The output room must be 99% identical to the input room, with ONLY the referenced replacement applied.\n';
     }
     
     // Process catalogue reference items
@@ -533,10 +524,11 @@ YOUR INSTRUCTION — APPLY THIS AND ONLY THIS
 ═══════════════════════════════════════════════════════
 ${customPrompt}
 ${hasReferencePhotos ? `
-REFERENCE PHOTOS:
-- Study the attached reference photos for exact colours, textures, and style of the requested item(s)
-- Copy ONLY the specific item from each reference — ignore backgrounds, rooms, and other elements in the reference photos
-- Match the reference item's appearance as closely as possible in the output room
+REFERENCE PHOTOS (attached):
+- These photos are the EXACT visual content the user wants used — treat them as source material to copy FROM.
+- If the instruction says "replace X with the reference image/photo", reproduce the reference photo's content faithfully in place of X (e.g., paint it onto the wall, frame it, place it where X was).
+- If the instruction targets a furniture item, copy ONLY that item from the reference — ignore its background.
+- Do NOT simply remove X and leave a blank space — always replace with what the reference photo shows.
 ` : ''}${referenceInstructions}
 
 ═══════════════════════════════════════════════════════
