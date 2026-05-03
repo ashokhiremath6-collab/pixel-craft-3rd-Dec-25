@@ -293,7 +293,7 @@ export const RENDER_STYLES: RenderStyle[] = [
 ];
 
 // Adaptive image compression - more aggressive for larger images
-async function compressImage(imageBase64: string, mimeType: string): Promise<{ data: string; mimeType: string }> {
+async function compressImage(imageBase64: string, mimeType: string): Promise<{ data: string; mimeType: string; width: number; height: number }> {
   try {
     const imageBuffer = Buffer.from(imageBase64, 'base64');
     const originalSize = imageBuffer.length;
@@ -320,32 +320,44 @@ async function compressImage(imageBase64: string, mimeType: string): Promise<{ d
     }
     
     // Apply EXIF rotation first, then resize
-    const compressed = await sharp(imageBuffer)
+    const compressedBuffer = await sharp(imageBuffer)
       .rotate() // Auto-rotate based on EXIF
       .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality, mozjpeg: true }) // Use mozjpeg for better compression
       .toBuffer();
     
-    console.log("[Gemini] Compressed image size:", compressed.length, "bytes (target max:", maxSize, "px, quality:", quality, ")");
+    // Get actual compressed dimensions
+    const compressedMeta = await sharp(compressedBuffer).metadata();
+    const finalWidth = compressedMeta.width || originalWidth;
+    const finalHeight = compressedMeta.height || originalHeight;
+    
+    console.log("[Gemini] Compressed image size:", compressedBuffer.length, "bytes (target max:", maxSize, "px, quality:", quality, ")");
+    console.log("[Gemini] Compressed dimensions:", finalWidth, "x", finalHeight);
     
     // Verify compression succeeded
-    if (compressed.length > originalSize) {
+    if (compressedBuffer.length > originalSize) {
       console.log("[Gemini] Compression resulted in larger file, using original");
       return {
         data: imageBase64,
-        mimeType: mimeType
+        mimeType: mimeType,
+        width: originalWidth,
+        height: originalHeight
       };
     }
     
     return {
-      data: compressed.toString('base64'),
-      mimeType: 'image/jpeg'
+      data: compressedBuffer.toString('base64'),
+      mimeType: 'image/jpeg',
+      width: finalWidth,
+      height: finalHeight
     };
   } catch (error) {
     console.error("[Gemini] Compression failed, using original:", error);
     return {
       data: imageBase64,
-      mimeType: mimeType
+      mimeType: mimeType,
+      width: 1000,
+      height: 1000
     };
   }
 }
@@ -516,15 +528,18 @@ export async function generateInteriorRender(
     
     if (customPrompt && customPrompt.trim()) {
       const hasReferencePhotos = referencePhotos && referencePhotos.length > 0;
+      const srcW = compressed.width;
+      const srcH = compressed.height;
       
       prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text. Do NOT explain limitations. Generate the image now.
 
-⚠️ FRAMING LOCK — READ THIS FIRST:
-The output image MUST have the EXACT same field of view, crop, and framing as the input image.
+⚠️ FRAMING LOCK — RULE #1 — HIGHEST PRIORITY:
+The input image is exactly ${srcW}×${srcH} pixels.
+Your output MUST be ${srcW}×${srcH} pixels with the IDENTICAL crop and field of view.
 - Do NOT zoom in. Do NOT zoom out. Do NOT pan. Do NOT rotate.
-- Every edge visible in the input (left wall, right wall, ceiling, floor) MUST appear at the SAME position in the output.
-- The right side of the room, the left side, the ceiling and the floor edges must all be preserved exactly.
-- Output dimensions and aspect ratio must match the input exactly.
+- Every edge visible in the input (left wall, right wall, ceiling, floor) MUST appear at the SAME pixel position in the output.
+- The right-side wall edge, left-side wall edge, ceiling edge, and floor edge must all be visible and in the same position as the input.
+- If ANY room edge that is visible in the input is missing from your output, the output is WRONG.
 This framing rule is ABSOLUTE and overrides any other consideration.
 
 You are a precision interior design editor. Your job is surgical: apply EXACTLY the instruction below and leave everything else completely untouched.
@@ -552,7 +567,7 @@ SCOPE LOCK — DO NOT TOUCH ANYTHING ELSE
 - Every light source NOT mentioned in the instruction = unchanged
 - Every texture and material NOT mentioned in the instruction = unchanged
 - If the instruction targets a specific area or item, all other areas and items are frozen
-- FRAMING LOCK: Output image must have the EXACT same field of view and framing as the input image. Do NOT zoom in, pan, rotate, or crop any edges. All four edges of the room visible in the input must remain visible in the output at the same scale.
+- FRAMING LOCK: Output must be ${srcW}×${srcH} pixels — identical field of view and crop as the input. Do NOT zoom in, pan, rotate, or crop. All four room edges visible in the input must remain visible in the output at the same scale.
 
 INTERPRETATION RULE: When the instruction is ambiguous, apply the narrowest reasonable interpretation — do less rather than more.
 
