@@ -504,7 +504,9 @@ export async function generateInteriorRender(
       
       referenceInstructions += '\nINSTRUCTIONS FOR REFERENCE ITEMS:\n';
       referenceInstructions += '- Study each reference image carefully for colour, texture, pattern, and style\n';
-      referenceInstructions += '- Insert or replace ONLY the specific item shown — do not change any other part of the room\n';
+      referenceInstructions += '- PLACEMENT RULE: If the user instruction says "replace X with the reference [item/painting/image]", place the reference item EXACTLY where X was — same wall position, same scale, same frame if applicable. Do NOT leave a blank wall or empty space.\n';
+      referenceInstructions += '- For artwork/paintings: reproduce the reference artwork faithfully on the wall surface, maintaining the same position and approximate size as whatever it is replacing. Match the original frame if one existed.\n';
+      referenceInstructions += '- Do NOT remove the target item and leave a blank space — always substitute with the reference content.\n';
       referenceInstructions += '- Every wall, floor, ceiling, window, door, and piece of furniture NOT mentioned = leave completely unchanged\n';
       referenceInstructions += '- Maintain consistent lighting and perspective with the rest of the room\n';
       referenceInstructions += '- SCOPE RULE: If uncertain whether something should change, leave it exactly as it is in the input\n';
@@ -542,6 +544,7 @@ SCOPE LOCK — DO NOT TOUCH ANYTHING ELSE
 - Every light source NOT mentioned in the instruction = unchanged
 - Every texture and material NOT mentioned in the instruction = unchanged
 - If the instruction targets a specific area or item, all other areas and items are frozen
+- FRAMING LOCK: Output image must have the EXACT same field of view and framing as the input image. Do NOT zoom in, pan, rotate, or crop any edges. All four edges of the room visible in the input must remain visible in the output at the same scale.
 
 INTERPRETATION RULE: When the instruction is ambiguous, apply the narrowest reasonable interpretation — do less rather than more.
 
@@ -551,6 +554,7 @@ QUALITY STANDARD
 - Photorealistic quality matching the input image's style and lighting
 - Seamlessly blend changed elements with unchanged surroundings
 - Consistent shadows, reflections, and depth throughout
+- Output dimensions and aspect ratio must match the input image exactly
 
 OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with all changes applied cleanly and all unchanged areas preserved exactly.`;
     } else if (style) {
@@ -580,6 +584,7 @@ SCOPE LOCK — DO NOT TOUCH ANYTHING ELSE
 - Every piece of furniture NOT listed above = unchanged, same position, same appearance
 - Every colour NOT affected by the listed items = unchanged
 - Every light source = unchanged
+- FRAMING LOCK: Output image must have the EXACT same field of view and framing as the input. Do NOT zoom in, pan, or crop any edges.
 - INTERPRETATION RULE: When uncertain whether something should change, leave it exactly as it is
 
 OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with only the listed items changed and all other elements preserved exactly.`;
