@@ -331,14 +331,6 @@ export default function AIRendersPage() {
     }
   });
 
-  const quickModifications = [
-    { icon: Paintbrush, label: "Change Colors", prompt: "Change the wall colour only to a warm greige or soft terracotta tone. Keep all furniture, flooring, ceiling, lighting, and accessories exactly as they are — only the wall paint colour changes." },
-    { icon: TreeDeciduous, label: "Add Plants", prompt: "Place exactly ONE large indoor potted plant (such as a fiddle-leaf fig or monstera) in the most visually empty corner of the room. Do not move, remove, or alter any existing furniture, lighting, or other elements." },
-    { icon: Sofa, label: "Swap Furniture", prompt: "Replace only the largest seating item (sofa or main chairs) with a clean, contemporary version in a neutral fabric tone. Keep all other furniture, walls, floor, ceiling, lighting, and decor exactly unchanged." },
-    { icon: Sun, label: "Brighten Up", prompt: "Increase the overall light level in the room — brighten ceiling lights and add warm fill light to shadowed areas. Do not add or remove any fixtures, furniture, or objects. Only the lighting intensity and brightness changes." },
-    { icon: Eraser, label: "Declutter", prompt: "Remove only small loose objects from surfaces (books, ornaments, cables, clutter on tables or shelves). Do not remove any furniture, plants, artwork, or structural elements. Keep the room layout exactly as is." },
-    { icon: RotateCcw, label: "Undo Changes", prompt: "Revert to a more classic, traditional style similar to the original" }
-  ];
 
   const { data: user, isLoading: userLoading, isError: userError, refetch: refetchUser } = useQuery<{ role: string }>({
     queryKey: ['/api/auth/user'],
@@ -1846,44 +1838,15 @@ export default function AIRendersPage() {
                     : "Click image to view full size. Enable grid and click magnifying glass to select cells."}
                 </p>
                 
-                <div className="border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2">
-                      <Edit3 className="h-4 w-4 text-primary" />
-                      <Label className="text-sm font-medium">Iterate on this render</Label>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={loadRenderAsSource}
-                      data-testid="button-edit-render"
-                    >
-                      <ImagePlus className="h-4 w-4 mr-1" />
-                      Edit Render
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Click <strong>Edit Render</strong> to load this image as your new source, then write your next instruction and generate. Or pick a quick suggestion to pre-fill the instruction for you.
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {quickModifications.map((mod, index) => (
-                      <Button
-                        key={index}
-                        variant="outline"
-                        size="sm"
-                        className="flex flex-col h-auto py-2 px-2"
-                        onClick={async () => {
-                          await loadRenderAsSource();
-                          setCustomPrompt(mod.prompt);
-                        }}
-                        data-testid={`button-quick-mod-${index}`}
-                      >
-                        <mod.icon className="h-4 w-4 mb-1" />
-                        <span className="text-xs">{mod.label}</span>
-                      </Button>
-                    ))}
-                  </div>
-                </div>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={loadRenderAsSource}
+                  data-testid="button-edit-render"
+                >
+                  <Edit3 className="h-4 w-4 mr-2" />
+                  Edit Render
+                </Button>
 
                 <div className="border rounded-lg p-3 bg-muted/30 flex items-center justify-between gap-3">
                   <div className="min-w-0">
