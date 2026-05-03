@@ -299,6 +299,7 @@ export default function DashboardPage() {
         activities={activitiesData || []}
         taskAlerts={taskAlerts}
         totalActiveTasks={totalActiveTasks}
+        tasksLoading={tasksLoading}
         projectTaskBreakdown={projectTaskBreakdown}
         remainingTasksByProject={remainingTasksByProject}
         onNavigate={handleNavigate}

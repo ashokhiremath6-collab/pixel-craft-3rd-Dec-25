@@ -2350,7 +2350,8 @@ export class DBStorage implements IStorage {
       .orderBy(
         sql`${projectSchedules.uploadedAt} ASC NULLS LAST`,
         sql`${tasks.rowIndex} ASC NULLS LAST`,
-        asc(tasks.createdAt)
+        asc(tasks.createdAt),
+        asc(tasks.id)
       );
   }
 
@@ -2363,7 +2364,8 @@ export class DBStorage implements IStorage {
       .orderBy(
         sql`${projectSchedules.uploadedAt} ASC NULLS LAST`,
         sql`${tasks.rowIndex} ASC NULLS LAST`,
-        asc(tasks.createdAt)
+        asc(tasks.createdAt),
+        asc(tasks.id)
       );
   }
 
@@ -2374,7 +2376,8 @@ export class DBStorage implements IStorage {
       .where(eq(tasks.scheduleId, scheduleId))
       .orderBy(
         sql`${tasks.rowIndex} ASC NULLS LAST`,
-        asc(tasks.createdAt)
+        asc(tasks.createdAt),
+        asc(tasks.id)
       );
   }
 

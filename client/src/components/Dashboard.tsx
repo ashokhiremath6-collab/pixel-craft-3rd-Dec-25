@@ -64,6 +64,7 @@ interface DashboardProps {
     overdue: TaskWithMeta[];
   };
   totalActiveTasks?: number;
+  tasksLoading?: boolean;
   projectTaskBreakdown?: ProjectTaskBreakdownEntry[];
   remainingTasksByProject?: Record<string, Array<Task & { projectName: string }>>;
   onNavigate?: (path: string) => void;
@@ -199,6 +200,7 @@ export default function Dashboard({
   activities = [],
   taskAlerts = { upcomingStart: [], completionCountdown: [], overdue: [] },
   totalActiveTasks = 0,
+  tasksLoading = false,
   projectTaskBreakdown = [],
   remainingTasksByProject = {},
   onNavigate,
@@ -512,11 +514,11 @@ export default function Dashboard({
             {/* Summary stat strip */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {[
-                { label: "Vendors", value: vendors.length, sub: "in database", onClick: () => handleNavigate("/vendors"), testId: "stat-total-vendors" },
-                { label: "Active Projects", value: activeProjects, sub: `${completedProjects} completed`, onClick: () => handleNavigate("/projects"), testId: "stat-active-projects" },
-                { label: "Active Tasks", value: totalActiveTasks, sub: "from schedules", onClick: () => handleNavigate("/gantt"), testId: "stat-active-tasks" },
-                { label: "Selected Value", value: formatCurrencyCompact(totalQuotationValue), sub: "quotations", onClick: () => setIsQuotationDetailModalOpen(true), testId: "stat-total-quotations" },
-                { label: "Categories", value: Object.keys(vendorsByCategory).length, sub: "vendor types", onClick: () => handleNavigate("/vendors"), testId: "stat-categories" },
+                { label: "Vendors", value: vendors.length, sub: "in database", onClick: () => handleNavigate("/vendors"), testId: "stat-total-vendors", loading: false },
+                { label: "Active Projects", value: activeProjects, sub: `${completedProjects} completed`, onClick: () => handleNavigate("/projects"), testId: "stat-active-projects", loading: false },
+                { label: "Active Tasks", value: totalActiveTasks, sub: "from schedules", onClick: () => handleNavigate("/gantt"), testId: "stat-active-tasks", loading: tasksLoading },
+                { label: "Selected Value", value: formatCurrencyCompact(totalQuotationValue), sub: "quotations", onClick: () => setIsQuotationDetailModalOpen(true), testId: "stat-total-quotations", loading: false },
+                { label: "Categories", value: Object.keys(vendorsByCategory).length, sub: "vendor types", onClick: () => handleNavigate("/vendors"), testId: "stat-categories", loading: false },
               ].map(s => (
                 <button
                   key={s.label}
@@ -531,7 +533,11 @@ export default function Dashboard({
                   }}
                 >
                   <span className="text-[12px] font-medium" style={{ color: "#86868b" }}>{s.label}</span>
-                  <span className="text-[26px] font-bold leading-none" style={{ color: "#111827" }}>{s.value}</span>
+                  {s.loading ? (
+                    <span className="text-[26px] font-bold leading-none" style={{ color: "#d1d5db" }}>—</span>
+                  ) : (
+                    <span className="text-[26px] font-bold leading-none" style={{ color: "#111827" }}>{s.value}</span>
+                  )}
                   <span className="text-[11px]" style={{ color: "#9ca3af" }}>{s.sub}</span>
                 </button>
               ))}
