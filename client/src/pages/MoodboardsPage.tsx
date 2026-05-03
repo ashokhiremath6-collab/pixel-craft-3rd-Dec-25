@@ -896,51 +896,32 @@ export default function MoodboardsPage() {
           )}
         </div>
         
-        {/* Project Selector Card - Show for all asset types */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-bold">Select Project</CardTitle>
-            <CardDescription>
-              Choose a project to view and manage its {
-                assetType === "working_drawing" ? "working drawings" : 
-                assetType === "render" ? "renders" : "moodboards"
-              }
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="max-w-sm">
-              <Label className="mb-2 block">Project</Label>
-              <Select value={filterProjectId} onValueChange={setFilterProjectId}>
-                <SelectTrigger data-testid="select-project-filter">
-                  <SelectValue placeholder="Select a project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.projectName} - {project.clientName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Project Selector - compact inline */}
+        <div className="flex items-center gap-3">
+          <Label className="shrink-0 text-sm font-medium">Project</Label>
+          <Select value={filterProjectId} onValueChange={setFilterProjectId}>
+            <SelectTrigger className="max-w-xs" data-testid="select-project-filter">
+              <SelectValue placeholder="Select a project" />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.projectName} - {project.clientName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Show empty state when project not selected */}
+      {/* Show hint when project not selected */}
       {!filterProjectId && (
-        <Card>
-          <CardContent className="text-center py-12">
-            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Select a project to begin</h3>
-            <p className="text-muted-foreground">
-              Choose a project from the dropdown above to view and manage its {
-                assetType === "working_drawing" ? "working drawings" : 
-                assetType === "render" ? "renders" : "moodboards"
-              }
-            </p>
-          </CardContent>
-        </Card>
+        <p className="text-sm text-muted-foreground">
+          Select a project above to view and manage its {
+            assetType === "working_drawing" ? "working drawings" :
+            assetType === "render" ? "renders" : "moodboards"
+          }.
+        </p>
       )}
 
       {/* Loading State */}
@@ -1393,17 +1374,6 @@ export default function MoodboardsPage() {
         </div>
       )}
       
-      {!isLoading && moodboards.length === 0 && (
-        <Card>
-          <CardContent className="text-center py-12">
-            <ImageIcon className="h-16 w-16 mx-auto mb-4 opacity-50" />
-            <h3 className="text-lg font-medium mb-2">{labels.emptyState}</h3>
-            <p className="text-muted-foreground mb-4">
-              {labels.emptyStateDescription}
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Upload Section */}
       <Card>
