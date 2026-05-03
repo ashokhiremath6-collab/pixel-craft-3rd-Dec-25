@@ -26,6 +26,7 @@ import SpecificationsPage from "@/pages/SpecificationsPage";
 import SOPsPage from "@/pages/SOPsPage";
 import MeetingMinutesPage from "@/pages/MeetingMinutesPage";
 import WorksOrdersPage from "@/pages/WorksOrdersPage";
+import ClientPortalApp from "@/pages/ClientPortalApp";
 import AIRendersPage from "@/pages/AIRendersPage";
 import AssetIngestionPage from "@/pages/AssetIngestionPage";
 import AIAssistantPage from "@/pages/AIAssistantPage";
@@ -135,7 +136,7 @@ function AuthenticatedApp() {
 }
 
 function AppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const [location] = useLocation();
 
   if (location === "/forgot-password") return <ForgotPasswordPage />;
@@ -153,6 +154,9 @@ function AppContent() {
   }
 
   if (isAuthenticated) {
+    if (user?.role === 'client') {
+      return <ClientPortalApp />;
+    }
     return <AuthenticatedApp />;
   } else {
     return <LoginPage />;

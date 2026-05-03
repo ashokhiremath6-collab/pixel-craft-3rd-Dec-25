@@ -45,6 +45,7 @@ Preferred communication style: Simple, everyday language.
 - **Asset Ingestion System**: Two-mode workflow (Analyze-Only, AI-Edit) for processing images, generating descriptions, and providing prompt hints. Supports AI-based image editing (e.g., background removal).
 - **Saved Assets System**: Central repository for processed images, reusable across AI renders, with search, tags, and source type tracking. Integrates with Asset Ingestion and AI Renders via an asset picker component.
 - **SOPs System**: Standard Operating Procedures repository with category-based organisation, rich text content, optional file attachments, two-panel list/detail layout. View: all authenticated users. Create/Edit: Admin, Designer, Project Manager. Delete: Admin only.
+- **Client Portal**: Dedicated read-only portal for clients (role === 'client'). Replaces the standard admin sidebar with a clean top-nav + horizontal tab interface. Tabs: Overview (project stats + progress), Timeline (task schedule), Renders, Moodboards, Working Drawings, Specifications, Meeting Minutes. Data is access-controlled — clients only see their own project(s). Backend: GET /api/client-portal/projects, GET /api/client-portal/:projectId/summary. Frontend: client/src/pages/ClientPortalApp.tsx. Routing: App.tsx detects client role and renders ClientPortalApp instead of AuthenticatedApp.
 
 ### User Interface
 - **Navigation**: Collapsible sidebar.

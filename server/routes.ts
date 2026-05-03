@@ -9822,6 +9822,59 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // ---- CLIENT PORTAL ENDPOINTS ----
+  // Returns all projects the logged-in user has access to
+  app.get("/api/client-portal/projects", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role || 'client';
+      const userProjects = await storage.getProjectsForUser(userId, role);
+      res.json(userProjects);
+    } catch (error) {
+      console.error('Error fetching client portal projects:', error);
+      res.status(500).json({ error: "Failed to fetch projects" });
+    }
+  });
+
+  // Returns full portal data for a single project (with access verification)
+  app.get("/api/client-portal/:projectId/summary", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role || 'client';
+      const { projectId } = req.params;
+
+      const accessibleProjects = await storage.getProjectsForUser(userId, role);
+      const project = accessibleProjects.find(p => p.id === projectId);
+      if (!project) {
+        return res.status(403).json({ error: "Access denied to this project" });
+      }
+
+      const [renders, moodboardItems, workingDrawings, specs, minutes, tasks] = await Promise.all([
+        storage.getMoodboardsByProject(projectId, 'render'),
+        storage.getMoodboardsByProject(projectId, 'moodboard'),
+        storage.getMoodboardsByProject(projectId, 'working_drawing'),
+        storage.getAllSpecifications(),
+        storage.getMeetingMinutesByProject(projectId),
+        storage.getTasksByProject(projectId),
+      ]);
+
+      res.json({
+        project,
+        renders,
+        moodboards: moodboardItems,
+        workingDrawings,
+        specifications: specs,
+        meetingMinutes: minutes,
+        tasks,
+      });
+    } catch (error) {
+      console.error('Error fetching client portal summary:', error);
+      res.status(500).json({ error: "Failed to fetch portal data" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
