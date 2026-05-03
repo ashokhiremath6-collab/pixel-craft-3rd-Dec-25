@@ -496,7 +496,9 @@ export async function generateInteriorRender(
         const item = referenceItems[i];
         const itemDesc = item.aiPromptHints || item.description || `${item.subcategory} from ${item.vendorBrand || 'unknown vendor'}`;
         referenceInstructions += `${i + 1}. ${item.name} (${item.category}/${item.subcategory}): ${itemDesc}\n`;
-        referenceInstructions += `   Placement: ${item.placementInstruction}\n`;
+        if (item.placementInstruction && item.placementInstruction.trim()) {
+          referenceInstructions += `   Placement: ${item.placementInstruction}\n`;
+        }
         
         // Add reference image if available
         if (item.imageData && item.imageMimeType) {
@@ -505,15 +507,16 @@ export async function generateInteriorRender(
           referenceImageParts.push({
             inlineData: { mimeType: refCompressed.mimeType, data: refCompressed.data }
           });
-          referenceInstructions += `   (Reference image ${i + 1} attached - use this as visual guide)\n`;
+          referenceInstructions += `   (Reference image ${i + 1} attached — match this item's exact appearance, colour, and texture)\n`;
         }
       }
       
       referenceInstructions += '\nINSTRUCTIONS FOR REFERENCE ITEMS:\n';
-      referenceInstructions += '- Study each reference image carefully for color, texture, pattern, and style\n';
-      referenceInstructions += '- Insert or replace items in the render to match the reference images as closely as possible\n';
-      referenceInstructions += '- Follow the placement instructions for where to position each item\n';
+      referenceInstructions += '- Study each reference image carefully for colour, texture, pattern, and style\n';
+      referenceInstructions += '- Insert or replace ONLY the specific item shown — do not change any other part of the room\n';
+      referenceInstructions += '- Every wall, floor, ceiling, window, door, and piece of furniture NOT mentioned = leave completely unchanged\n';
       referenceInstructions += '- Maintain consistent lighting and perspective with the rest of the room\n';
+      referenceInstructions += '- SCOPE RULE: If uncertain whether something should change, leave it exactly as it is in the input\n';
     }
 
     let prompt: string;
@@ -570,18 +573,24 @@ Keep the same room layout but update furniture, materials, lighting, and decor t
 OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with sharp textures, professional lighting, and realistic materials.`;
     } else if (referenceItems && referenceItems.length > 0) {
       // Reference items only mode
-      prompt = `CRITICAL: You MUST generate an image. Do NOT respond with text.
+      prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text.
 
-Modify this interior image by inserting the following items:
+You are a precision interior design editor. Your job is surgical: apply ONLY the item changes listed below and leave everything else in the room completely untouched.
+
 ${referenceInstructions}
 
-RULES:
-- Insert each item according to its placement instruction
-- Match reference image appearances closely
-- Maintain realistic lighting and perspective
-- Blend new items naturally with the existing room
+═══════════════════════════════════════════════════════
+SCOPE LOCK — DO NOT TOUCH ANYTHING ELSE
+═══════════════════════════════════════════════════════
+- Change ONLY the specific items listed above. Nothing else.
+- Room structure (walls, ceiling, floor, windows, doors) = pixel-identical to input
+- Camera angle and perspective = identical to input
+- Every piece of furniture NOT listed above = unchanged, same position, same appearance
+- Every colour NOT affected by the listed items = unchanged
+- Every light source = unchanged
+- INTERPRETATION RULE: When uncertain whether something should change, leave it exactly as it is
 
-OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image.`;
+OUTPUT: Generate a HIGH RESOLUTION photorealistic interior image with only the listed items changed and all other elements preserved exactly.`;
     } else {
       throw new Error("Either a style, custom prompt, or reference items must be provided");
     }
