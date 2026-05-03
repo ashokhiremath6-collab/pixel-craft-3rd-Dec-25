@@ -97,8 +97,12 @@ export default function GanttChartPage() {
   // Task table filters and settings
   const [taskSearchQuery, setTaskSearchQuery] = useState("");
   const [showOverdueOnly, setShowOverdueOnly] = useState(() => {
-    const key = `gantt_overdue_filter_${new URLSearchParams(window.location.search).get('projectId') || ''}`;
-    return localStorage.getItem(key) === 'true';
+    const params = new URLSearchParams(window.location.search);
+    // URL param takes priority (e.g. arriving from dashboard badge click)
+    if (params.get('showOverdue') === 'true') return true;
+    const projectId = params.get('projectId') || '';
+    const saved = localStorage.getItem(`gantt_overdue_filter_${projectId}`);
+    return saved === 'true';
   });
   const [taskSortMode, setTaskSortMode] = useState<'original' | 'date' | 'category'>('original');
   
@@ -133,21 +137,25 @@ export default function GanttChartPage() {
   const [pendingExcelChanges, setPendingExcelChanges] = useState(0);
   useEffect(() => { setPendingExcelChanges(0); }, [selectedProjectId]);
 
-  // Persist overdue filter per project in localStorage
+  // Keep a stable ref to selectedProjectId so the persist effect can read it
+  // without re-running when the project changes (avoids write-before-restore race).
+  const selectedProjectIdRef = useRef(selectedProjectId);
+  useEffect(() => { selectedProjectIdRef.current = selectedProjectId; }, [selectedProjectId]);
+
+  // Persist overdue filter per project in localStorage — only when the filter value changes.
+  // Using a ref for the project ID prevents this from firing on project switches before
+  // the restore effect has had a chance to load the new project's saved value.
   useEffect(() => {
-    const key = `gantt_overdue_filter_${selectedProjectId}`;
-    localStorage.setItem(key, showOverdueOnly ? 'true' : 'false');
-  }, [showOverdueOnly, selectedProjectId]);
+    const pid = selectedProjectIdRef.current;
+    if (!pid) return;
+    localStorage.setItem(`gantt_overdue_filter_${pid}`, showOverdueOnly ? 'true' : 'false');
+  }, [showOverdueOnly]);
 
   // Restore overdue filter when project changes
   useEffect(() => {
-    const key = `gantt_overdue_filter_${selectedProjectId}`;
-    const saved = localStorage.getItem(key);
-    if (saved !== null) {
-      setShowOverdueOnly(saved === 'true');
-    } else {
-      setShowOverdueOnly(false);
-    }
+    if (!selectedProjectId) return;
+    const saved = localStorage.getItem(`gantt_overdue_filter_${selectedProjectId}`);
+    setShowOverdueOnly(saved === 'true');
   }, [selectedProjectId]);
 
   // Reset expanded phases when project changes so auto-expand fires fresh
