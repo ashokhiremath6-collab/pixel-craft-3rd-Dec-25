@@ -31,6 +31,7 @@ import {
   FileImage,
   File,
   ChevronRight,
+  ArrowLeft,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Project, Moodboard, Specification, MeetingMinutes, Task } from "@shared/schema";
@@ -522,7 +523,13 @@ function EmptyState({
 }
 
 // ── MAIN PORTAL APP ───────────────────────────────────────────────────────────
-export default function ClientPortalApp() {
+export default function ClientPortalApp({
+  previewMode = false,
+  onExitPreview,
+}: {
+  previewMode?: boolean;
+  onExitPreview?: () => void;
+} = {}) {
   const { user, logout } = useAuth();
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [activeTab, setActiveTab] = useState("overview");
@@ -550,39 +557,63 @@ export default function ClientPortalApp() {
   const selectedProject = portalData?.project || projects.find(p => p.id === effectiveProjectId);
 
   const Header = () => (
-    <header className="border-b bg-background px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 gap-3">
-      <div className="flex items-center gap-3 min-w-0">
-        <img src="/logo.png" alt="PixelCraft Designer" className="h-7 w-7 object-contain shrink-0" />
-        <span className="font-semibold text-sm hidden sm:block shrink-0">PixelCraft Designer</span>
-        {projects.length > 1 ? (
-          <Select value={effectiveProjectId} onValueChange={v => { setSelectedProjectId(v); setActiveTab("overview"); }}>
-            <SelectTrigger className="w-[180px] sm:w-[220px]">
-              <SelectValue placeholder="Select project" />
-            </SelectTrigger>
-            <SelectContent>
-              {projects.map(p => (
-                <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : selectedProject ? (
-          <span className="text-sm text-muted-foreground truncate">{selectedProject.projectName}</span>
-        ) : null}
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <Badge variant="secondary" className="hidden sm:flex items-center gap-1 text-xs">
-          Client Portal
-        </Badge>
-        {user && (
-          <span className="text-sm text-muted-foreground hidden md:block">
-            {user.firstName ? `Hi, ${user.firstName}` : user.email}
-          </span>
-        )}
-        <Button variant="ghost" size="icon" onClick={() => logout()} title="Logout">
-          <LogOut className="h-4 w-4" />
-        </Button>
-      </div>
-    </header>
+    <>
+      {previewMode && (
+        <div className="bg-amber-50 dark:bg-amber-950 border-b border-amber-200 dark:border-amber-800 px-4 py-2 flex items-center justify-between gap-3">
+          <p className="text-xs text-amber-800 dark:text-amber-200 font-medium">
+            Admin Preview — you are viewing the client portal as a client would see it
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onExitPreview}
+            className="h-7 text-xs gap-1.5 shrink-0"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            Exit Preview
+          </Button>
+        </div>
+      )}
+      <header className="border-b bg-background px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <img src="/logo.png" alt="PixelCraft Designer" className="h-7 w-7 object-contain shrink-0" />
+          <span className="font-semibold text-sm hidden sm:block shrink-0">PixelCraft Designer</span>
+          {projects.length > 1 ? (
+            <Select value={effectiveProjectId} onValueChange={v => { setSelectedProjectId(v); setActiveTab("overview"); }}>
+              <SelectTrigger className="w-[180px] sm:w-[220px]">
+                <SelectValue placeholder="Select project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : selectedProject ? (
+            <span className="text-sm text-muted-foreground truncate">{selectedProject.projectName}</span>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge variant="secondary" className="hidden sm:flex items-center gap-1 text-xs">
+            Client Portal
+          </Badge>
+          {user && !previewMode && (
+            <span className="text-sm text-muted-foreground hidden md:block">
+              {user.firstName ? `Hi, ${user.firstName}` : user.email}
+            </span>
+          )}
+          {previewMode ? (
+            <Button variant="ghost" size="icon" onClick={onExitPreview} title="Exit Preview">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button variant="ghost" size="icon" onClick={() => logout()} title="Logout">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </header>
+    </>
   );
 
   if (projectsLoading) {

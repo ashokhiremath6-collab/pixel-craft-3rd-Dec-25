@@ -84,9 +84,13 @@ export default function DashboardPage() {
     window.location.href = path;
   };
 
-  const isLoading = vendorsLoading || quotationsLoading || categoriesLoading || activitiesLoading || tasksLoading;
+  // Only block rendering on the core data needed to build the page skeleton.
+  // Task stats are computed independently — they default to 0/empty while loading
+  // and update as soon as the tasks query resolves, so a Gantt import is reflected
+  // on the dashboard the moment the user navigates here.
+  const isCoreLoading = categoriesLoading || quotationsLoading || (isDesignerOrAdmin && vendorsLoading);
 
-  if (isLoading) {
+  if (isCoreLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-lg">Loading dashboard...</div>

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -35,8 +36,10 @@ import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Shield, User, Crown } from "lucide-react";
+import { LogOut, Shield, User, Crown, Eye } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+
+const ELEVATED_ROLES = ['admin', 'designer', 'project_manager'];
 
 function Router() {
   return (
@@ -72,13 +75,15 @@ function Router() {
   );
 }
 
-function AuthenticatedApp() {
+function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: () => void }) {
   const { logout, user } = useAuth();
 
   const style = {
     "--sidebar-width": "14rem",
     "--sidebar-width-icon": "3rem",
   };
+
+  const canPreviewPortal = ELEVATED_ROLES.includes(user?.role || '');
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
@@ -98,10 +103,10 @@ function AuthenticatedApp() {
             <div className="flex items-center gap-1 sm:gap-3 shrink-0">
               {user && (
                 <div className="flex items-center gap-2">
-                  <Badge 
+                  <Badge
                     variant={
-                      user.role === 'admin' ? 'destructive' : 
-                      user.role === 'designer' ? 'default' : 
+                      user.role === 'admin' ? 'destructive' :
+                      user.role === 'designer' ? 'default' :
                       'secondary'
                     }
                     className="capitalize flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs"
@@ -113,6 +118,17 @@ function AuthenticatedApp() {
                     <span className="hidden sm:inline">{user.role}</span>
                   </Badge>
                 </div>
+              )}
+              {canPreviewPortal && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onPreviewClientPortal}
+                  title="Preview Client Portal"
+                  data-testid="button-preview-client-portal"
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
               )}
               <Button
                 variant="ghost"
@@ -138,6 +154,7 @@ function AuthenticatedApp() {
 function AppContent() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [location] = useLocation();
+  const [previewingPortal, setPreviewingPortal] = useState(false);
 
   if (location === "/forgot-password") return <ForgotPasswordPage />;
   if (location.startsWith("/reset-password")) return <ResetPasswordPage />;
@@ -154,10 +171,20 @@ function AppContent() {
   }
 
   if (isAuthenticated) {
-    if (user?.role === 'client') {
+    // Elevated roles (admin, designer, project_manager) always stay in the admin view.
+    // The client portal is only shown automatically for pure client accounts,
+    // or when an elevated user explicitly previews it.
+    const isElevated = ELEVATED_ROLES.includes(user?.role || '');
+
+    if (previewingPortal && isElevated) {
+      return <ClientPortalApp previewMode onExitPreview={() => setPreviewingPortal(false)} />;
+    }
+
+    if (!isElevated && user?.role === 'client') {
       return <ClientPortalApp />;
     }
-    return <AuthenticatedApp />;
+
+    return <AuthenticatedApp onPreviewClientPortal={() => setPreviewingPortal(true)} />;
   } else {
     return <LoginPage />;
   }
