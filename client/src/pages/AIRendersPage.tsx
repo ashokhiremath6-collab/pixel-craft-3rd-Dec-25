@@ -147,6 +147,7 @@ export default function AIRendersPage() {
   
   const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
   
   // Retry state for 503 errors
   const [retryCountdown, setRetryCountdown] = useState<number>(0);
@@ -962,6 +963,7 @@ export default function AIRendersPage() {
         styleId: selectedStyle,
         styleName: style?.name || selectedStyle
       });
+      setLeftPanelCollapsed(true);
       toast({ title: "Render Generated", description: "Your AI render is ready!" });
     },
     onError: (error: any) => {
@@ -1024,6 +1026,7 @@ export default function AIRendersPage() {
         styleId: selectedStyle,
         styleName: style?.name || selectedStyle
       });
+      setLeftPanelCollapsed(true);
       toast({ title: "Render Generated", description: "Your concept render is ready!" });
     },
     onError: (error: any) => {
@@ -1378,16 +1381,23 @@ export default function AIRendersPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wand2 className="h-5 w-5 text-primary" />
-              Generate Render
+          <CardHeader className="cursor-pointer select-none" onClick={() => setLeftPanelCollapsed(c => !c)}>
+            <CardTitle className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Wand2 className="h-5 w-5 text-primary" />
+                Generate Render
+              </div>
+              <Button variant="ghost" size="icon" tabIndex={-1} onClick={e => { e.stopPropagation(); setLeftPanelCollapsed(c => !c); }}>
+                {leftPanelCollapsed ? <Plus className="h-4 w-4" /> : <X className="h-4 w-4" />}
+              </Button>
             </CardTitle>
-            <CardDescription>
-              Upload a room photo or describe your space to generate styled renders
-            </CardDescription>
+            {!leftPanelCollapsed && (
+              <CardDescription>
+                Upload a room photo or describe your space to generate styled renders
+              </CardDescription>
+            )}
           </CardHeader>
-          <CardContent className="space-y-4">
+          {!leftPanelCollapsed && <CardContent className="space-y-4">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="image" data-testid="tab-image-upload">
@@ -1433,8 +1443,11 @@ export default function AIRendersPage() {
                       Renders
                     </Button>
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    On Mac, your Photos library appears in the sidebar of the file browser. On iPhone, tap here to open your camera roll.
+                  </p>
                   {previewUrl && (
-                    <div className="mt-3 relative">
+                    <div className="mt-3 relative inline-block">
                       <img 
                         src={previewUrl} 
                         alt="Preview" 
@@ -1446,6 +1459,21 @@ export default function AIRendersPage() {
                           From Saved
                         </Badge>
                       )}
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-2 right-2 h-6 w-6"
+                        onClick={() => {
+                          setSelectedFile(null);
+                          setPreviewUrl(null);
+                          setSelectedSavedRenderUrl(null);
+                          if (fileInputRef.current) fileInputRef.current.value = "";
+                        }}
+                        data-testid="button-clear-source-image"
+                        title="Remove this image"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -1718,7 +1746,7 @@ export default function AIRendersPage() {
                 AI generation can take up to 90 seconds. Click Cancel to stop and try again.
               </p>
             )}
-          </CardContent>
+          </CardContent>}
         </Card>
 
         <Card>
