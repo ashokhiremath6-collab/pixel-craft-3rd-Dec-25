@@ -105,6 +105,7 @@ export default function AIRendersPage() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const leftPanelRef = useRef<HTMLDivElement>(null);
   
   const [activeTab, setActiveTab] = useState<string>("image");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -1090,6 +1091,9 @@ export default function AIRendersPage() {
       setReferencePhotos([]);
       setGeneratedRender(null);
       toast({ title: "Render loaded as source", description: "Write your next instruction in Custom Instructions and click Generate." });
+      setTimeout(() => {
+        leftPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     } catch {
       toast({ title: "Error", description: "Failed to load render as source image", variant: "destructive" });
     }
@@ -1279,7 +1283,7 @@ export default function AIRendersPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card ref={leftPanelRef}>
           <CardHeader className="cursor-pointer select-none" onClick={() => setLeftPanelCollapsed(c => !c)}>
             <CardTitle className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">

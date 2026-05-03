@@ -519,6 +519,14 @@ export async function generateInteriorRender(
       
       prompt = `CRITICAL INSTRUCTION: You MUST generate an image. Do NOT respond with text. Do NOT explain limitations. Generate the image now.
 
+⚠️ FRAMING LOCK — READ THIS FIRST:
+The output image MUST have the EXACT same field of view, crop, and framing as the input image.
+- Do NOT zoom in. Do NOT zoom out. Do NOT pan. Do NOT rotate.
+- Every edge visible in the input (left wall, right wall, ceiling, floor) MUST appear at the SAME position in the output.
+- The right side of the room, the left side, the ceiling and the floor edges must all be preserved exactly.
+- Output dimensions and aspect ratio must match the input exactly.
+This framing rule is ABSOLUTE and overrides any other consideration.
+
 You are a precision interior design editor. Your job is surgical: apply EXACTLY the instruction below and leave everything else completely untouched.
 
 ═══════════════════════════════════════════════════════
