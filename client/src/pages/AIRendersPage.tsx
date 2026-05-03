@@ -1309,15 +1309,23 @@ export default function AIRendersPage() {
                 <div>
                   <Label htmlFor="image-upload">Source Image</Label>
                   <div className="mt-2 flex gap-2">
-                    <Input
+                    <input
                       id="image-upload"
                       ref={fileInputRef}
                       type="file"
                       accept="image/*"
                       onChange={handleFileSelect}
-                      className="cursor-pointer flex-1"
+                      className="hidden"
                       data-testid="input-image-upload"
                     />
+                    <Button
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      data-testid="button-choose-file"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Choose file
+                    </Button>
                     <Button
                       variant="outline"
                       onClick={() => setShowAssetPickerForSourceImage(true)}
