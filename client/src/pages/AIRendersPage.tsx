@@ -1197,24 +1197,11 @@ export default function AIRendersPage() {
       return;
     }
 
-    const validReferenceItems = referenceItems.filter(item => 
-      item.placementInstruction && item.placementInstruction.trim()
-    );
-
-    if (referenceItems.length > 0 && validReferenceItems.length < referenceItems.length) {
-      toast({ 
-        title: "Missing Instructions", 
-        description: "Please add placement instructions for all reference items",
-        variant: "destructive" 
-      });
-      return;
-    }
-    
     generateFromImageMutation.mutate({
       file: selectedFile,
       styleId: selectedStyle,
       customPrompt: customPrompt || undefined,
-      referenceItems: validReferenceItems.length > 0 ? validReferenceItems : undefined,
+      referenceItems: referenceItems.length > 0 ? referenceItems : undefined,
       referencePhotos: referencePhotos.length > 0 ? referencePhotos : undefined,
     });
   };
@@ -1529,13 +1516,6 @@ export default function AIRendersPage() {
                                 </Button>
                               </div>
                               <span className="text-xs text-muted-foreground">{item.category}</span>
-                              <Input
-                                placeholder="Placement instruction (e.g., 'on the main floor area')"
-                                value={item.placementInstruction}
-                                onChange={(e) => updateReferenceInstruction(item.id, e.target.value)}
-                                className="mt-1 h-7 text-xs"
-                                data-testid={`input-placement-${item.id}`}
-                              />
                             </div>
                           </div>
                         </div>
