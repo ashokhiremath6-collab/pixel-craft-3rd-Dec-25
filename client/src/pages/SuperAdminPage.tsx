@@ -121,12 +121,19 @@ function OrgDetailPanel({ orgId, onBack }: { orgId: string; onBack: () => void }
 
   const impersonateMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return apiRequest("POST", `/api/superadmin/impersonate/${userId}`);
+      const result = await apiRequest("POST", `/api/superadmin/impersonate/${userId}`);
+      return result as { redeemUrl: string; targetEmail: string };
     },
-    onSuccess: () => {
-      toast({ title: "Impersonation started", description: "Reload the page to see the impersonated user's view." });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      setTimeout(() => window.location.reload(), 800);
+    onSuccess: (data) => {
+      // Open the redemption URL in a new tab. The server sets the impersonation
+      // session on that tab and redirects to / so the super-admin can browse
+      // the app from the impersonated user's perspective, complete with the
+      // orange impersonation banner and "Exit impersonation" control.
+      window.open(data.redeemUrl, "_blank", "noopener,noreferrer");
+      toast({
+        title: "Impersonation tab opened",
+        description: `A new tab is now running as ${data.targetEmail}. Use the banner in that tab to exit.`,
+      });
     },
     onError: () => toast({ title: "Error", description: "Failed to start impersonation.", variant: "destructive" }),
   });
@@ -297,13 +304,7 @@ export default function SuperAdminPage() {
   const [, navigate] = useLocation();
   const { user, isLoading: authLoading } = useAuth();
 
-  // Redirect non-super-admins before rendering any sensitive content
-  useEffect(() => {
-    if (!authLoading && user && !user.isSuperAdmin) {
-      navigate("/");
-    }
-  }, [authLoading, user, navigate]);
-
+  // All hooks must be called unconditionally before any early returns.
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -311,23 +312,34 @@ export default function SuperAdminPage() {
   const [tab, setTab] = useState<"orgs" | "audit">("orgs");
   const { toast } = useToast();
 
-  // Show nothing while auth state is resolving or if the user lacks access
-  if (authLoading || !user?.isSuperAdmin) {
-    return null;
-  }
+  const isSuperAdmin = !authLoading && !!user?.isSuperAdmin;
 
   const { data: metrics, isLoading: metricsLoading } = useQuery<Metrics>({
     queryKey: ["/api/superadmin/metrics"],
+    enabled: isSuperAdmin,
   });
 
   const { data: orgs, isLoading: orgsLoading, refetch } = useQuery<OrgStats[]>({
     queryKey: ["/api/superadmin/organisations"],
+    enabled: isSuperAdmin,
   });
 
   const { data: auditLog, isLoading: auditLoading } = useQuery<any[]>({
     queryKey: ["/api/superadmin/audit-log"],
-    enabled: tab === "audit",
+    enabled: isSuperAdmin && tab === "audit",
   });
+
+  // Redirect non-super-admins after hooks run
+  useEffect(() => {
+    if (!authLoading && user && !user.isSuperAdmin) {
+      navigate("/");
+    }
+  }, [authLoading, user, navigate]);
+
+  // Show nothing while auth state is resolving or if the user lacks access
+  if (authLoading || !user?.isSuperAdmin) {
+    return null;
+  }
 
   const filtered = (orgs ?? []).filter(o => {
     const matchSearch = !search ||

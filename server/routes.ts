@@ -5474,7 +5474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             rowIndex: i,
             createdAt: new Date(csvImportBaseTime + i),
           };
-          const task = await storage.createTask(taskWithOrdering as any);
+          const task = await storage.createTask(taskWithOrdering);
           createdTasks.push(task);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Invalid data';
@@ -6264,7 +6264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             taskRecord.status = 'not_started';
           }
 
-          const task = await storage.createTask(taskRecord as any);
+          const task = await storage.createTask(taskRecord);
           createdTasks.push(task);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -10569,18 +10569,31 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  // POST /api/superadmin/impersonate/:userId — begin impersonation session
+  // Short-lived impersonation token store.
+  // Tokens are one-time-use, expire after 60 seconds, and are redeemed via the
+  // GET /api/superadmin/impersonate/redeem endpoint which opens in a new browser tab.
+  // Using an in-memory store is safe here: tokens are valid for only 60 s and the
+  // server is single-process (Replit container). A DB store can replace this if
+  // the deployment becomes multi-instance.
+  const impersonationTokens = new Map<string, {
+    superAdminId: string;
+    targetUserId: string;
+    targetEmail: string | null;
+    expiresAt: number;
+  }>();
+
+  // POST /api/superadmin/impersonate/:userId — create a short-lived impersonation token.
+  // Returns a { token, redeemUrl } pair. The frontend opens redeemUrl in a new tab;
+  // that page redeems the token and activates the impersonation session.
   app.post("/api/superadmin/impersonate/:userId", requireSuperAdmin, async (req, res) => {
     try {
       const { userId } = req.params;
-      // Use session.originalUserId if already impersonating (guarded by read-only
-      // middleware so this shouldn't happen), otherwise use the real session user.
       const superAdminId = req.session.originalUserId ?? (req.user as { id: string }).id;
 
       const targetUser = await storage.getUser(userId);
       if (!targetUser) return res.status(404).json({ error: "User not found" });
 
-      // Record audit entry
+      // Record audit entry before issuing the token
       await storage.writeSuperAdminAuditLog({
         superAdminId,
         action: "impersonate",
@@ -10589,14 +10602,67 @@ Return your response in the following JSON format only (no markdown, no code blo
         metadata: { targetEmail: targetUser.email },
       });
 
-      // Set impersonation in session
-      req.session.impersonatingUserId = userId;
-      req.session.originalUserId = superAdminId;
+      // Mint a one-time token valid for 60 seconds
+      const { randomUUID } = await import("crypto");
+      const token = randomUUID();
+      impersonationTokens.set(token, {
+        superAdminId,
+        targetUserId: userId,
+        targetEmail: targetUser.email,
+        expiresAt: Date.now() + 60_000,
+      });
 
-      res.json({ success: true, targetUserId: userId, targetEmail: targetUser.email });
+      // Clean up expired tokens opportunistically
+      for (const [t, v] of impersonationTokens) {
+        if (v.expiresAt < Date.now()) impersonationTokens.delete(t);
+      }
+
+      const redeemUrl = `/api/superadmin/impersonate/redeem?token=${token}`;
+      res.json({ success: true, token, redeemUrl, targetUserId: userId, targetEmail: targetUser.email });
     } catch (error) {
       console.error("Superadmin impersonate error:", error);
       res.status(500).json({ error: "Failed to start impersonation" });
+    }
+  });
+
+  // GET /api/superadmin/impersonate/redeem?token=... — redeem a one-time impersonation token.
+  // Called by opening the redeemUrl in a new tab. Sets session flags and redirects to /.
+  // The super-admin's browser tab that opened this link will now be operating as the
+  // impersonated user, with the banner and exit control visible via the effective-user middleware.
+  app.get("/api/superadmin/impersonate/redeem", async (req, res) => {
+    try {
+      const token = req.query.token as string | undefined;
+      if (!token) return res.status(400).send("Missing token");
+
+      const entry = impersonationTokens.get(token);
+      if (!entry || entry.expiresAt < Date.now()) {
+        impersonationTokens.delete(token as string);
+        return res.status(400).send("Impersonation token is invalid or has expired. Please generate a new one from the super-admin console.");
+      }
+
+      // Consume the token (one-time use)
+      impersonationTokens.delete(token);
+
+      // The redeem request comes from a new tab that may not be authenticated as
+      // the super-admin (cookie is shared for same-origin). Verify the cookie session
+      // belongs to the same super-admin who minted the token.
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).send("You must be logged in as a super-admin to redeem this token.");
+      }
+      const realUserId = (req.user as { id: string }).id;
+      if (realUserId !== entry.superAdminId) {
+        return res.status(403).send("Token was issued for a different super-admin session.");
+      }
+
+      // Set impersonation on this tab's session and redirect to the app root
+      req.session.impersonatingUserId = entry.targetUserId;
+      req.session.originalUserId = entry.superAdminId;
+      req.session.save(() => {
+        res.redirect("/");
+      });
+    } catch (error) {
+      console.error("Superadmin impersonate redeem error:", error);
+      res.status(500).send("Failed to redeem impersonation token.");
     }
   });
 

@@ -297,7 +297,7 @@ export interface IStorage {
   getTasksByProject(projectId: string): Promise<Task[]>;
   getTasksBySchedule(scheduleId: string): Promise<Task[]>;
   getTask(id: string): Promise<Task | undefined>;
-  createTask(task: InsertTask): Promise<Task>;
+  createTask(task: InsertTask & { createdAt?: Date }): Promise<Task>;
   updateTask(id: string, task: Partial<InsertTask>): Promise<Task | undefined>;
   deleteTask(id: string): Promise<boolean>;
   
@@ -1268,7 +1268,7 @@ export class MemStorage implements IStorage {
     return undefined;
   }
 
-  async createTask(task: InsertTask): Promise<Task> {
+  async createTask(task: InsertTask & { createdAt?: Date }): Promise<Task> {
     throw new Error("MemStorage not supported for tasks");
   }
 
@@ -2508,7 +2508,7 @@ export class DBStorage implements IStorage {
     return result[0];
   }
 
-  async createTask(task: InsertTask): Promise<Task> {
+  async createTask(task: InsertTask & { createdAt?: Date }): Promise<Task> {
     const result = await db.insert(tasks).values(task).returning();
     return result[0];
   }
