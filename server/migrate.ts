@@ -22,6 +22,11 @@ async function ensureBillingColumns(pool: Pool): Promise<void> {
     `ALTER TABLE catalogue_items ADD COLUMN IF NOT EXISTS org_id TEXT REFERENCES organisations(id)`,
     `CREATE INDEX IF NOT EXISTS projects_org_id_idx ON projects(org_id)`,
     `CREATE INDEX IF NOT EXISTS catalogue_items_org_id_idx ON catalogue_items(org_id)`,
+    // Backfill legacy rows (org_id IS NULL) when there is exactly one organisation.
+    // Single-org deployments get all pre-existing rows counted toward their quota.
+    // Multi-org deployments: no-op (rows remain untagged and require manual backfill).
+    `UPDATE projects SET org_id = (SELECT id FROM organisations LIMIT 1) WHERE org_id IS NULL AND (SELECT COUNT(*) FROM organisations) = 1`,
+    `UPDATE catalogue_items SET org_id = (SELECT id FROM organisations LIMIT 1) WHERE org_id IS NULL AND (SELECT COUNT(*) FROM organisations) = 1`,
   ];
   for (const sql of statements) {
     try {

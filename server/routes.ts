@@ -102,6 +102,7 @@ async function checkOrgLimit(
     const err: any = new Error(
       `Plan limit reached: your ${plan} plan allows up to ${limit} ${label}. Upgrade your plan to add more.`
     );
+    err.status = 403;
     err.limitExceeded = true;
     err.current = current;
     err.limit = limit;
