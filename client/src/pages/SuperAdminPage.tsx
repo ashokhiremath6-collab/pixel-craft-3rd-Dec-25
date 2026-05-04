@@ -121,8 +121,8 @@ function OrgDetailPanel({ orgId, onBack }: { orgId: string; onBack: () => void }
 
   const impersonateMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const result = await apiRequest("POST", `/api/superadmin/impersonate/${userId}`);
-      return result as { redeemUrl: string; targetEmail: string };
+      const res = await apiRequest("POST", `/api/superadmin/impersonate/${userId}`);
+      return res.json() as Promise<{ redeemUrl: string; targetEmail: string }>;
     },
     onSuccess: (data) => {
       // Open the redemption URL in a new tab. The server sets the impersonation
