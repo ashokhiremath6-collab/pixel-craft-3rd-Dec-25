@@ -10503,6 +10503,7 @@ Return your response in the following JSON format only (no markdown, no code blo
             profileImageUrl: u.profileImageUrl,
             createdAt: u.createdAt,
             role: role?.role || "client",
+            isSuperAdmin: !!u.isSuperAdmin,
           };
         })
       );
@@ -10729,6 +10730,35 @@ Return your response in the following JSON format only (no markdown, no code blo
     } catch (error) {
       console.error("Superadmin metrics error:", error);
       res.status(500).json({ error: "Failed to fetch metrics" });
+    }
+  });
+
+  // PATCH /api/superadmin/users/:userId/superadmin — grant or revoke super-admin status
+  app.patch("/api/superadmin/users/:userId/superadmin", requireSuperAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { isSuperAdmin: grantSuperAdmin } = req.body;
+      if (typeof grantSuperAdmin !== "boolean") {
+        return res.status(400).json({ error: "isSuperAdmin must be a boolean" });
+      }
+
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) return res.status(404).json({ error: "User not found" });
+
+      await storage.setUserSuperAdmin(userId, grantSuperAdmin);
+
+      await storage.writeSuperAdminAuditLog({
+        superAdminId: (req.user as { id: string }).id,
+        action: grantSuperAdmin ? "grant_super_admin" : "revoke_super_admin",
+        targetOrgId: targetUser.orgId ?? null,
+        targetUserId: userId,
+        metadata: { targetEmail: targetUser.email ?? "" },
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Superadmin set super-admin error:", error);
+      res.status(500).json({ error: "Failed to update super-admin status" });
     }
   });
 

@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Building2, Users, FolderOpen, TrendingUp, Shield,
   Search, Eye, RefreshCw, ChevronRight, ArrowLeft,
-  Clock, Activity, Database, AlertTriangle, CreditCard
+  Clock, Activity, Database, AlertTriangle, CreditCard, ShieldCheck, ShieldOff
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -38,7 +38,7 @@ interface SubscriptionEvent {
 
 interface OrgDetail {
   org: OrgStats & { stripeCustomerId: string | null; stripeSubscriptionId: string | null };
-  users: Array<{ id: string; email: string | null; firstName: string | null; lastName: string | null; role: string; createdAt: string | null }>;
+  users: Array<{ id: string; email: string | null; firstName: string | null; lastName: string | null; role: string; createdAt: string | null; isSuperAdmin: boolean }>;
   projects: Array<{ id: string; projectName: string; clientName: string }>;
   recentActivity: Array<{ id: string; userName: string; description: string; activityType: string; createdAt: string }>;
   usage: { projects: number; users: number; catalogueItems: number; storageGb: number };
@@ -148,6 +148,22 @@ function OrgDetailPanel({ orgId, onBack }: { orgId: string; onBack: () => void }
     onError: () => toast({ title: "Error", description: "Failed to start impersonation.", variant: "destructive" }),
   });
 
+  const setSuperAdminMutation = useMutation({
+    mutationFn: async ({ userId, grant }: { userId: string; grant: boolean }) => {
+      return apiRequest("PATCH", `/api/superadmin/users/${userId}/superadmin`, { isSuperAdmin: grant });
+    },
+    onSuccess: (_data, { grant }) => {
+      toast({
+        title: grant ? "Super-admin granted" : "Super-admin revoked",
+        description: grant
+          ? "The user now has super-admin privileges."
+          : "Super-admin privileges have been removed.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/superadmin/organisations", orgId] });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to update super-admin status.", variant: "destructive" }),
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -217,10 +233,26 @@ function OrgDetailPanel({ orgId, onBack }: { orgId: string; onBack: () => void }
             {users.map(u => (
               <div key={u.id} className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{u.firstName} {u.lastName} <span className="text-muted-foreground font-normal">— {u.email}</span></p>
+                  <p className="text-sm font-medium truncate">
+                    {u.firstName} {u.lastName}
+                    {u.isSuperAdmin && <Shield className="inline h-3 w-3 ml-1 text-destructive" title="Super-admin" />}
+                    <span className="text-muted-foreground font-normal"> — {u.email}</span>
+                  </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Badge variant="outline" className="capitalize text-xs">{u.role}</Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSuperAdminMutation.mutate({ userId: u.id, grant: !u.isSuperAdmin })}
+                    disabled={setSuperAdminMutation.isPending}
+                    title={u.isSuperAdmin ? "Revoke super-admin" : "Grant super-admin"}
+                  >
+                    {u.isSuperAdmin
+                      ? <><ShieldOff className="h-3 w-3 mr-1" />Revoke</>
+                      : <><ShieldCheck className="h-3 w-3 mr-1" />Make super-admin</>
+                    }
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -504,6 +536,8 @@ export default function SuperAdminPage() {
                         <span className="text-muted-foreground ml-1">
                           {entry.action === "plan_override" && entry.metadata.previousPlan && entry.metadata.newPlan
                             ? `(${entry.metadata.previousPlan} → ${entry.metadata.newPlan})`
+                            : entry.action === "grant_super_admin" || entry.action === "revoke_super_admin"
+                            ? entry.metadata.targetEmail ? `(${entry.metadata.targetEmail})` : ""
                             : entry.metadata.targetEmail
                             ? `(${entry.metadata.targetEmail})`
                             : ""}
