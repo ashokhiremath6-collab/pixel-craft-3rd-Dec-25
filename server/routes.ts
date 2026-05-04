@@ -70,7 +70,11 @@ function sanitizeUser(user: Record<string, any>) {
 }
 
 // Plan limit enforcement — throws a structured 402 error if the org is at its limit for a resource
-async function checkOrgLimit(orgId: string, resource: 'projects' | 'users' | 'catalogueItems' | 'storageGb'): Promise<void> {
+async function checkOrgLimit(
+  orgId: string,
+  resource: 'projects' | 'users' | 'catalogueItems' | 'storageGb',
+  incomingBytes: number = 0
+): Promise<void> {
   const org = await storage.getOrganisation(orgId);
   const plan = org?.plan || 'trial';
   const limits = getPlanLimits(plan);
@@ -81,12 +85,21 @@ async function checkOrgLimit(orgId: string, resource: 'projects' | 'users' | 'ca
     : 'maxCatalogueItems';
   const current = usage[resource];
   const limit = limits[limitKey];
-  if (limit < UNLIMITED && current >= limit) {
+
+  // For storageGb, factor in the incoming file size so an upload that would push the
+  // org over the limit is rejected before the bytes reach object storage.
+  const effective = resource === 'storageGb'
+    ? (current as number) + incomingBytes / (1024 * 1024 * 1024)
+    : current;
+
+  if (limit < UNLIMITED && effective >= limit) {
     const label = resource === 'projects' ? 'projects'
       : resource === 'users' ? 'team members'
-      : resource === 'storageGb' ? `GB of storage (${plan} plan: ${limit} GB)`
+      : resource === 'storageGb' ? 'GB of storage'
       : 'catalogue items';
-    const err: any = new Error(`Plan limit reached: your ${plan} plan allows up to ${resource === 'storageGb' ? `${limit} GB of storage` : `${limit} ${label}`}. Upgrade your plan to add more.`);
+    const err: any = new Error(
+      `Plan limit reached: your ${plan} plan allows up to ${limit} ${label}. Upgrade your plan to add more.`
+    );
     err.limitExceeded = true;
     err.current = current;
     err.limit = limit;
@@ -103,10 +116,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Endpoint to get presigned upload URL
   app.post("/api/objects/upload", requireAuth, async (req, res) => {
     try {
-      // Enforce storage limit before issuing an upload URL so orgs at capacity cannot
-      // bypass the check by uploading directly then registering the file.
+      // Enforce storage limit before issuing an upload URL.
+      // Callers should pass fileSizeBytes so the check is size-aware: an upload that
+      // would push the org over its plan limit is rejected here before any bytes are sent.
       const user = req.user as any;
-      if (user.orgId) await checkOrgLimit(user.orgId, 'storageGb');
+      const fileSizeBytes = Number(req.body?.fileSizeBytes) || 0;
+      if (user.orgId) await checkOrgLimit(user.orgId, 'storageGb', fileSizeBytes);
 
       const objectStorageService = new ObjectStorageService();
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
@@ -219,8 +234,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     fileBuffer: Buffer,
     originalName: string,
     userId: string,
-    mimeType: string
+    mimeType: string,
+    orgId?: string
   ): Promise<string> {
+    // Enforce per-org storage limit before sending bytes to object storage.
+    // incomingBytes is the exact size from the already-buffered file, making the
+    // check precise: orgs whose usage + this file would exceed the plan cap are rejected.
+    if (orgId) await checkOrgLimit(orgId, 'storageGb', fileBuffer.byteLength);
+
     const objectStorageService = new ObjectStorageService();
     
     // Get presigned upload URL
@@ -3025,7 +3046,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.file.originalname,
         userId,
         req.file.mimetype
-      );
+      ,
+          (req.user as any).orgId
+        );
       
       // Store file information
       const quoteFileData = {
@@ -3221,7 +3244,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tempData.originalname,
         userId,
         tempData.mimetype
-      );
+      ,
+          (req.user as any).orgId
+        );
       
       // Store file information
       const quoteFileData = {
@@ -4203,7 +4228,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.file.originalname,
         userId,
         req.file.mimetype
-      );
+      ,
+          (req.user as any).orgId
+        );
 
       const floorPlanData = {
         projectId,
@@ -4426,6 +4453,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req.file.originalname,
           userId,
           req.file.mimetype
+        ,
+          (req.user as any).orgId
         );
       }
 
@@ -4927,6 +4956,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileName,
         userId,
         mimeType || 'image/png'
+      ,
+        (req.user as any).orgId
       );
 
       // Validate projectId if provided
@@ -5718,7 +5749,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.file.originalname,
         userId,
         req.file.mimetype
-      );
+      ,
+          (req.user as any).orgId
+        );
 
       // Create schedule record
       const schedule = await storage.createProjectSchedule({
@@ -7399,7 +7432,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.file.originalname,
         userId,
         req.file.mimetype
-      );
+      ,
+          (req.user as any).orgId
+        );
 
       res.json({ path: objectPath });
     } catch (error) {
@@ -7914,7 +7949,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req.file.buffer,
           `original_${req.file.originalname}`,
           userId,
-          req.file.mimetype
+          req.file.mimetype,
+          (req.user as any).orgId
         );
 
         // Create initial asset record with pending status - NO auto-processing
@@ -8447,6 +8483,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req.file.originalname,
           userId,
           req.file.mimetype
+        ,
+          (req.user as any).orgId
         );
 
         const specData = {
@@ -8511,6 +8549,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req.file.originalname,
           userId,
           req.file.mimetype
+        ,
+          (req.user as any).orgId
         );
         updates.fileName = req.file.originalname;
         updates.filePath = objectPath;
@@ -8799,7 +8839,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ext = (mimeType || 'image/png').split('/')[1] || 'png';
       const fileName = `ai-render-${Date.now()}.${ext}`;
       const buffer = Buffer.from(imageData, 'base64');
-      const objectPath = await uploadToObjectStorage(buffer, fileName, userId, mimeType || 'image/png');
+      const objectPath = await uploadToObjectStorage(buffer, fileName, userId, mimeType || 'image/png', (req.user as any).orgId);
       const name = (displayName && displayName.trim()) ? displayName.trim() : `AI Render ${new Date().toLocaleString()}`;
       const asset = await storage.createSavedAsset({
         displayName: name,
@@ -8875,6 +8915,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req.file.originalname,
           userId,
           req.file.mimetype
+        ,
+          (req.user as any).orgId
         );
 
         const momData = {
@@ -8954,6 +8996,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req.file.originalname,
           userId,
           req.file.mimetype
+        ,
+          (req.user as any).orgId
         );
         updates.fileName = req.file.originalname;
         updates.filePath = objectPath;
@@ -9257,7 +9301,9 @@ Return your response in the following JSON format only (no markdown, no code blo
         req.file.originalname,
         userId,
         req.file.mimetype
-      );
+      ,
+          (req.user as any).orgId
+        );
 
       // Create template with file metadata
       const template = await storage.createWorksOrderTemplate({
@@ -9985,6 +10031,8 @@ Return your response in the following JSON format only (no markdown, no code blo
           file.originalname,
           userId,
           file.mimetype
+        ,
+          (req.user as any).orgId
         );
         return { file, objectPath };
       });

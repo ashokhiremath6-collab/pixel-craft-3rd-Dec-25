@@ -3450,13 +3450,9 @@ export class DBStorage implements IStorage {
           INNER JOIN project_vendors pv2 ON wo.project_vendor_id = pv2.id
           WHERE pv2.project_id IN (${orgProjectIds})
           UNION ALL
-          -- Saved assets uploaded by any member of this org
-          SELECT COALESCE(0, 0)
-          FROM saved_assets sa
-          INNER JOIN users u ON sa.saved_by = u.id
-          WHERE u.org_id = ${orgId}
-          UNION ALL
           -- Works-order templates created by any member of this org
+          -- Note: saved_assets has no file_size column; the source file size is captured
+          -- via the objectAssets or quoteFiles rows which are already counted above.
           SELECT COALESCE(wt.file_size, 0)
           FROM works_order_templates wt
           INNER JOIN users u2 ON wt.created_by = u2.id
