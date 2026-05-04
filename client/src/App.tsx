@@ -262,7 +262,9 @@ function AppContent() {
       return <ClientPortalApp previewMode onExitPreview={() => setPreviewingPortal(false)} />;
     }
 
-    if (!isImpersonating && !isElevated && user?.role === 'client') {
+    // Super-admins always use AuthenticatedApp regardless of business role,
+    // so /superadmin remains accessible even when their role is set to 'client'.
+    if (!isImpersonating && !isElevated && user?.role === 'client' && !user?.isSuperAdmin) {
       return <ClientPortalApp />;
     }
 

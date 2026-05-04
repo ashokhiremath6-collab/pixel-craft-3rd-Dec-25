@@ -10424,7 +10424,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   // GET /api/billing/usage — current org plan limits and usage (admin + designer)
   app.get('/api/billing/usage', requireAdmin, async (req, res) => {
     try {
-      const user = req.user as any;
+      const user = req.user as { id: string; orgId?: string | null };
       if (!user.orgId) return res.status(400).json({ error: 'No organisation linked to this account' });
       const org = await storage.getOrganisation(user.orgId);
       const plan = org?.plan || 'trial';
@@ -10440,7 +10440,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   // POST /api/billing/portal — create a Stripe Customer Portal session (admin-only, no designers)
   app.post('/api/billing/portal', requireAdminOnly, async (req, res) => {
     try {
-      const user = req.user as any;
+      const user = req.user as { id: string; orgId?: string | null };
       if (!user.orgId) return res.status(400).json({ error: 'No organisation linked to this account' });
       const org = await storage.getOrganisation(user.orgId);
       if (!org) return res.status(404).json({ error: 'Organisation not found' });
@@ -10486,7 +10486,7 @@ Return your response in the following JSON format only (no markdown, no code blo
         storage.getOrganisation(orgId),
         storage.getUsersByOrg(orgId),
         storage.getAllProjects().then(ps => ps.filter(p => p.orgId === orgId)),
-        storage.getRecentActivities(20),
+        storage.getRecentActivitiesByOrg(orgId, 20),
         storage.getOrgUsage(orgId),
       ]);
       if (!org) return res.status(404).json({ error: "Organisation not found" });

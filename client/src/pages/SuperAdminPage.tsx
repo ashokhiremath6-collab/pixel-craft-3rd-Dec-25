@@ -53,6 +53,16 @@ interface Metrics {
   mrrEstimate: number;
 }
 
+interface AuditLogEntry {
+  id: string;
+  superAdminId: string;
+  action: string;
+  targetOrgId: string | null;
+  targetUserId: string | null;
+  metadata: Record<string, string> | null;
+  createdAt: string;
+}
+
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
 
 const PLAN_COLORS: Record<string, BadgeVariant> = {
@@ -324,7 +334,7 @@ export default function SuperAdminPage() {
     enabled: isSuperAdmin,
   });
 
-  const { data: auditLog, isLoading: auditLoading } = useQuery<any[]>({
+  const { data: auditLog, isLoading: auditLoading } = useQuery<AuditLogEntry[]>({
     queryKey: ["/api/superadmin/audit-log"],
     enabled: isSuperAdmin && tab === "audit",
   });
@@ -485,7 +495,7 @@ export default function SuperAdminPage() {
               <p className="text-sm text-muted-foreground">No audit log entries yet.</p>
             ) : (
               <div className="divide-y text-sm">
-                {(auditLog ?? []).map((entry: any) => (
+                {(auditLog ?? []).map((entry) => (
                   <div key={entry.id} className="py-2 flex items-start gap-3">
                     <Shield className="h-3 w-3 mt-1 text-muted-foreground shrink-0" />
                     <div className="flex-1 min-w-0">

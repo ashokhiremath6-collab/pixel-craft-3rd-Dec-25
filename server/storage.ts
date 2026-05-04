@@ -318,6 +318,7 @@ export interface IStorage {
   
   // Activity Log
   getRecentActivities(limit?: number, projectId?: string): Promise<ActivityLog[]>;
+  getRecentActivitiesByOrg(orgId: string, limit?: number): Promise<ActivityLog[]>;
   createActivity(activity: InsertActivityLog): Promise<ActivityLog>;
   
   // Vendor Invoices
@@ -1318,6 +1319,10 @@ export class MemStorage implements IStorage {
 
   // Activity Log (MemStorage stubs)
   async getRecentActivities(limit?: number, projectId?: string): Promise<ActivityLog[]> {
+    return [];
+  }
+
+  async getRecentActivitiesByOrg(_orgId: string, _limit?: number): Promise<ActivityLog[]> {
     return [];
   }
 
@@ -2583,6 +2588,19 @@ export class DBStorage implements IStorage {
       .from(activityLog)
       .orderBy(desc(activityLog.createdAt))
       .limit(limit);
+  }
+
+  async getRecentActivitiesByOrg(orgId: string, limit: number = 20): Promise<ActivityLog[]> {
+    // Fetch activities scoped to the organisation by joining through users.orgId.
+    // This is O(1) in query cost regardless of how many orgs exist.
+    return await db
+      .select({ activityLog })
+      .from(activityLog)
+      .innerJoin(users, eq(activityLog.userId, users.id))
+      .where(eq(users.orgId, orgId))
+      .orderBy(desc(activityLog.createdAt))
+      .limit(limit)
+      .then(rows => rows.map(r => r.activityLog));
   }
 
   async createActivity(activity: InsertActivityLog): Promise<ActivityLog> {
