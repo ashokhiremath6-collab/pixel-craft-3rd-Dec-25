@@ -1,4 +1,4 @@
-import { TRIAL_DURATION_DAYS } from "./config";
+import { TRIAL_DURATION_DAYS, WARN_WITHIN_DAYS, SUPPRESS_WITHIN_DAYS } from "./config";
 import type { Express } from "express";
 import express from "express";
 import { createServer, type Server } from "http";
@@ -10988,13 +10988,12 @@ Return your response in the following JSON format only (no markdown, no code blo
 
   // ── Scheduled trial-expiry warning job ─────────────────────────────────────
   // Runs once on startup and then every 24 hours.
-  // Finds orgs on a trial plan whose trial ends within 3 days and that have
-  // not been notified within the last 7 days, then emails all their admins.
+  // Finds orgs on a trial plan whose trial ends within WARN_WITHIN_DAYS days
+  // and that have not been notified within SUPPRESS_WITHIN_DAYS days, then
+  // emails all their admins. Both values are configurable via server/config.ts.
   async function runTrialExpiryWarnings(): Promise<void> {
     try {
       const { sendTrialExpiryWarningEmail } = await import("./email");
-      const WARN_WITHIN_DAYS = 3;
-      const SUPPRESS_WITHIN_DAYS = 7;
       const orgs = await storage.getOrgsNearTrialExpiry(WARN_WITHIN_DAYS, SUPPRESS_WITHIN_DAYS);
       if (orgs.length === 0) return;
 
