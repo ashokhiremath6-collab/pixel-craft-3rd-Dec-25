@@ -393,6 +393,83 @@ export async function sendTrialExpiryWarningEmail(
   return sendTrialExpiryEmailCore(email, orgName, daysRemaining, "Automated trial expiry warning", opts);
 }
 
+export async function sendInvitationAcceptedEmail(
+  email: string,
+  inviteeName: string,
+  orgName: string,
+  opts?: { unsubscribeToken?: string; baseUrl?: string }
+): Promise<void> {
+  console.info(`[EMAIL] Invitation accepted notification for ${email} (invitee: ${inviteeName})`);
+  const base = opts?.baseUrl || getBaseUrl();
+  const footer = buildEmailFooter({
+    baseUrl: base,
+    unsubscribeToken: opts?.unsubscribeToken,
+    notificationType: "invitationAccepted",
+  });
+
+  await sendEmail({
+    to: email,
+    subject: `${inviteeName} has accepted your invitation to ${orgName}`,
+    html: `
+      <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
+        <div style="text-align:center;margin-bottom:24px;">
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+        </div>
+        <div style="background:#fff;border-radius:12px;padding:28px;">
+          <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Invitation accepted</h2>
+          <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
+            <strong>${inviteeName}</strong> has accepted your invitation and joined <strong>${orgName}</strong> on PixelCraft Designer.
+          </p>
+          <p style="color:#6e6e73;font-size:13px;margin:0;">
+            You can view your team members in the Settings page of your workspace.
+          </p>
+          ${footer.html}
+        </div>
+      </div>
+    `,
+    text: `${inviteeName} has accepted your invitation to ${orgName} on PixelCraft Designer.\n\nYou can view your team members in the Settings page of your workspace.${footer.text}`,
+  });
+}
+
+export async function sendProjectUpdateEmail(
+  email: string,
+  projectName: string,
+  updatedBy: string,
+  opts?: { unsubscribeToken?: string; baseUrl?: string }
+): Promise<void> {
+  console.info(`[EMAIL] Project update notification for ${email} (project: ${projectName})`);
+  const base = opts?.baseUrl || getBaseUrl();
+  const projectsUrl = `${base}/`;
+  const footer = buildEmailFooter({
+    baseUrl: base,
+    unsubscribeToken: opts?.unsubscribeToken,
+    notificationType: "projectUpdates",
+  });
+
+  await sendEmail({
+    to: email,
+    subject: `Project update: ${projectName} on PixelCraft Designer`,
+    html: `
+      <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
+        <div style="text-align:center;margin-bottom:24px;">
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+        </div>
+        <div style="background:#fff;border-radius:12px;padding:28px;">
+          <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">A project has been updated</h2>
+          <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
+            <strong>${projectName}</strong> has been updated by <strong>${updatedBy}</strong>. Log in to your workspace to view the latest changes.
+          </p>
+          <a href="${projectsUrl}" style="display:inline-block;background:#0071e3;color:#fff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
+            View Project
+          </a>
+          ${footer.html}
+        </div>
+      </div>
+    `,
+    text: `${projectName} has been updated by ${updatedBy} on PixelCraft Designer.\n\nLog in to view the latest changes: ${projectsUrl}${footer.text}`,
+  });
+}
+
 export async function sendVerificationEmail(
   email: string,
   token: string,

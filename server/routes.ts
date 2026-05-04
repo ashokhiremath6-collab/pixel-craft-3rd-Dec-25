@@ -1090,6 +1090,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         await storage.acceptInvitation(req.params.token);
 
+        // Notify the inviter (if non-admin and opted in) that their invitation was accepted
+        try {
+          const inviter = await storage.getUser(invite.invitedBy);
+          if (inviter && inviter.email) {
+            const inviterRole = await storage.getUserRole(inviter.id);
+            if (inviterRole && inviterRole.role !== "admin") {
+              const prefs = await storage.getNotificationPreferences(inviter.id);
+              if (prefs.invitationAccepted) {
+                const { sendInvitationAcceptedEmail } = await import("./email");
+                const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(inviter.id);
+                const inviteeName = [existing.firstName, existing.lastName].filter(Boolean).join(" ") || existing.email;
+                const org = await storage.getOrganisation(invite.orgId);
+                const domains = process.env.REPLIT_DOMAINS;
+                const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
+                await sendInvitationAcceptedEmail(inviter.email, inviteeName, org?.name || "your workspace", {
+                  unsubscribeToken,
+                  baseUrl,
+                });
+              }
+            }
+          }
+        } catch (emailErr) {
+          console.error("Failed to send invitation-accepted notification:", emailErr);
+        }
+
         req.logIn(existing, (err) => {
           if (err) return res.status(500).json({ error: "Account linked but auto-login failed." });
           res.json({ success: true });
@@ -1113,6 +1138,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.createUserRole({ userId: newUser.id, role: invite.role, isActive: true, assignedBy: invite.invitedBy });
       await storage.acceptInvitation(req.params.token);
+
+      // Notify the inviter (if non-admin and opted in) that their invitation was accepted
+      try {
+        const inviter = await storage.getUser(invite.invitedBy);
+        if (inviter && inviter.email) {
+          const inviterRole = await storage.getUserRole(inviter.id);
+          if (inviterRole && inviterRole.role !== "admin") {
+            const prefs = await storage.getNotificationPreferences(inviter.id);
+            if (prefs.invitationAccepted) {
+              const { sendInvitationAcceptedEmail } = await import("./email");
+              const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(inviter.id);
+              const inviteeName = [newUser.firstName, newUser.lastName].filter(Boolean).join(" ") || newUser.email;
+              const org = await storage.getOrganisation(invite.orgId);
+              const domains = process.env.REPLIT_DOMAINS;
+              const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
+              await sendInvitationAcceptedEmail(inviter.email, inviteeName, org?.name || "your workspace", {
+                unsubscribeToken,
+                baseUrl,
+              });
+            }
+          }
+        }
+      } catch (emailErr) {
+        console.error("Failed to send invitation-accepted notification:", emailErr);
+      }
 
       req.logIn(newUser, (err) => {
         if (err) return res.status(500).json({ error: "Account created but auto-login failed. Please sign in." });
@@ -1168,7 +1218,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         projectId,
         assignedBy: currentUserId
       });
-      
+
+      // Notify the newly assigned user (if non-admin and opted in) about the project assignment
+      try {
+        const assignedUser = await storage.getUser(userId);
+        if (assignedUser?.email) {
+          const assignedRole = await storage.getUserRole(userId);
+          if (assignedRole && assignedRole.role !== "admin") {
+            const prefs = await storage.getNotificationPreferences(userId);
+            if (prefs.projectUpdates) {
+              const project = await storage.getProject(projectId);
+              const assigner = await storage.getUser(currentUserId);
+              const assignerName = assigner
+                ? ([assigner.firstName, assigner.lastName].filter(Boolean).join(" ") || assigner.email || "Your team")
+                : "Your team";
+              if (project) {
+                const { sendProjectUpdateEmail } = await import("./email");
+                const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(userId);
+                const domains = process.env.REPLIT_DOMAINS;
+                const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
+                await sendProjectUpdateEmail(assignedUser.email, project.projectName, assignerName, { unsubscribeToken, baseUrl });
+              }
+            }
+          }
+        }
+      } catch (emailErr) {
+        console.error("Failed to send project assignment notification:", emailErr);
+      }
+
       res.status(201).json(assignment);
     } catch (error) {
       console.error('Assign user to project error:', error);
@@ -1643,6 +1720,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!project) {
           return res.status(404).json({ error: "Project not found" });
         }
+        // Notify assigned non-admin users who have projectUpdates enabled
+        try {
+          const assignments = await storage.getUsersAssignedToProject(project.id);
+          const updaterUser = await storage.getUser(userId);
+          const updaterName = updaterUser
+            ? ([updaterUser.firstName, updaterUser.lastName].filter(Boolean).join(" ") || updaterUser.email || "Your team")
+            : "Your team";
+          const domains = process.env.REPLIT_DOMAINS;
+          const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
+          const { sendProjectUpdateEmail } = await import("./email");
+          for (const assignment of assignments) {
+            const assignedUser = await storage.getUser(assignment.userId);
+            if (!assignedUser?.email) continue;
+            const assignedRole = await storage.getUserRole(assignment.userId);
+            if (!assignedRole || assignedRole.role === "admin") continue;
+            const prefs = await storage.getNotificationPreferences(assignment.userId);
+            if (!prefs.projectUpdates) continue;
+            const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(assignment.userId);
+            await sendProjectUpdateEmail(assignedUser.email, project.projectName, updaterName, { unsubscribeToken, baseUrl });
+          }
+        } catch (emailErr) {
+          console.error("Failed to send project update notifications:", emailErr);
+        }
         return res.json(project);
       }
       
@@ -1695,6 +1795,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const project = await storage.updateProject(req.params.id, parsed);
         if (!project) {
           return res.status(404).json({ error: "Project not found" });
+        }
+        // Notify assigned non-admin users who have projectUpdates enabled
+        try {
+          const assignments = await storage.getUsersAssignedToProject(project.id);
+          const updaterUser = await storage.getUser(userId);
+          const updaterName = updaterUser
+            ? ([updaterUser.firstName, updaterUser.lastName].filter(Boolean).join(" ") || updaterUser.email || "Your team")
+            : "Your team";
+          const domains = process.env.REPLIT_DOMAINS;
+          const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
+          const { sendProjectUpdateEmail } = await import("./email");
+          for (const assignment of assignments) {
+            const assignedUser = await storage.getUser(assignment.userId);
+            if (!assignedUser?.email) continue;
+            const assignedRole = await storage.getUserRole(assignment.userId);
+            if (!assignedRole || assignedRole.role === "admin") continue;
+            const prefs = await storage.getNotificationPreferences(assignment.userId);
+            if (!prefs.projectUpdates) continue;
+            const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(assignment.userId);
+            await sendProjectUpdateEmail(assignedUser.email, project.projectName, updaterName, { unsubscribeToken, baseUrl });
+          }
+        } catch (emailErr) {
+          console.error("Failed to send project update notifications:", emailErr);
         }
         return res.json(project);
       }
