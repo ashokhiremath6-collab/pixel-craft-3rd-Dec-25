@@ -14,6 +14,7 @@ import {
   Search, Eye, RefreshCw, ChevronRight, ArrowLeft,
   Clock, Activity, Database, AlertTriangle, CreditCard, ShieldCheck, ShieldOff
 } from "lucide-react";
+import { AccessDenied } from "@/components/AccessDenied";
 import { format, formatDistanceToNow } from "date-fns";
 
 interface OrgStats {
@@ -378,9 +379,14 @@ export default function SuperAdminPage() {
     }
   }, [authLoading, user, navigate]);
 
-  // Show nothing while auth state is resolving or if the user lacks access
-  if (authLoading || !user?.isSuperAdmin) {
+  // Show nothing while auth is still loading
+  if (authLoading) {
     return null;
+  }
+
+  // Show access denied while redirect is in flight
+  if (!user?.isSuperAdmin) {
+    return <AccessDenied />;
   }
 
   const filtered = (orgs ?? []).filter(o => {
