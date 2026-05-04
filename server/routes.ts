@@ -1,3 +1,4 @@
+import { TRIAL_DURATION_DAYS } from "./config";
 import type { Express } from "express";
 import express from "express";
 import { createServer, type Server } from "http";
@@ -10891,8 +10892,6 @@ Return your response in the following JSON format only (no markdown, no code blo
       const { sendTrialExpiryWarningEmail } = await import("./email");
       const WARN_WITHIN_DAYS = 3;
       const SUPPRESS_WITHIN_DAYS = 7;
-      const TRIAL_DURATION_DAYS = 14; // assumed length of a non-Stripe trial
-
       const orgs = await storage.getOrgsNearTrialExpiry(WARN_WITHIN_DAYS, SUPPRESS_WITHIN_DAYS);
       if (orgs.length === 0) return;
 

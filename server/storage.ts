@@ -1,3 +1,4 @@
+import { TRIAL_DURATION_DAYS } from "./config";
 import { 
   type User, 
   type UpsertUser,
@@ -3371,7 +3372,7 @@ export class DBStorage implements IStorage {
     const now = new Date();
     const windowEnd = new Date(Date.now() + withinDays * 86_400_000);
     const suppressBefore = new Date(Date.now() - notifiedWithinDays * 86_400_000);
-    const trialDurationMs = 14 * 86_400_000;
+    const trialDurationMs = TRIAL_DURATION_DAYS * 86_400_000;
 
     const rows = await db
       .select()
