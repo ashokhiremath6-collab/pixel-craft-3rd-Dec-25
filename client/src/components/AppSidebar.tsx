@@ -13,7 +13,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useLocation, Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 
 interface NavigationItem {
   title: string;
@@ -22,144 +22,59 @@ interface NavigationItem {
 }
 
 const mainItems: NavigationItem[] = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: Home,
-  },
-  {
-    title: "Projects",
-    url: "/projects",
-    icon: Building2,
-  },
-  {
-    title: "Project scheduling",
-    url: "/gantt-chart",
-    icon: GanttChart,
-  },
-  {
-    title: "Moodboards",
-    url: "/moodboards",
-    icon: ImageIcon,
-  },
-  {
-    title: "Renders",
-    url: "/renders",
-    icon: Sparkles,
-  },
-  {
-    title: "Working Drawings",
-    url: "/working-drawings",
-    icon: PenTool,
-  },
-  {
-    title: "Vendors by Category",
-    url: "/vendors",
-    icon: Users,
-  },
-  {
-    title: "Comparative Quotes",
-    url: "/quotes",
-    icon: BarChart3,
-  },
-  {
-    title: "Unit Rate Quotes",
-    url: "/unit-rates",
-    icon: DollarSign,
-  },
-  {
-    title: "Import Quotes",
-    url: "/import",
-    icon: Upload,
-  },
-  {
-    title: "Quote Templates",
-    url: "/templates",
-    icon: FileText,
-  },
-  {
-    title: "Accounts",
-    url: "/accounts",
-    icon: Wallet,
-  },
-  {
-    title: "SOPs",
-    url: "/sops",
-    icon: BookOpen,
-  },
+  { title: "Dashboard", url: "/", icon: Home },
+  { title: "Projects", url: "/projects", icon: Building2 },
+  { title: "Project scheduling", url: "/gantt-chart", icon: GanttChart },
+  { title: "Moodboards", url: "/moodboards", icon: ImageIcon },
+  { title: "Renders", url: "/renders", icon: Sparkles },
+  { title: "Working Drawings", url: "/working-drawings", icon: PenTool },
+  { title: "Vendors by Category", url: "/vendors", icon: Users },
+  { title: "Comparative Quotes", url: "/quotes", icon: BarChart3 },
+  { title: "Unit Rate Quotes", url: "/unit-rates", icon: DollarSign },
+  { title: "Import Quotes", url: "/import", icon: Upload },
+  { title: "Quote Templates", url: "/templates", icon: FileText },
+  { title: "Accounts", url: "/accounts", icon: Wallet },
+  { title: "SOPs", url: "/sops", icon: BookOpen },
+];
+
+// Reduced nav for project managers — only what pertains to their role
+const projectManagerMainItems: NavigationItem[] = [
+  { title: "Dashboard", url: "/", icon: Home },
+  { title: "Projects", url: "/projects", icon: Building2 },
+  { title: "Project scheduling", url: "/gantt-chart", icon: GanttChart },
+  { title: "SOPs", url: "/sops", icon: BookOpen },
 ];
 
 const settingsItems: NavigationItem[] = [
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-  },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 const designerOnlyItems: NavigationItem[] = [
-  {
-    title: "Design Intelligence",
-    url: "/ai-assistant",
-    icon: BrainCircuit,
-  },
-  {
-    title: "AI Renders",
-    url: "/ai-renders",
-    icon: Wand2,
-  },
-  {
-    title: "Asset Ingestion",
-    url: "/asset-ingestion",
-    icon: Camera,
-  },
-  {
-    title: "Catalogues",
-    url: "/catalogue",
-    icon: BookOpen,
-  },
-  {
-    title: "Specifications",
-    url: "/specifications",
-    icon: FileText,
-  },
-  {
-    title: "Meeting Minutes",
-    url: "/meeting-minutes",
-    icon: Calendar,
-  },
-  {
-    title: "Client Access",
-    url: "/client-access",
-    icon: UserCheck,
-  },
+  { title: "Design Intelligence", url: "/ai-assistant", icon: BrainCircuit },
+  { title: "AI Renders", url: "/ai-renders", icon: Wand2 },
+  { title: "Asset Ingestion", url: "/asset-ingestion", icon: Camera },
+  { title: "Catalogues", url: "/catalogue", icon: BookOpen },
+  { title: "Specifications", url: "/specifications", icon: FileText },
+  { title: "Meeting Minutes", url: "/meeting-minutes", icon: Calendar },
+  { title: "Client Access", url: "/client-access", icon: UserCheck },
 ];
 
 const projectManagerItems: NavigationItem[] = [
-  {
-    title: "Works Orders",
-    url: "/works-orders",
-    icon: FileSignature,
-  },
-  {
-    title: "Meeting Minutes",
-    url: "/meeting-minutes",
-    icon: Calendar,
-  },
+  { title: "Works Orders", url: "/works-orders", icon: FileSignature },
+  { title: "Meeting Minutes", url: "/meeting-minutes", icon: Calendar },
 ];
 
 export function AppSidebar() {
   const [location] = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
-  
-  // Get user info to check role
-  const { data: user } = useQuery({
-    queryKey: ['/api/auth/user'],
-    retry: false,
-  });
-  
-  const canManageCatalogues = ['admin', 'designer'].includes((user as any)?.role);
-  const canAccessWorksOrders = ['admin', 'designer', 'project_manager'].includes((user as any)?.role);
+  const { user } = useAuth();
+
+  const role = (user as any)?.role as string | undefined;
+  const isAdminOrDesigner = role === 'admin' || role === 'designer';
+  const isProjectManager = role === 'project_manager';
+
+  // Choose which main items to show based on role
+  const visibleMainItems = isProjectManager ? projectManagerMainItems : mainItems;
 
   // Close mobile sidebar when a link is clicked
   const handleLinkClick = () => {
@@ -181,7 +96,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainItems.map((item) => (
+              {visibleMainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     asChild
@@ -199,7 +114,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {canManageCatalogues && (
+        {isAdminOrDesigner && (
           <SidebarGroup>
             <SidebarGroupLabel>Administration</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -218,29 +133,12 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
-                {/* Filter out items already in designerOnlyItems to avoid duplicates */}
-                {projectManagerItems
-                  .filter(item => !designerOnlyItems.some(d => d.url === item.url))
-                  .map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild
-                      data-active={location === item.url}
-                      data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <Link href={item.url} onClick={handleLinkClick}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
 
-        {!canManageCatalogues && canAccessWorksOrders && (
+        {isProjectManager && (
           <SidebarGroup>
             <SidebarGroupLabel>Project Management</SidebarGroupLabel>
             <SidebarGroupContent>
