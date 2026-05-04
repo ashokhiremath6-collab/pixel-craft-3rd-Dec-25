@@ -7,12 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useLocation } from "wouter";
 import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock, CreditCard, Zap, AlertTriangle, ExternalLink, BarChart3 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { PlanLimitBanner } from "@/components/PlanLimitBanner";
@@ -50,9 +52,11 @@ type InviteValues = z.infer<typeof inviteSchema>;
 export default function SettingsPage() {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
+  const [, navigate] = useLocation();
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>("");
   const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
+  const [showUserLimitDialog, setShowUserLimitDialog] = useState(false);
 
   const inviteForm = useForm<InviteValues>({
     resolver: zodResolver(inviteSchema),
@@ -186,10 +190,23 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/invitations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/billing/usage"] });
       inviteForm.reset();
       toast({ title: "Invitation sent", description: "An invitation email has been sent." });
     },
     onError: (error: Error) => {
+      // Parse structured 403 limit-exceeded responses and show upgrade dialog
+      const raw = error.message ?? "";
+      const jsonStart = raw.indexOf("{");
+      if (jsonStart !== -1) {
+        try {
+          const parsed = JSON.parse(raw.slice(jsonStart));
+          if (parsed.limitExceeded) {
+            setShowUserLimitDialog(true);
+            return;
+          }
+        } catch { /* fall through to generic toast */ }
+      }
       toast({ title: "Failed to send invitation", description: error.message, variant: "destructive" });
     },
   });
@@ -279,6 +296,7 @@ export default function SettingsPage() {
   }
 
   return (
+    <>
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold" data-testid="heading-settings">Settings</h1>
@@ -822,5 +840,36 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
     </div>
+
+    {/* Upgrade dialog — shown when the user limit is hit on invite */}
+    <Dialog open={showUserLimitDialog} onOpenChange={setShowUserLimitDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-primary" />
+            Team member limit reached
+          </DialogTitle>
+          <DialogDescription>
+            Your current plan has reached its maximum number of team members (including pending invitations). Upgrade to add more seats.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-2 space-y-2 text-sm text-muted-foreground">
+          <p>Upgrading your plan gives you:</p>
+          <ul className="list-disc list-inside space-y-1">
+            <li>More team member seats</li>
+            <li>Higher project and catalogue limits</li>
+            <li>Increased storage capacity</li>
+          </ul>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => setShowUserLimitDialog(false)}>Cancel</Button>
+          <Button onClick={() => { setShowUserLimitDialog(false); navigate("/settings?tab=billing"); }}>
+            <Zap className="h-4 w-4 mr-2" />
+            View plans
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

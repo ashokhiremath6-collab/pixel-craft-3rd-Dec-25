@@ -3381,9 +3381,14 @@ export class DBStorage implements IStorage {
   }
 
   async getOrgUsage(orgId: string): Promise<{ projects: number; users: number; catalogueItems: number; storageGb: number }> {
-    const [projectCount, activeUserCount, pendingInviteCount, catalogueCount] = await Promise.all([
-      // Projects: count projects directly tagged to this org (orgId stamped on creation).
-      // Legacy projects without orgId are excluded; they don't affect new-org quota.
+    // Helper: sum file_size (in bytes) for a table joined to projects via projectId
+    const orgProjectIds = db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.orgId, orgId));
+
+    const [projectCount, activeUserCount, pendingInviteCount, catalogueCount, storageBytesResult] = await Promise.all([
+      // Projects: count projects directly tagged to this org.
       db.select({ count: sql<number>`count(*)::int` })
         .from(projects)
         .where(eq(projects.orgId, orgId))
@@ -3393,32 +3398,81 @@ export class DBStorage implements IStorage {
         .from(users)
         .where(eq(users.orgId, orgId))
         .then(r => Number(r[0]?.count ?? 0)),
-      // Pending invitations: count unexpired, unaccepted invites toward the seat quota so
-      // a user cannot bypass the limit by sending many invites before anyone accepts.
+      // Pending invitations: counted toward seat quota to prevent bypass-by-invite.
       db.select({ count: sql<number>`count(*)::int` })
         .from(invitations)
-        .where(
-          and(
-            eq(invitations.orgId, orgId),
-            isNull(invitations.acceptedAt),
-            gt(invitations.expiresAt, sql`now()`),
-          )
-        )
+        .where(and(
+          eq(invitations.orgId, orgId),
+          isNull(invitations.acceptedAt),
+          gt(invitations.expiresAt, sql`now()`),
+        ))
         .then(r => Number(r[0]?.count ?? 0)),
-      // Catalogue items: count items tagged to this org (seed items with orgId=NULL excluded).
+      // Catalogue items: items tagged to this org.
       db.select({ count: sql<number>`count(*)::int` })
         .from(catalogueItems)
         .where(eq(catalogueItems.orgId, orgId))
         .then(r => Number(r[0]?.count ?? 0)),
+      // Storage: sum file_size (bytes) across all org-scoped upload tables.
+      // All joins go via projects.orgId (stamped on creation) or user.orgId.
+      // Legacy rows with orgId=NULL are excluded — they don't count against new-org quotas.
+      db.execute(sql`
+        SELECT COALESCE(SUM(bytes), 0)::bigint AS total_bytes FROM (
+          -- Floor plans linked to org's projects
+          SELECT COALESCE(fp.file_size, 0) AS bytes
+          FROM floor_plans fp
+          WHERE fp.project_id IN (${orgProjectIds})
+          UNION ALL
+          -- Moodboards / renders / working drawings linked to org's projects
+          SELECT COALESCE(mb.file_size, 0)
+          FROM moodboards mb
+          WHERE mb.project_id IN (${orgProjectIds})
+          UNION ALL
+          -- Project schedule files linked to org's projects
+          SELECT COALESCE(ps.file_size, 0)
+          FROM project_schedules ps
+          WHERE ps.project_id IN (${orgProjectIds})
+          UNION ALL
+          -- Meeting minutes files linked to org's projects
+          SELECT COALESCE(mm.file_size, 0)
+          FROM meeting_minutes mm
+          WHERE mm.project_id IN (${orgProjectIds})
+          UNION ALL
+          -- Quote files: project_vendors → projects
+          SELECT COALESCE(qf.file_size, 0)
+          FROM quote_files qf
+          INNER JOIN project_vendors pv ON qf.project_vendor_id = pv.id
+          WHERE pv.project_id IN (${orgProjectIds})
+          UNION ALL
+          -- Works-order files: works_orders → project_vendors → projects
+          SELECT COALESCE(wof.file_size, 0)
+          FROM works_order_files wof
+          INNER JOIN works_orders wo ON wof.works_order_id = wo.id
+          INNER JOIN project_vendors pv2 ON wo.project_vendor_id = pv2.id
+          WHERE pv2.project_id IN (${orgProjectIds})
+          UNION ALL
+          -- Saved assets uploaded by any member of this org
+          SELECT COALESCE(0, 0)
+          FROM saved_assets sa
+          INNER JOIN users u ON sa.saved_by = u.id
+          WHERE u.org_id = ${orgId}
+          UNION ALL
+          -- Works-order templates created by any member of this org
+          SELECT COALESCE(wt.file_size, 0)
+          FROM works_order_templates wt
+          INNER JOIN users u2 ON wt.created_by = u2.id
+          WHERE u2.org_id = ${orgId}
+        ) sub
+      `),
     ]);
-    // Storage: summing bytes across all upload tables per-org requires broad schema changes.
-    // We return 0 here as the tracked value until per-org byte accounting is added.
-    // The limit is surfaced in the UI so users are aware of their tier's storage cap.
+
+    const totalBytes = Number((storageBytesResult.rows[0] as any)?.total_bytes ?? 0);
+    const storageGb = parseFloat((totalBytes / (1024 * 1024 * 1024)).toFixed(3));
+
     return {
       projects: projectCount,
       users: activeUserCount + pendingInviteCount,
       catalogueItems: catalogueCount,
-      storageGb: 0,
+      storageGb,
     };
   }
 }

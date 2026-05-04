@@ -70,18 +70,23 @@ function sanitizeUser(user: Record<string, any>) {
 }
 
 // Plan limit enforcement — throws a structured 402 error if the org is at its limit for a resource
-async function checkOrgLimit(orgId: string, resource: 'projects' | 'users' | 'catalogueItems'): Promise<void> {
+async function checkOrgLimit(orgId: string, resource: 'projects' | 'users' | 'catalogueItems' | 'storageGb'): Promise<void> {
   const org = await storage.getOrganisation(orgId);
   const plan = org?.plan || 'trial';
   const limits = getPlanLimits(plan);
   const usage = await storage.getOrgUsage(orgId);
-  const key = resource === 'projects' ? 'maxProjects' : resource === 'users' ? 'maxUsers' : 'maxCatalogueItems';
+  const limitKey = resource === 'projects' ? 'maxProjects'
+    : resource === 'users' ? 'maxUsers'
+    : resource === 'storageGb' ? 'maxStorageGb'
+    : 'maxCatalogueItems';
   const current = usage[resource];
-  const limit = limits[key];
+  const limit = limits[limitKey];
   if (limit < UNLIMITED && current >= limit) {
-    const label = resource === 'projects' ? 'projects' : resource === 'users' ? 'team members' : 'catalogue items';
-    const err: any = new Error(`Plan limit reached: your ${plan} plan allows up to ${limit} ${label}. Upgrade your plan to add more.`);
-    err.status = 402;
+    const label = resource === 'projects' ? 'projects'
+      : resource === 'users' ? 'team members'
+      : resource === 'storageGb' ? `GB of storage (${plan} plan: ${limit} GB)`
+      : 'catalogue items';
+    const err: any = new Error(`Plan limit reached: your ${plan} plan allows up to ${resource === 'storageGb' ? `${limit} GB of storage` : `${limit} ${label}`}. Upgrade your plan to add more.`);
     err.limitExceeded = true;
     err.current = current;
     err.limit = limit;
@@ -98,10 +103,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Endpoint to get presigned upload URL
   app.post("/api/objects/upload", requireAuth, async (req, res) => {
     try {
+      // Enforce storage limit before issuing an upload URL so orgs at capacity cannot
+      // bypass the check by uploading directly then registering the file.
+      const user = req.user as any;
+      if (user.orgId) await checkOrgLimit(user.orgId, 'storageGb');
+
       const objectStorageService = new ObjectStorageService();
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
       res.json({ uploadURL });
-    } catch (error) {
+    } catch (error: any) {
+      if (error.limitExceeded) return res.status(403).json({ error: error.message, limitExceeded: true, current: error.current, limit: error.limit, resource: error.resource });
       console.error("Error generating upload URL:", error);
       res.status(500).json({ error: "Failed to generate upload URL" });
     }
