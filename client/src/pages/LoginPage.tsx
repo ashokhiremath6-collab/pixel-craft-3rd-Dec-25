@@ -302,9 +302,21 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           )}
 
           <Separator />
-          <p className="text-xs text-muted-foreground text-center">
-            Existing users can use <strong>Forgot password?</strong> to set a new password and access their data.
-          </p>
+          <div className="text-center space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Starting fresh?{" "}
+              <button
+                type="button"
+                onClick={() => navigate("/signup")}
+                className="underline underline-offset-4 hover:text-foreground font-medium"
+              >
+                Create a new workspace
+              </button>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Existing users can use <strong>Forgot password?</strong> to set a new password.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

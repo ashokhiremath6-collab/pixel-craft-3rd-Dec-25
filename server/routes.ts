@@ -15,6 +15,7 @@ import path from "path";
 import mammoth from "mammoth";
 import libre from "libreoffice-convert";
 import { randomUUID } from "crypto";
+import bcrypt from "bcrypt";
 import { sql } from "drizzle-orm";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, requireAuth, requireAdmin, requireAdminOnly, requireProjectManagerOrAdmin } from "./localAuth";
@@ -593,7 +594,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         ...sanitizeUser(user),
-        role: userRole?.role || "client"
+        role: userRole?.role || "client",
+        orgId: user.orgId || null,
+        onboardingCompletedAt: user.onboardingCompletedAt || null,
       });
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -726,6 +729,232 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // ─── Organisations ────────────────────────────────────────────────────────
+
+  app.patch("/api/organisations/:id", requireAdminOnly, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name } = req.body;
+      if (!name?.trim()) return res.status(400).json({ error: "Name is required" });
+      const updated = await storage.updateOrganisation(id, { name: name.trim() });
+      if (!updated) return res.status(404).json({ error: "Organisation not found" });
+      res.json(updated);
+    } catch (err) {
+      console.error("Update organisation error:", err);
+      res.status(500).json({ error: "Failed to update organisation" });
+    }
+  });
+
+  // ─── Invitations ──────────────────────────────────────────────────────────
+
+  // GET /api/invitations — list pending invitations for caller's org (admin only)
+  app.get("/api/invitations", requireAdminOnly, async (req, res) => {
+    try {
+      const user = await storage.getUser((req.user as any).id);
+      if (!user?.orgId) return res.json([]);
+      const invites = await storage.getInvitationsByOrg(user.orgId);
+      res.json(invites);
+    } catch (err) {
+      console.error("List invitations error:", err);
+      res.status(500).json({ error: "Failed to fetch invitations" });
+    }
+  });
+
+  // POST /api/invitations — send an invitation
+  app.post("/api/invitations", requireAdminOnly, async (req, res) => {
+    try {
+      const { email, role } = req.body;
+      if (!email || !role) return res.status(400).json({ error: "Email and role are required" });
+      if (!["admin", "designer", "project_manager", "client"].includes(role)) {
+        return res.status(400).json({ error: "Invalid role" });
+      }
+
+      const callerUser = await storage.getUser((req.user as any).id);
+      if (!callerUser?.orgId) {
+        return res.status(400).json({ error: "Your account is not associated with an organisation. Please sign up via the new workspace flow." });
+      }
+
+      const org = await storage.getOrganisation(callerUser.orgId);
+      if (!org) return res.status(404).json({ error: "Organisation not found" });
+
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // Check if already a member
+      const existingUser = await storage.getUserByEmail(normalizedEmail);
+      if (existingUser?.orgId === callerUser.orgId) {
+        return res.status(409).json({ error: "This person is already a member of your workspace." });
+      }
+
+      // Check for existing pending invite
+      const existingInvites = await storage.getInvitationsByOrg(callerUser.orgId);
+      const existingPending = existingInvites.find(
+        (i) => i.email.toLowerCase() === normalizedEmail && !i.acceptedAt && i.expiresAt > new Date()
+      );
+      if (existingPending) {
+        return res.status(409).json({ error: "An invitation has already been sent to this email. Use resend to send a new link." });
+      }
+
+      const token = randomUUID();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      const invitation = await storage.createInvitation({
+        orgId: callerUser.orgId,
+        email: normalizedEmail,
+        role,
+        token,
+        invitedBy: callerUser.id,
+        expiresAt,
+      });
+
+      const domains = process.env.REPLIT_DOMAINS;
+      const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
+      const inviterName = [callerUser.firstName, callerUser.lastName].filter(Boolean).join(" ") || callerUser.email || "A team member";
+
+      try {
+        const { sendInvitationEmail } = await import("./email");
+        await sendInvitationEmail(normalizedEmail, inviterName, org.name, role, token, baseUrl);
+      } catch (emailErr) {
+        console.error("[INVITE] Failed to send invitation email:", emailErr);
+      }
+
+      res.status(201).json(invitation);
+    } catch (err) {
+      console.error("Send invitation error:", err);
+      res.status(500).json({ error: "Failed to send invitation" });
+    }
+  });
+
+  // DELETE /api/invitations/:id — revoke an invitation
+  app.delete("/api/invitations/:id", requireAdminOnly, async (req, res) => {
+    try {
+      const user = await storage.getUser((req.user as any).id);
+      const deleted = await storage.revokeInvitation(req.params.id);
+      if (!deleted) return res.status(404).json({ error: "Invitation not found" });
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Revoke invitation error:", err);
+      res.status(500).json({ error: "Failed to revoke invitation" });
+    }
+  });
+
+  // POST /api/invitations/:id/resend — resend an invitation with a fresh token
+  app.post("/api/invitations/:id/resend", requireAdminOnly, async (req, res) => {
+    try {
+      const callerUser = await storage.getUser((req.user as any).id);
+      if (!callerUser?.orgId) return res.status(400).json({ error: "No organisation found" });
+
+      const org = await storage.getOrganisation(callerUser.orgId);
+      const invites = await storage.getInvitationsByOrg(callerUser.orgId);
+      const invite = invites.find((i) => i.id === req.params.id);
+      if (!invite) return res.status(404).json({ error: "Invitation not found" });
+
+      const newToken = randomUUID();
+      const newExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const updated = await storage.updateInvitationToken(invite.id, newToken, newExpiry);
+
+      const domains = process.env.REPLIT_DOMAINS;
+      const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
+      const inviterName = [callerUser.firstName, callerUser.lastName].filter(Boolean).join(" ") || callerUser.email || "A team member";
+
+      try {
+        const { sendInvitationEmail } = await import("./email");
+        await sendInvitationEmail(invite.email, inviterName, org?.name || "your workspace", invite.role, newToken, baseUrl);
+      } catch (emailErr) {
+        console.error("[INVITE] Failed to resend invitation email:", emailErr);
+      }
+
+      res.json(updated);
+    } catch (err) {
+      console.error("Resend invitation error:", err);
+      res.status(500).json({ error: "Failed to resend invitation" });
+    }
+  });
+
+  // GET /api/invitations/token/:token — public endpoint to get invite details
+  app.get("/api/invitations/token/:token", async (req, res) => {
+    try {
+      const invite = await storage.getInvitationByToken(req.params.token);
+      if (!invite) return res.status(404).json({ error: "Invitation not found or already used." });
+      if (invite.acceptedAt) return res.status(410).json({ error: "This invitation has already been accepted." });
+      if (invite.expiresAt < new Date()) return res.status(410).json({ error: "This invitation link has expired. Please ask your admin to resend it." });
+
+      const org = await storage.getOrganisation(invite.orgId);
+      const inviter = await storage.getUser(invite.invitedBy);
+      const inviterName = [inviter?.firstName, inviter?.lastName].filter(Boolean).join(" ") || inviter?.email || "A team member";
+
+      res.json({
+        email: invite.email,
+        role: invite.role,
+        orgName: org?.name || "your workspace",
+        invitedBy: inviterName,
+      });
+    } catch (err) {
+      console.error("Get invitation details error:", err);
+      res.status(500).json({ error: "Failed to fetch invitation details" });
+    }
+  });
+
+  // POST /api/invitations/token/:token/accept — accept invite and create account
+  app.post("/api/invitations/token/:token/accept", async (req, res) => {
+    try {
+      const { firstName, lastName, password } = req.body;
+      if (!password || password.length < 8) {
+        return res.status(400).json({ error: "Password must be at least 8 characters." });
+      }
+
+      const invite = await storage.getInvitationByToken(req.params.token);
+      if (!invite) return res.status(404).json({ error: "Invitation not found or already used." });
+      if (invite.acceptedAt) return res.status(410).json({ error: "This invitation has already been accepted." });
+      if (invite.expiresAt < new Date()) return res.status(410).json({ error: "This invitation link has expired." });
+
+      const existing = await storage.getUserByEmail(invite.email);
+      if (existing) {
+        // User already has an account — just update orgId + role
+        if (!existing.orgId) {
+          await storage.setUserOrgId(existing.id, invite.orgId);
+        }
+        const existingRole = await storage.getUserRole(existing.id);
+        if (!existingRole) {
+          await storage.createUserRole({ userId: existing.id, role: invite.role, isActive: true, assignedBy: invite.invitedBy });
+        } else {
+          await storage.updateUserRole(existing.id, invite.role);
+        }
+        await storage.acceptInvitation(req.params.token);
+
+        req.logIn(existing, (err) => {
+          if (err) return res.status(500).json({ error: "Account linked but auto-login failed." });
+          res.json({ success: true });
+        });
+        return;
+      }
+
+      // New user
+      const hash = await bcrypt.hash(password, 12);
+      const userId = randomUUID();
+      const newUser = await storage.upsertUser({
+        id: userId,
+        email: invite.email,
+        firstName: firstName?.trim() || null,
+        lastName: lastName?.trim() || null,
+        passwordHash: hash,
+        emailVerificationToken: null,
+        emailVerifiedAt: new Date(), // already verified via invite link
+        orgId: invite.orgId,
+      });
+
+      await storage.createUserRole({ userId: newUser.id, role: invite.role, isActive: true, assignedBy: invite.invitedBy });
+      await storage.acceptInvitation(req.params.token);
+
+      req.logIn(newUser, (err) => {
+        if (err) return res.status(500).json({ error: "Account created but auto-login failed. Please sign in." });
+        res.json({ success: true });
+      });
+    } catch (err) {
+      console.error("Accept invitation error:", err);
+      res.status(500).json({ error: "Failed to accept invitation" });
+    }
+  });
+
   // User Project Assignments routes (admin only) - for project_manager role
   // Get all project assignments (for Settings page)
   app.get("/api/user-project-assignments", requireAdminOnly, async (req, res) => {

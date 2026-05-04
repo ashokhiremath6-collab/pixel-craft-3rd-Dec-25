@@ -34,6 +34,9 @@ import AIAssistantPage from "@/pages/AIAssistantPage";
 import LoginPage from "@/pages/LoginPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import SignUpPage from "@/pages/SignUpPage";
+import InviteAcceptPage from "@/pages/InviteAcceptPage";
+import OnboardingWizard from "@/components/OnboardingWizard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Shield, User, Crown, Eye } from "lucide-react";
@@ -156,8 +159,11 @@ function AppContent() {
   const [location] = useLocation();
   const [previewingPortal, setPreviewingPortal] = useState(false);
 
+  // Public routes — always accessible regardless of auth state
   if (location === "/forgot-password") return <ForgotPasswordPage />;
   if (location.startsWith("/reset-password")) return <ResetPasswordPage />;
+  if (location === "/signup") return <SignUpPage />;
+  if (location.startsWith("/invite/")) return <InviteAcceptPage />;
 
   if (isLoading) {
     return (
@@ -184,7 +190,20 @@ function AppContent() {
       return <ClientPortalApp />;
     }
 
-    return <AuthenticatedApp onPreviewClientPortal={() => setPreviewingPortal(true)} />;
+    // Show onboarding wizard for admin users who haven't completed it yet
+    const showOnboarding =
+      user?.role === 'admin' &&
+      user?.orgId &&
+      !user?.onboardingCompletedAt;
+
+    return (
+      <>
+        <AuthenticatedApp onPreviewClientPortal={() => setPreviewingPortal(true)} />
+        {showOnboarding && (
+          <OnboardingWizard orgId={user.orgId!} />
+        )}
+      </>
+    );
   } else {
     return <LoginPage />;
   }

@@ -803,6 +803,15 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
+// Organisations table — each workspace belongs to one organisation
+export const organisations = pgTable("organisations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: varchar("slug").notNull().unique(), // URL-safe identifier
+  plan: text("plan").notNull().default("trial"), // trial, starter, pro, enterprise
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 // User storage table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey(),
@@ -815,6 +824,8 @@ export const users = pgTable("users", {
   emailVerificationToken: varchar("email_verification_token").unique(),
   passwordResetToken: varchar("password_reset_token").unique(),
   passwordResetTokenExpiry: timestamp("password_reset_token_expiry"),
+  orgId: varchar("org_id"), // FK to organisations; null for legacy users
+  onboardingCompletedAt: timestamp("onboarding_completed_at"), // null = wizard not yet shown
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -876,6 +887,36 @@ export type UserProjectAssignment = typeof userProjectAssignments.$inferSelect;
 
 export type InsertDesignerAllowlist = z.infer<typeof insertDesignerAllowlistSchema>;
 export type DesignerAllowlist = typeof designerAllowlist.$inferSelect;
+
+// Invitations table — org admins invite team members via email token
+export const invitations = pgTable("invitations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id").notNull(), // references organisations.id
+  email: text("email").notNull(),
+  role: text("role").notNull().default("designer"), // admin, designer, project_manager, client
+  token: varchar("token").notNull().unique(),
+  invitedBy: varchar("invited_by").notNull(), // references users.id
+  acceptedAt: timestamp("accepted_at"), // null = pending
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertInvitationSchema = createInsertSchema(invitations).omit({
+  id: true,
+  createdAt: true,
+  acceptedAt: true,
+});
+
+export type InsertInvitation = z.infer<typeof insertInvitationSchema>;
+export type Invitation = typeof invitations.$inferSelect;
+
+export const insertOrganisationSchema = createInsertSchema(organisations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertOrganisation = z.infer<typeof insertOrganisationSchema>;
+export type Organisation = typeof organisations.$inferSelect;
 
 // SOPs (Standard Operating Procedures)
 export const sops = pgTable("sops", {

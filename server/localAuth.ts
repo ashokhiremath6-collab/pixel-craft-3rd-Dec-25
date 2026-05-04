@@ -6,7 +6,7 @@ import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
 import { randomUUID } from "crypto";
 import { storage } from "./storage";
-import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
+import { sendPasswordResetEmail, sendVerificationEmail, sendInvitationEmail } from "./email";
 
 export function getSession() {
   const sessionTtl = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -49,17 +49,28 @@ async function assignDefaultRole(userId: string, email: string) {
         } catch {}
       }
     } else {
-      const isDesigner = await storage.isDesignerEmail(email);
-      await storage.createUserRole({
-        userId,
-        role: isDesigner ? "designer" : "client",
-        isActive: true,
-        assignedBy: userId,
-      });
+      // Designer allowlist retired — default new standalone users to client
+      await storage.createUserRole({ userId, role: "client", isActive: true, assignedBy: userId });
     }
   } catch (err) {
     console.error("[AUTH] Error assigning default role:", err);
   }
+}
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 50) || "workspace";
+}
+
+function getBaseUrl(req?: { protocol?: string; hostname?: string }): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  const domains = process.env.REPLIT_DOMAINS;
+  if (domains) return `https://${domains.split(",")[0]}`;
+  if (req?.protocol && req?.hostname) return `${req.protocol}://${req.hostname}`;
+  return "http://localhost:5000";
 }
 
 export async function setupAuth(app: Express) {
@@ -149,7 +160,7 @@ export async function setupAuth(app: Express) {
     });
   });
 
-  // POST /api/auth/register
+  // POST /api/auth/register — legacy internal endpoint (kept for existing admin users)
   app.post("/api/auth/register", async (req, res) => {
     try {
       const { email, password, firstName, lastName } = req.body;
@@ -168,7 +179,6 @@ export async function setupAuth(app: Express) {
             error: "An account already exists with this email. Please sign in.",
           });
         } else {
-          // Existing account without password (former Replit user)
           return res.status(409).json({
             error:
               "This email is already registered. Please use \"Forgot password?\" to set your password.",
@@ -179,7 +189,6 @@ export async function setupAuth(app: Express) {
       const hash = await bcrypt.hash(password, 12);
       const userId = randomUUID();
 
-      // Auto-verify new accounts — no email verification step required
       const user = await storage.upsertUser({
         id: userId,
         email: normalizedEmail,
@@ -199,6 +208,93 @@ export async function setupAuth(app: Express) {
     } catch (err) {
       console.error("[AUTH] Register error:", err);
       return res.status(500).json({ error: "Registration failed. Please try again." });
+    }
+  });
+
+  // POST /api/auth/register-org — self-service sign-up: creates org + admin user + sends verification email
+  app.post("/api/auth/register-org", async (req, res) => {
+    try {
+      const { email, password, firstName, lastName, companyName } = req.body;
+      if (!email || !password || !companyName) {
+        return res.status(400).json({ error: "Email, password, and company name are required." });
+      }
+      if (password.length < 8) {
+        return res.status(400).json({ error: "Password must be at least 8 characters." });
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+      const existing = await storage.getUserByEmail(normalizedEmail);
+      if (existing) {
+        if (existing.passwordHash) {
+          return res.status(409).json({ error: "An account already exists with this email. Please sign in." });
+        } else {
+          return res.status(409).json({
+            error: "This email is already registered. Please use \"Forgot password?\" to set your password.",
+          });
+        }
+      }
+
+      // Create organisation with a unique slug
+      const baseSlug = slugify(companyName.trim());
+      let slug = baseSlug;
+      let suffix = 1;
+      while (await storage.getOrganisationBySlug(slug)) {
+        slug = `${baseSlug}-${suffix++}`;
+      }
+
+      const org = await storage.createOrganisation({
+        name: companyName.trim(),
+        slug,
+        plan: "trial",
+      });
+
+      // Create admin user with pending email verification
+      const hash = await bcrypt.hash(password, 12);
+      const userId = randomUUID();
+      const verificationToken = randomUUID();
+
+      const user = await storage.upsertUser({
+        id: userId,
+        email: normalizedEmail,
+        firstName: firstName?.trim() || null,
+        lastName: lastName?.trim() || null,
+        passwordHash: hash,
+        emailVerificationToken: verificationToken,
+        emailVerifiedAt: null,
+        orgId: org.id,
+      });
+
+      await storage.createUserRole({ userId: user.id, role: "admin", isActive: true, assignedBy: user.id });
+
+      const base = getBaseUrl(req as any);
+      try {
+        await sendVerificationEmail(normalizedEmail, verificationToken, base);
+      } catch (emailErr) {
+        console.error("[AUTH] Failed to send verification email:", emailErr);
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: "Workspace created! Please check your email to verify your account.",
+      });
+    } catch (err) {
+      console.error("[AUTH] Register-org error:", err);
+      return res.status(500).json({ error: "Registration failed. Please try again." });
+    }
+  });
+
+  // POST /api/auth/complete-onboarding
+  app.post("/api/auth/complete-onboarding", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    try {
+      const userId = (req.user as any).id;
+      await storage.completeOnboarding(userId);
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("[AUTH] Complete onboarding error:", err);
+      return res.status(500).json({ error: "Failed to complete onboarding." });
     }
   });
 

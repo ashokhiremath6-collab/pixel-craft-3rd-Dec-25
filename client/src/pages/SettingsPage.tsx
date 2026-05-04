@@ -5,9 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock } from "lucide-react";
 import type { User, Project, UserProjectAssignment } from "@shared/schema";
 
 type UserWithRole = User & {
@@ -15,93 +21,91 @@ type UserWithRole = User & {
   roleIsActive: boolean;
 };
 
+interface Invitation {
+  id: string;
+  email: string;
+  role: string;
+  acceptedAt: string | null;
+  expiresAt: string;
+  createdAt: string;
+}
+
+const inviteSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+  role: z.enum(["admin", "designer", "project_manager", "client"]),
+});
+type InviteValues = z.infer<typeof inviteSchema>;
+
 export default function SettingsPage() {
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>("");
   const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
 
-  // Fetch all users with their roles
+  const inviteForm = useForm<InviteValues>({
+    resolver: zodResolver(inviteSchema),
+    defaultValues: { email: "", role: "designer" },
+  });
+
   const { data: users, isLoading } = useQuery<UserWithRole[]>({
     queryKey: ["/api/users"],
   });
 
-  // Fetch all projects (admin-only endpoint for assignments)
   const { data: projects, isLoading: projectsLoading, isError: projectsError } = useQuery<Project[]>({
     queryKey: ["/api/projects/all"],
   });
 
-  // Fetch all project assignments
   const { data: allAssignments, isLoading: assignmentsLoading, isError: assignmentsError } = useQuery<UserProjectAssignment[]>({
     queryKey: ["/api/user-project-assignments"],
   });
 
-  // Mutation to update user role
+  const { data: invitations, isLoading: invitationsLoading } = useQuery<Invitation[]>({
+    queryKey: ["/api/invitations"],
+    enabled: currentUser?.role === "admin" && !!currentUser?.orgId,
+  });
+
   const updateRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
       return apiRequest("POST", "/api/auth/role", { userId, role });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({
-        title: "Role updated",
-        description: "User role has been successfully updated.",
-      });
+      toast({ title: "Role updated", description: "User role has been successfully updated." });
       setEditingUserId(null);
       setSelectedRole("");
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error updating role",
-        description: error.message || "Failed to update user role",
-        variant: "destructive",
-      });
+      toast({ title: "Error updating role", description: error.message || "Failed to update user role", variant: "destructive" });
     },
   });
 
-  // Mutation to assign project to user
   const assignProjectMutation = useMutation({
     mutationFn: async ({ userId, projectId }: { userId: string; projectId: string }) => {
       return apiRequest("POST", "/api/user-project-assignments", { userId, projectId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user-project-assignments"] });
-      toast({
-        title: "Project assigned",
-        description: "Project has been assigned to user successfully.",
-      });
+      toast({ title: "Project assigned", description: "Project has been assigned to user successfully." });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error assigning project",
-        description: error.message || "Failed to assign project",
-        variant: "destructive",
-      });
+      toast({ title: "Error assigning project", description: error.message || "Failed to assign project", variant: "destructive" });
     },
   });
 
-  // Mutation to unassign project from user
   const unassignProjectMutation = useMutation({
     mutationFn: async ({ userId, projectId }: { userId: string; projectId: string }) => {
       return apiRequest("DELETE", `/api/user-project-assignments/${userId}/${projectId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user-project-assignments"] });
-      toast({
-        title: "Project unassigned",
-        description: "Project has been removed from user successfully.",
-      });
+      toast({ title: "Project unassigned", description: "Project has been removed from user successfully." });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error unassigning project",
-        description: error.message || "Failed to unassign project",
-        variant: "destructive",
-      });
+      toast({ title: "Error unassigning project", description: error.message || "Failed to unassign project", variant: "destructive" });
     },
   });
 
-  // Mutation to generate a password reset link (admin copies and shares directly)
   const resetLinkMutation = useMutation({
     mutationFn: async (userId: string) => {
       const res = await apiRequest("POST", `/api/admin/users/${userId}/reset-link`);
@@ -117,72 +121,87 @@ export default function SettingsPage() {
           description: `Reset link for ${data.email} copied to clipboard. Send it via WhatsApp or email — valid for 24 hours.`,
         });
       } catch {
-        // Clipboard API unavailable — show the link in a toast
-        toast({
-          title: "Login link generated",
-          description: data.resetUrl,
-        });
+        toast({ title: "Login link generated", description: data.resetUrl });
       }
     },
     onError: (error: Error) => {
-      toast({
-        title: "Failed to generate link",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Failed to generate link", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const sendInviteMutation = useMutation({
+    mutationFn: async (values: InviteValues) => {
+      return apiRequest("POST", "/api/invitations", values);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invitations"] });
+      inviteForm.reset();
+      toast({ title: "Invitation sent", description: "An invitation email has been sent." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to send invitation", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const revokeInviteMutation = useMutation({
+    mutationFn: async (inviteId: string) => {
+      return apiRequest("DELETE", `/api/invitations/${inviteId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invitations"] });
+      toast({ title: "Invitation revoked" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to revoke invitation", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resendInviteMutation = useMutation({
+    mutationFn: async (inviteId: string) => {
+      return apiRequest("POST", `/api/invitations/${inviteId}/resend`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invitations"] });
+      toast({ title: "Invitation resent", description: "A fresh invitation link has been sent." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to resend invitation", description: error.message, variant: "destructive" });
     },
   });
 
   const handleSaveRole = (userId: string) => {
     if (!selectedRole) {
-      toast({
-        title: "No role selected",
-        description: "Please select a role before saving",
-        variant: "destructive",
-      });
+      toast({ title: "No role selected", description: "Please select a role before saving", variant: "destructive" });
       return;
     }
     updateRoleMutation.mutate({ userId, role: selectedRole });
   };
 
   const getRoleBadgeVariant = (role: string | null) => {
-    if (!role) return "secondary";
+    if (!role) return "secondary" as const;
     switch (role) {
-      case "admin":
-        return "default";
-      case "designer":
-        return "default";
-      case "project_manager":
-        return "default";
-      case "client":
-        return "secondary";
-      default:
-        return "secondary";
+      case "admin": return "default" as const;
+      case "designer": return "default" as const;
+      case "project_manager": return "default" as const;
+      case "client": return "secondary" as const;
+      default: return "secondary" as const;
     }
   };
 
   const getRoleIcon = (role: string | null) => {
     if (!role) return <Eye className="h-3 w-3" />;
     switch (role) {
-      case "admin":
-        return <Shield className="h-3 w-3" />;
-      case "designer":
-        return <UserCog className="h-3 w-3" />;
-      case "project_manager":
-        return <UserCog className="h-3 w-3" />;
-      case "client":
-        return <Eye className="h-3 w-3" />;
-      default:
-        return <Eye className="h-3 w-3" />;
+      case "admin": return <Shield className="h-3 w-3" />;
+      case "designer": return <UserCog className="h-3 w-3" />;
+      case "project_manager": return <UserCog className="h-3 w-3" />;
+      case "client": return <Eye className="h-3 w-3" />;
+      default: return <Eye className="h-3 w-3" />;
     }
   };
 
-  // Helper to check if a user is assigned to a project
-  const isUserAssignedToProject = (userId: string, projectId: string) => {
-    return allAssignments?.some(a => a.userId === userId && a.projectId === projectId) || false;
-  };
+  const isUserAssignedToProject = (userId: string, projectId: string) =>
+    allAssignments?.some(a => a.userId === userId && a.projectId === projectId) || false;
 
-  // Helper to toggle project assignment
   const handleToggleProjectAssignment = (userId: string, projectId: string, isAssigned: boolean) => {
     if (isAssigned) {
       unassignProjectMutation.mutate({ userId, projectId });
@@ -191,8 +210,10 @@ export default function SettingsPage() {
     }
   };
 
-  // Get project managers
   const projectManagers = users?.filter(u => u.role === 'project_manager') || [];
+  const pendingInvitations = invitations?.filter(i => !i.acceptedAt) || [];
+
+  const isExpired = (expiresAt: string) => new Date(expiresAt) < new Date();
 
   if (isLoading) {
     return (
@@ -212,6 +233,123 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-semibold" data-testid="heading-settings">Settings</h1>
         <p className="text-muted-foreground">Manage users and system preferences</p>
       </div>
+
+      {/* Invite Team Members — only for admins with an org */}
+      {currentUser?.role === "admin" && currentUser?.orgId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Invite Team Members
+            </CardTitle>
+            <CardDescription>
+              Send an email invitation so a colleague can create their account and join your workspace.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Form {...inviteForm}>
+              <form
+                onSubmit={inviteForm.handleSubmit((v) => sendInviteMutation.mutate(v))}
+                className="flex flex-col sm:flex-row gap-3"
+              >
+                <FormField
+                  control={inviteForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormControl>
+                        <Input type="email" placeholder="colleague@yourcompany.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={inviteForm.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem className="w-full sm:w-48">
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="designer">Designer</SelectItem>
+                          <SelectItem value="project_manager">Project Manager</SelectItem>
+                          <SelectItem value="client">Client</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" disabled={sendInviteMutation.isPending}>
+                  {sendInviteMutation.isPending ? "Sending…" : (
+                    <><Mail className="h-4 w-4 mr-2" />Send invite</>
+                  )}
+                </Button>
+              </form>
+            </Form>
+
+            {/* Pending invitations list */}
+            {invitationsLoading ? (
+              <p className="text-sm text-muted-foreground">Loading invitations…</p>
+            ) : pendingInvitations.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">Pending invitations</p>
+                {pendingInvitations.map((inv) => {
+                  const expired = isExpired(inv.expiresAt);
+                  return (
+                    <div
+                      key={inv.id}
+                      className="flex items-center justify-between gap-3 p-3 rounded-md border"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{inv.email}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Badge variant={getRoleBadgeVariant(inv.role)} className="text-xs">
+                              {inv.role}
+                            </Badge>
+                            {expired && (
+                              <span className="text-xs text-destructive flex items-center gap-1">
+                                <Clock className="h-3 w-3" />Expired
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => resendInviteMutation.mutate(inv.id)}
+                          disabled={resendInviteMutation.isPending}
+                          title="Resend invitation"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => revokeInviteMutation.mutate(inv.id)}
+                          disabled={revokeInviteMutation.isPending}
+                          title="Revoke invitation"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -233,7 +371,6 @@ export default function SettingsPage() {
             <div className="space-y-3">
               {users.map((user) => {
                 const isEditing = editingUserId === user.id;
-                
                 return (
                   <div
                     key={user.id}
@@ -304,10 +441,7 @@ export default function SettingsPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => {
-                              setEditingUserId(null);
-                              setSelectedRole("");
-                            }}
+                            onClick={() => { setEditingUserId(null); setSelectedRole(""); }}
                             disabled={updateRoleMutation.isPending}
                             data-testid={`button-cancel-role-${user.id}`}
                           >
@@ -318,10 +452,7 @@ export default function SettingsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => {
-                            setEditingUserId(user.id);
-                            setSelectedRole(user.role || "client");
-                          }}
+                          onClick={() => { setEditingUserId(user.id); setSelectedRole(user.role || "client"); }}
                           data-testid={`button-edit-role-${user.id}`}
                         >
                           Change Role
@@ -349,9 +480,7 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             {projectsLoading || assignmentsLoading ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Loading project assignments...
-              </div>
+              <div className="text-center py-8 text-muted-foreground">Loading project assignments...</div>
             ) : projectsError || assignmentsError ? (
               <div className="text-center py-8 text-destructive">
                 <p className="font-medium mb-1">Error loading project assignments</p>
@@ -366,14 +495,11 @@ export default function SettingsPage() {
                         {getRoleIcon(pm.role)}
                         {pm.role}
                       </Badge>
-                      <p className="font-medium">
-                        {pm.firstName} {pm.lastName}
-                      </p>
+                      <p className="font-medium">{pm.firstName} {pm.lastName}</p>
                       <p className="text-sm text-muted-foreground">
                         ({allAssignments?.filter(a => a.userId === pm.id).length || 0} projects)
                       </p>
                     </div>
-                    
                     {!projects || projects.length === 0 ? (
                       <p className="text-sm text-muted-foreground py-2">No projects available</p>
                     ) : (
@@ -394,10 +520,7 @@ export default function SettingsPage() {
                                 disabled={isMutating}
                                 data-testid={`checkbox-project-${pm.id}-${project.id}`}
                               />
-                              <label
-                                htmlFor={`${pm.id}-${project.id}`}
-                                className="text-sm cursor-pointer flex-1"
-                              >
+                              <label htmlFor={`${pm.id}-${project.id}`} className="text-sm cursor-pointer flex-1">
                                 {project.projectName}
                               </label>
                             </div>

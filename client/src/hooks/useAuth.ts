@@ -9,6 +9,8 @@ interface User {
   lastName: string | null;
   profileImageUrl: string | null;
   role: 'admin' | 'designer' | 'project_manager' | 'client';
+  orgId: string | null;
+  onboardingCompletedAt: string | null;
 }
 
 export function useAuth() {

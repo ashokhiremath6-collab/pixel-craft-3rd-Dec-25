@@ -115,6 +115,46 @@ export async function sendPasswordResetEmail(
   });
 }
 
+export async function sendInvitationEmail(
+  email: string,
+  invitedBy: string,
+  orgName: string,
+  role: string,
+  token: string,
+  baseUrl?: string
+): Promise<void> {
+  const inviteUrl = `${baseUrl || getBaseUrl()}/invite/${token}`;
+  console.info(`[EMAIL] Invitation link for ${email}: ${inviteUrl}`);
+
+  await sendEmail({
+    to: email,
+    subject: `You've been invited to join ${orgName} on PixelCraft Designer`,
+    html: `
+      <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
+        <div style="text-align:center;margin-bottom:24px;">
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+        </div>
+        <div style="background:#fff;border-radius:12px;padding:28px;">
+          <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">You're invited!</h2>
+          <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 8px;">
+            <strong>${invitedBy}</strong> has invited you to join <strong>${orgName}</strong> on PixelCraft Designer as a <strong>${role}</strong>.
+          </p>
+          <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
+            Click the button below to accept the invitation and set up your account. This link expires in 7 days.
+          </p>
+          <a href="${inviteUrl}" style="display:inline-block;background:#0071e3;color:#fff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
+            Accept Invitation
+          </a>
+          <p style="color:#6e6e73;font-size:13px;margin:20px 0 0;">
+            If you weren't expecting this invitation, you can safely ignore this email.
+          </p>
+        </div>
+      </div>
+    `,
+    text: `You've been invited to join ${orgName} on PixelCraft Designer!\n\n${invitedBy} has invited you as a ${role}.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in 7 days.`,
+  });
+}
+
 export async function sendVerificationEmail(
   email: string,
   token: string,

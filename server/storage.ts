@@ -7,6 +7,10 @@ import {
   type InsertUserProjectAssignment,
   type DesignerAllowlist,
   type InsertDesignerAllowlist,
+  type Organisation,
+  type InsertOrganisation,
+  type Invitation,
+  type InsertInvitation,
   type VendorCategory,
   type InsertVendorCategory,
   type Vendor,
@@ -63,6 +67,8 @@ import {
   type InsertWorksOrder,
   type WorksOrderSignature,
   type InsertWorksOrderSignature,
+  organisations,
+  invitations,
   users,
   userRoles,
   userProjectAssignments,
@@ -137,6 +143,24 @@ export interface IStorage {
   removeUserFromProject(userId: string, projectId: string): Promise<boolean>;
   getUsersAssignedToProject(projectId: string): Promise<UserProjectAssignment[]>;
   
+  // Organisations
+  createOrganisation(org: InsertOrganisation): Promise<Organisation>;
+  getOrganisation(id: string): Promise<Organisation | undefined>;
+  getOrganisationBySlug(slug: string): Promise<Organisation | undefined>;
+  updateOrganisation(id: string, updates: Partial<InsertOrganisation>): Promise<Organisation | undefined>;
+
+  // Invitations
+  createInvitation(inv: InsertInvitation): Promise<Invitation>;
+  getInvitationByToken(token: string): Promise<Invitation | undefined>;
+  getInvitationsByOrg(orgId: string): Promise<Invitation[]>;
+  revokeInvitation(id: string): Promise<boolean>;
+  acceptInvitation(token: string): Promise<Invitation | undefined>;
+  updateInvitationToken(id: string, token: string, expiresAt: Date): Promise<Invitation | undefined>;
+
+  // User onboarding
+  completeOnboarding(userId: string): Promise<void>;
+  setUserOrgId(userId: string, orgId: string): Promise<void>;
+
   // Designer Allowlist
   getDesignerAllowlist(): Promise<DesignerAllowlist[]>;
   addToDesignerAllowlist(allowlist: InsertDesignerAllowlist): Promise<DesignerAllowlist>;
@@ -3175,6 +3199,78 @@ export class DBStorage implements IStorage {
   async deleteSop(id: string): Promise<boolean> {
     const result = await db.delete(sops).where(eq(sops.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Organisations
+  async createOrganisation(org: InsertOrganisation): Promise<Organisation> {
+    const result = await db.insert(organisations).values(org).returning();
+    return result[0];
+  }
+
+  async getOrganisation(id: string): Promise<Organisation | undefined> {
+    const result = await db.select().from(organisations).where(eq(organisations.id, id));
+    return result[0];
+  }
+
+  async getOrganisationBySlug(slug: string): Promise<Organisation | undefined> {
+    const result = await db.select().from(organisations).where(eq(organisations.slug, slug));
+    return result[0];
+  }
+
+  async updateOrganisation(id: string, updates: Partial<InsertOrganisation>): Promise<Organisation | undefined> {
+    const result = await db.update(organisations).set(updates).where(eq(organisations.id, id)).returning();
+    return result[0];
+  }
+
+  // Invitations
+  async createInvitation(inv: InsertInvitation): Promise<Invitation> {
+    const result = await db.insert(invitations).values(inv).returning();
+    return result[0];
+  }
+
+  async getInvitationByToken(token: string): Promise<Invitation | undefined> {
+    const result = await db.select().from(invitations).where(eq(invitations.token, token));
+    return result[0];
+  }
+
+  async getInvitationsByOrg(orgId: string): Promise<Invitation[]> {
+    return await db.select().from(invitations)
+      .where(eq(invitations.orgId, orgId))
+      .orderBy(desc(invitations.createdAt));
+  }
+
+  async revokeInvitation(id: string): Promise<boolean> {
+    const result = await db.delete(invitations).where(eq(invitations.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async acceptInvitation(token: string): Promise<Invitation | undefined> {
+    const result = await db.update(invitations)
+      .set({ acceptedAt: new Date() })
+      .where(eq(invitations.token, token))
+      .returning();
+    return result[0];
+  }
+
+  async updateInvitationToken(id: string, token: string, expiresAt: Date): Promise<Invitation | undefined> {
+    const result = await db.update(invitations)
+      .set({ token, expiresAt })
+      .where(eq(invitations.id, id))
+      .returning();
+    return result[0];
+  }
+
+  // User onboarding
+  async completeOnboarding(userId: string): Promise<void> {
+    await db.update(users)
+      .set({ onboardingCompletedAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  async setUserOrgId(userId: string, orgId: string): Promise<void> {
+    await db.update(users)
+      .set({ orgId })
+      .where(eq(users.id, userId));
   }
 }
 
