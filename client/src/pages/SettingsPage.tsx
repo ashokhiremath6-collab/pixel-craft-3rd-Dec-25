@@ -512,52 +512,65 @@ export default function SettingsPage() {
             </div>
           )}
           <CardContent className="space-y-6">
-            <Form {...inviteForm}>
-              <form
-                onSubmit={inviteForm.handleSubmit((v) => sendInviteMutation.mutate(v))}
-                className="flex flex-col sm:flex-row gap-3"
-              >
-                <FormField
-                  control={inviteForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormControl>
-                        <Input type="email" placeholder="colleague@yourcompany.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={inviteForm.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem className="w-full sm:w-48">
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select role" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="designer">Designer</SelectItem>
-                          <SelectItem value="project_manager">Project Manager</SelectItem>
-                          <SelectItem value="client">Client</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" disabled={sendInviteMutation.isPending}>
-                  {sendInviteMutation.isPending ? "Sending…" : (
-                    <><Mail className="h-4 w-4 mr-2" />Send invite</>
-                  )}
-                </Button>
-              </form>
-            </Form>
+            {(() => {
+              const atUserLimit = usageData
+                ? usageData.usage.users >= usageData.limits.maxUsers && usageData.limits.maxUsers < 999999
+                : false;
+              return (
+                <Form {...inviteForm}>
+                  <form
+                    onSubmit={inviteForm.handleSubmit((v) => sendInviteMutation.mutate(v))}
+                    className="flex flex-col sm:flex-row gap-3"
+                  >
+                    <FormField
+                      control={inviteForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormControl>
+                            <Input type="email" placeholder="colleague@yourcompany.com" {...field} disabled={atUserLimit} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={inviteForm.control}
+                      name="role"
+                      render={({ field }) => (
+                        <FormItem className="w-full sm:w-48">
+                          <Select onValueChange={field.onChange} value={field.value} disabled={atUserLimit}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select role" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="designer">Designer</SelectItem>
+                              <SelectItem value="project_manager">Project Manager</SelectItem>
+                              <SelectItem value="client">Client</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {atUserLimit ? (
+                      <Button type="button" variant="outline" onClick={() => setUpgradeDialog({ open: true, resource: 'users', current: usageData!.usage.users, limit: usageData!.limits.maxUsers })}>
+                        Upgrade to invite
+                      </Button>
+                    ) : (
+                      <Button type="submit" disabled={sendInviteMutation.isPending}>
+                        {sendInviteMutation.isPending ? "Sending…" : (
+                          <><Mail className="h-4 w-4 mr-2" />Send invite</>
+                        )}
+                      </Button>
+                    )}
+                  </form>
+                </Form>
+              );
+            })()}
 
             {/* Pending invitations list */}
             {invitationsLoading ? (
