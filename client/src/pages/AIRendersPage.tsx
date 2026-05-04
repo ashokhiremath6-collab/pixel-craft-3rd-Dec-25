@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { AssetPicker, type SelectedAsset } from "@/components/AssetPicker";
 import { RecentBadge } from "@/components/RecentBadge";
+import { AccessDenied } from "@/components/AccessDenied";
 import type { Project, Moodboard } from "@shared/schema";
 import { 
   Upload, 
@@ -413,18 +414,7 @@ export default function AIRendersPage() {
   }
 
   if (!isDesignerOrAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 text-center">
-        <ShieldAlert className="h-16 w-16 text-muted-foreground mb-4" />
-        <h2 className="text-xl font-semibold mb-2">Access Restricted</h2>
-        <p className="text-muted-foreground mb-4">
-          This page is only available to designers and admins.
-        </p>
-        <Button onClick={() => setLocation("/renders")} data-testid="button-go-to-renders">
-          View Client Renders
-        </Button>
-      </div>
-    );
+    return <AccessDenied message="This page is only available to designers and admins." />;
   }
 
   const compressImageOnClient = async (file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.8): Promise<Blob> => {
