@@ -117,6 +117,7 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/notification-preferences"] });
+      toast({ title: "Preferences saved", duration: 3000 });
     },
     onError: (error: Error) => {
       toast({ title: "Failed to update preferences", description: error.message, variant: "destructive" });
