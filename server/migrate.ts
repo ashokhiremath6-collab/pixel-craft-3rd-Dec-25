@@ -45,6 +45,8 @@ async function ensureBillingColumns(pool: Pool): Promise<void> {
     `ALTER TABLE organisations ADD COLUMN IF NOT EXISTS trial_expiry_notified_at TIMESTAMP`,
     // Per-user email notification preferences
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_preferences JSONB`,
+    // One-click unsubscribe token (no login required)
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS unsubscribe_token VARCHAR UNIQUE`,
   ];
 
   // Elevate any emails listed in SUPER_ADMIN_EMAILS env var.

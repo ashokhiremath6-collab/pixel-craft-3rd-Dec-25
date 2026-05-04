@@ -26,7 +26,8 @@ import { ObjectPermission } from "./objectAcl";
 import { RENDER_STYLES, generateInteriorRender, generateConceptRender, generatePhotorealConversion, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
 import { chatWithDesignAssistant, generateRenderBrief, generateFloorPlanSVG, generateElevationSVG, generateFloorPlanDXFSpec, generateElevationDXFSpec, DesignChatMessage, DesignChatAttachment } from "./ai/claude";
 import { generateDXF } from "./utils/dxfGenerator";
-import { 
+import {
+  type NotificationPreferences,
   insertVendorCategorySchema,
   insertVendorSchema,
   insertVendorContactSchema,
@@ -68,7 +69,7 @@ const requireProjectAccess = requireProjectManagerOrAdmin;
 
 // Strips sensitive credential fields before sending user data to the client
 function sanitizeUser(user: Record<string, any>) {
-  const { passwordHash, emailVerificationToken, passwordResetToken, passwordResetTokenExpiry, ...safe } = user;
+  const { passwordHash, emailVerificationToken, passwordResetToken, passwordResetTokenExpiry, unsubscribeToken, ...safe } = user;
   return safe;
 }
 
@@ -10663,7 +10664,8 @@ Return your response in the following JSON format only (no markdown, no code blo
               console.info(`[PLAN_CHANGE] Email suppressed for ${u.email} (planChanges opted out)`);
               continue;
             }
-            await sendPlanChangedEmail(u.email, org.name, previousPlan, plan);
+            const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(u.id).catch(() => undefined);
+            await sendPlanChangedEmail(u.email, org.name, previousPlan, plan, { unsubscribeToken });
             notifiedEmails.push(u.email);
           } catch (emailErr) {
             console.error(`[PLAN_CHANGE] Failed to notify ${u.email}:`, emailErr);
@@ -10722,7 +10724,8 @@ Return your response in the following JSON format only (no markdown, no code blo
             console.info(`[TRIAL_EXPIRY] Email suppressed for ${u.email} (trialExpiry opted out)`);
             continue;
           }
-          await sendTrialExpiryEmail(u.email, org.name, Number(daysRemaining));
+          const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(u.id).catch(() => undefined);
+          await sendTrialExpiryEmail(u.email, org.name, Number(daysRemaining), { unsubscribeToken });
           notifiedEmails.push(u.email);
         } catch (emailErr) {
           console.error(`[TRIAL_EXPIRY] Failed to notify ${u.email}:`, emailErr);
@@ -11004,7 +11007,8 @@ Return your response in the following JSON format only (no markdown, no code blo
               console.info(`[TRIAL_EXPIRY_JOB] Email suppressed for ${u.email} (trialExpiry opted out)`);
               continue;
             }
-            await sendTrialExpiryWarningEmail(u.email, org.name, daysRemaining);
+            const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(u.id).catch(() => undefined);
+            await sendTrialExpiryWarningEmail(u.email, org.name, daysRemaining, { unsubscribeToken });
             notifiedEmails.push(u.email);
           } catch (emailErr) {
             console.error(`[TRIAL_EXPIRY_JOB] Failed to email ${u.email} for org ${org.id}:`, emailErr);
@@ -11087,6 +11091,81 @@ Return your response in the following JSON format only (no markdown, no code blo
       res.status(500).json({ error: "Failed to update notification preferences" });
     }
   });
+
+  // GET /api/user/unsubscribe?token=...&type=...
+  // One-click unsubscribe endpoint — no login required.
+  // Disables a specific notification type for the user identified by the unsubscribe token.
+  app.get("/api/user/unsubscribe", async (req, res) => {
+    const { token, type } = req.query as { token?: string; type?: string };
+
+    const validTypes: Record<keyof NotificationPreferences, string> = {
+      paymentFailures: "payment failure",
+      planChanges: "plan change",
+      trialExpiry: "trial expiry",
+      invitationAccepted: "invitation accepted",
+      projectUpdates: "project updates",
+    };
+
+    if (!token || typeof token !== "string") {
+      return res.status(400).send(buildUnsubscribePage("Invalid or missing unsubscribe token.", false));
+    }
+    const notifKey = type as keyof NotificationPreferences | undefined;
+    if (!notifKey || !(notifKey in validTypes)) {
+      return res.status(400).send(buildUnsubscribePage("Invalid notification type.", false));
+    }
+
+    try {
+      const user = await storage.getUserByUnsubscribeToken(token);
+      if (!user) {
+        return res.status(404).send(buildUnsubscribePage("Unsubscribe link not found or already used.", false));
+      }
+      const prefUpdate: Partial<NotificationPreferences> = { [notifKey]: false };
+      await storage.updateNotificationPreferences(user.id, prefUpdate);
+      const label = validTypes[notifKey];
+      console.info(`[UNSUBSCRIBE] User ${user.email} opted out of '${notifKey}' via token`);
+      const { getBaseUrl } = await import("./email");
+      const settingsUrl = `${getBaseUrl()}/settings`;
+      return res.send(buildUnsubscribePage(
+        `You've been unsubscribed from <strong>${label}</strong> emails.`,
+        true,
+        settingsUrl
+      ));
+    } catch (error) {
+      console.error("Unsubscribe error:", error);
+      return res.status(500).send(buildUnsubscribePage("Something went wrong. Please try again later.", false));
+    }
+  });
+
+  function buildUnsubscribePage(message: string, success: boolean, settingsUrl?: string): string {
+    const color = success ? "#0071e3" : "#c00";
+    const icon = success ? "&#10003;" : "&#33;";
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unsubscribe — PixelCraft Designer</title>
+  <style>
+    body { font-family: Inter, sans-serif; background: #f5f5f7; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .card { background: #fff; border-radius: 16px; padding: 40px 32px; max-width: 420px; width: 100%; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,.06); }
+    .icon { width: 56px; height: 56px; border-radius: 50%; background: ${color}; color: #fff; font-size: 28px; line-height: 56px; margin: 0 auto 20px; }
+    h1 { font-size: 20px; font-weight: 700; color: #1d1d1f; margin: 0 0 12px; }
+    p { color: #3d3d3d; font-size: 15px; line-height: 1.6; margin: 0 0 20px; }
+    a.btn { display: inline-block; background: #0071e3; color: #fff; font-size: 14px; font-weight: 600; padding: 10px 24px; border-radius: 8px; text-decoration: none; }
+    .footer { margin-top: 24px; font-size: 12px; color: #6e6e73; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">${icon}</div>
+    <h1>PixelCraft Designer</h1>
+    <p>${message}</p>
+    ${settingsUrl ? `<a class="btn" href="${settingsUrl}">Manage all preferences</a>` : ""}
+    <div class="footer">You can always update your notification preferences from your account settings.</div>
+  </div>
+</body>
+</html>`;
+  }
 
   // Run immediately on startup, then every 24 hours
   runTrialExpiryWarnings();

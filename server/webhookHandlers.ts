@@ -97,7 +97,8 @@ export class WebhookHandlers {
             try {
               const prefs = await storage.getNotificationPreferences(adminUser.id);
               if (prefs.planChanges) {
-                await sendSubscriptionCancelledEmail(notifiedEmail, org.name);
+                const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(adminUser.id).catch(() => undefined);
+                await sendSubscriptionCancelledEmail(notifiedEmail, org.name, { unsubscribeToken });
                 emailSent = true;
               } else {
                 console.info(`[webhook] subscription_cancelled email suppressed for ${notifiedEmail} (planChanges opted out)`);
@@ -133,7 +134,8 @@ export class WebhookHandlers {
             try {
               const prefs = await storage.getNotificationPreferences(adminUser.id);
               if (prefs.paymentFailures) {
-                await sendPaymentFailedEmail(notifiedEmail, org.name);
+                const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(adminUser.id).catch(() => undefined);
+                await sendPaymentFailedEmail(notifiedEmail, org.name, { unsubscribeToken });
                 emailSent = true;
               } else {
                 console.info(`[webhook] payment_failed email suppressed for ${notifiedEmail} (paymentFailures opted out)`);
@@ -180,7 +182,8 @@ export class WebhookHandlers {
             try {
               const prefs = await storage.getNotificationPreferences(adminUser.id);
               if (prefs.trialExpiry) {
-                await sendTrialExpiryEmail(notifiedEmail, org.name, daysRemaining);
+                const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(adminUser.id).catch(() => undefined);
+                await sendTrialExpiryEmail(notifiedEmail, org.name, daysRemaining, { unsubscribeToken });
                 emailSent = true;
               } else {
                 console.info(`[webhook] trial_will_end email suppressed for ${notifiedEmail} (trialExpiry opted out)`);

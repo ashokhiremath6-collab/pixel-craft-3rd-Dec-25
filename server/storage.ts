@@ -135,6 +135,8 @@ export interface IStorage {
   verifyEmail(token: string): Promise<User | undefined>;
   getNotificationPreferences(userId: string): Promise<NotificationPreferences>;
   updateNotificationPreferences(userId: string, prefs: Partial<NotificationPreferences>): Promise<NotificationPreferences>;
+  getUserByUnsubscribeToken(token: string): Promise<User | undefined>;
+  getOrCreateUnsubscribeToken(userId: string): Promise<string>;
   
   // User Project Access (for client role project assignment)
   createUserProjectAccess(access: { userId: string; projectId: string }): Promise<{ userId: string; projectId: string }>;
@@ -687,6 +689,22 @@ export class MemStorage implements IStorage {
     (user as any).updatedAt = new Date();
     this.users.set(userId, user);
     return updated;
+  }
+
+  async getUserByUnsubscribeToken(token: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => (u as any).unsubscribeToken === token);
+  }
+
+  async getOrCreateUnsubscribeToken(userId: string): Promise<string> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    if ((user as any).unsubscribeToken) return (user as any).unsubscribeToken;
+    const { randomUUID } = await import("crypto");
+    const token = randomUUID();
+    (user as any).unsubscribeToken = token;
+    (user as any).updatedAt = new Date();
+    this.users.set(userId, user);
+    return token;
   }
 
   // Designer Allowlist methods (MemStorage - not used in production)
@@ -3646,6 +3664,29 @@ export class DBStorage implements IStorage {
       .set({ notificationPreferences: updated, updatedAt: new Date() })
       .where(eq(users.id, userId));
     return updated;
+  }
+
+  async getUserByUnsubscribeToken(token: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.unsubscribeToken, token));
+    return result[0];
+  }
+
+  async getOrCreateUnsubscribeToken(userId: string): Promise<string> {
+    const newToken = randomUUID();
+    // Atomically set unsubscribe_token only if it is currently NULL, then read
+    // the final value. This prevents race conditions where concurrent calls
+    // could overwrite each other's tokens and invalidate already-sent links.
+    await db
+      .update(users)
+      .set({ unsubscribeToken: newToken, updatedAt: new Date() })
+      .where(and(eq(users.id, userId), isNull(users.unsubscribeToken)));
+    const result = await db
+      .select({ unsubscribeToken: users.unsubscribeToken })
+      .from(users)
+      .where(eq(users.id, userId));
+    if (!result[0]) throw new Error("User not found");
+    if (!result[0].unsubscribeToken) throw new Error("Failed to assign unsubscribe token");
+    return result[0].unsubscribeToken;
   }
 }
 

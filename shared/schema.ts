@@ -870,6 +870,7 @@ export const users = pgTable("users", {
   onboardingCompletedAt: timestamp("onboarding_completed_at"), // null = wizard not yet shown
   isSuperAdmin: boolean("is_super_admin").notNull().default(false), // system-level super-admin flag
   notificationPreferences: jsonb("notification_preferences"), // NotificationPreferences; null = all enabled
+  unsubscribeToken: varchar("unsubscribe_token").unique(), // token for one-click email unsubscribe (no login required)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -33,7 +33,7 @@ const FROM_ADDRESS =
   process.env.SMTP_USER ||
   "onboarding@resend.dev";
 
-function getBaseUrl(req?: { protocol?: string; hostname?: string }): string {
+export function getBaseUrl(req?: { protocol?: string; hostname?: string }): string {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
   if (req?.protocol && req?.hostname) return `${req.protocol}://${req.hostname}`;
   const domains = process.env.REPLIT_DOMAINS;
@@ -79,6 +79,47 @@ async function sendEmail(opts: {
     "[EMAIL] No email service configured (set RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS). " +
       "Email not sent to: " + opts.to
   );
+}
+
+/**
+ * Builds the HTML footer block that appears at the bottom of transactional emails.
+ * Includes a link to manage preferences in Settings and an optional one-click unsubscribe link.
+ */
+function buildEmailFooter(opts: {
+  baseUrl: string;
+  unsubscribeToken?: string;
+  notificationType?: string;
+  orgName?: string;
+}): { html: string; text: string } {
+  const settingsUrl = `${opts.baseUrl}/settings`;
+  const orgLine = opts.orgName
+    ? `You're receiving this because you're an admin of <strong>${opts.orgName}</strong> on PixelCraft Designer.`
+    : `You're receiving this as a member of your organisation on PixelCraft Designer.`;
+  const orgLineText = opts.orgName
+    ? `You're receiving this because you're an admin of ${opts.orgName} on PixelCraft Designer.`
+    : `You're receiving this as a member of your organisation on PixelCraft Designer.`;
+
+  let unsubscribeLinkHtml = "";
+  let unsubscribeLinkText = "";
+  if (opts.unsubscribeToken && opts.notificationType) {
+    const params = new URLSearchParams({ token: opts.unsubscribeToken, type: opts.notificationType });
+    const unsubscribeUrl = `${opts.baseUrl}/api/user/unsubscribe?${params.toString()}`;
+    unsubscribeLinkHtml = ` &middot; <a href="${unsubscribeUrl}" style="color:#6e6e73;text-decoration:underline;">Unsubscribe from this type</a>`;
+    unsubscribeLinkText = `\nUnsubscribe from this notification type: ${unsubscribeUrl}`;
+  }
+
+  const html = `
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e5e5;text-align:center;">
+      <p style="color:#6e6e73;font-size:12px;line-height:1.5;margin:0 0 6px;">${orgLine}</p>
+      <p style="color:#6e6e73;font-size:12px;margin:0;">
+        <a href="${settingsUrl}" style="color:#6e6e73;text-decoration:underline;">Manage notification preferences</a>${unsubscribeLinkHtml}
+      </p>
+    </div>
+  `;
+
+  const text = `\n---\n${orgLineText}\nManage notification preferences: ${settingsUrl}${unsubscribeLinkText}`;
+
+  return { html, text };
 }
 
 export async function sendPasswordResetEmail(
@@ -157,9 +198,17 @@ export async function sendInvitationEmail(
 
 export async function sendPaymentFailedEmail(
   email: string,
-  orgName: string
+  orgName: string,
+  opts?: { unsubscribeToken?: string; baseUrl?: string }
 ): Promise<void> {
   console.info(`[EMAIL] Payment failed notification for ${email} (org: ${orgName})`);
+  const base = opts?.baseUrl || getBaseUrl();
+  const footer = buildEmailFooter({
+    baseUrl: base,
+    unsubscribeToken: opts?.unsubscribeToken,
+    notificationType: "paymentFailures",
+    orgName,
+  });
   await sendEmail({
     to: email,
     subject: `Action required: Payment failed for ${orgName} on PixelCraft Designer`,
@@ -176,18 +225,27 @@ export async function sendPaymentFailedEmail(
           <p style="color:#6e6e73;font-size:13px;margin:20px 0 0;">
             If you believe this is an error, please contact support.
           </p>
+          ${footer.html}
         </div>
       </div>
     `,
-    text: `Payment failed for ${orgName} on PixelCraft Designer.\n\nWe were unable to process your latest payment. Please update your payment method to avoid any interruption to your service.`,
+    text: `Payment failed for ${orgName} on PixelCraft Designer.\n\nWe were unable to process your latest payment. Please update your payment method to avoid any interruption to your service.${footer.text}`,
   });
 }
 
 export async function sendSubscriptionCancelledEmail(
   email: string,
-  orgName: string
+  orgName: string,
+  opts?: { unsubscribeToken?: string; baseUrl?: string }
 ): Promise<void> {
   console.info(`[EMAIL] Subscription cancelled notification for ${email} (org: ${orgName})`);
+  const base = opts?.baseUrl || getBaseUrl();
+  const footer = buildEmailFooter({
+    baseUrl: base,
+    unsubscribeToken: opts?.unsubscribeToken,
+    notificationType: "planChanges",
+    orgName,
+  });
   await sendEmail({
     to: email,
     subject: `Your ${orgName} subscription has been cancelled`,
@@ -204,10 +262,11 @@ export async function sendSubscriptionCancelledEmail(
           <p style="color:#6e6e73;font-size:13px;margin:20px 0 0;">
             If you did not request this cancellation, please contact support immediately.
           </p>
+          ${footer.html}
         </div>
       </div>
     `,
-    text: `Your ${orgName} subscription on PixelCraft Designer has been cancelled.\n\nYour workspace has been moved to the free trial plan. You can resubscribe at any time to restore full access.`,
+    text: `Your ${orgName} subscription on PixelCraft Designer has been cancelled.\n\nYour workspace has been moved to the free trial plan. You can resubscribe at any time to restore full access.${footer.text}`,
   });
 }
 
@@ -215,12 +274,20 @@ export async function sendPlanChangedEmail(
   email: string,
   orgName: string,
   previousPlan: string,
-  newPlan: string
+  newPlan: string,
+  opts?: { unsubscribeToken?: string; baseUrl?: string }
 ): Promise<void> {
   const planLabel = (p: string) => p.charAt(0).toUpperCase() + p.slice(1);
   console.info(
     `[EMAIL] Plan change notification for ${email} (org: ${orgName}): ${previousPlan} -> ${newPlan}`
   );
+  const base = opts?.baseUrl || getBaseUrl();
+  const footer = buildEmailFooter({
+    baseUrl: base,
+    unsubscribeToken: opts?.unsubscribeToken,
+    notificationType: "planChanges",
+    orgName,
+  });
   await sendEmail({
     to: email,
     subject: `Your ${orgName} plan has been updated on PixelCraft Designer`,
@@ -247,10 +314,11 @@ export async function sendPlanChangedEmail(
           <p style="color:#6e6e73;font-size:13px;margin:0;">
             If you have questions about this change, please contact support.
           </p>
+          ${footer.html}
         </div>
       </div>
     `,
-    text: `Your plan for ${orgName} on PixelCraft Designer has been updated.\n\nPrevious plan: ${planLabel(previousPlan)}\nNew plan: ${planLabel(newPlan)}\n\nIf you have questions, please contact support.`,
+    text: `Your plan for ${orgName} on PixelCraft Designer has been updated.\n\nPrevious plan: ${planLabel(previousPlan)}\nNew plan: ${planLabel(newPlan)}\n\nIf you have questions, please contact support.${footer.text}`,
   });
 }
 
@@ -264,12 +332,20 @@ async function sendTrialExpiryEmailCore(
   email: string,
   orgName: string,
   daysRemaining: number,
-  logPrefix: string
+  logPrefix: string,
+  opts?: { unsubscribeToken?: string; baseUrl?: string }
 ): Promise<void> {
   const urgency = trialUrgencyPhrase(daysRemaining);
   console.info(
     `[EMAIL] ${logPrefix} for ${email} (org: ${orgName}): ${daysRemaining} day(s) remaining`
   );
+  const base = opts?.baseUrl || getBaseUrl();
+  const footer = buildEmailFooter({
+    baseUrl: base,
+    unsubscribeToken: opts?.unsubscribeToken,
+    notificationType: "trialExpiry",
+    orgName,
+  });
   await sendEmail({
     to: email,
     subject: `Your ${orgName} trial ${urgency} — upgrade to keep access`,
@@ -289,10 +365,11 @@ async function sendTrialExpiryEmailCore(
           <p style="color:#6e6e73;font-size:13px;margin:0;">
             Log in to your workspace to upgrade your plan. If you have questions, please contact support.
           </p>
+          ${footer.html}
         </div>
       </div>
     `,
-    text: `Your ${orgName} trial on PixelCraft Designer ${urgency}.\n\nAfter it ends, your workspace will be restricted to read-only access until you upgrade. Log in to your workspace to upgrade your plan.\n\nIf you have questions, please contact support.`,
+    text: `Your ${orgName} trial on PixelCraft Designer ${urgency}.\n\nAfter it ends, your workspace will be restricted to read-only access until you upgrade. Log in to your workspace to upgrade your plan.\n\nIf you have questions, please contact support.${footer.text}`,
   });
 }
 
@@ -300,18 +377,20 @@ async function sendTrialExpiryEmailCore(
 export async function sendTrialExpiryEmail(
   email: string,
   orgName: string,
-  daysRemaining: number
+  daysRemaining: number,
+  opts?: { unsubscribeToken?: string; baseUrl?: string }
 ): Promise<void> {
-  return sendTrialExpiryEmailCore(email, orgName, daysRemaining, "Trial expiry warning (Stripe webhook)");
+  return sendTrialExpiryEmailCore(email, orgName, daysRemaining, "Trial expiry warning (Stripe webhook)", opts);
 }
 
 /** Scheduled-job-triggered trial expiry warning email (fired by the daily expiry check job). */
 export async function sendTrialExpiryWarningEmail(
   email: string,
   orgName: string,
-  daysRemaining: number
+  daysRemaining: number,
+  opts?: { unsubscribeToken?: string; baseUrl?: string }
 ): Promise<void> {
-  return sendTrialExpiryEmailCore(email, orgName, daysRemaining, "Automated trial expiry warning");
+  return sendTrialExpiryEmailCore(email, orgName, daysRemaining, "Automated trial expiry warning", opts);
 }
 
 export async function sendVerificationEmail(
