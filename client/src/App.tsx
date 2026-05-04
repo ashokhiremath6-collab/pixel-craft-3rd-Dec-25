@@ -43,6 +43,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Shield, User, Crown, Eye, AlertTriangle, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { BILLING_VISIBLE_ROLES } from "@shared/schema";
 
 const TRIAL_BANNER_DISMISS_KEY = "trial_expiry_banner_dismissed_until";
 const TRIAL_WARNING_DAYS = 3;
@@ -102,7 +103,7 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
   const canPreviewPortal = ELEVATED_ROLES.includes(user?.role || '');
 
   const isAdmin = user?.role === 'admin';
-  const canSeeBilling = ['admin', 'designer', 'project_manager'].includes(user?.role || '');
+  const canSeeBilling = (BILLING_VISIBLE_ROLES as readonly string[]).includes(user?.role || '');
   const { data: billingStatus } = useQuery<BillingStatus>({
     queryKey: ["/api/billing/status"],
     enabled: canSeeBilling && !!user?.orgId,

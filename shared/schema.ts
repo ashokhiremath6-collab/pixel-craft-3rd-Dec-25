@@ -1004,3 +1004,6 @@ export const superadminAuditLog = pgTable("superadmin_audit_log", {
 
 export type SuperadminAuditLog = typeof superadminAuditLog.$inferSelect;
 export type InsertSuperadminAuditLog = typeof superadminAuditLog.$inferInsert;
+
+// Roles that can read billing status (used by both server and client to stay in sync)
+export const BILLING_VISIBLE_ROLES = ['admin', 'designer', 'project_manager'] as const;

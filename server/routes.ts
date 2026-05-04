@@ -50,7 +50,8 @@ import {
   insertWorksOrderTemplateSchema,
   insertWorksOrderSchema,
   insertWorksOrderSignatureSchema,
-  worksOrderFiles
+  worksOrderFiles,
+  BILLING_VISIBLE_ROLES
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -10449,9 +10450,8 @@ Return your response in the following JSON format only (no markdown, no code blo
   app.get('/api/billing/status', requireAuth, async (req, res) => {
     try {
       const user = req.user as any;
-      const allowedRoles = ['admin', 'designer', 'project_manager'];
       const userRole = await storage.getUserRole(user.id);
-      if (!allowedRoles.includes(userRole?.role || '')) {
+      if (!(BILLING_VISIBLE_ROLES as readonly string[]).includes(userRole?.role || '')) {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
       if (!user.orgId) return res.status(400).json({ error: 'No organisation linked to this account' });
