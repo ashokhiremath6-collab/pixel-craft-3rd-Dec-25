@@ -130,6 +130,14 @@ export default function GanttChartPage() {
   const [extendDeadlineNewDate, setExtendDeadlineNewDate] = useState<string>("");
   const [extendDeadlineReason, setExtendDeadlineReason] = useState<string>("");
 
+  // Delete confirmation dialog
+  const [deleteTaskTarget, setDeleteTaskTarget] = useState<Task | null>(null);
+  const [deleteReason, setDeleteReason] = useState<string>("");
+
+  // Date-change reason dialog
+  const [pendingDateChange, setPendingDateChange] = useState<{ taskId: string; taskName: string; field: 'startDate' | 'endDate'; value: string } | null>(null);
+  const [dateChangeReason, setDateChangeReason] = useState<string>("");
+
   // Deadline history popover
   const [deadlineHistoryTaskId, setDeadlineHistoryTaskId] = useState<string | null>(null);
   
@@ -261,6 +269,7 @@ export default function GanttChartPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       toast({ title: "Success", description: "Task created successfully" });
       setIsAddTaskOpen(false);
       form.reset();
@@ -323,12 +332,15 @@ export default function GanttChartPage() {
   });
 
   const deleteTaskMutation = useMutation({
-    mutationFn: async (taskId: string) => {
-      return await apiRequest('DELETE', `/api/tasks/${taskId}`);
+    mutationFn: async ({ taskId, reason }: { taskId: string; reason?: string }) => {
+      return await apiRequest('DELETE', `/api/tasks/${taskId}`, reason ? { reason } : undefined);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
+      setDeleteTaskTarget(null);
+      setDeleteReason('');
       toast({ title: "Success", description: "Task deleted successfully" });
     },
     onError: (error: any) => {
@@ -348,6 +360,7 @@ export default function GanttChartPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       setEditingProgressTaskId(null);
       setPendingExcelChanges(prev => prev + 1);
       toast({ title: "Success", description: "Progress updated" });
@@ -363,13 +376,16 @@ export default function GanttChartPage() {
 
   // Update task end date mutation
   const updateEndDateMutation = useMutation({
-    mutationFn: async ({ taskId, endDate }: { taskId: string; endDate: string }) => {
-      return await apiRequest('PUT', `/api/tasks/${taskId}`, { endDate });
+    mutationFn: async ({ taskId, endDate, reason }: { taskId: string; endDate: string; reason?: string }) => {
+      return await apiRequest('PUT', `/api/tasks/${taskId}`, { endDate, ...(reason ? { reason } : {}) });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       setEditingEndDateTaskId(null);
+      setPendingDateChange(null);
+      setDateChangeReason('');
       setPendingExcelChanges(prev => prev + 1);
       toast({ title: "Success", description: "End date updated" });
     },
@@ -384,13 +400,16 @@ export default function GanttChartPage() {
 
   // Update task start date mutation
   const updateStartDateMutation = useMutation({
-    mutationFn: async ({ taskId, startDate }: { taskId: string; startDate: string }) => {
-      return await apiRequest('PUT', `/api/tasks/${taskId}`, { startDate });
+    mutationFn: async ({ taskId, startDate, reason }: { taskId: string; startDate: string; reason?: string }) => {
+      return await apiRequest('PUT', `/api/tasks/${taskId}`, { startDate, ...(reason ? { reason } : {}) });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       setEditingStartDateTaskId(null);
+      setPendingDateChange(null);
+      setDateChangeReason('');
       setPendingExcelChanges(prev => prev + 1);
       toast({ title: "Success", description: "Start date updated" });
     },
@@ -463,6 +482,7 @@ export default function GanttChartPage() {
     onSuccess: (_, taskIds) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       setPendingExcelChanges(prev => prev + taskIds.length);
       toast({ title: `${taskIds.length} task${taskIds.length !== 1 ? 's' : ''} marked as completed` });
     },
@@ -1663,7 +1683,9 @@ export default function GanttChartPage() {
                                               autoFocus
                                               onChange={(e) => {
                                                 if (e.target.value) {
-                                                  updateStartDateMutation.mutate({ taskId: task.id, startDate: e.target.value });
+                                                  setPendingDateChange({ taskId: task.id, taskName: task.name, field: 'startDate', value: e.target.value });
+                                                  setDateChangeReason('');
+                                                  setEditingStartDateTaskId(null);
                                                 }
                                               }}
                                               onBlur={() => setEditingStartDateTaskId(null)}
@@ -1705,7 +1727,9 @@ export default function GanttChartPage() {
                                               autoFocus
                                               onChange={(e) => {
                                                 if (e.target.value) {
-                                                  updateEndDateMutation.mutate({ taskId: task.id, endDate: e.target.value });
+                                                  setPendingDateChange({ taskId: task.id, taskName: task.name, field: 'endDate', value: e.target.value });
+                                                  setDateChangeReason('');
+                                                  setEditingEndDateTaskId(null);
                                                 }
                                               }}
                                               onBlur={() => setEditingEndDateTaskId(null)}
@@ -2023,9 +2047,8 @@ export default function GanttChartPage() {
                                             variant="ghost"
                                             className="h-7 w-7 opacity-40 hover:opacity-100"
                                             onClick={() => {
-                                              if (confirm(`Delete task "${task.name}"?`)) {
-                                                deleteTaskMutation.mutate(task.id);
-                                              }
+                                              setDeleteTaskTarget(task);
+                                              setDeleteReason('');
                                             }}
                                             data-testid={`button-delete-task-row-${task.id}`}
                                           >
@@ -2081,6 +2104,111 @@ export default function GanttChartPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete Task Confirmation Dialog */}
+      <Dialog open={!!deleteTaskTarget} onOpenChange={(open) => { if (!open) { setDeleteTaskTarget(null); setDeleteReason(''); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              Delete Task
+            </DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. Optionally provide a reason so it appears in the activity log.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTaskTarget && (
+            <div className="space-y-4 pt-2">
+              <div className="bg-muted rounded-md p-3 text-sm">
+                <p className="font-medium text-foreground line-clamp-2">{deleteTaskTarget.name}</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Reason for deletion <span className="text-muted-foreground text-xs">(optional)</span></label>
+                <Textarea
+                  placeholder="e.g. Out of scope, duplicate task, client request..."
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  rows={2}
+                  data-testid="textarea-delete-reason"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => { setDeleteTaskTarget(null); setDeleteReason(''); }}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={deleteTaskMutation.isPending}
+                  onClick={() => {
+                    if (deleteTaskTarget) {
+                      deleteTaskMutation.mutate({ taskId: deleteTaskTarget.id, reason: deleteReason });
+                    }
+                  }}
+                  data-testid="button-confirm-delete-task"
+                >
+                  {deleteTaskMutation.isPending ? "Deleting..." : "Delete Task"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Date Change Reason Dialog */}
+      <Dialog open={!!pendingDateChange} onOpenChange={(open) => { if (!open) { setPendingDateChange(null); setDateChangeReason(''); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5 text-blue-500" />
+              {pendingDateChange?.field === 'startDate' ? 'Start Date' : 'End Date'} Changed
+            </DialogTitle>
+            <DialogDescription>
+              Optionally explain why this date was changed — it will appear in the dashboard activity log.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingDateChange && (
+            <div className="space-y-4 pt-2">
+              <div className="bg-muted rounded-md p-3 text-sm">
+                <p className="font-medium text-foreground line-clamp-2">{pendingDateChange.taskName}</p>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  New {pendingDateChange.field === 'startDate' ? 'start' : 'end'} date:{' '}
+                  <span className="text-foreground font-medium">{pendingDateChange.value}</span>
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Reason <span className="text-muted-foreground text-xs">(optional)</span></label>
+                <Textarea
+                  placeholder="e.g. Client approved extension, material delay, design change..."
+                  value={dateChangeReason}
+                  onChange={(e) => setDateChangeReason(e.target.value)}
+                  rows={2}
+                  data-testid="textarea-date-change-reason"
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => { setPendingDateChange(null); setDateChangeReason(''); }}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={updateStartDateMutation.isPending || updateEndDateMutation.isPending}
+                  onClick={() => {
+                    if (!pendingDateChange) return;
+                    if (pendingDateChange.field === 'startDate') {
+                      updateStartDateMutation.mutate({ taskId: pendingDateChange.taskId, startDate: pendingDateChange.value, reason: dateChangeReason });
+                    } else {
+                      updateEndDateMutation.mutate({ taskId: pendingDateChange.taskId, endDate: pendingDateChange.value, reason: dateChangeReason });
+                    }
+                  }}
+                  data-testid="button-confirm-date-change"
+                >
+                  {updateStartDateMutation.isPending || updateEndDateMutation.isPending ? "Saving..." : "Save Change"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Extend Deadline Dialog */}
       <Dialog open={!!extendDeadlineTask} onOpenChange={(open) => { if (!open) { setExtendDeadlineTask(null); setExtendDeadlineReason(''); setExtendDeadlineNewDate(''); } }}>

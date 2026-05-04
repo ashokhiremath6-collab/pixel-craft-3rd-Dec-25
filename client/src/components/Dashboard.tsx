@@ -98,6 +98,11 @@ const ACTIVITY_CONFIG: Record<string, {
   vendor_create:            { label: "Vendor",            icon: Users,           accent: "#f0fdf4", iconBg: "#bbf7d0", iconColor: "#15803d" },
   vendor_update:            { label: "Vendor",            icon: Users,           accent: "#eff6ff", iconBg: "#bfdbfe", iconColor: "#1d4ed8" },
   vendor_delete:            { label: "Vendor",            icon: Users,           accent: "#fef2f2", iconBg: "#fecaca", iconColor: "#dc2626" },
+  task_create:              { label: "Task Added",        icon: Plus,            accent: "#f0fdf4", iconBg: "#bbf7d0", iconColor: "#15803d" },
+  task_date_update:         { label: "Date Changed",      icon: CalendarDays,    accent: "#eff6ff", iconBg: "#bfdbfe", iconColor: "#1d4ed8" },
+  task_progress_update:     { label: "Progress Update",   icon: TrendingUp,      accent: "#f5f3ff", iconBg: "#ddd6fe", iconColor: "#7c3aed" },
+  task_delete:              { label: "Task Deleted",      icon: Trash2,          accent: "#fef2f2", iconBg: "#fecaca", iconColor: "#dc2626" },
+  task_bulk_complete:       { label: "Bulk Completed",    icon: FileCheck2,      accent: "#f0fdf4", iconBg: "#bbf7d0", iconColor: "#15803d" },
 };
 
 function getActivityConfig(type: string) {
@@ -139,6 +144,7 @@ function getActivityNavPath(activityType: string, projectId: string | null, meta
   if (activityType.startsWith('render_')) return pid ? `/renders?projectId=${pid}` : '/renders';
   if (activityType.startsWith('working_drawing_')) return pid ? `/working-drawings?projectId=${pid}` : '/working-drawings';
   if (activityType.startsWith('schedule_') || activityType === 'schedule') return pid ? `/gantt?projectId=${pid}` : '/gantt';
+  if (activityType.startsWith('task_')) return pid ? `/gantt?projectId=${pid}` : '/gantt';
   if (activityType.startsWith('quote_') || activityType.startsWith('boq_')) return pid ? `/projects` : '/quotes';
   if (activityType.startsWith('specification_')) return '/specifications';
   if (activityType.startsWith('catalogue_')) return '/catalogue';
@@ -416,6 +422,13 @@ export default function Dashboard({
                             {activity.fileName}
                           </div>
                         )
+                      )}
+
+                      {/* Description — shown for task activities to convey what changed and why */}
+                      {activity.activityType.startsWith('task_') && activity.description && (
+                        <p className="text-xs mt-1 leading-snug line-clamp-2" style={{ color: "#374151" }}>
+                          {activity.description}
+                        </p>
                       )}
 
                       {/* Who + project + time */}

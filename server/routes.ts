@@ -5206,6 +5206,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertTaskSchema.parse(req.body);
       const task = await storage.createTask(validatedData);
+      try {
+        const userId = (req.user as any)?.id;
+        const userRow = userId ? await storage.getUser(userId) : null;
+        const userName = userRow ? (`${userRow.firstName || ''} ${userRow.lastName || ''}`.trim() || userRow.email) : 'Unknown';
+        const project = task.projectId ? await storage.getProject(task.projectId) : null;
+        await storage.createActivity({
+          userId: userId || null, userName, userEmail: userRow?.email || '',
+          projectId: task.projectId || null,
+          activityType: 'task_create' as any,
+          fileName: task.name, filePath: null,
+          description: `Created task "${task.name}"${project ? ` in ${project.projectName}` : ''}`,
+          metadata: { taskId: task.id, projectName: project?.projectName ?? null },
+        } as any);
+      } catch (actErr) { console.error('Activity log error (task_create):', actErr); }
       res.status(201).json(task);
     } catch (error) {
       console.error('Error creating task:', error);
@@ -5220,14 +5234,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/tasks/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      
-      // Validate with partial schema for updates
-      const validatedData = insertTaskSchema.partial().parse(req.body);
-      
+      const { reason, ...bodyWithoutReason } = req.body;
+      const validatedData = insertTaskSchema.partial().parse(bodyWithoutReason);
+      const previousTask = await storage.getTask(id);
       const task = await storage.updateTask(id, validatedData);
       if (!task) {
         return res.status(404).json({ error: "Task not found" });
       }
+      try {
+        const userId = (req.user as any)?.id;
+        const userRow = userId ? await storage.getUser(userId) : null;
+        const userName = userRow ? (`${userRow.firstName || ''} ${userRow.lastName || ''}`.trim() || userRow.email) : 'Unknown';
+        const project = task.projectId ? await storage.getProject(task.projectId) : null;
+        const changes: string[] = [];
+        if (validatedData.startDate && previousTask?.startDate !== validatedData.startDate)
+          changes.push(`start date: ${previousTask?.startDate ?? 'none'} → ${validatedData.startDate}`);
+        if (validatedData.endDate && previousTask?.endDate !== validatedData.endDate)
+          changes.push(`end date: ${previousTask?.endDate ?? 'none'} → ${validatedData.endDate}`);
+        let description = `Updated schedule for "${task.name}"`;
+        if (changes.length) description += `: ${changes.join('; ')}`;
+        if ((reason as string)?.trim()) description += `. Reason: ${(reason as string).trim()}`;
+        await storage.createActivity({
+          userId: userId || null, userName, userEmail: userRow?.email || '',
+          projectId: task.projectId || null,
+          activityType: 'task_date_update' as any,
+          fileName: task.name, filePath: null, description,
+          metadata: { taskId: id, changes: validatedData, previous: { startDate: previousTask?.startDate, endDate: previousTask?.endDate }, reason: (reason as string)?.trim() || null, projectName: project?.projectName ?? null },
+        } as any);
+      } catch (actErr) { console.error('Activity log error (task_date_update):', actErr); }
       res.json(task);
     } catch (error) {
       console.error('Error updating task:', error);
@@ -5276,6 +5310,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       else status = 'in_progress';
       const task = await storage.updateTask(id, { progressPercentage: String(pct), status });
       if (!task) return res.status(404).json({ error: "Task not found" });
+      try {
+        const userId = (req.user as any)?.id;
+        const userRow = userId ? await storage.getUser(userId) : null;
+        const userName = userRow ? (`${userRow.firstName || ''} ${userRow.lastName || ''}`.trim() || userRow.email) : 'Unknown';
+        const project = task.projectId ? await storage.getProject(task.projectId) : null;
+        await storage.createActivity({
+          userId: userId || null, userName, userEmail: userRow?.email || '',
+          projectId: task.projectId || null,
+          activityType: 'task_progress_update' as any,
+          fileName: task.name, filePath: null,
+          description: `Updated progress for "${task.name}" to ${pct}%${pct >= 100 ? ' (completed)' : ''}`,
+          metadata: { taskId: id, progressPercentage: pct, status, projectName: project?.projectName ?? null },
+        } as any);
+      } catch (actErr) { console.error('Activity log error (task_progress_update):', actErr); }
       res.json(task);
     } catch (error) {
       console.error('Error updating task progress:', error);
@@ -5297,7 +5345,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updated = await Promise.all(
         taskIds.map(id => storage.updateTask(id, { progressPercentage: '100', status: 'completed' }))
       );
-      res.json({ updated: updated.filter(Boolean).length });
+      const completedCount = updated.filter(Boolean).length;
+      try {
+        const userId = (req.user as any)?.id;
+        const userRow = userId ? await storage.getUser(userId) : null;
+        const userName = userRow ? (`${userRow.firstName || ''} ${userRow.lastName || ''}`.trim() || userRow.email) : 'Unknown';
+        await storage.createActivity({
+          userId: userId || null, userName, userEmail: userRow?.email || '',
+          projectId: null,
+          activityType: 'task_bulk_complete' as any,
+          fileName: `${completedCount} task${completedCount !== 1 ? 's' : ''}`, filePath: null,
+          description: `Marked ${completedCount} task${completedCount !== 1 ? 's' : ''} as completed`,
+          metadata: { taskIds, count: completedCount },
+        } as any);
+      } catch (actErr) { console.error('Activity log error (task_bulk_complete):', actErr); }
+      res.json({ updated: completedCount });
     } catch (error) {
       console.error('Error bulk completing tasks:', error);
       res.status(500).json({ error: "Failed to bulk complete tasks" });
@@ -5375,9 +5437,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/tasks/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
+      const { reason } = req.body || {};
+      const taskToDelete = await storage.getTask(id);
       const deleted = await storage.deleteTask(id);
       if (!deleted) {
         return res.status(404).json({ error: "Task not found" });
+      }
+      if (taskToDelete) {
+        try {
+          const userId = (req.user as any)?.id;
+          const userRow = userId ? await storage.getUser(userId) : null;
+          const userName = userRow ? (`${userRow.firstName || ''} ${userRow.lastName || ''}`.trim() || userRow.email) : 'Unknown';
+          const project = taskToDelete.projectId ? await storage.getProject(taskToDelete.projectId) : null;
+          let description = `Deleted task "${taskToDelete.name}"`;
+          if ((reason as string)?.trim()) description += `. Reason: ${(reason as string).trim()}`;
+          await storage.createActivity({
+            userId: userId || null, userName, userEmail: userRow?.email || '',
+            projectId: taskToDelete.projectId || null,
+            activityType: 'task_delete' as any,
+            fileName: taskToDelete.name, filePath: null, description,
+            metadata: { taskId: id, reason: (reason as string)?.trim() || null, projectName: project?.projectName ?? null },
+          } as any);
+        } catch (actErr) { console.error('Activity log error (task_delete):', actErr); }
       }
       res.json({ message: "Task deleted successfully" });
     } catch (error) {
