@@ -16,6 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation } from "wouter";
 import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock, CreditCard, Zap, AlertTriangle, ExternalLink, BarChart3 } from "lucide-react";
+import { AccessDenied } from "@/components/AccessDenied";
 import { Progress } from "@/components/ui/progress";
 import { PlanLimitBanner } from "@/components/PlanLimitBanner";
 import type { User, Project, UserProjectAssignment } from "@shared/schema";
@@ -51,7 +52,7 @@ type InviteValues = z.infer<typeof inviteSchema>;
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isLoading: authLoading } = useAuth();
   const [, navigate] = useLocation();
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>("");
@@ -282,6 +283,17 @@ export default function SettingsPage() {
   const pendingInvitations = invitations?.filter(i => !i.acceptedAt) || [];
 
   const isExpired = (expiresAt: string) => new Date(expiresAt) < new Date();
+
+  // Wait for auth state to resolve before showing an access denied message
+  // so there is no flash for users who do have access.
+  if (authLoading) return null;
+
+  // Settings is an admin-only area. Non-admin users who navigate here directly
+  // (e.g. via URL or sidebar) see a clear explanation rather than a blank page
+  // or a partially-rendered page with all admin sections hidden.
+  if (currentUser?.role !== "admin") {
+    return <AccessDenied message="Settings is only available to workspace admins." />;
+  }
 
   if (isLoading) {
     return (
