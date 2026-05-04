@@ -242,29 +242,21 @@ export async function setupAuth(app: Express) {
         slug = `${baseSlug}-${suffix++}`;
       }
 
-      const org = await storage.createOrganisation({
-        name: companyName.trim(),
-        slug,
-        plan: "trial",
-      });
-
-      // Create admin user with pending email verification
+      // Atomically create org + admin user + role in one transaction
       const hash = await bcrypt.hash(password, 12);
       const userId = randomUUID();
       const verificationToken = randomUUID();
 
-      const user = await storage.upsertUser({
-        id: userId,
+      const { user } = await storage.registerOrgWithAdmin({
+        orgName: companyName.trim(),
+        slug,
+        userId,
         email: normalizedEmail,
         firstName: firstName?.trim() || null,
         lastName: lastName?.trim() || null,
         passwordHash: hash,
-        emailVerificationToken: verificationToken,
-        emailVerifiedAt: null,
-        orgId: org.id,
+        verificationToken,
       });
-
-      await storage.createUserRole({ userId: user.id, role: "admin", isActive: true, assignedBy: user.id });
 
       const base = getBaseUrl(req as any);
       try {

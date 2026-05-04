@@ -157,6 +157,18 @@ export interface IStorage {
   acceptInvitation(token: string): Promise<Invitation | undefined>;
   updateInvitationToken(id: string, token: string, expiresAt: Date): Promise<Invitation | undefined>;
 
+  // Atomic org + admin registration (single transaction)
+  registerOrgWithAdmin(params: {
+    orgName: string;
+    slug: string;
+    userId: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    passwordHash: string;
+    verificationToken: string;
+  }): Promise<{ org: Organisation; user: User }>;
+
   // User onboarding
   completeOnboarding(userId: string): Promise<void>;
   setUserOrgId(userId: string, orgId: string): Promise<void>;
@@ -1342,6 +1354,31 @@ export class MemStorage implements IStorage {
     // ALL authenticated users can access all vendors
     return this.getAllVendors();
   }
+
+  // ── Organisations & Invitations (MemStorage stubs — not used in prod) ──
+  async createOrganisation(org: InsertOrganisation): Promise<Organisation> {
+    throw new Error("MemStorage: createOrganisation not supported");
+  }
+  async getOrganisation(id: string): Promise<Organisation | undefined> { return undefined; }
+  async getOrganisationBySlug(slug: string): Promise<Organisation | undefined> { return undefined; }
+  async updateOrganisation(id: string, updates: Partial<InsertOrganisation>): Promise<Organisation | undefined> { return undefined; }
+  async createInvitation(inv: InsertInvitation): Promise<Invitation> {
+    throw new Error("MemStorage: createInvitation not supported");
+  }
+  async getInvitationByToken(token: string): Promise<Invitation | undefined> { return undefined; }
+  async getInvitationsByOrg(orgId: string): Promise<Invitation[]> { return []; }
+  async revokeInvitation(id: string): Promise<boolean> { return false; }
+  async acceptInvitation(token: string): Promise<Invitation | undefined> { return undefined; }
+  async updateInvitationToken(id: string, token: string, expiresAt: Date): Promise<Invitation | undefined> { return undefined; }
+  async registerOrgWithAdmin(_params: {
+    orgName: string; slug: string; userId: string; email: string;
+    firstName: string | null; lastName: string | null;
+    passwordHash: string; verificationToken: string;
+  }): Promise<{ org: Organisation; user: User }> {
+    throw new Error("MemStorage: registerOrgWithAdmin not supported");
+  }
+  async completeOnboarding(_userId: string): Promise<void> {}
+  async setUserOrgId(_userId: string, _orgId: string): Promise<void> {}
 }
 
 export class DBStorage implements IStorage {
@@ -3271,6 +3308,45 @@ export class DBStorage implements IStorage {
     await db.update(users)
       .set({ orgId })
       .where(eq(users.id, userId));
+  }
+
+  async registerOrgWithAdmin(params: {
+    orgName: string;
+    slug: string;
+    userId: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    passwordHash: string;
+    verificationToken: string;
+  }): Promise<{ org: Organisation; user: User }> {
+    return await db.transaction(async (tx) => {
+      const [org] = await tx.insert(organisations).values({
+        name: params.orgName,
+        slug: params.slug,
+        plan: "trial",
+      }).returning();
+
+      const [user] = await tx.insert(users).values({
+        id: params.userId,
+        email: params.email,
+        firstName: params.firstName,
+        lastName: params.lastName,
+        passwordHash: params.passwordHash,
+        emailVerificationToken: params.verificationToken,
+        emailVerifiedAt: null,
+        orgId: org.id,
+      }).returning();
+
+      await tx.insert(userRoles).values({
+        userId: user.id,
+        role: "admin",
+        isActive: true,
+        assignedBy: user.id,
+      });
+
+      return { org, user };
+    });
   }
 }
 

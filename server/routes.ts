@@ -733,10 +733,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/organisations/:id", requireAdminOnly, async (req, res) => {
     try {
-      const { id } = req.params;
+      const callerUser = await storage.getUser((req.user as any).id);
+      if (!callerUser?.orgId || callerUser.orgId !== req.params.id) {
+        return res.status(403).json({ error: "You can only update your own organisation." });
+      }
       const { name } = req.body;
       if (!name?.trim()) return res.status(400).json({ error: "Name is required" });
-      const updated = await storage.updateOrganisation(id, { name: name.trim() });
+      const updated = await storage.updateOrganisation(req.params.id, { name: name.trim() });
       if (!updated) return res.status(404).json({ error: "Organisation not found" });
       res.json(updated);
     } catch (err) {
@@ -795,7 +798,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const token = randomUUID();
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
 
       const invitation = await storage.createInvitation({
         orgId: callerUser.orgId,
@@ -827,9 +830,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // DELETE /api/invitations/:id — revoke an invitation
   app.delete("/api/invitations/:id", requireAdminOnly, async (req, res) => {
     try {
-      const user = await storage.getUser((req.user as any).id);
-      const deleted = await storage.revokeInvitation(req.params.id);
-      if (!deleted) return res.status(404).json({ error: "Invitation not found" });
+      const callerUser = await storage.getUser((req.user as any).id);
+      if (!callerUser?.orgId) return res.status(403).json({ error: "No organisation found." });
+
+      // Ensure the invite belongs to the caller's org before revoking
+      const orgInvites = await storage.getInvitationsByOrg(callerUser.orgId);
+      const invite = orgInvites.find((i) => i.id === req.params.id);
+      if (!invite) return res.status(404).json({ error: "Invitation not found." });
+
+      await storage.revokeInvitation(req.params.id);
       res.json({ success: true });
     } catch (err) {
       console.error("Revoke invitation error:", err);
@@ -849,7 +858,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!invite) return res.status(404).json({ error: "Invitation not found" });
 
       const newToken = randomUUID();
-      const newExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const newExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
       const updated = await storage.updateInvitationToken(invite.id, newToken, newExpiry);
 
       const domains = process.env.REPLIT_DOMAINS;

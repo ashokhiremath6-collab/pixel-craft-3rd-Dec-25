@@ -140,7 +140,7 @@ export async function sendInvitationEmail(
             <strong>${invitedBy}</strong> has invited you to join <strong>${orgName}</strong> on PixelCraft Designer as a <strong>${role}</strong>.
           </p>
           <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
-            Click the button below to accept the invitation and set up your account. This link expires in 7 days.
+            Click the button below to accept the invitation and set up your account. This link expires in 48 hours.
           </p>
           <a href="${inviteUrl}" style="display:inline-block;background:#0071e3;color:#fff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
             Accept Invitation
@@ -151,7 +151,7 @@ export async function sendInvitationEmail(
         </div>
       </div>
     `,
-    text: `You've been invited to join ${orgName} on PixelCraft Designer!\n\n${invitedBy} has invited you as a ${role}.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in 7 days.`,
+    text: `You've been invited to join ${orgName} on PixelCraft Designer!\n\n${invitedBy} has invited you as a ${role}.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in 48 hours.`,
   });
 }
 
