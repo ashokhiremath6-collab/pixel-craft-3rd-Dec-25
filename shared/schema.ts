@@ -285,6 +285,7 @@ export const vendorPayments = pgTable("vendor_payments", {
 // Catalogue Items table for interior design product taxonomy
 export const catalogueItems = pgTable("catalogue_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id"), // FK to organisations — null for seed/legacy rows; set for all new items
   mainCategory: text("main_category").notNull(), // Furniture, Lighting, Kitchens, etc.
   subcategory: text("subcategory").notNull(), // Sofas & Sectionals, Ceiling Lights, etc.
   vendorBrand: text("vendor_brand"), // Vendor or brand name

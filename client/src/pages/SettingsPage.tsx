@@ -15,6 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock, CreditCard, Zap, AlertTriangle, ExternalLink, BarChart3 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { PlanLimitBanner } from "@/components/PlanLimitBanner";
 import type { User, Project, UserProjectAssignment } from "@shared/schema";
 
 const UNLIMITED = 999_999;
@@ -480,6 +481,15 @@ export default function SettingsPage() {
               Send an email invitation so a colleague can create their account and join your workspace.
             </CardDescription>
           </CardHeader>
+          {usageData && (
+            <div className="px-6 pb-0">
+              <PlanLimitBanner
+                current={usageData.usage.users}
+                limit={usageData.limits.maxUsers}
+                resourceLabel="Team members"
+              />
+            </div>
+          )}
           <CardContent className="space-y-6">
             <Form {...inviteForm}>
               <form

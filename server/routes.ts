@@ -873,7 +873,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json(invitation);
     } catch (err: any) {
-      if (err.limitExceeded) return res.status(402).json({ error: err.message, limitExceeded: true, current: err.current, limit: err.limit, resource: err.resource });
+      if (err.limitExceeded) return res.status(403).json({ error: err.message, limitExceeded: true, current: err.current, limit: err.limit, resource: err.resource });
       console.error("Send invitation error:", err);
       res.status(500).json({ error: "Failed to send invitation" });
     }
@@ -1521,7 +1521,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const project = await storage.createProject(parsed);
       res.status(201).json(project);
     } catch (error: any) {
-      if (error.limitExceeded) return res.status(402).json({ error: error.message, limitExceeded: true, current: error.current, limit: error.limit, resource: error.resource });
+      if (error.limitExceeded) return res.status(403).json({ error: error.message, limitExceeded: true, current: error.current, limit: error.limit, resource: error.resource });
       res.status(400).json({ error: "Invalid project data" });
     }
   });
@@ -7698,8 +7698,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         itemData.fileName = req.body.fileName;
       }
 
+      // Stamp orgId so per-org usage counts are correct (seed items have orgId = NULL)
+      if (user.orgId) itemData.orgId = user.orgId;
       const validatedData = insertCatalogueItemSchema.parse(itemData);
-      const item = await storage.createCatalogueItem(validatedData);
+      const item = await storage.createCatalogueItem({ ...validatedData, orgId: user.orgId ?? null } as any);
       
       // Log activity
       const actorUser = await storage.getUser(user.id);
@@ -7722,7 +7724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(item);
     } catch (error: any) {
-      if (error.limitExceeded) return res.status(402).json({ error: error.message, limitExceeded: true, current: error.current, limit: error.limit, resource: error.resource });
+      if (error.limitExceeded) return res.status(403).json({ error: error.message, limitExceeded: true, current: error.current, limit: error.limit, resource: error.resource });
       console.error('Error creating catalogue item:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid catalogue item data", details: error.errors });

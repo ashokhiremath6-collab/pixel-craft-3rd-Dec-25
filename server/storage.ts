@@ -3379,9 +3379,24 @@ export class DBStorage implements IStorage {
 
   async getOrgUsage(orgId: string): Promise<{ projects: number; users: number; catalogueItems: number }> {
     const [projectCount, userCount, catalogueCount] = await Promise.all([
-      db.select({ count: sql<number>`count(*)::int` }).from(projects).then(r => Number(r[0]?.count ?? 0)),
-      db.select({ count: sql<number>`count(*)::int` }).from(users).where(eq(users.orgId, orgId)).then(r => Number(r[0]?.count ?? 0)),
-      db.select({ count: sql<number>`count(*)::int` }).from(catalogueItems).then(r => Number(r[0]?.count ?? 0)),
+      // Projects: count distinct projects that have at least one user from this org assigned,
+      // using userProjectAssignments → users join as the org-scoping path (projects have no orgId FK).
+      db.selectDistinct({ projectId: userProjectAssignments.projectId })
+        .from(userProjectAssignments)
+        .innerJoin(users, eq(userProjectAssignments.userId, users.id))
+        .where(eq(users.orgId, orgId))
+        .then(r => r.length),
+      // Users: count active members of this org directly.
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(eq(users.orgId, orgId))
+        .then(r => Number(r[0]?.count ?? 0)),
+      // Catalogue items: count items explicitly tagged to this org.
+      // Seed/legacy items with orgId = NULL are excluded so they don't inflate the per-org count.
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(catalogueItems)
+        .where(eq(catalogueItems.orgId, orgId))
+        .then(r => Number(r[0]?.count ?? 0)),
     ]);
     return { projects: projectCount, users: userCount, catalogueItems: catalogueCount };
   }
