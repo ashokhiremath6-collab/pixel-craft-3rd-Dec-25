@@ -106,7 +106,9 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
     isAdmin &&
     !!user?.orgId &&
     !!billingStatus &&
-    (billingStatus.planStatus === 'trialing' || billingStatus.planStatus === 'past_due');
+    (billingStatus.planStatus === 'trialing' ||
+     billingStatus.planStatus === 'past_due' ||
+     billingStatus.planStatus === 'cancelled');
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
@@ -171,14 +173,20 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 {billingStatus?.planStatus === 'past_due'
                   ? 'Your payment is past due. Please update your billing details to avoid service interruption.'
-                  : `You are on a free trial. Upgrade to keep access to all features.`}
+                  : billingStatus?.planStatus === 'cancelled'
+                  ? 'Your subscription has been cancelled. Resubscribe to restore full access.'
+                  : 'You are on a free trial. Upgrade to keep access to all features.'}
               </div>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => window.location.href = '/settings'}
               >
-                {billingStatus?.planStatus === 'past_due' ? 'Fix billing' : 'Upgrade now'}
+                {billingStatus?.planStatus === 'past_due'
+                  ? 'Fix billing'
+                  : billingStatus?.planStatus === 'cancelled'
+                  ? 'Resubscribe'
+                  : 'Upgrade now'}
               </Button>
             </div>
           )}

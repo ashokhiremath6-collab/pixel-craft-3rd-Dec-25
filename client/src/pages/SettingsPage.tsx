@@ -336,9 +336,10 @@ export default function SettingsPage() {
                       {
                         key: 'enterprise',
                         label: 'Enterprise',
-                        price: 'Custom pricing',
+                        price: 'Contact us',
                         desc: 'Custom billing and SLA',
                         features: ['Custom limits', 'Dedicated support', 'SLA guarantee'],
+                        contactSales: true,
                       },
                     ].map((tier) => {
                       const isCurrent =
@@ -364,19 +365,30 @@ export default function SettingsPage() {
                               ))}
                             </ul>
                           </div>
-                          <Button
-                            size="sm"
-                            variant={isCurrent ? 'secondary' : 'default'}
-                            disabled={checkoutMutation.isPending || isCurrent}
-                            onClick={() => checkoutMutation.mutate(tier.key)}
-                          >
-                            <Zap className="h-3 w-3 mr-1" />
-                            {isCurrent
-                              ? 'Current plan'
-                              : billingStatus.planStatus === 'active'
-                              ? `Switch to ${tier.label}`
-                              : `Upgrade to ${tier.label}`}
-                          </Button>
+                          {'contactSales' in tier && tier.contactSales ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => window.open('mailto:sales@pixelcraftdesigner.com?subject=Enterprise%20Plan%20Enquiry', '_blank')}
+                            >
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                              Contact sales
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant={isCurrent ? 'secondary' : 'default'}
+                              disabled={checkoutMutation.isPending || isCurrent}
+                              onClick={() => checkoutMutation.mutate(tier.key)}
+                            >
+                              <Zap className="h-3 w-3 mr-1" />
+                              {isCurrent
+                                ? 'Current plan'
+                                : billingStatus.planStatus === 'active'
+                                ? `Switch to ${tier.label}`
+                                : `Upgrade to ${tier.label}`}
+                            </Button>
+                          )}
                         </div>
                       );
                     })}
