@@ -10868,5 +10868,94 @@ Return your response in the following JSON format only (no markdown, no code blo
 
   const httpServer = createServer(app);
 
+  // ── Scheduled trial-expiry warning job ─────────────────────────────────────
+  // Runs once on startup and then every 24 hours.
+  // Finds orgs on a trial plan whose trial ends within 3 days and that have
+  // not been notified within the last 7 days, then emails all their admins.
+  async function runTrialExpiryWarnings(): Promise<void> {
+    try {
+      const { sendTrialExpiryWarningEmail } = await import("./email");
+      const WARN_WITHIN_DAYS = 3;
+      const SUPPRESS_WITHIN_DAYS = 7;
+      const TRIAL_DURATION_DAYS = 14; // assumed length of a non-Stripe trial
+
+      const orgs = await storage.getOrgsNearTrialExpiry(WARN_WITHIN_DAYS, SUPPRESS_WITHIN_DAYS);
+      if (orgs.length === 0) return;
+
+      console.info(`[TRIAL_EXPIRY_JOB] Found ${orgs.length} org(s) near trial expiry.`);
+
+      for (const org of orgs) {
+        // Determine days remaining
+        let trialEnd: Date;
+        if (org.currentPeriodEnd) {
+          trialEnd = new Date(org.currentPeriodEnd);
+        } else {
+          trialEnd = new Date(org.createdAt.getTime() + TRIAL_DURATION_DAYS * 86_400_000);
+        }
+        const daysRemaining = Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / 86_400_000));
+
+        // Find all admin users for this org
+        const orgUsers = await storage.getUsersByOrg(org.id);
+        const notifiedEmails: string[] = [];
+        const failedEmails: string[] = [];
+        let adminUserId: string | null = null;
+
+        for (const u of orgUsers) {
+          const roleRow = await storage.getUserRole(u.id);
+          if (roleRow?.role !== "admin" || !u.email) continue;
+          adminUserId = adminUserId ?? u.id;
+          try {
+            await sendTrialExpiryWarningEmail(u.email, org.name, daysRemaining);
+            notifiedEmails.push(u.email);
+          } catch (emailErr) {
+            console.error(`[TRIAL_EXPIRY_JOB] Failed to email ${u.email} for org ${org.id}:`, emailErr);
+            failedEmails.push(u.email);
+          }
+        }
+
+        const notifiedAt = new Date();
+
+        // Only suppress future notifications if at least one email was delivered successfully
+        if (notifiedEmails.length > 0) {
+          try {
+            await storage.markOrgTrialExpiryNotified(org.id, notifiedAt);
+          } catch (markErr) {
+            console.error(`[TRIAL_EXPIRY_JOB] Failed to mark org ${org.id} as notified:`, markErr);
+          }
+        }
+
+        // Audit log — even if no admin email was found
+        try {
+          await storage.writeSuperAdminAuditLog({
+            superAdminId: null,
+            action: "trial_expiry_warning_email_sent",
+            targetOrgId: org.id,
+            targetUserId: adminUserId,
+            metadata: {
+              notifiedEmails,
+              failedEmails,
+              daysRemaining,
+              trialEndDate: trialEnd.toISOString(),
+              triggeredBy: "scheduled_job",
+            },
+          });
+        } catch (auditErr) {
+          console.error(`[TRIAL_EXPIRY_JOB] Failed to write audit log for org ${org.id}:`, auditErr);
+        }
+
+        console.info(
+          `[TRIAL_EXPIRY_JOB] Org "${org.name}" (${org.id}): notified ${notifiedEmails.length} admin(s), ` +
+          `${daysRemaining} day(s) remaining.`
+        );
+      }
+    } catch (err) {
+      console.error("[TRIAL_EXPIRY_JOB] Unexpected error:", err);
+    }
+  }
+
+  // Run immediately on startup, then every 24 hours
+  runTrialExpiryWarnings();
+  setInterval(runTrialExpiryWarnings, 24 * 60 * 60 * 1000);
+
   return httpServer;
 }

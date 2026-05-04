@@ -254,14 +254,21 @@ export async function sendPlanChangedEmail(
   });
 }
 
-export async function sendTrialExpiryEmail(
+function trialUrgencyPhrase(daysRemaining: number): string {
+  if (daysRemaining === 0) return "expires today";
+  if (daysRemaining === 1) return "expires tomorrow";
+  return `expires in ${daysRemaining} days`;
+}
+
+async function sendTrialExpiryEmailCore(
   email: string,
   orgName: string,
-  daysRemaining: number
+  daysRemaining: number,
+  logPrefix: string
 ): Promise<void> {
-  const urgency = daysRemaining <= 1 ? "expires today" : `expires in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}`;
+  const urgency = trialUrgencyPhrase(daysRemaining);
   console.info(
-    `[EMAIL] Trial expiry warning for ${email} (org: ${orgName}): ${daysRemaining} days remaining`
+    `[EMAIL] ${logPrefix} for ${email} (org: ${orgName}): ${daysRemaining} day(s) remaining`
   );
   await sendEmail({
     to: email,
@@ -287,6 +294,24 @@ export async function sendTrialExpiryEmail(
     `,
     text: `Your ${orgName} trial on PixelCraft Designer ${urgency}.\n\nAfter it ends, your workspace will be restricted to read-only access until you upgrade. Log in to your workspace to upgrade your plan.\n\nIf you have questions, please contact support.`,
   });
+}
+
+/** Stripe-webhook-triggered trial expiry email (fired by customer.subscription.trial_will_end). */
+export async function sendTrialExpiryEmail(
+  email: string,
+  orgName: string,
+  daysRemaining: number
+): Promise<void> {
+  return sendTrialExpiryEmailCore(email, orgName, daysRemaining, "Trial expiry warning (Stripe webhook)");
+}
+
+/** Scheduled-job-triggered trial expiry warning email (fired by the daily expiry check job). */
+export async function sendTrialExpiryWarningEmail(
+  email: string,
+  orgName: string,
+  daysRemaining: number
+): Promise<void> {
+  return sendTrialExpiryEmailCore(email, orgName, daysRemaining, "Automated trial expiry warning");
 }
 
 export async function sendVerificationEmail(

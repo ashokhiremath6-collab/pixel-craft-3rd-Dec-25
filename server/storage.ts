@@ -153,6 +153,8 @@ export interface IStorage {
   getOrganisationBySlug(slug: string): Promise<Organisation | undefined>;
   getOrganisationByStripeCustomerId(customerId: string): Promise<Organisation | undefined>;
   updateOrganisation(id: string, updates: Partial<InsertOrganisation>): Promise<Organisation | undefined>;
+  getOrgsNearTrialExpiry(withinDays: number, notifiedWithinDays: number): Promise<Organisation[]>;
+  markOrgTrialExpiryNotified(orgId: string, notifiedAt: Date): Promise<void>;
 
   // Invitations
   createInvitation(inv: InsertInvitation): Promise<Invitation>;
@@ -1389,6 +1391,8 @@ export class MemStorage implements IStorage {
   async getOrganisationBySlug(slug: string): Promise<Organisation | undefined> { return undefined; }
   async getOrganisationByStripeCustomerId(customerId: string): Promise<Organisation | undefined> { return undefined; }
   async updateOrganisation(id: string, updates: Partial<InsertOrganisation>): Promise<Organisation | undefined> { return undefined; }
+  async getOrgsNearTrialExpiry(_withinDays: number, _notifiedWithinDays: number): Promise<Organisation[]> { return []; }
+  async markOrgTrialExpiryNotified(_orgId: string, _notifiedAt: Date): Promise<void> {}
   async createInvitation(inv: InsertInvitation): Promise<Invitation> {
     throw new Error("MemStorage: createInvitation not supported");
   }
@@ -3341,6 +3345,49 @@ export class DBStorage implements IStorage {
   async updateOrganisation(id: string, updates: Partial<InsertOrganisation>): Promise<Organisation | undefined> {
     const result = await db.update(organisations).set(updates).where(eq(organisations.id, id)).returning();
     return result[0];
+  }
+
+  async getOrgsNearTrialExpiry(withinDays: number, notifiedWithinDays: number): Promise<Organisation[]> {
+    const now = new Date();
+    const windowEnd = new Date(Date.now() + withinDays * 86_400_000);
+    const suppressBefore = new Date(Date.now() - notifiedWithinDays * 86_400_000);
+    const trialDurationMs = 14 * 86_400_000;
+
+    const rows = await db
+      .select()
+      .from(organisations)
+      .where(
+        and(
+          eq(organisations.plan, "trial"),
+          eq(organisations.planStatus, "trialing"),
+          // Trial must end within the warning window AND must not already be expired
+          or(
+            and(
+              sql`${organisations.currentPeriodEnd} IS NOT NULL`,
+              sql`${organisations.currentPeriodEnd} >= ${now}`,
+              sql`${organisations.currentPeriodEnd} <= ${windowEnd}`
+            ),
+            and(
+              isNull(organisations.currentPeriodEnd),
+              sql`${organisations.createdAt} + ${trialDurationMs} * INTERVAL '1 millisecond' >= ${now}`,
+              sql`${organisations.createdAt} + ${trialDurationMs} * INTERVAL '1 millisecond' <= ${windowEnd}`
+            )
+          ),
+          // Suppress if already notified within the suppression window
+          or(
+            isNull(organisations.trialExpiryNotifiedAt),
+            sql`${organisations.trialExpiryNotifiedAt} < ${suppressBefore}`
+          )
+        )
+      );
+    return rows;
+  }
+
+  async markOrgTrialExpiryNotified(orgId: string, notifiedAt: Date): Promise<void> {
+    await db
+      .update(organisations)
+      .set({ trialExpiryNotifiedAt: notifiedAt })
+      .where(eq(organisations.id, orgId));
   }
 
   // Invitations

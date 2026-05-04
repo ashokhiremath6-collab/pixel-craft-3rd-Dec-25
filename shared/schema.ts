@@ -816,6 +816,7 @@ export const organisations = pgTable("organisations", {
   stripeSubscriptionId: text("stripe_subscription_id"),
   planStatus: text("plan_status").notNull().default("trialing"), // trialing, active, past_due, cancelled
   currentPeriodEnd: timestamp("current_period_end"),
+  trialExpiryNotifiedAt: timestamp("trial_expiry_notified_at"), // last time a trial-expiry warning was auto-sent
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 

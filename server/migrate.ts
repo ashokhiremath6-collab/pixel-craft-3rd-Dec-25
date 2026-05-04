@@ -41,6 +41,8 @@ async function ensureBillingColumns(pool: Pool): Promise<void> {
     `CREATE INDEX IF NOT EXISTS superadmin_audit_created_at_idx ON superadmin_audit_log(created_at)`,
     // Allow system/webhook events to have a null actor (previously NOT NULL)
     `ALTER TABLE superadmin_audit_log ALTER COLUMN super_admin_id DROP NOT NULL`,
+    // Trial-expiry notification tracking
+    `ALTER TABLE organisations ADD COLUMN IF NOT EXISTS trial_expiry_notified_at TIMESTAMP`,
   ];
 
   // Elevate any emails listed in SUPER_ADMIN_EMAILS env var.
