@@ -10973,7 +10973,7 @@ Return your response in the following JSON format only (no markdown, no code blo
 
   // ── Notification preferences ────────────────────────────────────────────────
   // GET /api/user/notification-preferences
-  app.get("/api/user/notification-preferences", requireAdmin, async (req, res) => {
+  app.get("/api/user/notification-preferences", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
       const prefs = await storage.getNotificationPreferences(userId);
@@ -10985,13 +10985,15 @@ Return your response in the following JSON format only (no markdown, no code blo
   });
 
   // PATCH /api/user/notification-preferences
-  app.patch("/api/user/notification-preferences", requireAdmin, async (req, res) => {
+  app.patch("/api/user/notification-preferences", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
       const schema = z.object({
         planChanges: z.boolean().optional(),
         paymentFailures: z.boolean().optional(),
         trialExpiry: z.boolean().optional(),
+        invitationAccepted: z.boolean().optional(),
+        projectUpdates: z.boolean().optional(),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {

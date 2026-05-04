@@ -822,13 +822,23 @@ export const organisations = pgTable("organisations", {
 
 // Notification preferences shape stored per-user in jsonb
 export interface NotificationPreferences {
+  // Admin-relevant preferences
   planChanges: boolean;
   paymentFailures: boolean;
   trialExpiry: boolean;
+  // Non-admin-relevant preferences
+  invitationAccepted: boolean;
+  projectUpdates: boolean;
 }
 
 export function defaultNotificationPreferences(): NotificationPreferences {
-  return { planChanges: true, paymentFailures: true, trialExpiry: true };
+  return {
+    planChanges: true,
+    paymentFailures: true,
+    trialExpiry: true,
+    invitationAccepted: true,
+    projectUpdates: true,
+  };
 }
 
 export function parseNotificationPreferences(raw: unknown): NotificationPreferences {
@@ -839,6 +849,8 @@ export function parseNotificationPreferences(raw: unknown): NotificationPreferen
     planChanges: typeof p.planChanges === "boolean" ? p.planChanges : defaults.planChanges,
     paymentFailures: typeof p.paymentFailures === "boolean" ? p.paymentFailures : defaults.paymentFailures,
     trialExpiry: typeof p.trialExpiry === "boolean" ? p.trialExpiry : defaults.trialExpiry,
+    invitationAccepted: typeof p.invitationAccepted === "boolean" ? p.invitationAccepted : defaults.invitationAccepted,
+    projectUpdates: typeof p.projectUpdates === "boolean" ? p.projectUpdates : defaults.projectUpdates,
   };
 }
 
