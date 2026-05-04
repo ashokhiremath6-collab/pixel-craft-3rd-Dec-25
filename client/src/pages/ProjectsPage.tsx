@@ -108,6 +108,7 @@ export default function ProjectsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/usage'] });
       setIsAddingProject(false);
       addForm.reset();
       toast({
@@ -154,6 +155,7 @@ export default function ProjectsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/usage'] });
       setDeletingProject(null);
       toast({
         title: "Success",

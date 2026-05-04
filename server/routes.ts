@@ -92,7 +92,9 @@ async function checkOrgLimit(
     ? (current as number) + incomingBytes / (1024 * 1024 * 1024)
     : current;
 
-  if (limit < UNLIMITED && effective >= limit) {
+  // Use strict ">" so an upload that lands exactly on the limit is still allowed.
+  // An upload exceeding the limit (effective strictly greater than limit) is rejected.
+  if (limit < UNLIMITED && effective > limit) {
     const label = resource === 'projects' ? 'projects'
       : resource === 'users' ? 'team members'
       : resource === 'storageGb' ? 'GB of storage'
@@ -8541,7 +8543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.body.title) updates.title = req.body.title;
       if (req.body.description !== undefined) updates.description = req.body.description || null;
 
-      // Handle file upload if provided
+      // Handle file upload if provided (update — no storage limit check for replacements)
       if (req.file) {
         const userId = (req.user as any).id;
         const objectPath = await uploadToObjectStorage(
@@ -8549,8 +8551,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req.file.originalname,
           userId,
           req.file.mimetype
-        ,
-          (req.user as any).orgId
         );
         updates.fileName = req.file.originalname;
         updates.filePath = objectPath;
@@ -8988,7 +8988,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.body.location !== undefined) updates.location = req.body.location || null;
       if (req.body.summary !== undefined) updates.summary = req.body.summary || null;
 
-      // Handle file upload if provided
+      // Handle file upload if provided (update — no storage limit check for replacements)
       if (req.file) {
         const userId = (req.user as any).id;
         const objectPath = await uploadToObjectStorage(
@@ -8996,8 +8996,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req.file.originalname,
           userId,
           req.file.mimetype
-        ,
-          (req.user as any).orgId
         );
         updates.fileName = req.file.originalname;
         updates.filePath = objectPath;

@@ -8,7 +8,8 @@ import fs from "fs";
 neonConfig.webSocketConstructor = ws;
 
 /**
- * Bootstrap DDL: ensure the billing columns on `organisations` exist.
+ * Bootstrap DDL: ensure the billing columns on `organisations` exist, and
+ * add org_id columns to tables that need per-org scoping for usage accounting.
  * Uses IF NOT EXISTS so it is safe to run on every startup and is a no-op
  * once the columns are present.  This runs even when the /migrations folder
  * is absent so that existing deployments get the schema without requiring a
@@ -16,11 +17,22 @@ neonConfig.webSocketConstructor = ws;
  */
 async function ensureBillingColumns(pool: Pool): Promise<void> {
   const statements = [
+    // --- Organisation billing columns ---
     `ALTER TABLE organisations ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT`,
     `ALTER TABLE organisations ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT`,
     `ALTER TABLE organisations ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'trial'`,
     `ALTER TABLE organisations ADD COLUMN IF NOT EXISTS plan_status TEXT NOT NULL DEFAULT 'trialing'`,
     `ALTER TABLE organisations ADD COLUMN IF NOT EXISTS current_period_end TIMESTAMP`,
+    // --- Per-org scoping columns (plan limits & usage accounting) ---
+    // projects.org_id links each project to an organisation so it can be counted
+    // against the org's plan quota and storage usage.
+    `ALTER TABLE projects ADD COLUMN IF NOT EXISTS org_id TEXT REFERENCES organisations(id)`,
+    // catalogue_items.org_id allows per-org catalogue item counting.
+    // Seed/legacy items remain with org_id = NULL and are excluded from quota checks.
+    `ALTER TABLE catalogue_items ADD COLUMN IF NOT EXISTS org_id TEXT REFERENCES organisations(id)`,
+    // Index for fast per-org queries on both tables.
+    `CREATE INDEX IF NOT EXISTS projects_org_id_idx ON projects(org_id)`,
+    `CREATE INDEX IF NOT EXISTS catalogue_items_org_id_idx ON catalogue_items(org_id)`,
   ];
   for (const sql of statements) {
     try {
@@ -28,7 +40,7 @@ async function ensureBillingColumns(pool: Pool): Promise<void> {
     } catch (err) {
       // Log but don't throw — a column-already-exists error would only appear
       // on pre-IF-NOT-EXISTS Postgres versions (< 9.6), which are not in use.
-      console.warn("[migrate] billing column check:", (err as Error).message);
+      console.warn("[migrate] schema check:", (err as Error).message);
     }
   }
   console.log("✅ Organisation billing columns verified");

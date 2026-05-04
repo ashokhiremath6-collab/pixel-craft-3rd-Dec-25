@@ -260,6 +260,7 @@ export default function CataloguePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/catalogue"] });
       queryClient.invalidateQueries({ queryKey: ["/api/catalogue/categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/billing/usage"] });
       setDialogOpen(false);
       setEditingItem(null);
       setSelectedFile(null);
@@ -286,6 +287,7 @@ export default function CataloguePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/catalogue"] });
       queryClient.invalidateQueries({ queryKey: ["/api/catalogue/categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/billing/usage"] });
       toast({
         title: "Success",
         description: "Catalogue item deleted successfully",
