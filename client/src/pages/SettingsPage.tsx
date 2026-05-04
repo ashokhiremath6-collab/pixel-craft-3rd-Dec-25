@@ -64,26 +64,31 @@ export default function SettingsPage() {
     defaultValues: { email: "", role: "designer" },
   });
 
+  const isAdmin = !authLoading && currentUser?.role === "admin";
+
   const { data: users, isLoading } = useQuery<UserWithRole[]>({
     queryKey: ["/api/users"],
+    enabled: isAdmin,
   });
 
   const { data: projects, isLoading: projectsLoading, isError: projectsError } = useQuery<Project[]>({
     queryKey: ["/api/projects/all"],
+    enabled: isAdmin,
   });
 
   const { data: allAssignments, isLoading: assignmentsLoading, isError: assignmentsError } = useQuery<UserProjectAssignment[]>({
     queryKey: ["/api/user-project-assignments"],
+    enabled: isAdmin,
   });
 
   const { data: invitations, isLoading: invitationsLoading } = useQuery<Invitation[]>({
     queryKey: ["/api/invitations"],
-    enabled: currentUser?.role === "admin" && !!currentUser?.orgId,
+    enabled: isAdmin && !!currentUser?.orgId,
   });
 
   const { data: billingStatus } = useQuery<BillingStatus>({
     queryKey: ["/api/billing/status"],
-    enabled: currentUser?.role === "admin" && !!currentUser?.orgId,
+    enabled: isAdmin && !!currentUser?.orgId,
   });
 
   const { data: usageData } = useQuery<{
@@ -92,7 +97,7 @@ export default function SettingsPage() {
     usage: { projects: number; users: number; catalogueItems: number; storageGb: number };
   }>({
     queryKey: ["/api/billing/usage"],
-    enabled: currentUser?.role === "admin" && !!currentUser?.orgId,
+    enabled: isAdmin && !!currentUser?.orgId,
   });
 
   const checkoutMutation = useMutation({
