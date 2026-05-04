@@ -13,8 +13,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock } from "lucide-react";
+import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock, CreditCard, Zap, AlertTriangle, ExternalLink } from "lucide-react";
 import type { User, Project, UserProjectAssignment } from "@shared/schema";
+
+interface BillingStatus {
+  plan: string;
+  planStatus: string;
+  currentPeriodEnd: string | null;
+  hasStripeCustomer: boolean;
+}
 
 type UserWithRole = User & {
   role: string | null;
@@ -63,6 +70,37 @@ export default function SettingsPage() {
   const { data: invitations, isLoading: invitationsLoading } = useQuery<Invitation[]>({
     queryKey: ["/api/invitations"],
     enabled: currentUser?.role === "admin" && !!currentUser?.orgId,
+  });
+
+  const { data: billingStatus } = useQuery<BillingStatus>({
+    queryKey: ["/api/billing/status"],
+    enabled: currentUser?.role === "admin" && !!currentUser?.orgId,
+  });
+
+  const checkoutMutation = useMutation({
+    mutationFn: async (plan: string) => {
+      const res = await apiRequest("POST", "/api/billing/checkout", { plan });
+      return res.json();
+    },
+    onSuccess: (data: { url: string }) => {
+      if (data.url) window.location.href = data.url;
+    },
+    onError: (error: Error) => {
+      toast({ title: "Checkout error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const portalMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/billing/portal", {});
+      return res.json();
+    },
+    onSuccess: (data: { url: string }) => {
+      if (data.url) window.location.href = data.url;
+    },
+    onError: (error: Error) => {
+      toast({ title: "Portal error", description: error.message, variant: "destructive" });
+    },
   });
 
   const updateRoleMutation = useMutation({
@@ -233,6 +271,101 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-semibold" data-testid="heading-settings">Settings</h1>
         <p className="text-muted-foreground">Manage users and system preferences</p>
       </div>
+
+      {/* Billing — only for admins with an org */}
+      {currentUser?.role === "admin" && currentUser?.orgId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Billing &amp; Subscription
+            </CardTitle>
+            <CardDescription>
+              Manage your plan, view your subscription status, and update payment details.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {billingStatus ? (
+              <>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Current plan:</span>
+                    <Badge variant="default" className="capitalize">{billingStatus.plan}</Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Status:</span>
+                    <Badge
+                      variant={
+                        billingStatus.planStatus === 'active' ? 'default' :
+                        billingStatus.planStatus === 'past_due' ? 'destructive' :
+                        'secondary'
+                      }
+                      className="capitalize"
+                    >
+                      {billingStatus.planStatus === 'trialing' ? 'Free trial' : billingStatus.planStatus.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                  {billingStatus.currentPeriodEnd && (
+                    <span className="text-sm text-muted-foreground">
+                      {billingStatus.planStatus === 'trialing' ? 'Trial ends' : 'Renews'}:{' '}
+                      {new Date(billingStatus.currentPeriodEnd).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+
+                {billingStatus.planStatus !== 'active' && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">Choose a plan</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {[
+                        { key: 'starter', label: 'Starter', desc: 'For small teams up to 5 users' },
+                        { key: 'pro', label: 'Pro', desc: 'Unlimited users and projects' },
+                        { key: 'enterprise', label: 'Enterprise', desc: 'Custom billing and SLA' },
+                      ].map((tier) => (
+                        <div key={tier.key} className="flex flex-col gap-2 rounded-md border p-3">
+                          <div>
+                            <p className="font-medium text-sm">{tier.label}</p>
+                            <p className="text-xs text-muted-foreground">{tier.desc}</p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant={billingStatus.plan === tier.key ? 'secondary' : 'default'}
+                            disabled={checkoutMutation.isPending || billingStatus.plan === tier.key}
+                            onClick={() => checkoutMutation.mutate(tier.key)}
+                          >
+                            <Zap className="h-3 w-3 mr-1" />
+                            {billingStatus.plan === tier.key ? 'Current plan' : `Upgrade to ${tier.label}`}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {billingStatus.hasStripeCustomer && (
+                  <Button
+                    variant="outline"
+                    disabled={portalMutation.isPending}
+                    onClick={() => portalMutation.mutate()}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    {portalMutation.isPending ? 'Opening…' : 'Manage billing in Stripe'}
+                  </Button>
+                )}
+
+                {billingStatus.planStatus === 'past_due' && (
+                  <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>Your last payment failed. Please update your payment method to avoid service interruption.</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Loading billing information…</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Invite Team Members — only for admins with an org */}
       {currentUser?.role === "admin" && currentUser?.orgId && (

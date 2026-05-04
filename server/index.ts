@@ -2,8 +2,32 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
+import { WebhookHandlers } from "./webhookHandlers";
 
 const app = express();
+
+// Stripe webhook MUST receive the raw body before express.json() parses it.
+// This route is intentionally placed before the global json middleware.
+app.post(
+  '/api/billing/webhook',
+  express.raw({ type: 'application/json' }),
+  async (req: Request, res: Response) => {
+    const sig = req.headers['stripe-signature'];
+    if (!sig || typeof sig !== 'string') {
+      res.status(400).json({ error: 'Missing stripe-signature header' });
+      return;
+    }
+    try {
+      await WebhookHandlers.processWebhook(req.body as Buffer, sig);
+      res.json({ received: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Webhook processing failed';
+      console.error('[webhook] Error:', message);
+      res.status(400).json({ error: message });
+    }
+  }
+);
+
 app.use(express.json({ limit: '100mb' })); // Increased to 100MB to support large file uploads
 app.use(express.urlencoded({ extended: false, limit: '100mb' }));
 

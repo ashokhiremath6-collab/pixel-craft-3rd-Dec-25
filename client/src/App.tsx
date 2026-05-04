@@ -37,9 +37,10 @@ import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import SignUpPage from "@/pages/SignUpPage";
 import InviteAcceptPage from "@/pages/InviteAcceptPage";
 import OnboardingWizard from "@/components/OnboardingWizard";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Shield, User, Crown, Eye } from "lucide-react";
+import { LogOut, Shield, User, Crown, Eye, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 const ELEVATED_ROLES = ['admin', 'designer', 'project_manager'];
@@ -78,6 +79,13 @@ function Router() {
   );
 }
 
+interface BillingStatus {
+  plan: string;
+  planStatus: string;
+  currentPeriodEnd: string | null;
+  hasStripeCustomer: boolean;
+}
+
 function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: () => void }) {
   const { logout, user } = useAuth();
 
@@ -87,6 +95,18 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
   };
 
   const canPreviewPortal = ELEVATED_ROLES.includes(user?.role || '');
+
+  const isAdmin = user?.role === 'admin';
+  const { data: billingStatus } = useQuery<BillingStatus>({
+    queryKey: ["/api/billing/status"],
+    enabled: isAdmin && !!user?.orgId,
+  });
+
+  const showTrialBanner =
+    isAdmin &&
+    !!user?.orgId &&
+    !!billingStatus &&
+    (billingStatus.planStatus === 'trialing' || billingStatus.planStatus === 'past_due');
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
@@ -145,6 +165,23 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
               <ThemeToggle />
             </div>
           </header>
+          {showTrialBanner && (
+            <div className={`flex items-center justify-between gap-3 px-4 py-2 text-sm shrink-0 ${billingStatus?.planStatus === 'past_due' ? 'bg-destructive/10 text-destructive' : 'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300'}`}>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {billingStatus?.planStatus === 'past_due'
+                  ? 'Your payment is past due. Please update your billing details to avoid service interruption.'
+                  : `You are on a free trial. Upgrade to keep access to all features.`}
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => window.location.href = '/settings'}
+              >
+                {billingStatus?.planStatus === 'past_due' ? 'Fix billing' : 'Upgrade now'}
+              </Button>
+            </div>
+          )}
           <main className="flex-1 overflow-auto p-4 sm:p-6 bg-background min-w-0">
             <Router />
           </main>

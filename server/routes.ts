@@ -10147,6 +10147,111 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // =============================================
+  // BILLING ROUTES (Stripe)
+  // =============================================
+  // Note: POST /api/billing/webhook is registered in server/index.ts
+  // BEFORE express.json() so it receives the raw body required for
+  // Stripe signature verification. All other billing endpoints live here.
+
+  // Map plan slugs to Stripe price IDs (set via environment variables)
+  const PLAN_PRICE_IDS: Record<string, string | undefined> = {
+    starter: process.env.STRIPE_PRICE_STARTER,
+    pro: process.env.STRIPE_PRICE_PRO,
+    enterprise: process.env.STRIPE_PRICE_ENTERPRISE,
+  };
+
+  function getBillingBaseUrl(req: any): string {
+    const domains = process.env.REPLIT_DOMAINS;
+    return process.env.APP_URL ||
+      (domains ? `https://${domains.split(',')[0].trim()}` : `${req.protocol}://${req.hostname}`);
+  }
+
+  // GET /api/billing/status — current org plan info (admin only)
+  app.get('/api/billing/status', requireAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user.orgId) return res.status(400).json({ error: 'No organisation linked to this account' });
+      const org = await storage.getOrganisation(user.orgId);
+      if (!org) return res.status(404).json({ error: 'Organisation not found' });
+      res.json({
+        plan: org.plan,
+        planStatus: org.planStatus,
+        currentPeriodEnd: org.currentPeriodEnd,
+        hasStripeCustomer: !!org.stripeCustomerId,
+      });
+    } catch (error) {
+      console.error('Error fetching billing status:', error);
+      res.status(500).json({ error: 'Failed to fetch billing status' });
+    }
+  });
+
+  // POST /api/billing/checkout — create a Stripe Checkout session (admin only)
+  app.post('/api/billing/checkout', requireAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user.orgId) return res.status(400).json({ error: 'No organisation linked to this account' });
+      const org = await storage.getOrganisation(user.orgId);
+      if (!org) return res.status(404).json({ error: 'Organisation not found' });
+
+      const { plan } = req.body;
+      if (!plan || !PLAN_PRICE_IDS[plan]) {
+        return res.status(400).json({
+          error: `Invalid plan. Valid options: ${Object.keys(PLAN_PRICE_IDS).join(', ')}`,
+        });
+      }
+
+      const priceId = PLAN_PRICE_IDS[plan];
+      if (!priceId) {
+        return res.status(400).json({ error: `Price ID for plan "${plan}" is not configured (set STRIPE_PRICE_${plan.toUpperCase()})` });
+      }
+
+      const { getUncachableStripeClient } = await import('./stripeClient');
+      const stripe = await getUncachableStripeClient();
+
+      const baseUrl = getBillingBaseUrl(req);
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        customer: org.stripeCustomerId || undefined,
+        line_items: [{ price: priceId, quantity: 1 }],
+        metadata: { orgId: org.id, plan },
+        success_url: `${baseUrl}/settings?billing=success`,
+        cancel_url: `${baseUrl}/settings?billing=cancelled`,
+      });
+
+      res.json({ url: session.url });
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create checkout session' });
+    }
+  });
+
+  // POST /api/billing/portal — create a Stripe Customer Portal session (admin only)
+  app.post('/api/billing/portal', requireAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user.orgId) return res.status(400).json({ error: 'No organisation linked to this account' });
+      const org = await storage.getOrganisation(user.orgId);
+      if (!org) return res.status(404).json({ error: 'Organisation not found' });
+      if (!org.stripeCustomerId) {
+        return res.status(400).json({ error: 'No Stripe customer associated with this account. Subscribe first.' });
+      }
+
+      const { getUncachableStripeClient } = await import('./stripeClient');
+      const stripe = await getUncachableStripeClient();
+
+      const session = await stripe.billingPortal.sessions.create({
+        customer: org.stripeCustomerId,
+        return_url: `${getBillingBaseUrl(req)}/settings`,
+      });
+
+      res.json({ url: session.url });
+    } catch (error) {
+      console.error('Error creating portal session:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create portal session' });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
