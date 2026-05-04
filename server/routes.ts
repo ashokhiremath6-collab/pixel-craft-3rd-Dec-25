@@ -623,9 +623,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Org boundary: caller with an org can only manage users in the same org
+      // Strict org boundary: org admins can only manage users in their own org.
+      // Legacy admins (no orgId) retain unrestricted access for backward compat.
       const caller = await storage.getUser((req.user as any).id);
-      if (caller?.orgId && user.orgId && user.orgId !== caller.orgId) {
+      if (caller?.orgId && user.orgId !== caller.orgId) {
         return res.status(403).json({ error: "You can only manage users within your own workspace." });
       }
 
