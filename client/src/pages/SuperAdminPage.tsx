@@ -256,15 +256,17 @@ function OrgDetailPanel({ orgId, onBack, currentUserId }: { orgId: string; onBac
                       }
                     </Button>
                   )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => impersonateMutation.mutate(u.id)}
-                    disabled={impersonateMutation.isPending}
-                    title={`Impersonate ${u.email}`}
-                  >
-                    <Eye className="h-3 w-3 mr-1" />Impersonate
-                  </Button>
+                  {u.id !== currentUserId && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => impersonateMutation.mutate(u.id)}
+                      disabled={impersonateMutation.isPending}
+                      title={`Impersonate ${u.email}`}
+                    >
+                      <Eye className="h-3 w-3 mr-1" />Impersonate
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}

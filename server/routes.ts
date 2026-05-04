@@ -10690,6 +10690,10 @@ Return your response in the following JSON format only (no markdown, no code blo
       const { userId } = req.params;
       const superAdminId = req.session.originalUserId ?? (req.user as { id: string }).id;
 
+      if (userId === superAdminId) {
+        return res.status(400).json({ error: "You cannot impersonate yourself" });
+      }
+
       const targetUser = await storage.getUser(userId);
       if (!targetUser) return res.status(404).json({ error: "User not found" });
 
