@@ -450,3 +450,20 @@ export const requireProjectManagerOrAdmin: RequestHandler = async (req, res, nex
     return res.status(500).json({ error: "Failed to check authorization" });
   }
 };
+
+// Require system-level super-admin flag on the user record.
+// Used to gate all /api/superadmin/* routes.
+export const requireSuperAdmin: RequestHandler = async (req, res, next) => {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  try {
+    const user = await storage.getUser((req.user as any).id);
+    if (!user || !(user as any).isSuperAdmin) {
+      return res.status(403).json({ error: "Super-admin access required" });
+    }
+    next();
+  } catch {
+    return res.status(500).json({ error: "Failed to check authorization" });
+  }
+};

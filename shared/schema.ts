@@ -833,6 +833,7 @@ export const users = pgTable("users", {
   passwordResetTokenExpiry: timestamp("password_reset_token_expiry"),
   orgId: varchar("org_id"), // FK to organisations; null for legacy users
   onboardingCompletedAt: timestamp("onboarding_completed_at"), // null = wizard not yet shown
+  isSuperAdmin: boolean("is_super_admin").notNull().default(false), // system-level super-admin flag
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -949,3 +950,20 @@ export const insertSopSchema = createInsertSchema(sops).omit({
 
 export type InsertSop = z.infer<typeof insertSopSchema>;
 export type Sop = typeof sops.$inferSelect;
+
+// Super-admin audit log — every privileged action is recorded here
+export const superadminAuditLog = pgTable("superadmin_audit_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  superAdminId: varchar("super_admin_id").notNull().references(() => users.id),
+  action: text("action").notNull(), // plan_override, impersonate
+  targetOrgId: varchar("target_org_id").references(() => organisations.id),
+  targetUserId: varchar("target_user_id").references(() => users.id),
+  metadata: jsonb("metadata"), // e.g. { previousPlan, newPlan }
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => ({
+  superAdminIdx: index("superadmin_audit_super_admin_idx").on(table.superAdminId),
+  createdAtIdx: index("superadmin_audit_created_at_idx").on(table.createdAt),
+}));
+
+export type SuperadminAuditLog = typeof superadminAuditLog.$inferSelect;
+export type InsertSuperadminAuditLog = typeof superadminAuditLog.$inferInsert;

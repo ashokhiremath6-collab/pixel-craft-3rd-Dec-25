@@ -11,6 +11,9 @@ interface User {
   role: 'admin' | 'designer' | 'project_manager' | 'client';
   orgId: string | null;
   onboardingCompletedAt: string | null;
+  isSuperAdmin?: boolean;
+  _impersonating?: boolean;
+  _originalUserId?: string;
 }
 
 export function useAuth() {

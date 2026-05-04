@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Switch, Route, useLocation } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import ThemeToggle from "@/components/ThemeToggle";
 import NotFound from "@/pages/not-found";
 import DashboardPage from "@/pages/DashboardPage";
+import SuperAdminPage from "@/pages/SuperAdminPage";
 import VendorsPage from "@/pages/VendorsPage";
 import ProjectsPage from "@/pages/ProjectsPage";
 import FloorPlansPage from "@/pages/FloorPlansPage";
@@ -74,6 +75,7 @@ function Router() {
       <Route path="/client-access" component={ClientAccessPage} />
       <Route path="/sops" component={SOPsPage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/superadmin" component={SuperAdminPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -167,6 +169,30 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
               <ThemeToggle />
             </div>
           </header>
+          {/* Impersonation banner — shown when a super-admin is acting as another user */}
+          {(user as any)?._impersonating && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm shrink-0 bg-orange-100 dark:bg-orange-950/40 text-orange-900 dark:text-orange-300 border-b border-orange-200 dark:border-orange-800">
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 shrink-0" />
+                <span>Impersonating <strong>{user?.email}</strong> — you are viewing the app as this user.</span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    await apiRequest("POST", "/api/superadmin/impersonate/exit");
+                    queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+                    setTimeout(() => window.location.reload(), 400);
+                  } catch {
+                    window.location.reload();
+                  }
+                }}
+              >
+                Exit impersonation
+              </Button>
+            </div>
+          )}
           {showTrialBanner && (
             <div className={`flex items-center justify-between gap-3 px-4 py-2 text-sm shrink-0 ${billingStatus?.planStatus === 'past_due' ? 'bg-destructive/10 text-destructive' : 'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300'}`}>
               <div className="flex items-center gap-2">

@@ -19,7 +19,7 @@ import bcrypt from "bcrypt";
 import { sql } from "drizzle-orm";
 import { storage } from "./storage";
 import { getPlanLimits, UNLIMITED } from "./planLimits";
-import { setupAuth, isAuthenticated, requireAuth, requireAdmin, requireAdminOnly, requireProjectManagerOrAdmin } from "./localAuth";
+import { setupAuth, isAuthenticated, requireAuth, requireAdmin, requireAdminOnly, requireProjectManagerOrAdmin, requireSuperAdmin } from "./localAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { RENDER_STYLES, generateInteriorRender, generateConceptRender, generatePhotorealConversion, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
@@ -57,6 +57,8 @@ declare module 'express-session' {
   interface SessionData {
     userId?: string;
     userRole?: string;
+    impersonatingUserId?: string; // set when a super-admin is impersonating another user
+    originalUserId?: string;      // the real super-admin's user id during impersonation
   }
 }
 
@@ -653,8 +655,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Real auth endpoint to get current user
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = (req.user as any).id;
-      const user = await storage.getUser(userId);
+      // If a super-admin is impersonating someone, return the impersonated user's context.
+      const impersonatingId = req.session?.impersonatingUserId as string | undefined;
+      const effectiveId = impersonatingId ?? (req.user as any).id;
+
+      const user = await storage.getUser(effectiveId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -666,6 +671,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: userRole?.role || "client",
         orgId: user.orgId || null,
         onboardingCompletedAt: user.onboardingCompletedAt || null,
+        isSuperAdmin: (user as any).isSuperAdmin ?? false,
+        _impersonating: !!impersonatingId,
+        _originalUserId: impersonatingId ? req.session.originalUserId : undefined,
       });
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -5108,9 +5116,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Task Management API Routes
 
   // Get all tasks across all projects
-  app.get("/api/tasks", requireAuth, async (req, res) => {
+  app.get("/api/tasks", requireAuth, async (req: any, res) => {
     try {
-      const tasks = await storage.getAllTasks();
+      // Scope tasks to the authenticated user's organisation so the dashboard
+      // only shows tasks that belong to this workspace.
+      const userId = (req.user as any).id;
+      const user = await storage.getUser(userId);
+      const orgId = user?.orgId ?? undefined;
+      const tasks = await storage.getAllTasks(orgId);
       res.json(tasks);
     } catch (error) {
       console.error('Error fetching all tasks:', error);
@@ -5363,6 +5376,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const createdTasks = [];
       const errors: Array<{ row: number; error: string; data: any }> = [];
+      // Base timestamp so each row gets a unique +1ms createdAt offset —
+      // prevents PostgreSQL now() ties which would make row order nondeterministic.
+      const csvImportBaseTime = Date.now();
       
       for (let i = 0; i < parseResult.data.length; i++) {
         const row: any = parseResult.data[i];
@@ -5408,9 +5424,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             throw new Error("End date is required");
           }
 
-          // Validate with schema
+          // Validate with schema (omits createdAt — we add it explicitly below)
           const validatedData = insertTaskSchema.parse(taskData);
-          const task = await storage.createTask(validatedData);
+          // Stamp rowIndex and createdAt explicitly so insertion order is always
+          // preserved even when PostgreSQL's now() resolves to the same millisecond
+          // for consecutive inserts within a single import batch.
+          const taskWithOrdering = {
+            ...validatedData,
+            rowIndex: i,
+            createdAt: new Date(csvImportBaseTime + i),
+          };
+          const task = await storage.createTask(taskWithOrdering as any);
           createdTasks.push(task);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Invalid data';
@@ -10394,6 +10418,161 @@ Return your response in the following JSON format only (no markdown, no code blo
     } catch (error) {
       console.error('Error creating portal session:', error);
       res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create portal session' });
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Super-admin back-office routes — all gated by requireSuperAdmin
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // GET /api/superadmin/organisations — list all orgs with aggregated stats
+  app.get("/api/superadmin/organisations", requireSuperAdmin, async (req, res) => {
+    try {
+      const orgs = await storage.getAllOrganisationsWithStats();
+      res.json(orgs);
+    } catch (error) {
+      console.error("Superadmin orgs error:", error);
+      res.status(500).json({ error: "Failed to fetch organisations" });
+    }
+  });
+
+  // GET /api/superadmin/organisations/:orgId — full detail for one org
+  app.get("/api/superadmin/organisations/:orgId", requireSuperAdmin, async (req, res) => {
+    try {
+      const { orgId } = req.params;
+      const [org, orgUsers, orgProjects, recentActivity, usage] = await Promise.all([
+        storage.getOrganisation(orgId),
+        storage.getUsersByOrg(orgId),
+        storage.getAllProjects().then(ps => ps.filter(p => p.orgId === orgId)),
+        storage.getRecentActivities(20),
+        storage.getOrgUsage(orgId),
+      ]);
+      if (!org) return res.status(404).json({ error: "Organisation not found" });
+
+      // Fetch roles for users
+      const usersWithRoles = await Promise.all(
+        orgUsers.map(async u => {
+          const role = await storage.getUserRole(u.id);
+          return { ...sanitizeUser(u as any), role: role?.role || "client" };
+        })
+      );
+
+      // Filter activity to org members
+      const orgUserIds = new Set(orgUsers.map(u => u.id));
+      const orgActivity = recentActivity.filter(a => orgUserIds.has(a.userId));
+
+      res.json({ org, users: usersWithRoles, projects: orgProjects, recentActivity: orgActivity, usage });
+    } catch (error) {
+      console.error("Superadmin org detail error:", error);
+      res.status(500).json({ error: "Failed to fetch organisation detail" });
+    }
+  });
+
+  // PATCH /api/superadmin/organisations/:orgId/plan — override plan directly
+  app.patch("/api/superadmin/organisations/:orgId/plan", requireSuperAdmin, async (req, res) => {
+    try {
+      const { orgId } = req.params;
+      const { plan } = req.body;
+      const validPlans = ["trial", "starter", "pro", "enterprise"];
+      if (!plan || !validPlans.includes(plan)) {
+        return res.status(400).json({ error: `plan must be one of: ${validPlans.join(", ")}` });
+      }
+
+      const org = await storage.getOrganisation(orgId);
+      if (!org) return res.status(404).json({ error: "Organisation not found" });
+
+      const previousPlan = org.plan;
+      const updated = await storage.updateOrganisation(orgId, { plan, planStatus: "active" });
+
+      await storage.writeSuperAdminAuditLog({
+        superAdminId: (req.user as any).id,
+        action: "plan_override",
+        targetOrgId: orgId,
+        targetUserId: null,
+        metadata: { previousPlan, newPlan: plan },
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Superadmin plan override error:", error);
+      res.status(500).json({ error: "Failed to update plan" });
+    }
+  });
+
+  // POST /api/superadmin/impersonate/:userId — begin impersonation session
+  app.post("/api/superadmin/impersonate/:userId", requireSuperAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const superAdminId = (req.user as any).id;
+
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) return res.status(404).json({ error: "User not found" });
+
+      // Record audit entry
+      await storage.writeSuperAdminAuditLog({
+        superAdminId,
+        action: "impersonate",
+        targetOrgId: targetUser.orgId ?? null,
+        targetUserId: userId,
+        metadata: { targetEmail: targetUser.email },
+      });
+
+      // Set impersonation in session
+      (req.session as any).impersonatingUserId = userId;
+      (req.session as any).originalUserId = superAdminId;
+
+      res.json({ success: true, targetUserId: userId, targetEmail: targetUser.email });
+    } catch (error) {
+      console.error("Superadmin impersonate error:", error);
+      res.status(500).json({ error: "Failed to start impersonation" });
+    }
+  });
+
+  // POST /api/superadmin/impersonate/exit — end impersonation, return to super-admin session
+  app.post("/api/superadmin/impersonate/exit", requireAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      if (!session.impersonatingUserId) {
+        return res.status(400).json({ error: "Not currently impersonating anyone" });
+      }
+      delete session.impersonatingUserId;
+      delete session.originalUserId;
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Superadmin impersonate exit error:", error);
+      res.status(500).json({ error: "Failed to exit impersonation" });
+    }
+  });
+
+  // GET /api/superadmin/metrics — aggregate metrics across all orgs
+  app.get("/api/superadmin/metrics", requireSuperAdmin, async (req, res) => {
+    try {
+      const orgs = await storage.getAllOrganisationsWithStats();
+      const totalOrgs = orgs.length;
+      const trialOrgs = orgs.filter(o => o.plan === "trial").length;
+      const pastDueOrgs = orgs.filter(o => o.planStatus === "past_due").length;
+      const activeOrgs = orgs.filter(o => o.planStatus === "active").length;
+
+      // Simple MRR estimate from plan distribution (no Stripe required)
+      const PLAN_MRR: Record<string, number> = { trial: 0, starter: 49, pro: 149, enterprise: 499 };
+      const mrr = orgs.reduce((sum, o) => sum + (PLAN_MRR[o.plan] ?? 0), 0);
+
+      res.json({ totalOrgs, trialOrgs, pastDueOrgs, activeOrgs, mrrEstimate: mrr });
+    } catch (error) {
+      console.error("Superadmin metrics error:", error);
+      res.status(500).json({ error: "Failed to fetch metrics" });
+    }
+  });
+
+  // GET /api/superadmin/audit-log — recent audit log entries
+  app.get("/api/superadmin/audit-log", requireSuperAdmin, async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const logs = await storage.getSuperAdminAuditLogs(limit);
+      res.json(logs);
+    } catch (error) {
+      console.error("Superadmin audit log error:", error);
+      res.status(500).json({ error: "Failed to fetch audit log" });
     }
   });
 

@@ -23,11 +23,31 @@ async function ensureBillingColumns(pool: Pool): Promise<void> {
     `CREATE INDEX IF NOT EXISTS projects_org_id_idx ON projects(org_id)`,
     `CREATE INDEX IF NOT EXISTS catalogue_items_org_id_idx ON catalogue_items(org_id)`,
     // Backfill legacy rows (org_id IS NULL) when there is exactly one organisation.
-    // Single-org deployments get all pre-existing rows counted toward their quota.
-    // Multi-org deployments: no-op (rows remain untagged and require manual backfill).
     `UPDATE projects SET org_id = (SELECT id FROM organisations LIMIT 1) WHERE org_id IS NULL AND (SELECT COUNT(*) FROM organisations) = 1`,
     `UPDATE catalogue_items SET org_id = (SELECT id FROM organisations LIMIT 1) WHERE org_id IS NULL AND (SELECT COUNT(*) FROM organisations) = 1`,
+    // Super-admin flag on users
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT false`,
+    // Super-admin audit log table
+    `CREATE TABLE IF NOT EXISTS superadmin_audit_log (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      super_admin_id VARCHAR NOT NULL REFERENCES users(id),
+      action TEXT NOT NULL,
+      target_org_id VARCHAR REFERENCES organisations(id),
+      target_user_id VARCHAR REFERENCES users(id),
+      metadata JSONB,
+      created_at TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS superadmin_audit_super_admin_idx ON superadmin_audit_log(super_admin_id)`,
+    `CREATE INDEX IF NOT EXISTS superadmin_audit_created_at_idx ON superadmin_audit_log(created_at)`,
   ];
+
+  // Elevate any emails listed in SUPER_ADMIN_EMAILS env var.
+  // Format: comma-separated list e.g. "alice@example.com,bob@example.com"
+  const superAdminEmails = (process.env.SUPER_ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
   for (const sql of statements) {
     try {
       await pool.query(sql);
@@ -35,6 +55,19 @@ async function ensureBillingColumns(pool: Pool): Promise<void> {
       console.warn("[migrate] schema check:", (err as Error).message);
     }
   }
+
+  if (superAdminEmails.length > 0) {
+    try {
+      await pool.query(
+        `UPDATE users SET is_super_admin = true WHERE LOWER(email) = ANY($1)`,
+        [superAdminEmails]
+      );
+      console.log(`✅ Super-admin emails elevated: ${superAdminEmails.join(", ")}`);
+    } catch (err) {
+      console.warn("[migrate] super-admin elevation:", (err as Error).message);
+    }
+  }
+
   console.log("✅ Organisation billing columns verified");
 }
 

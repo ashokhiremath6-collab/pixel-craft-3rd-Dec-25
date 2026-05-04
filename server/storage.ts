@@ -11,6 +11,8 @@ import {
   type InsertOrganisation,
   type Invitation,
   type InsertInvitation,
+  type SuperadminAuditLog,
+  type InsertSuperadminAuditLog,
   type VendorCategory,
   type InsertVendorCategory,
   type Vendor,
@@ -67,6 +69,7 @@ import {
   type InsertWorksOrder,
   type WorksOrderSignature,
   type InsertWorksOrderSignature,
+  superadminAuditLog,
   organisations,
   invitations,
   users,
@@ -290,7 +293,7 @@ export interface IStorage {
   deleteProjectSchedule(id: string): Promise<boolean>;
   
   // Task Management
-  getAllTasks(): Promise<Task[]>;
+  getAllTasks(orgId?: string): Promise<Task[]>;
   getTasksByProject(projectId: string): Promise<Task[]>;
   getTasksBySchedule(scheduleId: string): Promise<Task[]>;
   getTask(id: string): Promise<Task | undefined>;
@@ -427,6 +430,12 @@ export interface IStorage {
   
   // Usage tracking (for plan limit enforcement)
   getOrgUsage(orgId: string): Promise<{ projects: number; users: number; catalogueItems: number; storageGb: number }>;
+
+  // Super-admin back-office
+  getAllOrganisationsWithStats(): Promise<Array<Organisation & { userCount: number; projectCount: number; lastActivityAt: string | null }>>;
+  writeSuperAdminAuditLog(entry: InsertSuperadminAuditLog): Promise<SuperadminAuditLog>;
+  getSuperAdminAuditLogs(limit?: number): Promise<SuperadminAuditLog[]>;
+  setUserSuperAdmin(userId: string, isSuperAdmin: boolean): Promise<void>;
 
   // Object Assets (photo processing for art, furniture, etc.)
   getAllObjectAssets(): Promise<ObjectAsset[]>;
@@ -1243,7 +1252,7 @@ export class MemStorage implements IStorage {
   }
 
   // Task Management (stubs for MemStorage - not used in production)
-  async getAllTasks(): Promise<Task[]> {
+  async getAllTasks(_orgId?: string): Promise<Task[]> {
     return [];
   }
 
@@ -1395,6 +1404,15 @@ export class MemStorage implements IStorage {
   async getOrgUsage(_orgId: string): Promise<{ projects: number; users: number; catalogueItems: number; storageGb: number }> {
     return { projects: 0, users: 0, catalogueItems: 0, storageGb: 0 };
   }
+
+  async getAllOrganisationsWithStats(): Promise<Array<Organisation & { userCount: number; projectCount: number; lastActivityAt: string | null }>> {
+    return [];
+  }
+  async writeSuperAdminAuditLog(_entry: InsertSuperadminAuditLog): Promise<SuperadminAuditLog> {
+    throw new Error("MemStorage: writeSuperAdminAuditLog not supported");
+  }
+  async getSuperAdminAuditLogs(_limit?: number): Promise<SuperadminAuditLog[]> { return []; }
+  async setUserSuperAdmin(_userId: string, _isSuperAdmin: boolean): Promise<void> {}
 }
 
 export class DBStorage implements IStorage {
@@ -2424,7 +2442,24 @@ export class DBStorage implements IStorage {
   }
 
   // Task Management
-  async getAllTasks(): Promise<Task[]> {
+  async getAllTasks(orgId?: string): Promise<Task[]> {
+    // When orgId is provided, restrict to only that org's projects so the
+    // dashboard cannot see tasks belonging to a different workspace.
+    if (orgId) {
+      return await db
+        .select(getTableColumns(tasks))
+        .from(tasks)
+        .innerJoin(projects, eq(tasks.projectId, projects.id))
+        .leftJoin(projectSchedules, eq(tasks.scheduleId, projectSchedules.id))
+        .where(eq(projects.orgId, orgId))
+        .orderBy(
+          asc(tasks.projectId),
+          sql`${projectSchedules.uploadedAt} ASC NULLS LAST`,
+          sql`${tasks.rowIndex} ASC NULLS LAST`,
+          asc(tasks.createdAt),
+          asc(tasks.id)
+        );
+    }
     return await db
       .select(getTableColumns(tasks))
       .from(tasks)
@@ -3470,6 +3505,44 @@ export class DBStorage implements IStorage {
       catalogueItems: catalogueCount,
       storageGb,
     };
+  }
+
+  async getAllOrganisationsWithStats(): Promise<Array<Organisation & { userCount: number; projectCount: number; lastActivityAt: string | null }>> {
+    const orgs = await db.select().from(organisations).orderBy(desc(organisations.createdAt));
+    const results = await Promise.all(orgs.map(async (org) => {
+      const [userCountResult, projectCountResult, lastActivityResult] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(*)` }).from(users).where(eq(users.orgId, org.id)),
+        db.select({ count: sql<number>`COUNT(*)` }).from(projects).where(eq(projects.orgId, org.id)),
+        db.select({ createdAt: activityLog.createdAt })
+          .from(activityLog)
+          .innerJoin(users, eq(activityLog.userId, users.id))
+          .where(eq(users.orgId, org.id))
+          .orderBy(desc(activityLog.createdAt))
+          .limit(1),
+      ]);
+      return {
+        ...org,
+        userCount: Number(userCountResult[0]?.count ?? 0),
+        projectCount: Number(projectCountResult[0]?.count ?? 0),
+        lastActivityAt: lastActivityResult[0]?.createdAt?.toISOString() ?? null,
+      };
+    }));
+    return results;
+  }
+
+  async writeSuperAdminAuditLog(entry: InsertSuperadminAuditLog): Promise<SuperadminAuditLog> {
+    const result = await db.insert(superadminAuditLog).values(entry).returning();
+    return result[0];
+  }
+
+  async getSuperAdminAuditLogs(limit = 100): Promise<SuperadminAuditLog[]> {
+    return await db.select().from(superadminAuditLog)
+      .orderBy(desc(superadminAuditLog.createdAt))
+      .limit(limit);
+  }
+
+  async setUserSuperAdmin(userId: string, isSuperAdmin: boolean): Promise<void> {
+    await db.update(users).set({ isSuperAdmin } as any).where(eq(users.id, userId));
   }
 }
 
