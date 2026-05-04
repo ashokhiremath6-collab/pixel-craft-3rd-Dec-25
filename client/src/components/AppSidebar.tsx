@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -47,6 +47,10 @@ const projectManagerMainItems: NavigationItem[] = [
 
 const settingsItems: NavigationItem[] = [
   { title: "Settings", url: "/settings", icon: Settings },
+];
+
+const accountItems: NavigationItem[] = [
+  { title: "Account", url: "/account", icon: User },
 ];
 
 const designerOnlyItems: NavigationItem[] = [
@@ -165,7 +169,21 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
-          {settingsItems.map((item) => (
+          {accountItems.map((item) => (
+            <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton
+                asChild
+                data-active={location === item.url}
+                data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                <Link href={item.url} onClick={handleLinkClick}>
+                  <item.icon />
+                  <span>{item.title}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+          {isAdminOrDesigner && settingsItems.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton 
                 asChild

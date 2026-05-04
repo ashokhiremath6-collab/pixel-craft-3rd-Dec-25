@@ -20,6 +20,7 @@ import TemplatesPage from "@/pages/TemplatesPage";
 import TemplateViewPage from "@/pages/TemplateViewPage";
 import ImportPage from "@/pages/ImportPage";
 import SettingsPage from "@/pages/SettingsPage";
+import AccountPage from "@/pages/AccountPage";
 import ClientAccessPage from "@/pages/ClientAccessPage";
 import MoodboardsPage from "@/pages/MoodboardsPage";
 import AccountsPage from "@/pages/AccountsPage";
@@ -79,6 +80,7 @@ function Router() {
       <Route path="/client-access" component={ClientAccessPage} />
       <Route path="/sops" component={SOPsPage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/account" component={AccountPage} />
       <Route path="/superadmin" component={SuperAdminPage} />
       <Route component={NotFound} />
     </Switch>

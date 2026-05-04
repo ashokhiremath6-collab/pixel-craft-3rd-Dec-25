@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,14 @@ import { PlanLimitBanner } from "@/components/PlanLimitBanner";
 import type { User, Project, UserProjectAssignment } from "@shared/schema";
 
 const UNLIMITED = 999_999;
+
+function NonAdminRedirect() {
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    navigate("/account");
+  }, [navigate]);
+  return null;
+}
 
 interface BillingStatus {
   plan: string;
@@ -317,65 +325,10 @@ export default function SettingsPage() {
   // so there is no flash for users who do have access.
   if (authLoading) return null;
 
-  // Non-admin users can access a limited view of Settings that shows only
-  // their personal notification preferences.
-  if (currentUser?.role !== "admin") {
-    return (
-      <div className="space-y-6 p-6 max-w-4xl mx-auto">
-        <div>
-          <h1 className="text-2xl font-semibold" data-testid="heading-settings">Settings</h1>
-          <p className="text-muted-foreground mt-1">Manage your personal notification preferences.</p>
-        </div>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5" />
-              Email Notification Preferences
-            </CardTitle>
-            <CardDescription>
-              Choose which transactional emails you receive about your account and projects.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[
-                {
-                  key: "invitationAccepted" as const,
-                  label: "Invitation accepted",
-                  description: "Emails when someone accepts a workspace invitation you sent.",
-                },
-                {
-                  key: "projectUpdates" as const,
-                  label: "Project updates",
-                  description: "Emails about changes and activity on projects you are assigned to.",
-                },
-              ].map(({ key, label, description }) => {
-                const enabled = notificationPrefs ? notificationPrefs[key] : true;
-                return (
-                  <div key={key} className="flex items-start gap-4">
-                    <Checkbox
-                      id={`notif-${key}`}
-                      checked={enabled}
-                      disabled={updateNotifPrefMutation.isPending}
-                      onCheckedChange={(checked) => {
-                        updateNotifPrefMutation.mutate({ [key]: !!checked });
-                      }}
-                      className="mt-0.5"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <label htmlFor={`notif-${key}`} className="text-sm font-medium cursor-pointer">
-                        {label}
-                      </label>
-                      <p className="text-sm text-muted-foreground">{description}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  // Non-admin users are redirected to the dedicated Account page which hosts
+  // personal preferences including notifications.
+  if (!authLoading && currentUser?.role !== "admin") {
+    return <NonAdminRedirect />;
   }
 
   if (isLoading) {
