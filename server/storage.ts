@@ -109,7 +109,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, inArray, isNull, and, or, desc, sql, asc, getTableColumns } from "drizzle-orm";
+import { eq, inArray, isNull, and, or, desc, sql, asc, getTableColumns, gt } from "drizzle-orm";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -426,7 +426,7 @@ export interface IStorage {
   getProjectVendorsForUser(userId: string, role: string): Promise<ProjectVendor[]>;
   
   // Usage tracking (for plan limit enforcement)
-  getOrgUsage(orgId: string): Promise<{ projects: number; users: number; catalogueItems: number }>;
+  getOrgUsage(orgId: string): Promise<{ projects: number; users: number; catalogueItems: number; storageGb: number }>;
 
   // Object Assets (photo processing for art, furniture, etc.)
   getAllObjectAssets(): Promise<ObjectAsset[]>;
@@ -514,6 +514,8 @@ export class MemStorage implements IStorage {
         emailVerificationToken: userData.emailVerificationToken || null,
         passwordResetToken: userData.passwordResetToken || null,
         passwordResetTokenExpiry: userData.passwordResetTokenExpiry || null,
+        orgId: userData.orgId ?? null,
+        onboardingCompletedAt: userData.onboardingCompletedAt ?? null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -878,7 +880,8 @@ export class MemStorage implements IStorage {
     const project: Project = { 
       ...insertProject, 
       id,
-      endDate: insertProject.endDate || null
+      endDate: insertProject.endDate || null,
+      orgId: insertProject.orgId ?? null,
     };
     this.projects.set(id, project);
     return project;
@@ -1389,8 +1392,8 @@ export class MemStorage implements IStorage {
   }
   async completeOnboarding(_userId: string): Promise<void> {}
   async setUserOrgId(_userId: string, _orgId: string): Promise<void> {}
-  async getOrgUsage(_orgId: string): Promise<{ projects: number; users: number; catalogueItems: number }> {
-    return { projects: 0, users: 0, catalogueItems: 0 };
+  async getOrgUsage(_orgId: string): Promise<{ projects: number; users: number; catalogueItems: number; storageGb: number }> {
+    return { projects: 0, users: 0, catalogueItems: 0, storageGb: 0 };
   }
 }
 
@@ -3377,28 +3380,46 @@ export class DBStorage implements IStorage {
     });
   }
 
-  async getOrgUsage(orgId: string): Promise<{ projects: number; users: number; catalogueItems: number }> {
-    const [projectCount, userCount, catalogueCount] = await Promise.all([
-      // Projects: count distinct projects that have at least one user from this org assigned,
-      // using userProjectAssignments → users join as the org-scoping path (projects have no orgId FK).
-      db.selectDistinct({ projectId: userProjectAssignments.projectId })
-        .from(userProjectAssignments)
-        .innerJoin(users, eq(userProjectAssignments.userId, users.id))
-        .where(eq(users.orgId, orgId))
-        .then(r => r.length),
-      // Users: count active members of this org directly.
+  async getOrgUsage(orgId: string): Promise<{ projects: number; users: number; catalogueItems: number; storageGb: number }> {
+    const [projectCount, activeUserCount, pendingInviteCount, catalogueCount] = await Promise.all([
+      // Projects: count projects directly tagged to this org (orgId stamped on creation).
+      // Legacy projects without orgId are excluded; they don't affect new-org quota.
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(projects)
+        .where(eq(projects.orgId, orgId))
+        .then(r => Number(r[0]?.count ?? 0)),
+      // Active users: members already in the org.
       db.select({ count: sql<number>`count(*)::int` })
         .from(users)
         .where(eq(users.orgId, orgId))
         .then(r => Number(r[0]?.count ?? 0)),
-      // Catalogue items: count items explicitly tagged to this org.
-      // Seed/legacy items with orgId = NULL are excluded so they don't inflate the per-org count.
+      // Pending invitations: count unexpired, unaccepted invites toward the seat quota so
+      // a user cannot bypass the limit by sending many invites before anyone accepts.
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(invitations)
+        .where(
+          and(
+            eq(invitations.orgId, orgId),
+            isNull(invitations.acceptedAt),
+            gt(invitations.expiresAt, sql`now()`),
+          )
+        )
+        .then(r => Number(r[0]?.count ?? 0)),
+      // Catalogue items: count items tagged to this org (seed items with orgId=NULL excluded).
       db.select({ count: sql<number>`count(*)::int` })
         .from(catalogueItems)
         .where(eq(catalogueItems.orgId, orgId))
         .then(r => Number(r[0]?.count ?? 0)),
     ]);
-    return { projects: projectCount, users: userCount, catalogueItems: catalogueCount };
+    // Storage: summing bytes across all upload tables per-org requires broad schema changes.
+    // We return 0 here as the tracked value until per-org byte accounting is added.
+    // The limit is surfaced in the UI so users are aware of their tier's storage cap.
+    return {
+      projects: projectCount,
+      users: activeUserCount + pendingInviteCount,
+      catalogueItems: catalogueCount,
+      storageGb: 0,
+    };
   }
 }
 

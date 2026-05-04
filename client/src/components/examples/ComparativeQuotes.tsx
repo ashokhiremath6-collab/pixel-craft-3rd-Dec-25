@@ -7,15 +7,25 @@ export default function ComparativeQuotesExample() {
       id: '1',
       projectName: 'City Center Mall Renovation',
       clientName: 'Metro Development Corp',
+      clientEmail: 'metro@example.com',
       startDate: '2024-01-15',
-      endDate: '2024-06-30'
+      endDate: '2024-06-30',
+      canvaLink: null,
+      ganttChartLink: null,
+      foyrNeoLink: null,
+      orgId: null,
     },
     {
       id: '2', 
       projectName: 'Hospital Wing Construction',
       clientName: 'Regional Medical Center',
+      clientEmail: 'regional@example.com',
       startDate: '2024-03-01',
-      endDate: null
+      endDate: null,
+      canvaLink: null,
+      ganttChartLink: null,
+      foyrNeoLink: null,
+      orgId: null,
     }
   ];
 

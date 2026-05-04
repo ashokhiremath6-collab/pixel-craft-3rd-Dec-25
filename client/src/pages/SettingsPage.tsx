@@ -83,8 +83,8 @@ export default function SettingsPage() {
 
   const { data: usageData } = useQuery<{
     plan: string;
-    limits: { maxProjects: number; maxUsers: number; maxCatalogueItems: number };
-    usage: { projects: number; users: number; catalogueItems: number };
+    limits: { maxProjects: number; maxUsers: number; maxCatalogueItems: number; maxStorageGb: number };
+    usage: { projects: number; users: number; catalogueItems: number; storageGb: number };
   }>({
     queryKey: ["/api/billing/usage"],
     enabled: currentUser?.role === "admin" && !!currentUser?.orgId,
@@ -335,9 +335,10 @@ export default function SettingsPage() {
                     </div>
                     {[
                       { label: 'Projects', current: usageData.usage.projects, limit: usageData.limits.maxProjects },
-                      { label: 'Team members', current: usageData.usage.users, limit: usageData.limits.maxUsers },
+                      { label: 'Team members (incl. pending invites)', current: usageData.usage.users, limit: usageData.limits.maxUsers },
                       { label: 'Catalogue items', current: usageData.usage.catalogueItems, limit: usageData.limits.maxCatalogueItems },
-                    ].map(({ label, current, limit }) => {
+                      { label: 'Storage', current: usageData.usage.storageGb, limit: usageData.limits.maxStorageGb, unit: 'GB' },
+                    ].map(({ label, current, limit, unit }) => {
                       const isUnlimited = limit >= UNLIMITED;
                       const pct = isUnlimited ? 0 : Math.min(100, Math.round((current / limit) * 100));
                       const isNear = !isUnlimited && pct >= 80;
@@ -347,7 +348,9 @@ export default function SettingsPage() {
                           <div className="flex items-center justify-between text-xs text-muted-foreground">
                             <span>{label}</span>
                             <span className={isAt ? 'text-destructive font-medium' : isNear ? 'text-yellow-600 dark:text-yellow-400 font-medium' : ''}>
-                              {isUnlimited ? `${current} / Unlimited` : `${current} / ${limit}`}
+                              {isUnlimited
+                                ? `${current}${unit ? ` ${unit}` : ''} / Unlimited`
+                                : `${current}${unit ? ` ${unit}` : ''} / ${limit}${unit ? ` ${unit}` : ''}`}
                             </span>
                           </div>
                           {!isUnlimited && (

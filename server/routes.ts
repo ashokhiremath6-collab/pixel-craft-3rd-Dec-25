@@ -1518,7 +1518,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as any;
       if (user.orgId) await checkOrgLimit(user.orgId, 'projects');
       const parsed = insertProjectSchema.parse(req.body);
-      const project = await storage.createProject(parsed);
+      // Stamp orgId so the project is org-scoped for usage counting
+      const project = await storage.createProject({ ...parsed, orgId: user.orgId ?? null });
       res.status(201).json(project);
     } catch (error: any) {
       if (error.limitExceeded) return res.status(403).json({ error: error.message, limitExceeded: true, current: error.current, limit: error.limit, resource: error.resource });
@@ -7701,7 +7702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Stamp orgId so per-org usage counts are correct (seed items have orgId = NULL)
       if (user.orgId) itemData.orgId = user.orgId;
       const validatedData = insertCatalogueItemSchema.parse(itemData);
-      const item = await storage.createCatalogueItem({ ...validatedData, orgId: user.orgId ?? null } as any);
+      const item = await storage.createCatalogueItem(validatedData);
       
       // Log activity
       const actorUser = await storage.getUser(user.id);

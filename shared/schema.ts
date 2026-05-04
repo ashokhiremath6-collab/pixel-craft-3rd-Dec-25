@@ -46,6 +46,7 @@ export const projects = pgTable("projects", {
   canvaLink: text("canva_link"), // Canva design link for the project
   ganttChartLink: text("gantt_chart_link"), // External Gantt chart link (e.g., Google Sheets, MS Project Online)
   foyrNeoLink: text("foyr_neo_link"), // Foyr Neo 3D design project link
+  orgId: varchar("org_id"), // org that owns this project (nullable for legacy projects)
 });
 
 // Project Clients table - supports multiple clients per project
@@ -592,6 +593,7 @@ export const insertCatalogueItemSchema = createInsertSchema(catalogueItems).omit
   mainCategory: z.string().min(1, "Main category is required"),
   subcategory: z.string().min(1, "Subcategory is required"),
   attributes: z.string(), // Can be empty
+  orgId: z.string().nullable().optional(), // set server-side from authenticated user
 });
 
 export const insertObjectAssetSchema = createInsertSchema(objectAssets).omit({
