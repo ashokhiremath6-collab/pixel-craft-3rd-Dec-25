@@ -10167,8 +10167,8 @@ Return your response in the following JSON format only (no markdown, no code blo
       (domains ? `https://${domains.split(',')[0].trim()}` : `${req.protocol}://${req.hostname}`);
   }
 
-  // GET /api/billing/status — current org plan info (admin only)
-  app.get('/api/billing/status', requireAdmin, async (req, res) => {
+  // GET /api/billing/status — current org plan info (admin-only, no designers)
+  app.get('/api/billing/status', requireAdminOnly, async (req, res) => {
     try {
       const user = req.user as any;
       if (!user.orgId) return res.status(400).json({ error: 'No organisation linked to this account' });
@@ -10186,8 +10186,8 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  // POST /api/billing/checkout — create a Stripe Checkout session (admin only)
-  app.post('/api/billing/checkout', requireAdmin, async (req, res) => {
+  // POST /api/billing/checkout — create a Stripe Checkout session (admin-only, no designers)
+  app.post('/api/billing/checkout', requireAdminOnly, async (req, res) => {
     try {
       const user = req.user as any;
       if (!user.orgId) return res.status(400).json({ error: 'No organisation linked to this account' });
@@ -10226,8 +10226,8 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  // POST /api/billing/portal — create a Stripe Customer Portal session (admin only)
-  app.post('/api/billing/portal', requireAdmin, async (req, res) => {
+  // POST /api/billing/portal — create a Stripe Customer Portal session (admin-only, no designers)
+  app.post('/api/billing/portal', requireAdminOnly, async (req, res) => {
     try {
       const user = req.user as any;
       if (!user.orgId) return res.status(400).json({ error: 'No organisation linked to this account' });

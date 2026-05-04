@@ -313,34 +313,75 @@ export default function SettingsPage() {
                   )}
                 </div>
 
-                {billingStatus.planStatus !== 'active' && (
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium">Choose a plan</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {[
-                        { key: 'starter', label: 'Starter', desc: 'For small teams up to 5 users' },
-                        { key: 'pro', label: 'Pro', desc: 'Unlimited users and projects' },
-                        { key: 'enterprise', label: 'Enterprise', desc: 'Custom billing and SLA' },
-                      ].map((tier) => (
-                        <div key={tier.key} className="flex flex-col gap-2 rounded-md border p-3">
-                          <div>
-                            <p className="font-medium text-sm">{tier.label}</p>
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">
+                    {billingStatus.planStatus === 'active' ? 'Change plan' : 'Choose a plan'}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                      {
+                        key: 'starter',
+                        label: 'Starter',
+                        price: '$29 / month',
+                        desc: 'For small teams up to 5 users',
+                        features: ['5 team members', '10 projects', 'Basic support'],
+                      },
+                      {
+                        key: 'pro',
+                        label: 'Pro',
+                        price: '$79 / month',
+                        desc: 'Unlimited users and projects',
+                        features: ['Unlimited members', 'Unlimited projects', 'Priority support'],
+                      },
+                      {
+                        key: 'enterprise',
+                        label: 'Enterprise',
+                        price: 'Custom pricing',
+                        desc: 'Custom billing and SLA',
+                        features: ['Custom limits', 'Dedicated support', 'SLA guarantee'],
+                      },
+                    ].map((tier) => {
+                      const isCurrent =
+                        billingStatus.plan === tier.key && billingStatus.planStatus === 'active';
+                      return (
+                        <div
+                          key={tier.key}
+                          className={`flex flex-col gap-3 rounded-md border p-3 ${isCurrent ? 'border-primary/50 bg-primary/5' : ''}`}
+                        >
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <p className="font-semibold text-sm">{tier.label}</p>
+                              {isCurrent && <Badge variant="secondary" className="text-xs">Current</Badge>}
+                            </div>
+                            <p className="text-sm font-medium">{tier.price}</p>
                             <p className="text-xs text-muted-foreground">{tier.desc}</p>
+                            <ul className="space-y-0.5 mt-1">
+                              {tier.features.map((f) => (
+                                <li key={f} className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground shrink-0" />
+                                  {f}
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                           <Button
                             size="sm"
-                            variant={billingStatus.plan === tier.key ? 'secondary' : 'default'}
-                            disabled={checkoutMutation.isPending || billingStatus.plan === tier.key}
+                            variant={isCurrent ? 'secondary' : 'default'}
+                            disabled={checkoutMutation.isPending || isCurrent}
                             onClick={() => checkoutMutation.mutate(tier.key)}
                           >
                             <Zap className="h-3 w-3 mr-1" />
-                            {billingStatus.plan === tier.key ? 'Current plan' : `Upgrade to ${tier.label}`}
+                            {isCurrent
+                              ? 'Current plan'
+                              : billingStatus.planStatus === 'active'
+                              ? `Switch to ${tier.label}`
+                              : `Upgrade to ${tier.label}`}
                           </Button>
                         </div>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
-                )}
+                </div>
 
                 {billingStatus.hasStripeCustomer && (
                   <Button

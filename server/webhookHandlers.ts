@@ -3,6 +3,22 @@ import { storage } from './storage';
 import { sendPaymentFailedEmail, sendSubscriptionCancelledEmail } from './email';
 import type { User } from '../shared/schema';
 
+/**
+ * Find the admin user for a given organisation.
+ * Looks up each org member's role via user_roles and returns the first
+ * user whose role is 'admin'. Falls back to the first org member if none
+ * have the admin role (so at minimum someone gets notified).
+ */
+async function findOrgAdmin(orgId: string): Promise<User | undefined> {
+  const orgUsers: User[] = await storage.getUsersByOrg(orgId);
+  for (const user of orgUsers) {
+    const roleRow = await storage.getUserRole(user.id);
+    if (roleRow?.role === 'admin') return user;
+  }
+  // Fallback: notify the first member so billing alerts are never silently dropped
+  return orgUsers[0];
+}
+
 export class WebhookHandlers {
   static async processWebhook(payload: Buffer, signature: string): Promise<void> {
     if (!Buffer.isBuffer(payload)) {
@@ -73,10 +89,9 @@ export class WebhookHandlers {
           currentPeriodEnd: undefined,
         });
         try {
-          const orgUsers: User[] = await storage.getUsersByOrg(org.id);
-          const admin = orgUsers.find(u => u.role === 'admin') || orgUsers[0];
-          if (admin?.email) {
-            await sendSubscriptionCancelledEmail(admin.email, org.name);
+          const adminUser = await findOrgAdmin(org.id);
+          if (adminUser?.email) {
+            await sendSubscriptionCancelledEmail(adminUser.email, org.name);
           }
         } catch { /* best-effort */ }
         break;
@@ -87,10 +102,9 @@ export class WebhookHandlers {
         if (!org) break;
         await storage.updateOrganisation(org.id, { planStatus: 'past_due' });
         try {
-          const orgUsers: User[] = await storage.getUsersByOrg(org.id);
-          const admin = orgUsers.find(u => u.role === 'admin') || orgUsers[0];
-          if (admin?.email) {
-            await sendPaymentFailedEmail(admin.email, org.name);
+          const adminUser = await findOrgAdmin(org.id);
+          if (adminUser?.email) {
+            await sendPaymentFailedEmail(adminUser.email, org.name);
           }
         } catch { /* best-effort */ }
         break;
