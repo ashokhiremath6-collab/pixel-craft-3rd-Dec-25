@@ -425,6 +425,9 @@ export interface IStorage {
   getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
   getProjectVendorsForUser(userId: string, role: string): Promise<ProjectVendor[]>;
   
+  // Usage tracking (for plan limit enforcement)
+  getOrgUsage(orgId: string): Promise<{ projects: number; users: number; catalogueItems: number }>;
+
   // Object Assets (photo processing for art, furniture, etc.)
   getAllObjectAssets(): Promise<ObjectAsset[]>;
   getObjectAsset(id: string): Promise<ObjectAsset | undefined>;
@@ -1386,6 +1389,9 @@ export class MemStorage implements IStorage {
   }
   async completeOnboarding(_userId: string): Promise<void> {}
   async setUserOrgId(_userId: string, _orgId: string): Promise<void> {}
+  async getOrgUsage(_orgId: string): Promise<{ projects: number; users: number; catalogueItems: number }> {
+    return { projects: 0, users: 0, catalogueItems: 0 };
+  }
 }
 
 export class DBStorage implements IStorage {
@@ -3369,6 +3375,15 @@ export class DBStorage implements IStorage {
 
       return { org, user };
     });
+  }
+
+  async getOrgUsage(orgId: string): Promise<{ projects: number; users: number; catalogueItems: number }> {
+    const [projectCount, userCount, catalogueCount] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(projects).then(r => Number(r[0]?.count ?? 0)),
+      db.select({ count: sql<number>`count(*)::int` }).from(users).where(eq(users.orgId, orgId)).then(r => Number(r[0]?.count ?? 0)),
+      db.select({ count: sql<number>`count(*)::int` }).from(catalogueItems).then(r => Number(r[0]?.count ?? 0)),
+    ]);
+    return { projects: projectCount, users: userCount, catalogueItems: catalogueCount };
   }
 }
 

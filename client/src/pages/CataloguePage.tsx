@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { PlanLimitBanner } from "@/components/PlanLimitBanner";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { useForm } from "react-hook-form";
@@ -33,7 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, MoreVertical, Pencil, Trash2, FileText, Download, ExternalLink, ChevronDown } from "lucide-react";
+import { Plus, MoreVertical, Pencil, Trash2, FileText, Download, ExternalLink, ChevronDown, Zap } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,9 +46,19 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { RecentBadge } from "@/components/RecentBadge";
+import { useAuth } from "@/hooks/useAuth";
+
+interface UsageData {
+  plan: string;
+  limits: { maxProjects: number; maxUsers: number; maxCatalogueItems: number };
+  usage: { projects: number; users: number; catalogueItems: number };
+}
+
+const UNLIMITED = 999_999;
 
 export default function CataloguePage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [location, setLocation] = useLocation();
   const search = useSearch();
   const filterProjectId = new URLSearchParams(search).get("projectId") || "";
@@ -70,6 +81,17 @@ export default function CataloguePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploadType, setUploadType] = useState<"file" | "url">("file");
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+
+  const canSeeUsage = (user?.role === 'admin' || user?.role === 'designer') && !!user?.orgId;
+  const { data: usageData } = useQuery<UsageData>({
+    queryKey: ["/api/billing/usage"],
+    enabled: canSeeUsage,
+  });
+
+  const catalogueLimit = usageData?.limits.maxCatalogueItems ?? UNLIMITED;
+  const catalogueCount = usageData?.usage.catalogueItems ?? 0;
+  const catalogueAtLimit = catalogueLimit < UNLIMITED && catalogueCount >= catalogueLimit;
 
   const form = useForm<InsertCatalogueItem>({
     resolver: zodResolver(insertCatalogueItemSchema),
@@ -290,6 +312,11 @@ export default function CataloguePage() {
   };
 
   const handleOpenDialog = (item?: CatalogueItem) => {
+    // Block creating new items if at limit (editing existing items is always allowed)
+    if (!item && catalogueAtLimit) {
+      setShowUpgradeDialog(true);
+      return;
+    }
     setSelectedFile(null); // Always clear selected file when opening dialog
     if (item) {
       setEditingItem(item);
@@ -418,6 +445,14 @@ export default function CataloguePage() {
             Add Item
           </Button>
         </div>
+
+        {canSeeUsage && (
+          <PlanLimitBanner
+            current={catalogueCount}
+            limit={catalogueLimit}
+            resourceLabel="Catalogue items"
+          />
+        )}
 
         <Tabs defaultValue="grid" className="space-y-3">
           <TabsList data-testid="tabs-catalogue-view">
@@ -1021,6 +1056,29 @@ export default function CataloguePage() {
           isDeleting={deleteMutation.isPending}
         />
       </div>
+
+      {/* Upgrade Dialog — shown when catalogue limit is reached */}
+      {showUpgradeDialog && (
+        <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+          <DialogContent className="max-w-[95vw] sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Catalogue item limit reached</DialogTitle>
+              <p className="text-sm text-muted-foreground pt-1">
+                You've used all {catalogueLimit} catalogue item{catalogueLimit === 1 ? '' : 's'} allowed on your current plan. Upgrade to add more.
+              </p>
+            </DialogHeader>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowUpgradeDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => { setShowUpgradeDialog(false); setLocation('/settings'); }}>
+                <Zap className="h-4 w-4 mr-2" />
+                View plans
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

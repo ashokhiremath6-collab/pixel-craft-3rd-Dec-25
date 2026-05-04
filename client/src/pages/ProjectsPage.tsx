@@ -13,6 +13,15 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { Project, InsertProject } from "@shared/schema";
 import { insertProjectSchema } from "@shared/schema";
+import { PlanLimitBanner } from "@/components/PlanLimitBanner";
+import { Zap } from "lucide-react";
+import { useLocation } from "wouter";
+
+interface UsageData {
+  plan: string;
+  limits: { maxProjects: number; maxUsers: number; maxCatalogueItems: number };
+  usage: { projects: number; users: number; catalogueItems: number };
+}
 
 interface ProjectData extends Project {
   vendorCount: number;
@@ -35,17 +44,31 @@ interface QuotationsResponse {
   quotations: Record<string, QuotationData[]>;
 }
 
+const UNLIMITED = 999_999;
+
 export default function ProjectsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
   const [isAddingProject, setIsAddingProject] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
 
   // Get user info to check role - use the auth hook which has the correct user data with role
   const { user } = useAuth();
   
   const isDesigner = user?.role === 'designer' || user?.role === 'admin';
+  const canSeeUsage = (user?.role === 'admin' || user?.role === 'designer') && !!user?.orgId;
+
+  const { data: usageData } = useQuery<UsageData>({
+    queryKey: ["/api/billing/usage"],
+    enabled: canSeeUsage,
+  });
+
+  const projectLimit = usageData?.limits.maxProjects ?? UNLIMITED;
+  const projectCount = usageData?.usage.projects ?? 0;
+  const projectsAtLimit = projectLimit < UNLIMITED && projectCount >= projectLimit;
 
   // Fetch quotations data which includes projects and their vendor relationships
   const { data: quotationsData, isLoading } = useQuery<QuotationsResponse>({
@@ -153,6 +176,10 @@ export default function ProjectsPage() {
   }));
 
   const handleAddProject = () => {
+    if (projectsAtLimit) {
+      setShowUpgradeDialog(true);
+      return;
+    }
     setIsAddingProject(true);
     addForm.reset();
   };
@@ -222,15 +249,24 @@ export default function ProjectsPage() {
 
   return (
     <>
-      <ProjectView 
-        projects={projectsWithCounts}
-        quotations={quotationsData?.quotations || {}}
-        onAddProject={handleAddProject}
-        onEditProject={handleEditProject}
-        onViewProject={handleViewProject}
-        onDeleteProject={handleDeleteProject}
-        isDesigner={isDesigner}
-      />
+      <div className="space-y-3">
+        {canSeeUsage && (
+          <PlanLimitBanner
+            current={projectCount}
+            limit={projectLimit}
+            resourceLabel="Projects"
+          />
+        )}
+        <ProjectView 
+          projects={projectsWithCounts}
+          quotations={quotationsData?.quotations || {}}
+          onAddProject={handleAddProject}
+          onEditProject={handleEditProject}
+          onViewProject={handleViewProject}
+          onDeleteProject={handleDeleteProject}
+          isDesigner={isDesigner}
+        />
+      </div>
 
       {/* Edit Project Dialog */}
       <Dialog open={!!editingProject} onOpenChange={handleCloseEditDialog}>
@@ -528,6 +564,27 @@ export default function ProjectsPage() {
               </div>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upgrade Dialog — shown when project limit is reached */}
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent className="max-w-[95vw] sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Project limit reached</DialogTitle>
+            <DialogDescription>
+              You've used all {projectLimit} project{projectLimit === 1 ? '' : 's'} allowed on your current plan. Upgrade to add more.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowUpgradeDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => { setShowUpgradeDialog(false); navigate("/settings"); }}>
+              <Zap className="h-4 w-4 mr-2" />
+              View plans
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

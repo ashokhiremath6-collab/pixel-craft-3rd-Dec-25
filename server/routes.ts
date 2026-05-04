@@ -18,6 +18,7 @@ import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
 import { sql } from "drizzle-orm";
 import { storage } from "./storage";
+import { getPlanLimits, UNLIMITED } from "./planLimits";
 import { setupAuth, isAuthenticated, requireAuth, requireAdmin, requireAdminOnly, requireProjectManagerOrAdmin } from "./localAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
@@ -66,6 +67,27 @@ const requireProjectAccess = requireProjectManagerOrAdmin;
 function sanitizeUser(user: Record<string, any>) {
   const { passwordHash, emailVerificationToken, passwordResetToken, passwordResetTokenExpiry, ...safe } = user;
   return safe;
+}
+
+// Plan limit enforcement — throws a structured 402 error if the org is at its limit for a resource
+async function checkOrgLimit(orgId: string, resource: 'projects' | 'users' | 'catalogueItems'): Promise<void> {
+  const org = await storage.getOrganisation(orgId);
+  const plan = org?.plan || 'trial';
+  const limits = getPlanLimits(plan);
+  const usage = await storage.getOrgUsage(orgId);
+  const key = resource === 'projects' ? 'maxProjects' : resource === 'users' ? 'maxUsers' : 'maxCatalogueItems';
+  const current = usage[resource];
+  const limit = limits[key];
+  if (limit < UNLIMITED && current >= limit) {
+    const label = resource === 'projects' ? 'projects' : resource === 'users' ? 'team members' : 'catalogue items';
+    const err: any = new Error(`Plan limit reached: your ${plan} plan allows up to ${limit} ${label}. Upgrade your plan to add more.`);
+    err.status = 402;
+    err.limitExceeded = true;
+    err.current = current;
+    err.limit = limit;
+    err.resource = resource;
+    throw err;
+  }
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -823,6 +845,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(409).json({ error: "An invitation has already been sent to this email. Use resend to send a new link." });
       }
 
+      // Check user limit before creating invitation
+      await checkOrgLimit(callerUser.orgId, 'users');
+
       const token = randomUUID();
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
 
@@ -847,7 +872,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.status(201).json(invitation);
-    } catch (err) {
+    } catch (err: any) {
+      if (err.limitExceeded) return res.status(402).json({ error: err.message, limitExceeded: true, current: err.current, limit: err.limit, resource: err.resource });
       console.error("Send invitation error:", err);
       res.status(500).json({ error: "Failed to send invitation" });
     }
@@ -1489,10 +1515,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/projects", requireAdmin, async (req, res) => {
     try {
+      const user = req.user as any;
+      if (user.orgId) await checkOrgLimit(user.orgId, 'projects');
       const parsed = insertProjectSchema.parse(req.body);
       const project = await storage.createProject(parsed);
       res.status(201).json(project);
-    } catch (error) {
+    } catch (error: any) {
+      if (error.limitExceeded) return res.status(402).json({ error: error.message, limitExceeded: true, current: error.current, limit: error.limit, resource: error.resource });
       res.status(400).json({ error: "Invalid project data" });
     }
   });
@@ -5980,6 +6009,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // This ensures tasks are numbered 0, 1, 2... in insertion order, not by raw Excel row position.
       let rowInsertIndex = 0;
       const HEADER_PLACEHOLDER_DATE = '2099-12-31';
+      // Base timestamp for explicit createdAt — each task gets +1ms offset so PostgreSQL's
+      // now() ties are broken and insertion order is always preserved as the createdAt fallback.
+      const importBaseTime = Date.now();
       
       for (let i = 0; i < taskData.length; i++) {
         const row: any = taskData[i];
@@ -6059,11 +6091,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return s || null;
           };
 
+          const currentRowIndex = rowInsertIndex++;
           const taskRecord = {
             projectId,
             scheduleId: schedule.id,
             taskId,
-            rowIndex: rowInsertIndex++,
+            rowIndex: currentRowIndex,
+            // Explicit createdAt with per-row +1ms offset so insertion order is always
+            // preserved even when PostgreSQL's now() resolves to the same millisecond
+            // for consecutive inserts — making createdAt a reliable sort tiebreaker.
+            createdAt: new Date(importBaseTime + currentRowIndex),
             name: finalName,
             description: safeStr(getCol(row, 'Description', 'Remarks', 'Notes', 'Comments')) || '',
             startDate,
@@ -7638,6 +7675,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/catalogue", requireAdmin, async (req, res) => {
     try {
+      const user = req.user as any;
+      if (user.orgId) await checkOrgLimit(user.orgId, 'catalogueItems');
+
       const itemData: any = {
         mainCategory: req.body.mainCategory,
         subcategory: req.body.subcategory,
@@ -7662,17 +7702,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const item = await storage.createCatalogueItem(validatedData);
       
       // Log activity
-      const userId = (req.user as any).id;
-      const user = await storage.getUser(userId);
-      if (user) {
-        const userName = user.firstName && user.lastName 
-          ? `${user.firstName} ${user.lastName}` 
-          : user.email || 'Unknown';
+      const actorUser = await storage.getUser(user.id);
+      if (actorUser) {
+        const userName = actorUser.firstName && actorUser.lastName 
+          ? `${actorUser.firstName} ${actorUser.lastName}` 
+          : actorUser.email || 'Unknown';
         const displayName = `${item.mainCategory} > ${item.subcategory}${item.vendorBrand ? ` (${item.vendorBrand})` : ''}`;
         await storage.createActivity({
-          userId: user.id,
+          userId: actorUser.id,
           userName: userName,
-          userEmail: user.email,
+          userEmail: actorUser.email,
           activityType: 'catalogue_upload',
           fileName: displayName,
           filePath: item.filePath || undefined,
@@ -7682,7 +7721,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.status(201).json(item);
-    } catch (error) {
+    } catch (error: any) {
+      if (error.limitExceeded) return res.status(402).json({ error: error.message, limitExceeded: true, current: error.current, limit: error.limit, resource: error.resource });
       console.error('Error creating catalogue item:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid catalogue item data", details: error.errors });
@@ -10223,6 +10263,22 @@ Return your response in the following JSON format only (no markdown, no code blo
     } catch (error) {
       console.error('Error creating checkout session:', error);
       res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create checkout session' });
+    }
+  });
+
+  // GET /api/billing/usage — current org plan limits and usage (admin + designer)
+  app.get('/api/billing/usage', requireAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user.orgId) return res.status(400).json({ error: 'No organisation linked to this account' });
+      const org = await storage.getOrganisation(user.orgId);
+      const plan = org?.plan || 'trial';
+      const limits = getPlanLimits(plan);
+      const usage = await storage.getOrgUsage(user.orgId);
+      res.json({ plan, limits, usage });
+    } catch (error) {
+      console.error('Error fetching billing usage:', error);
+      res.status(500).json({ error: 'Failed to fetch billing usage' });
     }
   });
 

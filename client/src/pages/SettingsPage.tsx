@@ -13,8 +13,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock, CreditCard, Zap, AlertTriangle, ExternalLink } from "lucide-react";
+import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock, CreditCard, Zap, AlertTriangle, ExternalLink, BarChart3 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import type { User, Project, UserProjectAssignment } from "@shared/schema";
+
+const UNLIMITED = 999_999;
 
 interface BillingStatus {
   plan: string;
@@ -74,6 +77,15 @@ export default function SettingsPage() {
 
   const { data: billingStatus } = useQuery<BillingStatus>({
     queryKey: ["/api/billing/status"],
+    enabled: currentUser?.role === "admin" && !!currentUser?.orgId,
+  });
+
+  const { data: usageData } = useQuery<{
+    plan: string;
+    limits: { maxProjects: number; maxUsers: number; maxCatalogueItems: number };
+    usage: { projects: number; users: number; catalogueItems: number };
+  }>({
+    queryKey: ["/api/billing/usage"],
     enabled: currentUser?.role === "admin" && !!currentUser?.orgId,
   });
 
@@ -312,6 +324,42 @@ export default function SettingsPage() {
                     </span>
                   )}
                 </div>
+
+                {/* Usage section */}
+                {usageData && (
+                  <div className="space-y-3 rounded-md border p-4 bg-muted/30">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-sm font-medium">Usage</p>
+                    </div>
+                    {[
+                      { label: 'Projects', current: usageData.usage.projects, limit: usageData.limits.maxProjects },
+                      { label: 'Team members', current: usageData.usage.users, limit: usageData.limits.maxUsers },
+                      { label: 'Catalogue items', current: usageData.usage.catalogueItems, limit: usageData.limits.maxCatalogueItems },
+                    ].map(({ label, current, limit }) => {
+                      const isUnlimited = limit >= UNLIMITED;
+                      const pct = isUnlimited ? 0 : Math.min(100, Math.round((current / limit) * 100));
+                      const isNear = !isUnlimited && pct >= 80;
+                      const isAt = !isUnlimited && current >= limit;
+                      return (
+                        <div key={label} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{label}</span>
+                            <span className={isAt ? 'text-destructive font-medium' : isNear ? 'text-yellow-600 dark:text-yellow-400 font-medium' : ''}>
+                              {isUnlimited ? `${current} / Unlimited` : `${current} / ${limit}`}
+                            </span>
+                          </div>
+                          {!isUnlimited && (
+                            <Progress
+                              value={pct}
+                              className={`h-1.5 ${isAt ? '[&>div]:bg-destructive' : isNear ? '[&>div]:bg-yellow-500' : ''}`}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <div className="space-y-3">
                   <p className="text-sm font-medium">
