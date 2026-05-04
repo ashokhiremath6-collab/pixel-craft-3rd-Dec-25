@@ -10565,10 +10565,97 @@ Return your response in the following JSON format only (no markdown, no code blo
         metadata: { previousPlan, newPlan: plan },
       });
 
+      // Notify org admins about the plan change (continue on per-recipient errors)
+      {
+        const orgUsers = await storage.getUsersByOrg(orgId);
+        const { sendPlanChangedEmail } = await import("./email");
+        const notifiedEmails: string[] = [];
+        const failedEmails: string[] = [];
+        for (const u of orgUsers) {
+          if (!u.email) continue;
+          const userRole = await storage.getUserRole(u.id);
+          if (userRole?.role !== "admin") continue;
+          try {
+            await sendPlanChangedEmail(u.email, org.name, previousPlan, plan);
+            notifiedEmails.push(u.email);
+          } catch (emailErr) {
+            console.error(`[PLAN_CHANGE] Failed to notify ${u.email}:`, emailErr);
+            failedEmails.push(u.email);
+          }
+        }
+        // Always write audit log if at least one send was attempted
+        if (notifiedEmails.length > 0 || failedEmails.length > 0) {
+          try {
+            await storage.writeSuperAdminAuditLog({
+              superAdminId: (req.user as { id: string }).id,
+              action: "plan_change_email_sent",
+              targetOrgId: orgId,
+              targetUserId: null,
+              metadata: { notifiedEmails, failedEmails, previousPlan, newPlan: plan },
+            });
+          } catch (auditErr) {
+            console.error("[PLAN_CHANGE] Failed to write email audit log:", auditErr);
+          }
+        }
+      }
+
       res.json(updated);
     } catch (error) {
       console.error("Superadmin plan override error:", error);
       res.status(500).json({ error: "Failed to update plan" });
+    }
+  });
+
+  // POST /api/superadmin/organisations/:orgId/notify-trial-expiry
+  // Manually trigger a trial-expiry warning email to all admins of an org.
+  app.post("/api/superadmin/organisations/:orgId/notify-trial-expiry", requireSuperAdmin, async (req, res) => {
+    try {
+      const { orgId } = req.params;
+      const rawDays = req.body.daysRemaining ?? 3;
+      const daysRemaining = Math.round(Number(rawDays));
+      if (!Number.isFinite(daysRemaining) || daysRemaining < 0 || daysRemaining > 365) {
+        return res.status(400).json({ error: "daysRemaining must be an integer between 0 and 365" });
+      }
+
+      const org = await storage.getOrganisation(orgId);
+      if (!org) return res.status(404).json({ error: "Organisation not found" });
+
+      const orgUsers = await storage.getUsersByOrg(orgId);
+      const { sendTrialExpiryEmail } = await import("./email");
+      const notifiedEmails: string[] = [];
+      const failedEmails: string[] = [];
+
+      for (const u of orgUsers) {
+        if (!u.email) continue;
+        const userRole = await storage.getUserRole(u.id);
+        if (userRole?.role !== "admin") continue;
+        try {
+          await sendTrialExpiryEmail(u.email, org.name, Number(daysRemaining));
+          notifiedEmails.push(u.email);
+        } catch (emailErr) {
+          console.error(`[TRIAL_EXPIRY] Failed to notify ${u.email}:`, emailErr);
+          failedEmails.push(u.email);
+        }
+      }
+
+      if (notifiedEmails.length > 0 || failedEmails.length > 0) {
+        try {
+          await storage.writeSuperAdminAuditLog({
+            superAdminId: (req.user as { id: string }).id,
+            action: "trial_expiry_email_sent",
+            targetOrgId: orgId,
+            targetUserId: null,
+            metadata: { notifiedEmails, failedEmails, daysRemaining },
+          });
+        } catch (auditErr) {
+          console.error("[TRIAL_EXPIRY] Failed to write audit log:", auditErr);
+        }
+      }
+
+      res.json({ notifiedEmails, failedEmails });
+    } catch (error) {
+      console.error("Superadmin trial expiry notify error:", error);
+      res.status(500).json({ error: "Failed to send trial expiry notifications" });
     }
   });
 

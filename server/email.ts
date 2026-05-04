@@ -211,6 +211,84 @@ export async function sendSubscriptionCancelledEmail(
   });
 }
 
+export async function sendPlanChangedEmail(
+  email: string,
+  orgName: string,
+  previousPlan: string,
+  newPlan: string
+): Promise<void> {
+  const planLabel = (p: string) => p.charAt(0).toUpperCase() + p.slice(1);
+  console.info(
+    `[EMAIL] Plan change notification for ${email} (org: ${orgName}): ${previousPlan} -> ${newPlan}`
+  );
+  await sendEmail({
+    to: email,
+    subject: `Your ${orgName} plan has been updated on PixelCraft Designer`,
+    html: `
+      <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
+        <div style="text-align:center;margin-bottom:24px;">
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+        </div>
+        <div style="background:#fff;border-radius:12px;padding:28px;">
+          <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Your plan has been updated</h2>
+          <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 16px;">
+            The subscription plan for <strong>${orgName}</strong> has been changed by a system administrator.
+          </p>
+          <table style="width:100%;border-collapse:collapse;margin:0 0 20px;">
+            <tr>
+              <td style="padding:10px 12px;background:#f5f5f7;border-radius:8px 8px 0 0;color:#6e6e73;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Previous plan</td>
+              <td style="padding:10px 12px;background:#f5f5f7;border-radius:8px 8px 0 0;color:#1d1d1f;font-size:15px;font-weight:600;text-align:right;">${planLabel(previousPlan)}</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 12px;background:#e8f4fd;border-radius:0 0 8px 8px;color:#6e6e73;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">New plan</td>
+              <td style="padding:10px 12px;background:#e8f4fd;border-radius:0 0 8px 8px;color:#0071e3;font-size:15px;font-weight:600;text-align:right;">${planLabel(newPlan)}</td>
+            </tr>
+          </table>
+          <p style="color:#6e6e73;font-size:13px;margin:0;">
+            If you have questions about this change, please contact support.
+          </p>
+        </div>
+      </div>
+    `,
+    text: `Your plan for ${orgName} on PixelCraft Designer has been updated.\n\nPrevious plan: ${planLabel(previousPlan)}\nNew plan: ${planLabel(newPlan)}\n\nIf you have questions, please contact support.`,
+  });
+}
+
+export async function sendTrialExpiryEmail(
+  email: string,
+  orgName: string,
+  daysRemaining: number
+): Promise<void> {
+  const urgency = daysRemaining <= 1 ? "expires today" : `expires in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}`;
+  console.info(
+    `[EMAIL] Trial expiry warning for ${email} (org: ${orgName}): ${daysRemaining} days remaining`
+  );
+  await sendEmail({
+    to: email,
+    subject: `Your ${orgName} trial ${urgency} — upgrade to keep access`,
+    html: `
+      <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
+        <div style="text-align:center;margin-bottom:24px;">
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+        </div>
+        <div style="background:#fff;border-radius:12px;padding:28px;">
+          <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Your trial ${urgency}</h2>
+          <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 16px;">
+            The free trial for <strong>${orgName}</strong> ${urgency}. After it ends, your workspace will be restricted to read-only access until you upgrade.
+          </p>
+          <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
+            Upgrade now to keep full access to all your projects, team members, and files.
+          </p>
+          <p style="color:#6e6e73;font-size:13px;margin:0;">
+            Log in to your workspace to upgrade your plan. If you have questions, please contact support.
+          </p>
+        </div>
+      </div>
+    `,
+    text: `Your ${orgName} trial on PixelCraft Designer ${urgency}.\n\nAfter it ends, your workspace will be restricted to read-only access until you upgrade. Log in to your workspace to upgrade your plan.\n\nIf you have questions, please contact support.`,
+  });
+}
+
 export async function sendVerificationEmail(
   email: string,
   token: string,

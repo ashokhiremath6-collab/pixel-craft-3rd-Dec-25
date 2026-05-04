@@ -954,7 +954,7 @@ export type Sop = typeof sops.$inferSelect;
 // Super-admin audit log — every privileged action is recorded here
 export const superadminAuditLog = pgTable("superadmin_audit_log", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  superAdminId: varchar("super_admin_id").notNull().references(() => users.id),
+  superAdminId: varchar("super_admin_id").references(() => users.id), // nullable for system/webhook-triggered events
   action: text("action").notNull(), // plan_override, impersonate
   targetOrgId: varchar("target_org_id").references(() => organisations.id),
   targetUserId: varchar("target_user_id").references(() => users.id),

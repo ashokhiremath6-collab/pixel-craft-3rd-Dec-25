@@ -1,7 +1,8 @@
 import { getStripeSync, getUncachableStripeClient } from './stripeClient';
 import { storage } from './storage';
-import { sendPaymentFailedEmail, sendSubscriptionCancelledEmail } from './email';
+import { sendPaymentFailedEmail, sendSubscriptionCancelledEmail, sendTrialExpiryEmail } from './email';
 import type { User } from '../shared/schema';
+
 
 /**
  * Find the admin user for a given organisation.
@@ -88,12 +89,30 @@ export class WebhookHandlers {
           stripeSubscriptionId: undefined,
           currentPeriodEnd: undefined,
         });
-        try {
-          const adminUser = await findOrgAdmin(org.id);
-          if (adminUser?.email) {
-            await sendSubscriptionCancelledEmail(adminUser.email, org.name);
+        {
+          const adminUser = await findOrgAdmin(org.id).catch(() => undefined);
+          const notifiedEmail = adminUser?.email ?? null;
+          let emailSent = false;
+          if (notifiedEmail) {
+            try {
+              await sendSubscriptionCancelledEmail(notifiedEmail, org.name);
+              emailSent = true;
+            } catch (err) {
+              console.error('[webhook] subscription_cancelled email error:', err instanceof Error ? err.message : err);
+            }
           }
-        } catch { /* best-effort */ }
+          try {
+            await storage.writeSuperAdminAuditLog({
+              superAdminId: null,
+              action: 'subscription_cancelled_email_sent',
+              targetOrgId: org.id,
+              targetUserId: adminUser?.id ?? null,
+              metadata: { notifiedEmail, emailSent, stripeEventId: event?.id ?? null },
+            });
+          } catch (err) {
+            console.error('[webhook] subscription_cancelled audit error:', err instanceof Error ? err.message : err);
+          }
+        }
         break;
       }
 
@@ -101,12 +120,30 @@ export class WebhookHandlers {
         const org = await storage.getOrganisationByStripeCustomerId(data.customer);
         if (!org) break;
         await storage.updateOrganisation(org.id, { planStatus: 'past_due' });
-        try {
-          const adminUser = await findOrgAdmin(org.id);
-          if (adminUser?.email) {
-            await sendPaymentFailedEmail(adminUser.email, org.name);
+        {
+          const adminUser = await findOrgAdmin(org.id).catch(() => undefined);
+          const notifiedEmail = adminUser?.email ?? null;
+          let emailSent = false;
+          if (notifiedEmail) {
+            try {
+              await sendPaymentFailedEmail(notifiedEmail, org.name);
+              emailSent = true;
+            } catch (err) {
+              console.error('[webhook] payment_failed email error:', err instanceof Error ? err.message : err);
+            }
           }
-        } catch { /* best-effort */ }
+          try {
+            await storage.writeSuperAdminAuditLog({
+              superAdminId: null,
+              action: 'payment_failed_email_sent',
+              targetOrgId: org.id,
+              targetUserId: adminUser?.id ?? null,
+              metadata: { notifiedEmail, emailSent, stripeEventId: event?.id ?? null },
+            });
+          } catch (err) {
+            console.error('[webhook] payment_failed audit error:', err instanceof Error ? err.message : err);
+          }
+        }
         break;
       }
 
@@ -114,6 +151,41 @@ export class WebhookHandlers {
         const org = await storage.getOrganisationByStripeCustomerId(data.customer);
         if (!org) break;
         await storage.updateOrganisation(org.id, { planStatus: 'active' });
+        break;
+      }
+
+      case 'customer.subscription.trial_will_end': {
+        // Stripe fires this 3 days before the trial ends
+        const org = await storage.getOrganisationByStripeCustomerId(data.customer);
+        if (!org) break;
+        const trialEnd: number | null = data.trial_end ?? null;
+        const daysRemaining = trialEnd
+          ? Math.max(0, Math.ceil((trialEnd * 1000 - Date.now()) / 86_400_000))
+          : 3;
+        {
+          const adminUser = await findOrgAdmin(org.id).catch(() => undefined);
+          const notifiedEmail = adminUser?.email ?? null;
+          let emailSent = false;
+          if (notifiedEmail) {
+            try {
+              await sendTrialExpiryEmail(notifiedEmail, org.name, daysRemaining);
+              emailSent = true;
+            } catch (err) {
+              console.error('[webhook] trial_will_end email error:', err instanceof Error ? err.message : err);
+            }
+          }
+          try {
+            await storage.writeSuperAdminAuditLog({
+              superAdminId: null,
+              action: 'trial_expiry_email_sent',
+              targetOrgId: org.id,
+              targetUserId: adminUser?.id ?? null,
+              metadata: { notifiedEmail, emailSent, daysRemaining, stripeEventId: event?.id ?? null },
+            });
+          } catch (err) {
+            console.error('[webhook] trial_will_end audit error:', err instanceof Error ? err.message : err);
+          }
+        }
         break;
       }
 
