@@ -129,11 +129,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Endpoint to get presigned upload URL
   app.post("/api/objects/upload", requireAuth, async (req, res) => {
     try {
-      // Enforce storage limit before issuing an upload URL.
-      // Callers should pass fileSizeBytes so the check is size-aware: an upload that
-      // would push the org over its plan limit is rejected here before any bytes are sent.
       const user = req.user as any;
-      const fileSizeBytes = Number(req.body?.fileSizeBytes) || 0;
+      // fileSizeBytes is required — reject unknown-size uploads so storage quota
+      // cannot be bypassed by omitting this field.
+      const fileSizeBytes = Number(req.body?.fileSizeBytes);
+      if (!fileSizeBytes || fileSizeBytes <= 0) {
+        return res.status(400).json({ error: "fileSizeBytes is required and must be a positive number" });
+      }
       if (user.orgId) await checkOrgLimit(user.orgId, 'storageGb', fileSizeBytes);
 
       const objectStorageService = new ObjectStorageService();
