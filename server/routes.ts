@@ -86,20 +86,14 @@ async function checkOrgLimit(
   const current = usage[resource];
   const limit = limits[limitKey];
 
-  // For storageGb, factor in the incoming file size so an upload that would push the
-  // org over the limit is rejected before the bytes reach object storage.
+  // Storage: project incoming bytes onto current usage; counts: use current as-is.
   const effective = resource === 'storageGb'
     ? (current as number) + incomingBytes / (1024 * 1024 * 1024)
     : current;
 
-  // For count-based resources (projects, users, catalogueItems) the current count is
-  // checked BEFORE the write, so we block when current is already AT the limit (>=).
-  // For storage we compare the projected usage (current + incoming bytes) using strict
-  // ">" so that an upload landing exactly on the limit boundary is still allowed —
-  // only uploads that would push usage strictly past the limit are rejected.
-  const atOrOverLimit = resource === 'storageGb'
-    ? effective > limit
-    : (current as number) >= limit;
+  // Counts: block when already at limit (>= so adding one more would exceed).
+  // Storage: block only when projected usage strictly exceeds the cap (>).
+  const atOrOverLimit = resource === 'storageGb' ? effective > limit : (current as number) >= limit;
   if (limit < UNLIMITED && atOrOverLimit) {
     const label = resource === 'projects' ? 'projects'
       : resource === 'users' ? 'team members'
@@ -8399,7 +8393,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Category and subcategory are required" });
       }
 
-      // Create catalogue item with the processed asset
+      // Enforce catalogue item plan limit before creation.
+      const callerOrgId = (req.user as any).orgId;
+      if (callerOrgId) await checkOrgLimit(callerOrgId, 'catalogueItems');
+
       const catalogueItem = await storage.createCatalogueItem({
         mainCategory,
         subcategory,
@@ -8408,6 +8405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         attributes: attributes || '',
         aiImagePath: asset.processedFilePath || asset.originalFilePath,
         aiPromptHints: asset.aiPromptHints || null,
+        orgId: callerOrgId || null,
       });
 
       // Link the asset to the catalogue item
@@ -8549,14 +8547,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.body.title) updates.title = req.body.title;
       if (req.body.description !== undefined) updates.description = req.body.description || null;
 
-      // Handle file upload if provided (update — no storage limit check for replacements)
       if (req.file) {
         const userId = (req.user as any).id;
         const objectPath = await uploadToObjectStorage(
           req.file.buffer,
           req.file.originalname,
           userId,
-          req.file.mimetype
+          req.file.mimetype,
+          (req.user as any).orgId
         );
         updates.fileName = req.file.originalname;
         updates.filePath = objectPath;
@@ -8994,14 +8992,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.body.location !== undefined) updates.location = req.body.location || null;
       if (req.body.summary !== undefined) updates.summary = req.body.summary || null;
 
-      // Handle file upload if provided (update — no storage limit check for replacements)
       if (req.file) {
         const userId = (req.user as any).id;
         const objectPath = await uploadToObjectStorage(
           req.file.buffer,
           req.file.originalname,
           userId,
-          req.file.mimetype
+          req.file.mimetype,
+          (req.user as any).orgId
         );
         updates.fileName = req.file.originalname;
         updates.filePath = objectPath;
