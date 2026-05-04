@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,8 +12,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Building2, Users, CheckCircle, ArrowRight, Mail } from "lucide-react";
 
 interface OnboardingWizardProps {
-  orgName?: string;
-  orgId?: string;
+  orgId: string;
 }
 
 const step1Schema = z.object({
@@ -28,18 +27,33 @@ const inviteSchema = z.object({
 type Step1Values = z.infer<typeof step1Schema>;
 type InviteValues = z.infer<typeof inviteSchema>;
 
-export default function OnboardingWizard({ orgName, orgId }: OnboardingWizardProps) {
+export default function OnboardingWizard({ orgId }: OnboardingWizardProps) {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [isSavingName, setIsSavingName] = useState(false);
   const [isInviting, setIsInviting] = useState(false);
   const [inviteSent, setInviteSent] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [fetchedOrgName, setFetchedOrgName] = useState<string>("");
 
   const step1Form = useForm<Step1Values>({
     resolver: zodResolver(step1Schema),
-    defaultValues: { companyName: orgName || "" },
+    defaultValues: { companyName: "" },
   });
+
+  // Fetch the real org name and prefill step 1
+  useEffect(() => {
+    if (!orgId) return;
+    fetch(`/api/organisations/${orgId}`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.name) {
+          setFetchedOrgName(data.name);
+          step1Form.setValue("companyName", data.name);
+        }
+      })
+      .catch(() => {});
+  }, [orgId]);
 
   const inviteForm = useForm<InviteValues>({
     resolver: zodResolver(inviteSchema),

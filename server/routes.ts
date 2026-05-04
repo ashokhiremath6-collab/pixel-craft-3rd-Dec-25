@@ -742,6 +742,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // ─── Organisations ────────────────────────────────────────────────────────
 
+  app.get("/api/organisations/:id", isAuthenticated, async (req, res) => {
+    try {
+      const callerUser = await storage.getUser((req.user as any).id);
+      if (!callerUser?.orgId || callerUser.orgId !== req.params.id) {
+        return res.status(403).json({ error: "Access denied." });
+      }
+      const org = await storage.getOrganisation(req.params.id);
+      if (!org) return res.status(404).json({ error: "Organisation not found" });
+      res.json(org);
+    } catch (err) {
+      console.error("Get organisation error:", err);
+      res.status(500).json({ error: "Failed to fetch organisation" });
+    }
+  });
+
   app.patch("/api/organisations/:id", requireAdminOnly, async (req, res) => {
     try {
       const callerUser = await storage.getUser((req.user as any).id);
@@ -902,11 +917,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const inviter = await storage.getUser(invite.invitedBy);
       const inviterName = [inviter?.firstName, inviter?.lastName].filter(Boolean).join(" ") || inviter?.email || "A team member";
 
+      const existingAccount = await storage.getUserByEmail(invite.email);
       res.json({
         email: invite.email,
         role: invite.role,
         orgName: org?.name || "your workspace",
         invitedBy: inviterName,
+        accountExists: !!existingAccount,
       });
     } catch (err) {
       console.error("Get invitation details error:", err);

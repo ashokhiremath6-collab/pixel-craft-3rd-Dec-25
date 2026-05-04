@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, useParams } from "wouter";
 import { queryClient } from "@/lib/queryClient";
-import { Eye, EyeOff, UserCheck, AlertTriangle, Loader2 } from "lucide-react";
+import { Eye, EyeOff, UserCheck, AlertTriangle, Loader2, LogIn } from "lucide-react";
 
-const acceptSchema = z.object({
+const newAccountSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -21,13 +22,14 @@ const acceptSchema = z.object({
   path: ["confirmPassword"],
 });
 
-type AcceptValues = z.infer<typeof acceptSchema>;
+type NewAccountValues = z.infer<typeof newAccountSchema>;
 
 interface InviteDetails {
   email: string;
   role: string;
   orgName: string;
   invitedBy: string;
+  accountExists: boolean;
 }
 
 export default function InviteAcceptPage() {
@@ -40,8 +42,8 @@ export default function InviteAcceptPage() {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [fetchingInvite, setFetchingInvite] = useState(true);
 
-  const form = useForm<AcceptValues>({
-    resolver: zodResolver(acceptSchema),
+  const form = useForm<NewAccountValues>({
+    resolver: zodResolver(newAccountSchema),
     defaultValues: { firstName: "", lastName: "", password: "", confirmPassword: "" },
   });
 
@@ -57,7 +59,28 @@ export default function InviteAcceptPage() {
       .finally(() => setFetchingInvite(false));
   }, [token]);
 
-  async function handleSubmit(values: AcceptValues) {
+  async function acceptAsExistingUser() {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/invitations/token/${token}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ password: "existing-account-placeholder" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to join workspace");
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({ title: "Welcome!", description: `You've joined ${inviteDetails?.orgName}.` });
+      navigate("/");
+    } catch (err: any) {
+      toast({ title: "Failed to join workspace", description: err.message, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleNewAccountSubmit(values: NewAccountValues) {
     setIsLoading(true);
     try {
       const res = await fetch(`/api/invitations/token/${token}/accept`, {
@@ -122,103 +145,135 @@ export default function InviteAcceptPage() {
               <UserCheck className="h-7 w-7 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Accept invitation</CardTitle>
+          <CardTitle className="text-2xl">
+            {inviteDetails?.accountExists ? "Join workspace" : "Accept invitation"}
+          </CardTitle>
           <CardDescription>
             You've been invited to join <strong>{inviteDetails?.orgName}</strong> as a{" "}
-            <strong>{inviteDetails?.role}</strong>. Set up your account below.
+            <Badge variant="default" className="text-xs">{inviteDetails?.role}</Badge>
           </CardDescription>
           {inviteDetails && (
             <p className="text-sm text-muted-foreground">
-              Signing up as <strong>{inviteDetails.email}</strong>
+              Joining as <strong>{inviteDetails.email}</strong>
             </p>
           )}
         </CardHeader>
 
         <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <FormField
-                  control={form.control}
-                  name="firstName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>First name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Jane" autoComplete="given-name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="lastName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Last name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Smith" autoComplete="family-name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+          {inviteDetails?.accountExists ? (
+            /* Existing account — just link to org, no new password needed */
+            <div className="space-y-4">
+              <p className="text-sm text-center text-muted-foreground">
+                You already have a PixelCraft Designer account. Click below to join{" "}
+                <strong>{inviteDetails.orgName}</strong> using your existing account.
+              </p>
+              <Button className="w-full" onClick={acceptAsExistingUser} disabled={isLoading}>
+                {isLoading ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Joining…</>
+                ) : (
+                  <><LogIn className="h-4 w-4 mr-2" />Join {inviteDetails.orgName}</>
+                )}
+              </Button>
+              <p className="text-xs text-center text-muted-foreground">
+                Not you?{" "}
+                <button
+                  type="button"
+                  onClick={() => navigate("/login")}
+                  className="underline hover:text-foreground"
+                >
+                  Sign in with a different account
+                </button>
+              </p>
+            </div>
+          ) : (
+            /* New account — collect name + password */
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleNewAccountSubmit)} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="firstName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>First name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Jane" autoComplete="given-name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="lastName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Last name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Smith" autoComplete="family-name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <div className="relative">
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="At least 8 characters"
+                            autoComplete="new-password"
+                            {...field}
+                          />
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            onClick={() => setShowPassword(v => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirm password</FormLabel>
+                      <FormControl>
                         <Input
                           type={showPassword ? "text" : "password"}
-                          placeholder="At least 8 characters"
+                          placeholder="Repeat your password"
                           autoComplete="new-password"
                           {...field}
                         />
-                        <button
-                          type="button"
-                          tabIndex={-1}
-                          onClick={() => setShowPassword(v => !v)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Confirm password</FormLabel>
-                    <FormControl>
-                      <Input
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Repeat your password"
-                        autoComplete="new-password"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Creating account…" : "Create account & join"}
-              </Button>
-            </form>
-          </Form>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating account…</>
+                  ) : "Create account & join"}
+                </Button>
+              </form>
+            </Form>
+          )}
         </CardContent>
       </Card>
     </div>
