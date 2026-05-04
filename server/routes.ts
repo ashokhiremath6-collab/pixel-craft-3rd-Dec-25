@@ -1578,8 +1578,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role || 'client';
       
-      // Parse the update data
-      const parsed = insertProjectSchema.partial().parse(req.body);
+      // Strip orgId — project ownership is immutable via the API.
+      const { orgId: _omit, ...parsed } = insertProjectSchema.partial().parse(req.body);
       
       // Check if user is admin/designer
       if (role === 'admin' || role === 'designer') {
@@ -1631,8 +1631,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role || 'client';
       
-      // Parse the update data
-      const parsed = insertProjectSchema.partial().parse(req.body);
+      // Strip orgId — project ownership is immutable via the API.
+      const { orgId: _omit3, ...parsed } = insertProjectSchema.partial().parse(req.body);
       
       // Check if user is admin/designer
       if (role === 'admin' || role === 'designer') {
@@ -7817,7 +7817,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.filePath = req.body.filePath;
       }
       
-      const validatedUpdates = insertCatalogueItemSchema.partial().parse(updates);
+      // Strip orgId — catalogue item ownership is immutable via the API.
+      const { orgId: _omitOrg, ...validatedUpdates } = insertCatalogueItemSchema.partial().parse(updates);
       const item = await storage.updateCatalogueItem(id, validatedUpdates);
       if (!item) {
         return res.status(404).json({ error: "Catalogue item not found" });
