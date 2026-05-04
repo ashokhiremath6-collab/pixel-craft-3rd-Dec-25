@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -41,8 +41,11 @@ import OnboardingWizard from "@/components/OnboardingWizard";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Shield, User, Crown, Eye, AlertTriangle } from "lucide-react";
+import { LogOut, Shield, User, Crown, Eye, AlertTriangle, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+
+const TRIAL_BANNER_DISMISS_KEY = "trial_expiry_banner_dismissed_until";
+const TRIAL_WARNING_DAYS = 3;
 
 const ELEVATED_ROLES = ['admin', 'designer', 'project_manager'];
 
@@ -104,12 +107,46 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
     enabled: isAdmin && !!user?.orgId,
   });
 
-  const showTrialBanner =
+  const daysUntilTrialEnd = (() => {
+    if (!billingStatus?.currentPeriodEnd) return null;
+    const end = new Date(billingStatus.currentPeriodEnd);
+    const now = new Date();
+    const diffMs = end.getTime() - now.getTime();
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  })();
+
+  const trialExpiryDismissKey = billingStatus?.currentPeriodEnd
+    ? `${TRIAL_BANNER_DISMISS_KEY}_${billingStatus.currentPeriodEnd}`
+    : null;
+  const [trialBannerDismissed, setTrialBannerDismissed] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!trialExpiryDismissKey) return;
+    setTrialBannerDismissed(localStorage.getItem(trialExpiryDismissKey) === "true");
+  }, [trialExpiryDismissKey]);
+
+  const dismissTrialBanner = () => {
+    if (trialExpiryDismissKey) {
+      localStorage.setItem(trialExpiryDismissKey, "true");
+    }
+    setTrialBannerDismissed(true);
+  };
+
+  const showTrialExpiryBanner =
     isAdmin &&
     !!user?.orgId &&
     !!billingStatus &&
-    (billingStatus.planStatus === 'trialing' ||
-     billingStatus.planStatus === 'past_due' ||
+    billingStatus.planStatus === 'trialing' &&
+    daysUntilTrialEnd !== null &&
+    daysUntilTrialEnd >= 0 &&
+    daysUntilTrialEnd <= TRIAL_WARNING_DAYS &&
+    !trialBannerDismissed;
+
+  const showUrgentBillingBanner =
+    isAdmin &&
+    !!user?.orgId &&
+    !!billingStatus &&
+    (billingStatus.planStatus === 'past_due' ||
      billingStatus.planStatus === 'cancelled');
 
   return (
@@ -193,26 +230,54 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
               </Button>
             </div>
           )}
-          {showTrialBanner && (
-            <div className={`flex items-center justify-between gap-3 px-4 py-2 text-sm shrink-0 ${billingStatus?.planStatus === 'past_due' ? 'bg-destructive/10 text-destructive' : 'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300'}`}>
+          {showTrialExpiryBanner && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm shrink-0 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border-b border-amber-200 dark:border-amber-800">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>
+                  {daysUntilTrialEnd === 0
+                    ? 'Your free trial expires today.'
+                    : daysUntilTrialEnd === 1
+                    ? 'Your free trial expires tomorrow.'
+                    : `Your free trial expires in ${daysUntilTrialEnd} days.`}{' '}
+                  Upgrade to keep access to all features.
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => window.location.href = '/settings'}
+                  data-testid="button-trial-banner-upgrade"
+                >
+                  Upgrade now
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={dismissTrialBanner}
+                  title="Dismiss"
+                  data-testid="button-trial-banner-dismiss"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+          {showUrgentBillingBanner && (
+            <div className={`flex items-center justify-between gap-3 px-4 py-2 text-sm shrink-0 border-b ${billingStatus?.planStatus === 'past_due' ? 'bg-destructive/10 text-destructive border-destructive/20' : 'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'}`}>
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 {billingStatus?.planStatus === 'past_due'
                   ? 'Your payment is past due. Please update your billing details to avoid service interruption.'
-                  : billingStatus?.planStatus === 'cancelled'
-                  ? 'Your subscription has been cancelled. Resubscribe to restore full access.'
-                  : 'You are on a free trial. Upgrade to keep access to all features.'}
+                  : 'Your subscription has been cancelled. Resubscribe to restore full access.'}
               </div>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => window.location.href = '/settings'}
               >
-                {billingStatus?.planStatus === 'past_due'
-                  ? 'Fix billing'
-                  : billingStatus?.planStatus === 'cancelled'
-                  ? 'Resubscribe'
-                  : 'Upgrade now'}
+                {billingStatus?.planStatus === 'past_due' ? 'Fix billing' : 'Resubscribe'}
               </Button>
             </div>
           )}
