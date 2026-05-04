@@ -118,6 +118,7 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
+  getUsersByOrg(orgId: string): Promise<User[]>;
   upsertUser(userData: UpsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByResetToken(token: string): Promise<User | undefined>;
@@ -484,6 +485,10 @@ export class MemStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return Array.from(this.users.values());
+  }
+
+  async getUsersByOrg(orgId: string): Promise<User[]> {
+    return Array.from(this.users.values()).filter(u => (u as any).orgId === orgId);
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
@@ -1390,6 +1395,11 @@ export class DBStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     const result = await db.select().from(users);
+    return result;
+  }
+
+  async getUsersByOrg(orgId: string): Promise<User[]> {
+    const result = await db.select().from(users).where(eq(users.orgId, orgId));
     return result;
   }
 

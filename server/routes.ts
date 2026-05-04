@@ -622,7 +622,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      
+
+      // Org boundary: caller with an org can only manage users in the same org
+      const caller = await storage.getUser((req.user as any).id);
+      if (caller?.orgId && user.orgId && user.orgId !== caller.orgId) {
+        return res.status(403).json({ error: "You can only manage users within your own workspace." });
+      }
+
       // Update user role
       const updatedRole = await storage.updateUserRole(userId, role);
       if (!updatedRole) {
@@ -646,11 +652,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User management routes (admin only)
   app.get("/api/users", requireAdminOnly, async (req, res) => {
     try {
-      const users = await storage.getAllUsers();
-      
-      // Fetch roles for all users
+      const caller = await storage.getUser((req.user as any).id);
+      // Org-scoped: if caller belongs to an org, only return org members.
+      // Backward-compat: legacy admins without an org still get all users.
+      const userList = caller?.orgId
+        ? await storage.getUsersByOrg(caller.orgId)
+        : await storage.getAllUsers();
+
       const usersWithRoles = await Promise.all(
-        users.map(async (user) => {
+        userList.map(async (user) => {
           const role = await storage.getUserRole(user.id);
           return {
             ...sanitizeUser(user),
@@ -659,7 +669,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
       );
-      
+
       res.json(usersWithRoles);
     } catch (error) {
       console.error('Get users error:', error);
@@ -918,7 +928,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const existing = await storage.getUserByEmail(invite.email);
       if (existing) {
-        // User already has an account — just update orgId + role
+        // Reject if already in a different workspace
+        if (existing.orgId && existing.orgId !== invite.orgId) {
+          return res.status(409).json({
+            error: "This email is already associated with a different workspace. Please use a different email address or ask your current workspace admin to remove your account first.",
+          });
+        }
+        // Link account to inviting org (if not already set)
         if (!existing.orgId) {
           await storage.setUserOrgId(existing.id, invite.orgId);
         }
