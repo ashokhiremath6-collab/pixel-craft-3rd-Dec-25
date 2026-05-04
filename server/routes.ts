@@ -10829,6 +10829,11 @@ Return your response in the following JSON format only (no markdown, no code blo
         return res.status(400).json({ error: "isSuperAdmin must be a boolean" });
       }
 
+      const callerId = (req.user as { id: string }).id;
+      if (!grantSuperAdmin && userId === callerId) {
+        return res.status(400).json({ error: "You cannot revoke your own super-admin access." });
+      }
+
       const targetUser = await storage.getUser(userId);
       if (!targetUser) return res.status(404).json({ error: "User not found" });
 

@@ -105,7 +105,7 @@ function MetricsPanel({ metrics }: { metrics: Metrics }) {
   );
 }
 
-function OrgDetailPanel({ orgId, onBack }: { orgId: string; onBack: () => void }) {
+function OrgDetailPanel({ orgId, onBack, currentUserId }: { orgId: string; onBack: () => void; currentUserId: string | undefined }) {
   const { toast } = useToast();
   const [selectedPlan, setSelectedPlan] = useState<string>("");
 
@@ -242,18 +242,20 @@ function OrgDetailPanel({ orgId, onBack }: { orgId: string; onBack: () => void }
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Badge variant="outline" className="capitalize text-xs">{u.role}</Badge>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setSuperAdminMutation.mutate({ userId: u.id, grant: !u.isSuperAdmin })}
-                    disabled={setSuperAdminMutation.isPending}
-                    title={u.isSuperAdmin ? "Revoke super-admin" : "Grant super-admin"}
-                  >
-                    {u.isSuperAdmin
-                      ? <><ShieldOff className="h-3 w-3 mr-1" />Revoke</>
-                      : <><ShieldCheck className="h-3 w-3 mr-1" />Make super-admin</>
-                    }
-                  </Button>
+                  {u.id !== currentUserId && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSuperAdminMutation.mutate({ userId: u.id, grant: !u.isSuperAdmin })}
+                      disabled={setSuperAdminMutation.isPending}
+                      title={u.isSuperAdmin ? "Revoke super-admin" : "Grant super-admin"}
+                    >
+                      {u.isSuperAdmin
+                        ? <><ShieldOff className="h-3 w-3 mr-1" />Revoke</>
+                        : <><ShieldCheck className="h-3 w-3 mr-1" />Make super-admin</>
+                      }
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -401,7 +403,7 @@ export default function SuperAdminPage() {
   if (selectedOrgId) {
     return (
       <div className="max-w-5xl mx-auto space-y-6">
-        <OrgDetailPanel orgId={selectedOrgId} onBack={() => setSelectedOrgId(null)} />
+        <OrgDetailPanel orgId={selectedOrgId} onBack={() => setSelectedOrgId(null)} currentUserId={user?.id} />
       </div>
     );
   }
