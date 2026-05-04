@@ -260,7 +260,7 @@ export default function GanttChartPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
-      queryClient.removeQueries({ queryKey: ['/api/tasks'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       toast({ title: "Success", description: "Task created successfully" });
       setIsAddTaskOpen(false);
       form.reset();
@@ -296,7 +296,7 @@ export default function GanttChartPage() {
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', variables.projectId] });
-      queryClient.removeQueries({ queryKey: ['/api/tasks'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/schedules/project', variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
@@ -328,7 +328,7 @@ export default function GanttChartPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
-      queryClient.removeQueries({ queryKey: ['/api/tasks'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       toast({ title: "Success", description: "Task deleted successfully" });
     },
     onError: (error: any) => {
@@ -347,7 +347,7 @@ export default function GanttChartPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
-      queryClient.removeQueries({ queryKey: ['/api/tasks'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       setEditingProgressTaskId(null);
       setPendingExcelChanges(prev => prev + 1);
       toast({ title: "Success", description: "Progress updated" });
@@ -368,7 +368,7 @@ export default function GanttChartPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
-      queryClient.removeQueries({ queryKey: ['/api/tasks'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       setEditingEndDateTaskId(null);
       setPendingExcelChanges(prev => prev + 1);
       toast({ title: "Success", description: "End date updated" });
@@ -389,7 +389,7 @@ export default function GanttChartPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
-      queryClient.removeQueries({ queryKey: ['/api/tasks'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       setEditingStartDateTaskId(null);
       setPendingExcelChanges(prev => prev + 1);
       toast({ title: "Success", description: "Start date updated" });
@@ -410,7 +410,7 @@ export default function GanttChartPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
-      queryClient.removeQueries({ queryKey: ['/api/tasks'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       setExtendDeadlineTask(null);
       setExtendDeadlineNewDate('');
@@ -430,7 +430,7 @@ export default function GanttChartPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
-      queryClient.removeQueries({ queryKey: ['/api/tasks'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       setEditingSubcategoryTaskId(null);
     },
     onError: (error: any) => {
@@ -445,7 +445,7 @@ export default function GanttChartPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
-      queryClient.removeQueries({ queryKey: ['/api/tasks'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       setRemarksOpenTaskId(null);
       setPendingExcelChanges(prev => prev + 1);
       toast({ title: "Remarks saved" });
@@ -462,7 +462,7 @@ export default function GanttChartPage() {
     },
     onSuccess: (_, taskIds) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
-      queryClient.removeQueries({ queryKey: ['/api/tasks'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       setPendingExcelChanges(prev => prev + taskIds.length);
       toast({ title: `${taskIds.length} task${taskIds.length !== 1 ? 's' : ''} marked as completed` });
     },
@@ -489,7 +489,7 @@ export default function GanttChartPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
-      queryClient.removeQueries({ queryKey: ['/api/tasks'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/schedules/project', selectedProjectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
@@ -519,7 +519,7 @@ export default function GanttChartPage() {
         queryClient.invalidateQueries({ queryKey: ['/api/schedules/project', selectedProjectId] });
         queryClient.invalidateQueries({ queryKey: ['/api/tasks/project', selectedProjectId] });
       }
-      queryClient.removeQueries({ queryKey: ['/api/tasks'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       toast({ title: "Schedule Deleted", description: "Schedule and associated tasks have been removed" });
     },

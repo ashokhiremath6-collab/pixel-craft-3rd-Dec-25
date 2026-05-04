@@ -99,6 +99,8 @@
     "resend": "^6.10.0",
     "sharp": "^0.34.5",
     "sqlite3": "^5.1.7",
+    "stripe": "^22.1.0",
+    "stripe-replit-sync": "^1.0.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "tw-animate-css": "^1.2.5",

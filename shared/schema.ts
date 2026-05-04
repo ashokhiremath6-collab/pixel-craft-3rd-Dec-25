@@ -809,6 +809,10 @@ export const organisations = pgTable("organisations", {
   name: text("name").notNull(),
   slug: varchar("slug").notNull().unique(), // URL-safe identifier
   plan: text("plan").notNull().default("trial"), // trial, starter, pro, enterprise
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  planStatus: text("plan_status").notNull().default("trialing"), // trialing, active, past_due, cancelled
+  currentPeriodEnd: timestamp("current_period_end"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 

@@ -148,6 +148,7 @@ export interface IStorage {
   createOrganisation(org: InsertOrganisation): Promise<Organisation>;
   getOrganisation(id: string): Promise<Organisation | undefined>;
   getOrganisationBySlug(slug: string): Promise<Organisation | undefined>;
+  getOrganisationByStripeCustomerId(customerId: string): Promise<Organisation | undefined>;
   updateOrganisation(id: string, updates: Partial<InsertOrganisation>): Promise<Organisation | undefined>;
 
   // Invitations
@@ -1366,6 +1367,7 @@ export class MemStorage implements IStorage {
   }
   async getOrganisation(id: string): Promise<Organisation | undefined> { return undefined; }
   async getOrganisationBySlug(slug: string): Promise<Organisation | undefined> { return undefined; }
+  async getOrganisationByStripeCustomerId(customerId: string): Promise<Organisation | undefined> { return undefined; }
   async updateOrganisation(id: string, updates: Partial<InsertOrganisation>): Promise<Organisation | undefined> { return undefined; }
   async createInvitation(inv: InsertInvitation): Promise<Invitation> {
     throw new Error("MemStorage: createInvitation not supported");
@@ -2419,8 +2421,13 @@ export class DBStorage implements IStorage {
       .from(tasks)
       .leftJoin(projectSchedules, eq(tasks.scheduleId, projectSchedules.id))
       .orderBy(
+        // Group by project first so stats computed per-project are contiguous
+        asc(tasks.projectId),
+        // Within each project: schedule upload time keeps multiple imports in chronological order
         sql`${projectSchedules.uploadedAt} ASC NULLS LAST`,
+        // Original Excel row sequence is the primary sort within a schedule
         sql`${tasks.rowIndex} ASC NULLS LAST`,
+        // createdAt insertion order is the fallback for manually-created tasks (rowIndex = NULL)
         asc(tasks.createdAt),
         asc(tasks.id)
       );
@@ -3261,6 +3268,11 @@ export class DBStorage implements IStorage {
 
   async getOrganisationBySlug(slug: string): Promise<Organisation | undefined> {
     const result = await db.select().from(organisations).where(eq(organisations.slug, slug));
+    return result[0];
+  }
+
+  async getOrganisationByStripeCustomerId(customerId: string): Promise<Organisation | undefined> {
+    const result = await db.select().from(organisations).where(eq(organisations.stripeCustomerId, customerId));
     return result[0];
   }
 
