@@ -124,15 +124,17 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
 
   useEffect(() => {
     if (!trialExpiryDismissKey) return;
-    // Snoozed if the stored date matches today — resets automatically each new day
-    const today = new Date().toDateString();
-    setTrialBannerDismissed(localStorage.getItem(trialExpiryDismissKey) === today);
+    // Snoozed if the stored epoch is still in the future (i.e. before midnight tonight)
+    const snoozedUntil = parseInt(localStorage.getItem(trialExpiryDismissKey) || '0', 10);
+    setTrialBannerDismissed(Date.now() < snoozedUntil);
   }, [trialExpiryDismissKey]);
 
   const dismissTrialBanner = () => {
     if (trialExpiryDismissKey) {
-      // Store today's date so the snooze expires at midnight
-      localStorage.setItem(trialExpiryDismissKey, new Date().toDateString());
+      // Snooze until the end of today (23:59:59.999)
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+      localStorage.setItem(trialExpiryDismissKey, String(endOfDay.getTime()));
     }
     setTrialBannerDismissed(true);
   };
