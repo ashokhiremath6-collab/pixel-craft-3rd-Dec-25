@@ -10445,10 +10445,15 @@ Return your response in the following JSON format only (no markdown, no code blo
       (domains ? `https://${domains.split(',')[0].trim()}` : `${req.protocol}://${req.hostname}`);
   }
 
-  // GET /api/billing/status — current org plan info (admin-only, no designers)
-  app.get('/api/billing/status', requireAdminOnly, async (req, res) => {
+  // GET /api/billing/status — current org plan info (admin, designer, project_manager)
+  app.get('/api/billing/status', requireAuth, async (req, res) => {
     try {
       const user = req.user as any;
+      const allowedRoles = ['admin', 'designer', 'project_manager'];
+      const userRole = await storage.getUserRole(user.id);
+      if (!allowedRoles.includes(userRole?.role || '')) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
       if (!user.orgId) return res.status(400).json({ error: 'No organisation linked to this account' });
       const org = await storage.getOrganisation(user.orgId);
       if (!org) return res.status(404).json({ error: 'Organisation not found' });

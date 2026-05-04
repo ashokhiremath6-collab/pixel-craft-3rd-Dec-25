@@ -102,9 +102,10 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
   const canPreviewPortal = ELEVATED_ROLES.includes(user?.role || '');
 
   const isAdmin = user?.role === 'admin';
+  const canSeeBilling = ['admin', 'designer', 'project_manager'].includes(user?.role || '');
   const { data: billingStatus } = useQuery<BillingStatus>({
     queryKey: ["/api/billing/status"],
-    enabled: isAdmin && !!user?.orgId,
+    enabled: canSeeBilling && !!user?.orgId,
   });
 
   const daysUntilTrialEnd = (() => {
@@ -133,7 +134,7 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
   };
 
   const showTrialExpiryBanner =
-    isAdmin &&
+    canSeeBilling &&
     !!user?.orgId &&
     !!billingStatus &&
     billingStatus.planStatus === 'trialing' &&
@@ -143,7 +144,7 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
     !trialBannerDismissed;
 
   const showUrgentBillingBanner =
-    isAdmin &&
+    canSeeBilling &&
     !!user?.orgId &&
     !!billingStatus &&
     (billingStatus.planStatus === 'past_due' ||
@@ -236,22 +237,26 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 <span>
                   {daysUntilTrialEnd === 0
-                    ? 'Your free trial expires today.'
+                    ? 'The free trial expires today.'
                     : daysUntilTrialEnd === 1
-                    ? 'Your free trial expires tomorrow.'
-                    : `Your free trial expires in ${daysUntilTrialEnd} days.`}{' '}
-                  Upgrade to keep access to all features.
+                    ? 'The free trial expires tomorrow.'
+                    : `The free trial expires in ${daysUntilTrialEnd} days.`}{' '}
+                  {isAdmin
+                    ? 'Upgrade to keep access to all features.'
+                    : 'Please ask your workspace admin to upgrade.'}
                 </span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => window.location.href = '/settings'}
-                  data-testid="button-trial-banner-upgrade"
-                >
-                  Upgrade now
-                </Button>
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => window.location.href = '/settings'}
+                    data-testid="button-trial-banner-upgrade"
+                  >
+                    Upgrade now
+                  </Button>
+                )}
                 <Button
                   size="icon"
                   variant="ghost"
@@ -268,17 +273,23 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
             <div className={`flex items-center justify-between gap-3 px-4 py-2 text-sm shrink-0 border-b ${billingStatus?.planStatus === 'past_due' ? 'bg-destructive/10 text-destructive border-destructive/20' : 'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'}`}>
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
-                {billingStatus?.planStatus === 'past_due'
-                  ? 'Your payment is past due. Please update your billing details to avoid service interruption.'
-                  : 'Your subscription has been cancelled. Resubscribe to restore full access.'}
+                {isAdmin
+                  ? (billingStatus?.planStatus === 'past_due'
+                    ? 'Your payment is past due. Please update your billing details to avoid service interruption.'
+                    : 'Your subscription has been cancelled. Resubscribe to restore full access.')
+                  : (billingStatus?.planStatus === 'past_due'
+                    ? 'Payment is past due. Please ask your workspace admin to update billing details.'
+                    : 'The subscription has been cancelled. Please ask your workspace admin to resubscribe.')}
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => window.location.href = '/settings'}
-              >
-                {billingStatus?.planStatus === 'past_due' ? 'Fix billing' : 'Resubscribe'}
-              </Button>
+              {isAdmin && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => window.location.href = '/settings'}
+                >
+                  {billingStatus?.planStatus === 'past_due' ? 'Fix billing' : 'Resubscribe'}
+                </Button>
+              )}
             </div>
           )}
           <main className="flex-1 overflow-auto p-4 sm:p-6 bg-background min-w-0">
