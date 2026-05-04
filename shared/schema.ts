@@ -820,6 +820,28 @@ export const organisations = pgTable("organisations", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+// Notification preferences shape stored per-user in jsonb
+export interface NotificationPreferences {
+  planChanges: boolean;
+  paymentFailures: boolean;
+  trialExpiry: boolean;
+}
+
+export function defaultNotificationPreferences(): NotificationPreferences {
+  return { planChanges: true, paymentFailures: true, trialExpiry: true };
+}
+
+export function parseNotificationPreferences(raw: unknown): NotificationPreferences {
+  const defaults = defaultNotificationPreferences();
+  if (!raw || typeof raw !== "object") return defaults;
+  const p = raw as Record<string, unknown>;
+  return {
+    planChanges: typeof p.planChanges === "boolean" ? p.planChanges : defaults.planChanges,
+    paymentFailures: typeof p.paymentFailures === "boolean" ? p.paymentFailures : defaults.paymentFailures,
+    trialExpiry: typeof p.trialExpiry === "boolean" ? p.trialExpiry : defaults.trialExpiry,
+  };
+}
+
 // User storage table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey(),
@@ -835,6 +857,7 @@ export const users = pgTable("users", {
   orgId: varchar("org_id"), // FK to organisations; null for legacy users
   onboardingCompletedAt: timestamp("onboarding_completed_at"), // null = wizard not yet shown
   isSuperAdmin: boolean("is_super_admin").notNull().default(false), // system-level super-admin flag
+  notificationPreferences: jsonb("notification_preferences"), // NotificationPreferences; null = all enabled
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

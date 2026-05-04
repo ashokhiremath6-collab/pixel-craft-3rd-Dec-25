@@ -93,10 +93,15 @@ export class WebhookHandlers {
           const adminUser = await findOrgAdmin(org.id).catch(() => undefined);
           const notifiedEmail = adminUser?.email ?? null;
           let emailSent = false;
-          if (notifiedEmail) {
+          if (notifiedEmail && adminUser) {
             try {
-              await sendSubscriptionCancelledEmail(notifiedEmail, org.name);
-              emailSent = true;
+              const prefs = await storage.getNotificationPreferences(adminUser.id);
+              if (prefs.planChanges) {
+                await sendSubscriptionCancelledEmail(notifiedEmail, org.name);
+                emailSent = true;
+              } else {
+                console.info(`[webhook] subscription_cancelled email suppressed for ${notifiedEmail} (planChanges opted out)`);
+              }
             } catch (err) {
               console.error('[webhook] subscription_cancelled email error:', err instanceof Error ? err.message : err);
             }
@@ -124,10 +129,15 @@ export class WebhookHandlers {
           const adminUser = await findOrgAdmin(org.id).catch(() => undefined);
           const notifiedEmail = adminUser?.email ?? null;
           let emailSent = false;
-          if (notifiedEmail) {
+          if (notifiedEmail && adminUser) {
             try {
-              await sendPaymentFailedEmail(notifiedEmail, org.name);
-              emailSent = true;
+              const prefs = await storage.getNotificationPreferences(adminUser.id);
+              if (prefs.paymentFailures) {
+                await sendPaymentFailedEmail(notifiedEmail, org.name);
+                emailSent = true;
+              } else {
+                console.info(`[webhook] payment_failed email suppressed for ${notifiedEmail} (paymentFailures opted out)`);
+              }
             } catch (err) {
               console.error('[webhook] payment_failed email error:', err instanceof Error ? err.message : err);
             }
@@ -166,10 +176,15 @@ export class WebhookHandlers {
           const adminUser = await findOrgAdmin(org.id).catch(() => undefined);
           const notifiedEmail = adminUser?.email ?? null;
           let emailSent = false;
-          if (notifiedEmail) {
+          if (notifiedEmail && adminUser) {
             try {
-              await sendTrialExpiryEmail(notifiedEmail, org.name, daysRemaining);
-              emailSent = true;
+              const prefs = await storage.getNotificationPreferences(adminUser.id);
+              if (prefs.trialExpiry) {
+                await sendTrialExpiryEmail(notifiedEmail, org.name, daysRemaining);
+                emailSent = true;
+              } else {
+                console.info(`[webhook] trial_will_end email suppressed for ${notifiedEmail} (trialExpiry opted out)`);
+              }
             } catch (err) {
               console.error('[webhook] trial_will_end email error:', err instanceof Error ? err.message : err);
             }

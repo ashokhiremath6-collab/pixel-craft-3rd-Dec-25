@@ -1,6 +1,8 @@
 import { 
   type User, 
   type UpsertUser,
+  type NotificationPreferences,
+  parseNotificationPreferences,
   type UserRole,
   type InsertUserRole,
   type UserProjectAssignment,
@@ -130,6 +132,8 @@ export interface IStorage {
   setPasswordResetToken(userId: string, token: string, expiry: Date): Promise<void>;
   resetPassword(userId: string, passwordHash: string): Promise<void>;
   verifyEmail(token: string): Promise<User | undefined>;
+  getNotificationPreferences(userId: string): Promise<NotificationPreferences>;
+  updateNotificationPreferences(userId: string, prefs: Partial<NotificationPreferences>): Promise<NotificationPreferences>;
   
   // User Project Access (for client role project assignment)
   createUserProjectAccess(access: { userId: string; projectId: string }): Promise<{ userId: string; projectId: string }>;
@@ -666,6 +670,22 @@ export class MemStorage implements IStorage {
   async deleteUserProjectAccess(userId: string, projectId: string): Promise<boolean> {
     // For MemStorage, just return true (simplified)
     return true;
+  }
+
+  async getNotificationPreferences(userId: string): Promise<NotificationPreferences> {
+    const user = this.users.get(userId);
+    return parseNotificationPreferences((user as any)?.notificationPreferences);
+  }
+
+  async updateNotificationPreferences(userId: string, prefs: Partial<NotificationPreferences>): Promise<NotificationPreferences> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    const current = parseNotificationPreferences((user as any).notificationPreferences);
+    const updated = { ...current, ...prefs };
+    (user as any).notificationPreferences = updated;
+    (user as any).updatedAt = new Date();
+    this.users.set(userId, user);
+    return updated;
   }
 
   // Designer Allowlist methods (MemStorage - not used in production)
@@ -3610,6 +3630,21 @@ export class DBStorage implements IStorage {
 
   async setUserSuperAdmin(userId: string, isSuperAdmin: boolean): Promise<void> {
     await db.update(users).set({ isSuperAdmin }).where(eq(users.id, userId));
+  }
+
+  async getNotificationPreferences(userId: string): Promise<NotificationPreferences> {
+    const result = await db.select({ notificationPreferences: users.notificationPreferences })
+      .from(users).where(eq(users.id, userId));
+    return parseNotificationPreferences(result[0]?.notificationPreferences);
+  }
+
+  async updateNotificationPreferences(userId: string, prefs: Partial<NotificationPreferences>): Promise<NotificationPreferences> {
+    const current = await this.getNotificationPreferences(userId);
+    const updated = { ...current, ...prefs };
+    await db.update(users)
+      .set({ notificationPreferences: updated, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+    return updated;
   }
 }
 

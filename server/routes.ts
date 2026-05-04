@@ -10576,6 +10576,11 @@ Return your response in the following JSON format only (no markdown, no code blo
           const userRole = await storage.getUserRole(u.id);
           if (userRole?.role !== "admin") continue;
           try {
+            const prefs = await storage.getNotificationPreferences(u.id);
+            if (!prefs.planChanges) {
+              console.info(`[PLAN_CHANGE] Email suppressed for ${u.email} (planChanges opted out)`);
+              continue;
+            }
             await sendPlanChangedEmail(u.email, org.name, previousPlan, plan);
             notifiedEmails.push(u.email);
           } catch (emailErr) {
@@ -10630,6 +10635,11 @@ Return your response in the following JSON format only (no markdown, no code blo
         const userRole = await storage.getUserRole(u.id);
         if (userRole?.role !== "admin") continue;
         try {
+          const prefs = await storage.getNotificationPreferences(u.id);
+          if (!prefs.trialExpiry) {
+            console.info(`[TRIAL_EXPIRY] Email suppressed for ${u.email} (trialExpiry opted out)`);
+            continue;
+          }
           await sendTrialExpiryEmail(u.email, org.name, Number(daysRemaining));
           notifiedEmails.push(u.email);
         } catch (emailErr) {
@@ -10905,6 +10915,11 @@ Return your response in the following JSON format only (no markdown, no code blo
           if (roleRow?.role !== "admin" || !u.email) continue;
           adminUserId = adminUserId ?? u.id;
           try {
+            const prefs = await storage.getNotificationPreferences(u.id);
+            if (!prefs.trialExpiry) {
+              console.info(`[TRIAL_EXPIRY_JOB] Email suppressed for ${u.email} (trialExpiry opted out)`);
+              continue;
+            }
             await sendTrialExpiryWarningEmail(u.email, org.name, daysRemaining);
             notifiedEmails.push(u.email);
           } catch (emailErr) {
@@ -10952,6 +10967,40 @@ Return your response in the following JSON format only (no markdown, no code blo
       console.error("[TRIAL_EXPIRY_JOB] Unexpected error:", err);
     }
   }
+
+  // ── Notification preferences ────────────────────────────────────────────────
+  // GET /api/user/notification-preferences
+  app.get("/api/user/notification-preferences", requireAdmin, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const prefs = await storage.getNotificationPreferences(userId);
+      res.json(prefs);
+    } catch (error) {
+      console.error("Get notification preferences error:", error);
+      res.status(500).json({ error: "Failed to get notification preferences" });
+    }
+  });
+
+  // PATCH /api/user/notification-preferences
+  app.patch("/api/user/notification-preferences", requireAdmin, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const schema = z.object({
+        planChanges: z.boolean().optional(),
+        paymentFailures: z.boolean().optional(),
+        trialExpiry: z.boolean().optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid preferences", details: parsed.error.flatten() });
+      }
+      const prefs = await storage.updateNotificationPreferences(userId, parsed.data);
+      res.json(prefs);
+    } catch (error) {
+      console.error("Update notification preferences error:", error);
+      res.status(500).json({ error: "Failed to update notification preferences" });
+    }
+  });
 
   // Run immediately on startup, then every 24 hours
   runTrialExpiryWarnings();

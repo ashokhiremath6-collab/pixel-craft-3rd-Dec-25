@@ -15,7 +15,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation } from "wouter";
-import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock, CreditCard, Zap, AlertTriangle, ExternalLink, BarChart3 } from "lucide-react";
+import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock, CreditCard, Zap, AlertTriangle, ExternalLink, BarChart3, Bell } from "lucide-react";
 import { AccessDenied } from "@/components/AccessDenied";
 import { Progress } from "@/components/ui/progress";
 import { PlanLimitBanner } from "@/components/PlanLimitBanner";
@@ -98,6 +98,28 @@ export default function SettingsPage() {
   }>({
     queryKey: ["/api/billing/usage"],
     enabled: isAdmin && !!currentUser?.orgId,
+  });
+
+  const { data: notificationPrefs } = useQuery<{
+    planChanges: boolean;
+    paymentFailures: boolean;
+    trialExpiry: boolean;
+  }>({
+    queryKey: ["/api/user/notification-preferences"],
+    enabled: currentUser?.role === "admin",
+  });
+
+  const updateNotifPrefMutation = useMutation({
+    mutationFn: async (prefs: Partial<{ planChanges: boolean; paymentFailures: boolean; trialExpiry: boolean }>) => {
+      const res = await apiRequest("PATCH", "/api/user/notification-preferences", prefs);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/notification-preferences"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update preferences", description: error.message, variant: "destructive" });
+    },
   });
 
   const checkoutMutation = useMutation({
@@ -827,6 +849,63 @@ export default function SettingsPage() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Notification Preferences — only for admins */}
+      {currentUser?.role === "admin" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Email Notification Preferences
+            </CardTitle>
+            <CardDescription>
+              Choose which transactional emails you receive about your organisation's account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[
+                {
+                  key: "planChanges" as const,
+                  label: "Plan changes",
+                  description: "Emails when your subscription plan is upgraded, downgraded, or cancelled.",
+                },
+                {
+                  key: "paymentFailures" as const,
+                  label: "Payment failures",
+                  description: "Emails when a payment attempt for your subscription fails.",
+                },
+                {
+                  key: "trialExpiry" as const,
+                  label: "Trial expiry warnings",
+                  description: "Emails as your free trial period nears its end.",
+                },
+              ].map(({ key, label, description }) => {
+                const enabled = notificationPrefs ? notificationPrefs[key] : true;
+                return (
+                  <div key={key} className="flex items-start gap-4">
+                    <Checkbox
+                      id={`notif-${key}`}
+                      checked={enabled}
+                      disabled={updateNotifPrefMutation.isPending}
+                      onCheckedChange={(checked) => {
+                        updateNotifPrefMutation.mutate({ [key]: !!checked });
+                      }}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <label htmlFor={`notif-${key}`} className="text-sm font-medium cursor-pointer">
+                        {label}
+                      </label>
+                      <p className="text-sm text-muted-foreground">{description}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       )}
