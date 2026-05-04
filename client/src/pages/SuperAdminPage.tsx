@@ -1,17 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
   Building2, Users, FolderOpen, TrendingUp, Shield,
   Search, Eye, RefreshCw, ChevronRight, ArrowLeft,
-  Clock, Activity, Database, AlertTriangle
+  Clock, Activity, Database, AlertTriangle, CreditCard
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -26,14 +27,22 @@ interface OrgStats {
   userCount: number;
   projectCount: number;
   lastActivityAt: string | null;
+  storageGb: number;
+}
+
+interface SubscriptionEvent {
+  date: string;
+  description: string;
+  amount: number | null;
 }
 
 interface OrgDetail {
-  org: OrgStats;
-  users: Array<{ id: string; email: string; firstName: string | null; lastName: string | null; role: string; createdAt: string }>;
+  org: OrgStats & { stripeCustomerId: string | null; stripeSubscriptionId: string | null };
+  users: Array<{ id: string; email: string | null; firstName: string | null; lastName: string | null; role: string; createdAt: string | null }>;
   projects: Array<{ id: string; projectName: string; clientName: string }>;
   recentActivity: Array<{ id: string; userName: string; description: string; activityType: string; createdAt: string }>;
   usage: { projects: number; users: number; catalogueItems: number; storageGb: number };
+  subscriptionHistory: SubscriptionEvent[];
 }
 
 interface Metrics {
@@ -44,14 +53,16 @@ interface Metrics {
   mrrEstimate: number;
 }
 
-const PLAN_COLORS: Record<string, string> = {
+type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
+
+const PLAN_COLORS: Record<string, BadgeVariant> = {
   trial: "secondary",
   starter: "default",
   pro: "default",
   enterprise: "destructive",
 };
 
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<string, BadgeVariant> = {
   active: "default",
   trialing: "secondary",
   past_due: "destructive",
@@ -130,15 +141,15 @@ function OrgDetailPanel({ orgId, onBack }: { orgId: string; onBack: () => void }
   }
   if (!detail) return null;
 
-  const { org, users, projects, recentActivity, usage } = detail;
+  const { org, users, projects, recentActivity, usage, subscriptionHistory } = detail;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
         <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="h-4 w-4 mr-1" />Back</Button>
         <h2 className="text-lg font-semibold">{org.name}</h2>
-        <Badge variant={PLAN_COLORS[org.plan] as any} className="capitalize">{org.plan}</Badge>
-        <Badge variant={STATUS_COLORS[org.planStatus] as any} className="capitalize">{org.planStatus}</Badge>
+        <Badge variant={PLAN_COLORS[org.plan] ?? "default"} className="capitalize">{org.plan}</Badge>
+        <Badge variant={STATUS_COLORS[org.planStatus] ?? "default"} className="capitalize">{org.planStatus}</Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -244,17 +255,66 @@ function OrgDetailPanel({ orgId, onBack }: { orgId: string; onBack: () => void }
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />Subscription History
+          </CardTitle>
+          <CardDescription>
+            {org.stripeCustomerId
+              ? `Stripe customer: ${org.stripeCustomerId}`
+              : "No Stripe customer linked to this organisation."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {subscriptionHistory.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {org.stripeCustomerId ? "No invoices found." : "Subscription history unavailable — no Stripe customer ID."}
+            </p>
+          ) : (
+            <div className="divide-y text-sm">
+              {subscriptionHistory.map((evt, i) => (
+                <div key={i} className="py-2 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate">{evt.description}</p>
+                    <p className="text-xs text-muted-foreground">{format(new Date(evt.date), "MMM d, yyyy")}</p>
+                  </div>
+                  {evt.amount != null && (
+                    <span className="text-sm font-medium shrink-0">${evt.amount.toFixed(2)}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
 export default function SuperAdminPage() {
+  const [, navigate] = useLocation();
+  const { user, isLoading: authLoading } = useAuth();
+
+  // Redirect non-super-admins before rendering any sensitive content
+  useEffect(() => {
+    if (!authLoading && user && !user.isSuperAdmin) {
+      navigate("/");
+    }
+  }, [authLoading, user, navigate]);
+
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [tab, setTab] = useState<"orgs" | "audit">("orgs");
   const { toast } = useToast();
+
+  // Show nothing while auth state is resolving or if the user lacks access
+  if (authLoading || !user?.isSuperAdmin) {
+    return null;
+  }
 
   const { data: metrics, isLoading: metricsLoading } = useQuery<Metrics>({
     queryKey: ["/api/superadmin/metrics"],
@@ -376,8 +436,8 @@ export default function SuperAdminPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-sm">{org.name}</span>
                         <span className="text-xs text-muted-foreground">/{org.slug}</span>
-                        <Badge variant={PLAN_COLORS[org.plan] as any} className="capitalize text-xs">{org.plan}</Badge>
-                        <Badge variant={STATUS_COLORS[org.planStatus] as any} className="capitalize text-xs">{org.planStatus.replace("_", " ")}</Badge>
+                        <Badge variant={PLAN_COLORS[org.plan] ?? "default"} className="capitalize text-xs">{org.plan}</Badge>
+                        <Badge variant={STATUS_COLORS[org.planStatus] ?? "default"} className="capitalize text-xs">{org.planStatus.replace("_", " ")}</Badge>
                       </div>
                       <div className="flex items-center gap-4 mt-0.5 text-xs text-muted-foreground flex-wrap">
                         <span className="flex items-center gap-1"><Users className="h-3 w-3" />{org.userCount} users</span>

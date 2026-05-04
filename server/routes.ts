@@ -127,6 +127,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup auth (session, passport-local, auth endpoints)
   await setupAuth(app);
 
+  // Impersonation read-only guard — when a super-admin is acting as another user
+  // via session.impersonatingUserId, block all mutating HTTP methods except for
+  // the dedicated exit endpoint so the impersonated session stays read-only.
+  app.use((req, res, next) => {
+    const isImpersonating = !!(req.session as Record<string, unknown>)?.impersonatingUserId;
+    const isExitEndpoint =
+      req.path === "/api/superadmin/impersonate/exit" && req.method === "POST";
+    if (
+      isImpersonating &&
+      !isExitEndpoint &&
+      ["POST", "PUT", "PATCH", "DELETE"].includes(req.method)
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Mutating actions are not permitted during impersonation. Exit impersonation first." });
+    }
+    next();
+  });
+
   // Object Storage endpoints for permanent file storage
   // Endpoint to get presigned upload URL
   app.post("/api/objects/upload", requireAuth, async (req, res) => {
@@ -671,7 +690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: userRole?.role || "client",
         orgId: user.orgId || null,
         onboardingCompletedAt: user.onboardingCompletedAt || null,
-        isSuperAdmin: (user as any).isSuperAdmin ?? false,
+        isSuperAdmin: user.isSuperAdmin ?? false,
         _impersonating: !!impersonatingId,
         _originalUserId: impersonatingId ? req.session.originalUserId : undefined,
       });
@@ -10449,11 +10468,19 @@ Return your response in the following JSON format only (no markdown, no code blo
       ]);
       if (!org) return res.status(404).json({ error: "Organisation not found" });
 
-      // Fetch roles for users
+      // Fetch roles for users — select only safe fields explicitly to avoid any cast
       const usersWithRoles = await Promise.all(
         orgUsers.map(async u => {
           const role = await storage.getUserRole(u.id);
-          return { ...sanitizeUser(u as any), role: role?.role || "client" };
+          return {
+            id: u.id,
+            email: u.email,
+            firstName: u.firstName,
+            lastName: u.lastName,
+            profileImageUrl: u.profileImageUrl,
+            createdAt: u.createdAt,
+            role: role?.role || "client",
+          };
         })
       );
 
@@ -10461,7 +10488,29 @@ Return your response in the following JSON format only (no markdown, no code blo
       const orgUserIds = new Set(orgUsers.map(u => u.id));
       const orgActivity = recentActivity.filter(a => orgUserIds.has(a.userId));
 
-      res.json({ org, users: usersWithRoles, projects: orgProjects, recentActivity: orgActivity, usage });
+      // Pull subscription history from Stripe when a customer ID is available.
+      // Gracefully fall back to an empty array if Stripe is not configured.
+      type SubscriptionEvent = { date: string; description: string; amount: number | null };
+      let subscriptionHistory: SubscriptionEvent[] = [];
+      if (org.stripeCustomerId) {
+        try {
+          const { getUncachableStripeClient } = await import('./stripeClient');
+          const stripe = await getUncachableStripeClient();
+          const invoices = await stripe.invoices.list({
+            customer: org.stripeCustomerId,
+            limit: 10,
+          });
+          subscriptionHistory = invoices.data.map(inv => ({
+            date: new Date(inv.created * 1000).toISOString(),
+            description: inv.description || inv.lines.data[0]?.description || "Invoice",
+            amount: inv.amount_paid != null ? inv.amount_paid / 100 : null,
+          }));
+        } catch {
+          // Stripe not configured or request failed — subscription history stays empty
+        }
+      }
+
+      res.json({ org, users: usersWithRoles, projects: orgProjects, recentActivity: orgActivity, usage, subscriptionHistory });
     } catch (error) {
       console.error("Superadmin org detail error:", error);
       res.status(500).json({ error: "Failed to fetch organisation detail" });
@@ -10529,7 +10578,9 @@ Return your response in the following JSON format only (no markdown, no code blo
   });
 
   // POST /api/superadmin/impersonate/exit — end impersonation, return to super-admin session
-  app.post("/api/superadmin/impersonate/exit", requireAuth, async (req, res) => {
+  // Uses requireSuperAdmin (not requireAuth) because the underlying session still belongs to
+  // the super-admin; the impersonation only affects the /api/auth/user presentation layer.
+  app.post("/api/superadmin/impersonate/exit", requireSuperAdmin, async (req, res) => {
     try {
       const session = req.session as any;
       if (!session.impersonatingUserId) {
@@ -10553,11 +10604,38 @@ Return your response in the following JSON format only (no markdown, no code blo
       const pastDueOrgs = orgs.filter(o => o.planStatus === "past_due").length;
       const activeOrgs = orgs.filter(o => o.planStatus === "active").length;
 
-      // Simple MRR estimate from plan distribution (no Stripe required)
-      const PLAN_MRR: Record<string, number> = { trial: 0, starter: 49, pro: 149, enterprise: 499 };
-      const mrr = orgs.reduce((sum, o) => sum + (PLAN_MRR[o.plan] ?? 0), 0);
+      // Try to pull live MRR from Stripe active subscriptions. If Stripe is not
+      // configured or the call fails, fall back to a plan-price estimate.
+      let mrrEstimate = 0;
+      let mrrSource: "stripe" | "estimate" = "estimate";
+      try {
+        const { getUncachableStripeClient } = await import('./stripeClient');
+        const stripe = await getUncachableStripeClient();
+        // Fetch up to 100 active subscriptions with price data expanded
+        const subs = await stripe.subscriptions.list({
+          status: "active",
+          limit: 100,
+          expand: ["data.items.data.price"],
+        });
+        mrrEstimate = subs.data.reduce((sum, sub) => {
+          const subAmount = sub.items.data.reduce((itemSum, item) => {
+            const price = item.price;
+            const qty = item.quantity ?? 1;
+            const unitAmount = price.unit_amount ?? 0;
+            if (price.recurring?.interval === "month") return itemSum + qty * unitAmount / 100;
+            if (price.recurring?.interval === "year") return itemSum + qty * unitAmount / 100 / 12;
+            return itemSum;
+          }, 0);
+          return sum + subAmount;
+        }, 0);
+        mrrSource = "stripe";
+      } catch {
+        // Stripe not configured or unavailable — derive from plan distribution
+        const PLAN_MRR: Record<string, number> = { trial: 0, starter: 49, pro: 149, enterprise: 499 };
+        mrrEstimate = orgs.reduce((sum, o) => sum + (PLAN_MRR[o.plan] ?? 0), 0);
+      }
 
-      res.json({ totalOrgs, trialOrgs, pastDueOrgs, activeOrgs, mrrEstimate: mrr });
+      res.json({ totalOrgs, trialOrgs, pastDueOrgs, activeOrgs, mrrEstimate, mrrSource });
     } catch (error) {
       console.error("Superadmin metrics error:", error);
       res.status(500).json({ error: "Failed to fetch metrics" });

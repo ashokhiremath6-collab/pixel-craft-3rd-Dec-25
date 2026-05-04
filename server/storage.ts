@@ -432,7 +432,7 @@ export interface IStorage {
   getOrgUsage(orgId: string): Promise<{ projects: number; users: number; catalogueItems: number; storageGb: number }>;
 
   // Super-admin back-office
-  getAllOrganisationsWithStats(): Promise<Array<Organisation & { userCount: number; projectCount: number; lastActivityAt: string | null }>>;
+  getAllOrganisationsWithStats(): Promise<Array<Organisation & { userCount: number; projectCount: number; lastActivityAt: string | null; storageGb: number }>>;
   writeSuperAdminAuditLog(entry: InsertSuperadminAuditLog): Promise<SuperadminAuditLog>;
   getSuperAdminAuditLogs(limit?: number): Promise<SuperadminAuditLog[]>;
   setUserSuperAdmin(userId: string, isSuperAdmin: boolean): Promise<void>;
@@ -1405,7 +1405,7 @@ export class MemStorage implements IStorage {
     return { projects: 0, users: 0, catalogueItems: 0, storageGb: 0 };
   }
 
-  async getAllOrganisationsWithStats(): Promise<Array<Organisation & { userCount: number; projectCount: number; lastActivityAt: string | null }>> {
+  async getAllOrganisationsWithStats(): Promise<Array<Organisation & { userCount: number; projectCount: number; lastActivityAt: string | null; storageGb: number }>> {
     return [];
   }
   async writeSuperAdminAuditLog(_entry: InsertSuperadminAuditLog): Promise<SuperadminAuditLog> {
@@ -3507,10 +3507,10 @@ export class DBStorage implements IStorage {
     };
   }
 
-  async getAllOrganisationsWithStats(): Promise<Array<Organisation & { userCount: number; projectCount: number; lastActivityAt: string | null }>> {
+  async getAllOrganisationsWithStats(): Promise<Array<Organisation & { userCount: number; projectCount: number; lastActivityAt: string | null; storageGb: number }>> {
     const orgs = await db.select().from(organisations).orderBy(desc(organisations.createdAt));
     const results = await Promise.all(orgs.map(async (org) => {
-      const [userCountResult, projectCountResult, lastActivityResult] = await Promise.all([
+      const [userCountResult, projectCountResult, lastActivityResult, usage] = await Promise.all([
         db.select({ count: sql<number>`COUNT(*)` }).from(users).where(eq(users.orgId, org.id)),
         db.select({ count: sql<number>`COUNT(*)` }).from(projects).where(eq(projects.orgId, org.id)),
         db.select({ createdAt: activityLog.createdAt })
@@ -3519,12 +3519,14 @@ export class DBStorage implements IStorage {
           .where(eq(users.orgId, org.id))
           .orderBy(desc(activityLog.createdAt))
           .limit(1),
+        this.getOrgUsage(org.id),
       ]);
       return {
         ...org,
         userCount: Number(userCountResult[0]?.count ?? 0),
         projectCount: Number(projectCountResult[0]?.count ?? 0),
         lastActivityAt: lastActivityResult[0]?.createdAt?.toISOString() ?? null,
+        storageGb: usage.storageGb,
       };
     }));
     return results;
@@ -3542,7 +3544,7 @@ export class DBStorage implements IStorage {
   }
 
   async setUserSuperAdmin(userId: string, isSuperAdmin: boolean): Promise<void> {
-    await db.update(users).set({ isSuperAdmin } as any).where(eq(users.id, userId));
+    await db.update(users).set({ isSuperAdmin }).where(eq(users.id, userId));
   }
 }
 
