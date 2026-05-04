@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
@@ -32,6 +33,7 @@ import {
   Clock
 } from "lucide-react";
 import type { ObjectAsset } from "@shared/schema";
+import { AccessDenied } from "@/components/AccessDenied";
 
 const OBJECT_TYPES = [
   { value: "art", label: "Art & Wall Decor", icon: Palette, description: "Paintings, prints, sculptures, wall art" },
@@ -79,10 +81,14 @@ export default function AssetIngestionPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
+  const { user, isLoading: userLoading } = useAuth();
+
   const { data: assets, isLoading } = useQuery<ObjectAsset[]>({
     queryKey: ['/api/object-assets'],
     refetchInterval: 5000,
   });
+
+  const isDesignerOrAdmin = user?.role === 'admin' || user?.role === 'designer';
 
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
@@ -296,6 +302,18 @@ export default function AssetIngestionPage() {
     vendorBrand: '',
     description: ''
   });
+
+  if (userLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isDesignerOrAdmin) {
+    return <AccessDenied message="This page is only available to designers and admins." />;
+  }
 
   return (
     <div className="flex flex-col h-full">
