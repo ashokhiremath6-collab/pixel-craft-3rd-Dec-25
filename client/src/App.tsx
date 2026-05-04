@@ -124,12 +124,15 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
 
   useEffect(() => {
     if (!trialExpiryDismissKey) return;
-    setTrialBannerDismissed(localStorage.getItem(trialExpiryDismissKey) === "true");
+    // Snoozed if the stored date matches today — resets automatically each new day
+    const today = new Date().toDateString();
+    setTrialBannerDismissed(localStorage.getItem(trialExpiryDismissKey) === today);
   }, [trialExpiryDismissKey]);
 
   const dismissTrialBanner = () => {
     if (trialExpiryDismissKey) {
-      localStorage.setItem(trialExpiryDismissKey, "true");
+      // Store today's date so the snooze expires at midnight
+      localStorage.setItem(trialExpiryDismissKey, new Date().toDateString());
     }
     setTrialBannerDismissed(true);
   };
