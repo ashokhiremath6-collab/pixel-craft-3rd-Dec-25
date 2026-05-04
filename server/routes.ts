@@ -10776,6 +10776,20 @@ Return your response in the following JSON format only (no markdown, no code blo
       const superAdminId = req.session.originalUserId ?? (req.user as { id: string }).id;
 
       if (userId === superAdminId) {
+        console.warn(
+          `[superadmin] Self-impersonation attempt blocked for superAdminId=${superAdminId} at ${new Date().toISOString()}`
+        );
+        try {
+          await storage.writeSuperAdminAuditLog({
+            superAdminId,
+            action: "impersonate_self_blocked",
+            targetOrgId: null,
+            targetUserId: userId,
+            metadata: {},
+          });
+        } catch (auditErr) {
+          console.error("[superadmin] Failed to write impersonate_self_blocked audit log:", auditErr);
+        }
         return res.status(400).json({ error: "You cannot impersonate yourself" });
       }
 
