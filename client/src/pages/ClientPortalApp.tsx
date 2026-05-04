@@ -32,7 +32,9 @@ import {
   File,
   ChevronRight,
   ArrowLeft,
+  BrainCircuit,
 } from "lucide-react";
+import AIAssistantPage from "@/pages/AIAssistantPage";
 import { format, parseISO } from "date-fns";
 import type { Project, Moodboard, Specification, MeetingMinutes, Task } from "@shared/schema";
 
@@ -54,6 +56,7 @@ const TABS = [
   { id: "drawings", label: "Working Drawings", icon: PenTool },
   { id: "specifications", label: "Specifications", icon: BookOpen },
   { id: "minutes", label: "Meeting Minutes", icon: Calendar },
+  { id: "design-intelligence", label: "Design Intelligence", icon: BrainCircuit },
 ];
 
 function getFileUrl(filePath?: string | null, fileName?: string | null): string | null {
@@ -673,8 +676,10 @@ export default function ClientPortalApp({
       </div>
 
       {/* Content */}
-      <main className="flex-1 overflow-auto p-4 sm:p-6">
-        {dataLoading ? (
+      <main className={`flex-1 overflow-auto${activeTab === "design-intelligence" ? " flex flex-col" : " p-4 sm:p-6"}`}>
+        {activeTab === "design-intelligence" ? (
+          <AIAssistantPage />
+        ) : dataLoading ? (
           <div className="flex items-center justify-center h-48">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>

@@ -531,8 +531,8 @@ export default function AIAssistantPage() {
   // Role guard — all hooks are declared above; safe to return early here
   if (authLoading) return null;
 
-  if (user?.role !== 'admin' && user?.role !== 'designer') {
-    return <AccessDenied message="The Design Intelligence chat is only available to designers and admins." />;
+  if (user?.role !== 'admin' && user?.role !== 'designer' && user?.role !== 'client') {
+    return <AccessDenied message="The Design Intelligence chat is only available to designers, admins, and clients." />;
   }
 
   const canSend = (input.trim().length > 0 || attachments.length > 0) && !isLoading;
