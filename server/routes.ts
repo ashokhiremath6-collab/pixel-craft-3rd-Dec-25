@@ -19,7 +19,7 @@ import bcrypt from "bcrypt";
 import { sql } from "drizzle-orm";
 import { storage } from "./storage";
 import { getPlanLimits, UNLIMITED } from "./planLimits";
-import { setupAuth, isAuthenticated, requireAuth, requireAdmin, requireAdminOnly, requireProjectManagerOrAdmin, requireSuperAdmin } from "./localAuth";
+import { setupAuth, isAuthenticated, requireAuth, requireAdmin, requireAdminOnly, requireProjectManagerOrAdmin, requireSuperAdmin, isSuperAdminUser } from "./localAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { RENDER_STYLES, generateInteriorRender, generateConceptRender, generatePhotorealConversion, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
@@ -711,7 +711,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: userRole?.role || "client",
         orgId: user.orgId || null,
         onboardingCompletedAt: user.onboardingCompletedAt || null,
-        isSuperAdmin: user.isSuperAdmin ?? false,
+        // Use the same env-fallback logic as requireSuperAdmin so a user listed
+        // in SUPER_ADMIN_EMAILS can reach /superadmin even before the DB flag is set.
+        isSuperAdmin: isSuperAdminUser(user),
         _impersonating: isImpersonating,
         _originalUserId: isImpersonating ? req.session.originalUserId : undefined,
       });

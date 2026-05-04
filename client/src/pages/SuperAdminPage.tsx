@@ -132,7 +132,7 @@ function OrgDetailPanel({ orgId, onBack }: { orgId: string; onBack: () => void }
       window.open(data.redeemUrl, "_blank", "noopener,noreferrer");
       toast({
         title: "Impersonation tab opened",
-        description: `A new tab is now running as ${data.targetEmail}. Use the banner in that tab to exit.`,
+        description: `A new tab will open as ${data.targetEmail}. Note: this shares your session — the orange banner and exit control will be visible on any tab you reload. Exit impersonation before closing.`,
       });
     },
     onError: () => toast({ title: "Error", description: "Failed to start impersonation.", variant: "destructive" }),

@@ -456,7 +456,7 @@ export const requireProjectManagerOrAdmin: RequestHandler = async (req, res, nex
 // so new deployments work without a migration run).
 // If the email list grants access but the DB flag is not yet set, the flag is
 // lazily promoted so future checks hit the fast DB path.
-function isSuperAdminUser(user: { id: string; isSuperAdmin?: boolean | null; email?: string | null }): boolean {
+export function isSuperAdminUser(user: { id: string; isSuperAdmin?: boolean | null; email?: string | null }): boolean {
   if (user.isSuperAdmin) return true;
   const envEmails = (process.env.SUPER_ADMIN_EMAILS || "")
     .split(",")
