@@ -262,12 +262,6 @@ export default function AIAssistantPage() {
 
   const { user, isLoading: authLoading } = useAuth();
 
-  if (authLoading) return null;
-
-  if (user?.role !== 'admin' && user?.role !== 'designer') {
-    return <AccessDenied message="The Design Intelligence chat is only available to designers and admins." />;
-  }
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
@@ -533,6 +527,13 @@ export default function AIAssistantPage() {
       setIsElevationLoading(false);
     }
   }, [messages, isElevationLoading, toast]);
+
+  // Role guard — all hooks are declared above; safe to return early here
+  if (authLoading) return null;
+
+  if (user?.role !== 'admin' && user?.role !== 'designer') {
+    return <AccessDenied message="The Design Intelligence chat is only available to designers and admins." />;
+  }
 
   const canSend = (input.trim().length > 0 || attachments.length > 0) && !isLoading;
   const isEmpty = messages.length === 0;
