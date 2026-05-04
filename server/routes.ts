@@ -10400,7 +10400,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   });
 
   // ─── Design Intelligence Chat ─────────────────────────────────────────────
-  app.post("/api/ai-assistant/chat", requireAuth, async (req, res) => {
+  app.post("/api/ai-assistant/chat", requireAdmin, async (req, res) => {
     try {
       const { messages } = req.body as { messages: DesignChatMessage[] };
       if (!Array.isArray(messages) || messages.length === 0) {
@@ -10415,7 +10415,7 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  app.post("/api/ai-assistant/elevation", requireAuth, async (req, res) => {
+  app.post("/api/ai-assistant/elevation", requireAdmin, async (req, res) => {
     try {
       const { messages } = req.body as { messages: DesignChatMessage[] };
       if (!Array.isArray(messages) || messages.length === 0) {
@@ -10430,7 +10430,7 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  app.post("/api/ai-assistant/floor-plan", requireAuth, async (req, res) => {
+  app.post("/api/ai-assistant/floor-plan", requireAdmin, async (req, res) => {
     try {
       const { messages } = req.body as { messages: DesignChatMessage[] };
       if (!Array.isArray(messages) || messages.length === 0) {
@@ -10445,7 +10445,7 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  app.post("/api/ai-assistant/render-brief", requireAuth, async (req, res) => {
+  app.post("/api/ai-assistant/render-brief", requireAdmin, async (req, res) => {
     try {
       const { messages } = req.body as { messages: DesignChatMessage[] };
       if (!Array.isArray(messages) || messages.length === 0) {
@@ -10460,7 +10460,7 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  app.post("/api/ai-assistant/floor-plan-dxf", requireAuth, async (req, res) => {
+  app.post("/api/ai-assistant/floor-plan-dxf", requireAdmin, async (req, res) => {
     try {
       const { messages } = req.body as { messages: DesignChatMessage[] };
       if (!Array.isArray(messages) || messages.length === 0) {
@@ -10478,7 +10478,7 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  app.post("/api/ai-assistant/elevation-dxf", requireAuth, async (req, res) => {
+  app.post("/api/ai-assistant/elevation-dxf", requireAdmin, async (req, res) => {
     try {
       const { messages } = req.body as { messages: DesignChatMessage[] };
       if (!Array.isArray(messages) || messages.length === 0) {
