@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Send, RotateCcw, Copy, Check, BrainCircuit, ChevronRight, Paperclip, X, FileText, ImageIcon, Wand2, ArrowRight, Sparkles, PenLine, Download, Loader2, BookOpen, MessageSquare, Map, Layers, Package, Lightbulb, FolderDown, Box } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { AccessDenied } from "@/components/AccessDenied";
@@ -260,13 +260,11 @@ export default function AIAssistantPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  const { data: user, isLoading: userLoading } = useQuery<{ role: string }>({
-    queryKey: ['/api/auth/user'],
-  });
+  const { user, isLoading: authLoading } = useAuth();
 
-  const isDesignerOrAdmin = user?.role === 'admin' || user?.role === 'designer';
+  if (authLoading) return null;
 
-  if (!userLoading && !isDesignerOrAdmin) {
+  if (user?.role !== 'admin' && user?.role !== 'designer') {
     return <AccessDenied message="The Design Intelligence chat is only available to designers and admins." />;
   }
 
