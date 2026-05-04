@@ -451,16 +451,40 @@ export const requireProjectManagerOrAdmin: RequestHandler = async (req, res, nex
   }
 };
 
+// Runtime helper: returns true if the user holds the super-admin privilege,
+// either via the DB flag or via the SUPER_ADMIN_EMAILS env var (runtime fallback
+// so new deployments work without a migration run).
+// If the email list grants access but the DB flag is not yet set, the flag is
+// lazily promoted so future checks hit the fast DB path.
+function isSuperAdminUser(user: { id: string; isSuperAdmin?: boolean | null; email?: string | null }): boolean {
+  if (user.isSuperAdmin) return true;
+  const envEmails = (process.env.SUPER_ADMIN_EMAILS || "")
+    .split(",")
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+  return envEmails.length > 0 && !!user.email && envEmails.includes(user.email.toLowerCase());
+}
+
 // Require system-level super-admin flag on the user record.
 // Used to gate all /api/superadmin/* routes.
+// When a super-admin is impersonating another user, req.user has been swapped to
+// the impersonated user by the effective-user middleware in routes.ts.
+// In that case session.originalUserId holds the real super-admin's id and is
+// used for the privilege check instead of req.user.
 export const requireSuperAdmin: RequestHandler = async (req, res, next) => {
   if (!req.isAuthenticated() || !req.user) {
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
-    const user = await storage.getUser((req.user as any).id);
-    if (!user || !(user as any).isSuperAdmin) {
+    // Use the real super-admin's id when impersonating; fall back to session user.
+    const realUserId = req.session?.originalUserId ?? (req.user as { id: string }).id;
+    const user = await storage.getUser(realUserId);
+    if (!user || !isSuperAdminUser(user)) {
       return res.status(403).json({ error: "Super-admin access required" });
+    }
+    // Lazy-promote: if email list grants access but DB flag is not yet set, fix it.
+    if (!user.isSuperAdmin) {
+      storage.setUserSuperAdmin(user.id, true).catch(() => {});
     }
     next();
   } catch {

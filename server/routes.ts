@@ -146,6 +146,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
 
+  // Effective user context — when a super-admin is impersonating another user,
+  // replace req.user with the impersonated user so all downstream route handlers
+  // naturally see the impersonated user's orgId, role, and other context.
+  // The original super-admin user object is preserved on req.superAdminUser so
+  // requireSuperAdmin can still verify the real identity during impersonation.
+  app.use(async (req, _res, next) => {
+    const impersonatingId = req.session?.impersonatingUserId;
+    if (!impersonatingId) return next();
+    try {
+      const impersonatedUser = await storage.getUser(impersonatingId);
+      if (impersonatedUser) {
+        (req as any).superAdminUser = req.user; // preserve original for requireSuperAdmin
+        req.user = impersonatedUser as Express.User;
+      }
+    } catch {
+      // If lookup fails, leave req.user unchanged so the super-admin isn't locked out
+    }
+    next();
+  });
+
   // Object Storage endpoints for permanent file storage
   // Endpoint to get presigned upload URL
   app.post("/api/objects/upload", requireAuth, async (req, res) => {
@@ -671,28 +691,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication Routes
   
   // Check authentication status
-  // Real auth endpoint to get current user
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  // Real auth endpoint to get current user.
+  // req.user is already the effective user (impersonated or real) thanks to
+  // the effective-user middleware registered above.
+  app.get('/api/auth/user', isAuthenticated, async (req, res) => {
     try {
-      // If a super-admin is impersonating someone, return the impersonated user's context.
-      const impersonatingId = req.session?.impersonatingUserId as string | undefined;
-      const effectiveId = impersonatingId ?? (req.user as any).id;
+      const effectiveUser = req.user as { id: string };
+      const isImpersonating = !!req.session?.impersonatingUserId;
 
-      const user = await storage.getUser(effectiveId);
+      const user = await storage.getUser(effectiveUser.id);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      
+
       const userRole = await storage.getUserRole(user.id);
-      
+
       res.json({
         ...sanitizeUser(user),
         role: userRole?.role || "client",
         orgId: user.orgId || null,
         onboardingCompletedAt: user.onboardingCompletedAt || null,
         isSuperAdmin: user.isSuperAdmin ?? false,
-        _impersonating: !!impersonatingId,
-        _originalUserId: impersonatingId ? req.session.originalUserId : undefined,
+        _impersonating: isImpersonating,
+        _originalUserId: isImpersonating ? req.session.originalUserId : undefined,
       });
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -10552,7 +10573,9 @@ Return your response in the following JSON format only (no markdown, no code blo
   app.post("/api/superadmin/impersonate/:userId", requireSuperAdmin, async (req, res) => {
     try {
       const { userId } = req.params;
-      const superAdminId = (req.user as any).id;
+      // Use session.originalUserId if already impersonating (guarded by read-only
+      // middleware so this shouldn't happen), otherwise use the real session user.
+      const superAdminId = req.session.originalUserId ?? (req.user as { id: string }).id;
 
       const targetUser = await storage.getUser(userId);
       if (!targetUser) return res.status(404).json({ error: "User not found" });
@@ -10567,8 +10590,8 @@ Return your response in the following JSON format only (no markdown, no code blo
       });
 
       // Set impersonation in session
-      (req.session as any).impersonatingUserId = userId;
-      (req.session as any).originalUserId = superAdminId;
+      req.session.impersonatingUserId = userId;
+      req.session.originalUserId = superAdminId;
 
       res.json({ success: true, targetUserId: userId, targetEmail: targetUser.email });
     } catch (error) {
@@ -10582,12 +10605,11 @@ Return your response in the following JSON format only (no markdown, no code blo
   // the super-admin; the impersonation only affects the /api/auth/user presentation layer.
   app.post("/api/superadmin/impersonate/exit", requireSuperAdmin, async (req, res) => {
     try {
-      const session = req.session as any;
-      if (!session.impersonatingUserId) {
+      if (!req.session.impersonatingUserId) {
         return res.status(400).json({ error: "Not currently impersonating anyone" });
       }
-      delete session.impersonatingUserId;
-      delete session.originalUserId;
+      delete req.session.impersonatingUserId;
+      delete req.session.originalUserId;
       res.json({ success: true });
     } catch (error) {
       console.error("Superadmin impersonate exit error:", error);
