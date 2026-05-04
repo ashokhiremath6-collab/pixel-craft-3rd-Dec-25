@@ -111,6 +111,16 @@ async function checkOrgLimit(
   }
 }
 
+// Shared helper — call at the top of every upload/create catch block.
+// Returns true if the error was a plan-limit rejection (403 sent); caller should return.
+function handleLimitError(res: Response, err: any): boolean {
+  if (err?.limitExceeded) {
+    res.status(403).json({ error: err.message, limitExceeded: true, current: err.current, limit: err.limit, resource: err.resource });
+    return true;
+  }
+  return false;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup auth (session, passport-local, auth endpoints)
   await setupAuth(app);
@@ -3115,9 +3125,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         errors: results.errors
       });
 
-    } catch (error) {
+    } catch (error: any) {
+      if (handleLimitError(res, error)) return;
       console.error('Quote import error:', error);
-      
       res.status(500).json({ 
         error: "Failed to import quote",
         details: error instanceof Error ? error.message : 'Unknown error'
@@ -3311,9 +3321,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         errors: results.errors
       });
 
-    } catch (error) {
+    } catch (error: any) {
+      if (handleLimitError(res, error)) return;
       console.error('Resolve import conflict error:', error);
-      
       res.status(500).json({ 
         error: "Failed to resolve import conflict",
         details: error instanceof Error ? error.message : 'Unknown error'
@@ -4272,7 +4282,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.status(201).json(floorPlan);
-    } catch (error) {
+    } catch (error: any) {
+      if (handleLimitError(res, error)) return;
       console.error('Error creating floor plan:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid floor plan data", details: error.errors });
@@ -4518,7 +4529,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.status(201).json(moodboard);
-    } catch (error) {
+    } catch (error: any) {
+      if (handleLimitError(res, error)) return;
       console.error('Error creating moodboard:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid moodboard data", details: error.errors });
@@ -5084,7 +5096,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.status(201).json(moodboard);
-    } catch (error) {
+    } catch (error: any) {
+      if (handleLimitError(res, error)) return;
       console.error('Error saving AI render:', error);
       res.status(500).json({ error: "Failed to save render" });
     }
@@ -6216,7 +6229,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalRows: taskData.length,
         errors: errors.length > 0 ? errors.slice(0, 50) : undefined,
       });
-    } catch (error) {
+    } catch (error: any) {
+      if (handleLimitError(res, error)) return;
       console.error('Error importing schedule:', error);
       res.status(500).json({ error: "Failed to import schedule" });
     }
@@ -7440,7 +7454,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
       res.json({ path: objectPath });
-    } catch (error) {
+    } catch (error: any) {
+      if (handleLimitError(res, error)) return;
       console.error('Error uploading file:', error);
       res.status(500).json({ error: "Failed to upload file" });
     }
@@ -8532,7 +8547,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         res.status(201).json(spec);
-      } catch (error) {
+      } catch (error: any) {
+        if (handleLimitError(res, error)) return;
         console.error('Error creating specification:', error);
         res.status(500).json({ error: "Failed to create specification" });
       }
@@ -8860,6 +8876,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       res.json(asset);
     } catch (error: any) {
+      if (handleLimitError(res, error)) return;
       console.error('Error saving render to assets:', error);
       res.status(500).json({ error: "Failed to save render to assets" });
     }
@@ -8973,7 +8990,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         res.status(201).json(minutes);
-      } catch (error) {
+      } catch (error: any) {
+        if (handleLimitError(res, error)) return;
         console.error('Error creating meeting minutes:', error);
         res.status(500).json({ error: "Failed to create meeting minutes" });
       }
@@ -9013,7 +9031,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Meeting minutes not found" });
       }
       res.json(minutes);
-    } catch (error) {
+    } catch (error: any) {
+      if (handleLimitError(res, error)) return;
       console.error('Error updating meeting minutes:', error);
       res.status(500).json({ error: "Failed to update meeting minutes" });
     }
@@ -9348,7 +9367,8 @@ Return your response in the following JSON format only (no markdown, no code blo
       }
 
       res.status(201).json(template);
-    } catch (error) {
+    } catch (error: any) {
+      if (handleLimitError(res, error)) return;
       console.error('Error importing template:', error);
       res.status(500).json({ error: "Failed to import template" });
     }
@@ -10095,7 +10115,8 @@ Return your response in the following JSON format only (no markdown, no code blo
         worksOrder,
         files: uploadedFiles
       });
-    } catch (error) {
+    } catch (error: any) {
+      if (handleLimitError(res, error)) return;
       console.error('Error importing works order:', error);
       const errorMessage = error instanceof Error ? error.message : "Failed to import works order";
       res.status(500).json({ error: errorMessage });
