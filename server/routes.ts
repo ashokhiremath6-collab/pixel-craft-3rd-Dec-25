@@ -92,9 +92,15 @@ async function checkOrgLimit(
     ? (current as number) + incomingBytes / (1024 * 1024 * 1024)
     : current;
 
-  // Use strict ">" so an upload that lands exactly on the limit is still allowed.
-  // An upload exceeding the limit (effective strictly greater than limit) is rejected.
-  if (limit < UNLIMITED && effective > limit) {
+  // For count-based resources (projects, users, catalogueItems) the current count is
+  // checked BEFORE the write, so we block when current is already AT the limit (>=).
+  // For storage we compare the projected usage (current + incoming bytes) using strict
+  // ">" so that an upload landing exactly on the limit boundary is still allowed —
+  // only uploads that would push usage strictly past the limit are rejected.
+  const atOrOverLimit = resource === 'storageGb'
+    ? effective > limit
+    : (current as number) >= limit;
+  if (limit < UNLIMITED && atOrOverLimit) {
     const label = resource === 'projects' ? 'projects'
       : resource === 'users' ? 'team members'
       : resource === 'storageGb' ? 'GB of storage'
