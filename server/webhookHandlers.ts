@@ -1,6 +1,7 @@
 import { getStripeSync, getUncachableStripeClient } from './stripeClient';
 import { storage } from './storage';
 import { sendPaymentFailedEmail, sendSubscriptionCancelledEmail } from './email';
+import type { User } from '../shared/schema';
 
 export class WebhookHandlers {
   static async processWebhook(payload: Buffer, signature: string): Promise<void> {
@@ -18,12 +19,7 @@ export class WebhookHandlers {
 
     // 2. Parse the event to update our organisations table
     try {
-      const stripe = await getUncachableStripeClient();
-      const event = stripe.webhooks.constructEventAsync
-        ? await (stripe.webhooks as any).constructEventAsync(payload, signature, '')
-        : null;
-
-      // Fallback: parse payload directly (sync already verified signature)
+      // Fallback: parse payload directly (sync already verified the signature above)
       const body = JSON.parse(payload.toString());
       await WebhookHandlers.handleStripeEvent(body);
     } catch (err) {
@@ -40,7 +36,6 @@ export class WebhookHandlers {
 
     switch (type) {
       case 'checkout.session.completed': {
-        // Payment succeeded — link org to Stripe customer + subscription
         if (data.mode !== 'subscription') break;
         const orgId = data.metadata?.orgId;
         if (!orgId) break;
@@ -74,13 +69,12 @@ export class WebhookHandlers {
         await storage.updateOrganisation(org.id, {
           plan: 'trial',
           planStatus: 'cancelled',
-          stripeSubscriptionId: null as any,
-          currentPeriodEnd: null as any,
+          stripeSubscriptionId: undefined,
+          currentPeriodEnd: undefined,
         });
-        // Notify admin by email
         try {
-          const adminUsers = await storage.getUsersByOrg(org.id);
-          const admin = adminUsers.find(u => (u as any).role === 'admin') || adminUsers[0];
+          const orgUsers: User[] = await storage.getUsersByOrg(org.id);
+          const admin = orgUsers.find(u => u.role === 'admin') || orgUsers[0];
           if (admin?.email) {
             await sendSubscriptionCancelledEmail(admin.email, org.name);
           }
@@ -92,10 +86,9 @@ export class WebhookHandlers {
         const org = await storage.getOrganisationByStripeCustomerId(data.customer);
         if (!org) break;
         await storage.updateOrganisation(org.id, { planStatus: 'past_due' });
-        // Notify admin by email
         try {
-          const adminUsers = await storage.getUsersByOrg(org.id);
-          const admin = adminUsers.find(u => (u as any).role === 'admin') || adminUsers[0];
+          const orgUsers: User[] = await storage.getUsersByOrg(org.id);
+          const admin = orgUsers.find(u => u.role === 'admin') || orgUsers[0];
           if (admin?.email) {
             await sendPaymentFailedEmail(admin.email, org.name);
           }
@@ -128,7 +121,6 @@ function mapStatus(stripeStatus: string): string {
 }
 
 function deriveplan(subscription: any): string {
-  // Try to derive from metadata on items
   const item = subscription.items?.data?.[0];
   if (item?.price?.metadata?.tier) return item.price.metadata.tier;
   if (item?.plan?.metadata?.tier) return item.plan.metadata.tier;

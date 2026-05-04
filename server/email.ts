@@ -155,6 +155,62 @@ export async function sendInvitationEmail(
   });
 }
 
+export async function sendPaymentFailedEmail(
+  email: string,
+  orgName: string
+): Promise<void> {
+  console.info(`[EMAIL] Payment failed notification for ${email} (org: ${orgName})`);
+  await sendEmail({
+    to: email,
+    subject: `Action required: Payment failed for ${orgName} on PixelCraft Designer`,
+    html: `
+      <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
+        <div style="text-align:center;margin-bottom:24px;">
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+        </div>
+        <div style="background:#fff;border-radius:12px;padding:28px;">
+          <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Payment failed</h2>
+          <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
+            We were unable to process your latest payment for <strong>${orgName}</strong>. Please update your payment method to avoid any interruption to your service.
+          </p>
+          <p style="color:#6e6e73;font-size:13px;margin:20px 0 0;">
+            If you believe this is an error, please contact support.
+          </p>
+        </div>
+      </div>
+    `,
+    text: `Payment failed for ${orgName} on PixelCraft Designer.\n\nWe were unable to process your latest payment. Please update your payment method to avoid any interruption to your service.`,
+  });
+}
+
+export async function sendSubscriptionCancelledEmail(
+  email: string,
+  orgName: string
+): Promise<void> {
+  console.info(`[EMAIL] Subscription cancelled notification for ${email} (org: ${orgName})`);
+  await sendEmail({
+    to: email,
+    subject: `Your ${orgName} subscription has been cancelled`,
+    html: `
+      <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
+        <div style="text-align:center;margin-bottom:24px;">
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+        </div>
+        <div style="background:#fff;border-radius:12px;padding:28px;">
+          <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Subscription cancelled</h2>
+          <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
+            Your subscription for <strong>${orgName}</strong> has been cancelled. Your workspace has been moved to the free trial plan. You can resubscribe at any time to restore full access.
+          </p>
+          <p style="color:#6e6e73;font-size:13px;margin:20px 0 0;">
+            If you did not request this cancellation, please contact support immediately.
+          </p>
+        </div>
+      </div>
+    `,
+    text: `Your ${orgName} subscription on PixelCraft Designer has been cancelled.\n\nYour workspace has been moved to the free trial plan. You can resubscribe at any time to restore full access.`,
+  });
+}
+
 export async function sendVerificationEmail(
   email: string,
   token: string,

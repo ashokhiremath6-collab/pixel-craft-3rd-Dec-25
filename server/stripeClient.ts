@@ -54,9 +54,15 @@ export async function getStripeSync(): Promise<StripeSync> {
   if (!databaseUrl) throw new Error('DATABASE_URL environment variable is required');
 
   const { secretKey, webhookSecret } = await getStripeCredentials();
+  if (!webhookSecret) {
+    throw new Error(
+      'Stripe webhook secret is not configured. ' +
+      'Add webhook_secret to your Stripe integration settings.'
+    );
+  }
   return new StripeSync({
     poolConfig: { connectionString: databaseUrl },
     stripeSecretKey: secretKey,
-    stripeWebhookSecret: webhookSecret ?? '',
+    stripeWebhookSecret: webhookSecret,
   });
 }
