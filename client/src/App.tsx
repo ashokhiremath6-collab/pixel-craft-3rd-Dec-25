@@ -170,7 +170,7 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
             </div>
           </header>
           {/* Impersonation banner — shown when a super-admin is acting as another user */}
-          {(user as any)?._impersonating && (
+          {user?._impersonating && (
             <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm shrink-0 bg-orange-100 dark:bg-orange-950/40 text-orange-900 dark:text-orange-300 border-b border-orange-200 dark:border-orange-800">
               <div className="flex items-center gap-2">
                 <Eye className="h-4 w-4 shrink-0" />
@@ -251,13 +251,18 @@ function AppContent() {
     // Elevated roles (admin, designer, project_manager) always stay in the admin view.
     // The client portal is only shown automatically for pure client accounts,
     // or when an elevated user explicitly previews it.
+    //
+    // IMPORTANT: when a super-admin is impersonating, always render AuthenticatedApp
+    // regardless of the impersonated user's role so the impersonation banner and
+    // "Exit impersonation" control are always visible and reachable.
     const isElevated = ELEVATED_ROLES.includes(user?.role || '');
+    const isImpersonating = !!user?._impersonating;
 
-    if (previewingPortal && isElevated) {
+    if (!isImpersonating && previewingPortal && isElevated) {
       return <ClientPortalApp previewMode onExitPreview={() => setPreviewingPortal(false)} />;
     }
 
-    if (!isElevated && user?.role === 'client') {
+    if (!isImpersonating && !isElevated && user?.role === 'client') {
       return <ClientPortalApp />;
     }
 
