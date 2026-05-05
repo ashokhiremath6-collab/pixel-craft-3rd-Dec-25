@@ -138,6 +138,8 @@ export interface IStorage {
   updateUserProfile(userId: string, data: { firstName?: string; lastName?: string }): Promise<User>;
   getUserByUnsubscribeToken(token: string): Promise<User | undefined>;
   getOrCreateUnsubscribeToken(userId: string): Promise<string>;
+  updateTrialBannerSnooze(userId: string, snoozedUntil: Date | null, snoozeDuration?: string | null): Promise<void>;
+  getTrialBannerSnooze(userId: string): Promise<{ snoozedUntil: Date | null; snoozeDuration: string | null }>;
   
   // User Project Access (for client role project assignment)
   createUserProjectAccess(access: { userId: string; projectId: string }): Promise<{ userId: string; projectId: string }>;
@@ -705,6 +707,24 @@ export class MemStorage implements IStorage {
 
   async getUserByUnsubscribeToken(token: string): Promise<User | undefined> {
     return Array.from(this.users.values()).find(u => (u as any).unsubscribeToken === token);
+  }
+
+  async updateTrialBannerSnooze(userId: string, snoozedUntil: Date | null, snoozeDuration?: string | null): Promise<void> {
+    const user = this.users.get(userId);
+    if (!user) return;
+    (user as any).trialBannerSnoozedUntil = snoozedUntil;
+    (user as any).trialBannerSnoozeDuration = snoozeDuration ?? null;
+    (user as any).updatedAt = new Date();
+    this.users.set(userId, user);
+  }
+
+  async getTrialBannerSnooze(userId: string): Promise<{ snoozedUntil: Date | null; snoozeDuration: string | null }> {
+    const user = this.users.get(userId);
+    if (!user) return { snoozedUntil: null, snoozeDuration: null };
+    return {
+      snoozedUntil: (user as any).trialBannerSnoozedUntil ?? null,
+      snoozeDuration: (user as any).trialBannerSnoozeDuration ?? null,
+    };
   }
 
   async getOrCreateUnsubscribeToken(userId: string): Promise<string> {
@@ -3701,6 +3721,23 @@ export class DBStorage implements IStorage {
   async getUserByUnsubscribeToken(token: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.unsubscribeToken, token));
     return result[0];
+  }
+
+  async updateTrialBannerSnooze(userId: string, snoozedUntil: Date | null, snoozeDuration?: string | null): Promise<void> {
+    await db.update(users)
+      .set({ trialBannerSnoozedUntil: snoozedUntil, trialBannerSnoozeDuration: snoozeDuration ?? null, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  async getTrialBannerSnooze(userId: string): Promise<{ snoozedUntil: Date | null; snoozeDuration: string | null }> {
+    const result = await db
+      .select({ trialBannerSnoozedUntil: users.trialBannerSnoozedUntil, trialBannerSnoozeDuration: users.trialBannerSnoozeDuration })
+      .from(users)
+      .where(eq(users.id, userId));
+    return {
+      snoozedUntil: result[0]?.trialBannerSnoozedUntil ?? null,
+      snoozeDuration: result[0]?.trialBannerSnoozeDuration ?? null,
+    };
   }
 
   async getOrCreateUnsubscribeToken(userId: string): Promise<string> {

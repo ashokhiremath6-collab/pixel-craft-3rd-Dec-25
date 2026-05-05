@@ -131,37 +131,63 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
     : null;
   const [trialBannerDismissed, setTrialBannerDismissed] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (!trialExpiryDismissKey) return;
-    const raw = localStorage.getItem(trialExpiryDismissKey);
-    if (!raw) { setTrialBannerDismissed(false); return; }
-    // Support legacy format (plain epoch number) and new JSON format
-    let snoozedUntil: number;
-    try {
-      const parsed = JSON.parse(raw);
-      snoozedUntil = typeof parsed === 'object' ? parsed.snoozedUntil : parsed;
-    } catch {
-      snoozedUntil = parseInt(raw, 10);
-    }
-    setTrialBannerDismissed(Date.now() < snoozedUntil);
-  }, [trialExpiryDismissKey]);
+  // Fetch server-side snooze preference (source of truth across devices)
+  const { data: serverSnoozeData, isLoading: snoozeQueryLoading } = useQuery<{ snoozedUntil: number | null; snoozeDuration: string | null }>({
+    queryKey: ["/api/billing/trial-banner-snooze"],
+    enabled: canSeeBilling && !!user?.orgId,
+  });
 
-  const dismissTrialBanner = (days: number | 'forever') => {
+  // Merge server-side and localStorage snooze — take the latest (most-snoozed) value.
+  // While the server query is still loading we hold the banner hidden to avoid flicker.
+  useEffect(() => {
+    if (snoozeQueryLoading) {
+      setTrialBannerDismissed(true);
+      return;
+    }
+    let localSnoozedUntil: number | null = null;
     if (trialExpiryDismissKey) {
-      let snoozedUntil: number;
-      if (days === 'forever') {
-        // Far-future date: year 9999
-        snoozedUntil = new Date(9999, 11, 31).getTime();
-      } else {
-        // Exact duration from now: "1 day" means reappear after 24 h, not after end-of-day+1
-        snoozedUntil = Date.now() + days * 24 * 60 * 60 * 1000;
+      const raw = localStorage.getItem(trialExpiryDismissKey);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          localSnoozedUntil = typeof parsed === 'object' ? parsed.snoozedUntil : parsed;
+        } catch {
+          localSnoozedUntil = parseInt(raw, 10);
+        }
       }
+    }
+    const serverSnoozedUntil = serverSnoozeData?.snoozedUntil ?? null;
+    // Use whichever snooze expires later (server or local cache)
+    const effectiveSnoozedUntil = Math.max(localSnoozedUntil ?? 0, serverSnoozedUntil ?? 0);
+    setTrialBannerDismissed(Date.now() < effectiveSnoozedUntil);
+  }, [trialExpiryDismissKey, serverSnoozeData, snoozeQueryLoading]);
+
+  const dismissTrialBanner = async (days: number | 'forever') => {
+    let snoozedUntil: number;
+    if (days === 'forever') {
+      // Far-future date: year 9999
+      snoozedUntil = new Date(9999, 11, 31).getTime();
+    } else {
+      // Exact duration from now: "1 day" means reappear after 24 h, not after end-of-day+1
+      snoozedUntil = Date.now() + days * 24 * 60 * 60 * 1000;
+    }
+    const snoozeDuration = String(days);
+    // Write to localStorage as a fast-read cache
+    if (trialExpiryDismissKey) {
       localStorage.setItem(
         trialExpiryDismissKey,
-        JSON.stringify({ snoozedUntil, snoozeDuration: days }),
+        JSON.stringify({ snoozedUntil, snoozeDuration }),
       );
     }
+    // Immediately update UI state
     setTrialBannerDismissed(true);
+    // Persist to server so the preference syncs across devices
+    try {
+      await apiRequest("POST", "/api/billing/trial-banner-snooze", { snoozedUntil, snoozeDuration });
+      queryClient.invalidateQueries({ queryKey: ["/api/billing/trial-banner-snooze"] });
+    } catch {
+      // Non-critical: localStorage already covers this session
+    }
   };
 
   const showTrialExpiryBanner =

@@ -10677,6 +10677,42 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // GET /api/billing/trial-banner-snooze — fetch the server-side snooze preference for the current user
+  app.get('/api/billing/trial-banner-snooze', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { snoozedUntil, snoozeDuration } = await storage.getTrialBannerSnooze(user.id);
+      res.json({
+        snoozedUntil: snoozedUntil ? snoozedUntil.getTime() : null,
+        snoozeDuration: snoozeDuration ?? null,
+      });
+    } catch (error) {
+      console.error('Error fetching trial banner snooze:', error);
+      res.status(500).json({ error: 'Failed to fetch trial banner snooze' });
+    }
+  });
+
+  // POST /api/billing/trial-banner-snooze — persist the snooze preference server-side
+  app.post('/api/billing/trial-banner-snooze', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { snoozedUntil, snoozeDuration } = req.body;
+      if (typeof snoozedUntil !== 'number' || !Number.isFinite(snoozedUntil)) {
+        return res.status(400).json({ error: 'snoozedUntil must be a finite number (epoch ms)' });
+      }
+      const validDurations = ['1', '3', 'forever'];
+      const duration = typeof snoozeDuration === 'string' && validDurations.includes(snoozeDuration)
+        ? snoozeDuration
+        : null;
+      const snoozedUntilDate = new Date(snoozedUntil);
+      await storage.updateTrialBannerSnooze(user.id, snoozedUntilDate, duration);
+      res.json({ ok: true, snoozedUntil: snoozedUntilDate.getTime(), snoozeDuration: duration });
+    } catch (error) {
+      console.error('Error saving trial banner snooze:', error);
+      res.status(500).json({ error: 'Failed to save trial banner snooze' });
+    }
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Super-admin back-office routes — all gated by requireSuperAdmin
   // ─────────────────────────────────────────────────────────────────────────────
