@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNotifPrefBatcher } from "@/hooks/useNotifPrefBatcher";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -118,30 +119,7 @@ export default function SettingsPage() {
     enabled: !!currentUser,
   });
 
-  const notifPrefLabels: Record<string, string> = {
-    planChanges: "Plan changes",
-    paymentFailures: "Payment failures",
-    trialExpiry: "Trial expiry warnings",
-    invitationAccepted: "Invitation accepted",
-    projectUpdates: "Project updates",
-  };
-
-  const updateNotifPrefMutation = useMutation({
-    mutationFn: async (prefs: Partial<{ planChanges: boolean; paymentFailures: boolean; trialExpiry: boolean; invitationAccepted: boolean; projectUpdates: boolean }>) => {
-      const res = await apiRequest("PATCH", "/api/user/notification-preferences", prefs);
-      return res.json();
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user/notification-preferences"] });
-      const key = Object.keys(variables)[0];
-      const enabled = Object.values(variables)[0];
-      const label = notifPrefLabels[key] ?? key;
-      toast({ title: `${label} notifications ${enabled ? "enabled" : "disabled"}`, duration: 3000 });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to update preferences", description: error.message, variant: "destructive" });
-    },
-  });
+  const { handleChange: handleNotifChange, isPending: notifPrefPending } = useNotifPrefBatcher();
 
   const checkoutMutation = useMutation({
     mutationFn: async (plan: string) => {
@@ -919,9 +897,9 @@ export default function SettingsPage() {
                   <Checkbox
                     id={`notif-${key}`}
                     checked={enabled}
-                    disabled={updateNotifPrefMutation.isPending}
+                    disabled={notifPrefPending}
                     onCheckedChange={(checked) => {
-                      updateNotifPrefMutation.mutate({ [key]: !!checked });
+                      handleNotifChange(key, !!checked);
                     }}
                     className="mt-0.5"
                   />
