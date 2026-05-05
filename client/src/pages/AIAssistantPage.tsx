@@ -243,6 +243,10 @@ function MessageAttachments({ attachments }: { attachments: Attachment[] }) {
   );
 }
 
+function is403Error(err: unknown): boolean {
+  return err instanceof Error && err.message.startsWith("403");
+}
+
 export default function AIAssistantPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -253,6 +257,7 @@ export default function AIAssistantPage() {
   const [isElevationLoading, setIsElevationLoading] = useState(false);
   const [isFloorPlanDXFLoading, setIsFloorPlanDXFLoading] = useState(false);
   const [isElevationDXFLoading, setIsElevationDXFLoading] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "guide">("chat");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -351,13 +356,17 @@ export default function AIAssistantPage() {
         const res = await apiRequest("POST", "/api/ai-assistant/chat", payload);
         const data = await res.json() as { reply: string };
         setMessages((prev) => [...prev, { role: "assistant", content: data.reply ?? "" }]);
-      } catch {
-        toast({
-          title: "Error",
-          description: "Could not reach the design assistant. Please try again.",
-          variant: "destructive",
-        });
-        setMessages(messages);
+      } catch (err) {
+        if (is403Error(err)) {
+          setAccessDenied(true);
+        } else {
+          toast({
+            title: "Error",
+            description: "Could not reach the design assistant. Please try again.",
+            variant: "destructive",
+          });
+          setMessages(messages);
+        }
       } finally {
         setIsLoading(false);
         setTimeout(() => textareaRef.current?.focus(), 50);
@@ -402,12 +411,16 @@ export default function AIAssistantPage() {
           briefData: brief,
         },
       ]);
-    } catch {
-      toast({
-        title: "Error",
-        description: "Could not generate the render brief. Please try again.",
-        variant: "destructive",
-      });
+    } catch (err) {
+      if (is403Error(err)) {
+        setAccessDenied(true);
+      } else {
+        toast({
+          title: "Error",
+          description: "Could not generate the render brief. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsBriefLoading(false);
     }
@@ -441,12 +454,16 @@ export default function AIAssistantPage() {
           svgContent: data.svg,
         },
       ]);
-    } catch {
-      toast({
-        title: "Error",
-        description: "Could not generate the floor plan. Try describing the space in more detail first.",
-        variant: "destructive",
-      });
+    } catch (err) {
+      if (is403Error(err)) {
+        setAccessDenied(true);
+      } else {
+        toast({
+          title: "Error",
+          description: "Could not generate the floor plan. Try describing the space in more detail first.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsFloorPlanLoading(false);
     }
@@ -488,7 +505,11 @@ export default function AIAssistantPage() {
       URL.revokeObjectURL(url);
       toast({ title: "DXF Downloaded", description: "Open in SketchUp: File → Import → DXF" });
     } catch (err) {
-      toast({ title: "DXF generation failed", description: err instanceof Error ? err.message : "Please try again.", variant: "destructive" });
+      if (is403Error(err)) {
+        setAccessDenied(true);
+      } else {
+        toast({ title: "DXF generation failed", description: err instanceof Error ? err.message : "Please try again.", variant: "destructive" });
+      }
     } finally {
       setLoading(false);
     }
@@ -517,12 +538,16 @@ export default function AIAssistantPage() {
           svgContent: data.svg,
         },
       ]);
-    } catch {
-      toast({
-        title: "Error",
-        description: "Could not generate the elevation. Try describing the wall in more detail.",
-        variant: "destructive",
-      });
+    } catch (err) {
+      if (is403Error(err)) {
+        setAccessDenied(true);
+      } else {
+        toast({
+          title: "Error",
+          description: "Could not generate the elevation. Try describing the wall in more detail.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsElevationLoading(false);
     }
@@ -533,6 +558,10 @@ export default function AIAssistantPage() {
 
   if (user?.role !== 'admin' && user?.role !== 'designer' && user?.role !== 'client') {
     return <AccessDenied message="The Design Intelligence chat is only available to designers, admins, and clients." />;
+  }
+
+  if (accessDenied) {
+    return <AccessDenied message="Your session no longer has access to the Design Intelligence assistant. Please refresh the page or contact your administrator." />;
   }
 
   const canSend = (input.trim().length > 0 || attachments.length > 0) && !isLoading;
