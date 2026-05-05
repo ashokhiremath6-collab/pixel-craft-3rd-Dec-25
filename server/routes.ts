@@ -11197,6 +11197,27 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   }
 
+  // ── User profile ─────────────────────────────────────────────────────────────
+  // PATCH /api/user/profile
+  app.patch("/api/user/profile", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const schema = z.object({
+        firstName: z.string().min(1).max(100).optional(),
+        lastName: z.string().max(100).optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid profile data", details: parsed.error.flatten() });
+      }
+      const updatedUser = await storage.updateUserProfile(userId, parsed.data);
+      res.json(sanitizeUser(updatedUser));
+    } catch (error) {
+      console.error("Update user profile error:", error);
+      res.status(500).json({ error: "Failed to update profile" });
+    }
+  });
+
   // ── Notification preferences ────────────────────────────────────────────────
   // GET /api/user/notification-preferences
   app.get("/api/user/notification-preferences", requireAuth, async (req, res) => {

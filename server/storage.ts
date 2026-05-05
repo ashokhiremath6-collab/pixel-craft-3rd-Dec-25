@@ -135,6 +135,7 @@ export interface IStorage {
   verifyEmail(token: string): Promise<User | undefined>;
   getNotificationPreferences(userId: string): Promise<NotificationPreferences>;
   updateNotificationPreferences(userId: string, prefs: Partial<NotificationPreferences>): Promise<NotificationPreferences>;
+  updateUserProfile(userId: string, data: { firstName?: string; lastName?: string }): Promise<User>;
   getUserByUnsubscribeToken(token: string): Promise<User | undefined>;
   getOrCreateUnsubscribeToken(userId: string): Promise<string>;
   
@@ -689,6 +690,16 @@ export class MemStorage implements IStorage {
     (user as any).updatedAt = new Date();
     this.users.set(userId, user);
     return updated;
+  }
+
+  async updateUserProfile(userId: string, data: { firstName?: string; lastName?: string }): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    if (data.firstName !== undefined) (user as any).firstName = data.firstName;
+    if (data.lastName !== undefined) (user as any).lastName = data.lastName;
+    (user as any).updatedAt = new Date();
+    this.users.set(userId, user);
+    return user;
   }
 
   async getUserByUnsubscribeToken(token: string): Promise<User | undefined> {
@@ -3664,6 +3675,15 @@ export class DBStorage implements IStorage {
       .set({ notificationPreferences: updated, updatedAt: new Date() })
       .where(eq(users.id, userId));
     return updated;
+  }
+
+  async updateUserProfile(userId: string, data: { firstName?: string; lastName?: string }): Promise<User> {
+    const result = await db.update(users)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    if (!result[0]) throw new Error("User not found");
+    return result[0];
   }
 
   async getUserByUnsubscribeToken(token: string): Promise<User | undefined> {

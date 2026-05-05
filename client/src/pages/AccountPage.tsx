@@ -1,14 +1,59 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { Bell, User } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useEffect } from "react";
+
+const profileSchema = z.object({
+  firstName: z.string().min(1, "First name is required").max(100),
+  lastName: z.string().max(100).optional().or(z.literal("")),
+});
+
+type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export default function AccountPage() {
   const { toast } = useToast();
   const { user: currentUser, isLoading: authLoading } = useAuth();
+
+  const profileForm = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+    },
+  });
+
+  useEffect(() => {
+    if (currentUser) {
+      profileForm.reset({
+        firstName: currentUser.firstName ?? "",
+        lastName: currentUser.lastName ?? "",
+      });
+    }
+  }, [currentUser?.firstName, currentUser?.lastName]);
+
+  const updateProfileMutation = useMutation({
+    mutationFn: async (values: ProfileFormValues) => {
+      const res = await apiRequest("PATCH", "/api/user/profile", values);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({ title: "Profile updated", duration: 3000 });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update profile", description: error.message, variant: "destructive" });
+    },
+  });
 
   const { data: notificationPrefs } = useQuery<{
     planChanges: boolean;
@@ -100,6 +145,62 @@ export default function AccountPage() {
         </h1>
         <p className="text-muted-foreground mt-1">Manage your personal account preferences.</p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Profile
+          </CardTitle>
+          <CardDescription>
+            Update your display name and personal details.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...profileForm}>
+            <form
+              onSubmit={profileForm.handleSubmit((values) => updateProfileMutation.mutate(values))}
+              className="space-y-4"
+            >
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={profileForm.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="First name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={profileForm.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Last name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div>
+                <FormLabel className="text-muted-foreground text-sm">Email</FormLabel>
+                <p className="text-sm mt-1">{currentUser?.email}</p>
+              </div>
+              <Button type="submit" disabled={updateProfileMutation.isPending}>
+                {updateProfileMutation.isPending ? "Saving…" : "Save changes"}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
