@@ -407,7 +407,20 @@ function AppContent() {
   // Public routes — always accessible regardless of auth state
   if (location === "/forgot-password") return <ForgotPasswordPage />;
   if (location.startsWith("/reset-password")) return <ResetPasswordPage />;
-  if (location === "/signup") return <SignUpPage />;
+  if (location === "/signup") return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="max-w-md text-center space-y-4">
+        <h1 className="text-2xl font-semibold">Invitation only</h1>
+        <p className="text-muted-foreground">
+          Sign-up is currently invitation-only. If you've been invited, please use the link in
+          your invitation email. To request access, contact us at{" "}
+          <a href="mailto:hello@olympikdesign.com" className="underline hover:text-foreground">
+            hello@olympikdesign.com
+          </a>.
+        </p>
+      </div>
+    </div>
+  );
   if (location === "/login") return <LoginPage />;
   if (location.startsWith("/invite/")) return <InviteAcceptPage />;
 

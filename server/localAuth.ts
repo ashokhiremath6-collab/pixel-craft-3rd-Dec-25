@@ -214,6 +214,11 @@ export async function setupAuth(app: Express) {
   // POST /api/auth/register-org — self-service sign-up: creates org + admin user + sends verification email
   app.post("/api/auth/register-org", async (req, res) => {
     try {
+      const publicSignupEnabled = process.env.PUBLIC_SIGNUP_ENABLED === "true";
+      if (!publicSignupEnabled) {
+        return res.status(403).json({ error: "Sign-up is currently invitation-only." });
+      }
+
       const { email, password, firstName, lastName, companyName } = req.body;
       if (!email || !password || !companyName) {
         return res.status(400).json({ error: "Email, password, and company name are required." });
