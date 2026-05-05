@@ -67,7 +67,7 @@ export default function AccountPage() {
     enabled: !!currentUser,
   });
 
-  const { handleChange: handleNotifChange, isPending: notifPrefPending } = useNotifPrefBatcher();
+  const { handleChange: handleNotifChange, isPending: notifPrefPending, optimisticOverrides } = useNotifPrefBatcher();
 
   const isAdmin = currentUser?.role === "admin";
 
@@ -193,7 +193,8 @@ export default function AccountPage() {
         <CardContent>
           <div className="space-y-4">
             {notifItems.map(({ key, label, description }) => {
-              const enabled = notificationPrefs ? notificationPrefs[key] : true;
+              const serverValue = notificationPrefs ? notificationPrefs[key] : true;
+              const enabled = key in optimisticOverrides ? optimisticOverrides[key] : serverValue;
               return (
                 <div key={key} className="flex items-start gap-4">
                   <Checkbox

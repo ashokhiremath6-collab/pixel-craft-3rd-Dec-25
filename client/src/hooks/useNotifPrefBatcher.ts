@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +26,9 @@ export function useNotifPrefBatcher() {
   const pendingRef = useRef<NotifPrefs>({});
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mutateRef = useRef<((prefs: NotifPrefs) => void) | null>(null);
+  const prevValuesRef = useRef<NotifPrefs>({});
+
+  const [optimisticOverrides, setOptimisticOverrides] = useState<NotifPrefs>({});
 
   const mutation = useMutation({
     mutationFn: async (prefs: NotifPrefs) => {
@@ -34,6 +37,13 @@ export function useNotifPrefBatcher() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/notification-preferences"] });
+      setOptimisticOverrides((prev) => {
+        const next = { ...prev };
+        for (const key of Object.keys(variables) as Array<keyof NotifPrefs>) {
+          delete next[key];
+        }
+        return next;
+      });
       const keys = Object.keys(variables);
       if (keys.length === 1) {
         const key = keys[0];
@@ -45,6 +55,19 @@ export function useNotifPrefBatcher() {
       }
     },
     onError: (error: Error) => {
+      const snapshot = prevValuesRef.current;
+      setOptimisticOverrides((prev) => ({ ...prev, ...snapshot }));
+      queryClient
+        .invalidateQueries({ queryKey: ["/api/user/notification-preferences"] })
+        .then(() => {
+          setOptimisticOverrides((prev) => {
+            const next = { ...prev };
+            for (const k of Object.keys(snapshot) as Array<keyof NotifPrefs>) {
+              delete next[k];
+            }
+            return next;
+          });
+        });
       toast({ title: "Failed to update preferences", description: error.message, variant: "destructive" });
     },
   });
@@ -58,14 +81,24 @@ export function useNotifPrefBatcher() {
   }, []);
 
   const handleChange = useCallback((key: keyof NotifPrefs, value: boolean) => {
+    setOptimisticOverrides((prev) => ({ ...prev, [key]: value }));
     pendingRef.current = { ...pendingRef.current, [key]: value };
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       const prefs = pendingRef.current;
       pendingRef.current = {};
+
+      const cached =
+        (queryClient.getQueryData<NotifPrefs>(["/api/user/notification-preferences"]) as NotifPrefs | undefined) ?? {};
+      const snapshot: NotifPrefs = {};
+      for (const k of Object.keys(prefs) as Array<keyof NotifPrefs>) {
+        snapshot[k] = cached[k] ?? true;
+      }
+      prevValuesRef.current = snapshot;
+
       mutateRef.current?.(prefs);
     }, DEBOUNCE_MS);
   }, []);
 
-  return { handleChange, isPending: mutation.isPending };
+  return { handleChange, isPending: mutation.isPending, optimisticOverrides };
 }

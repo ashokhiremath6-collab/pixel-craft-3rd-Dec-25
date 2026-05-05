@@ -119,7 +119,7 @@ export default function SettingsPage() {
     enabled: !!currentUser,
   });
 
-  const { handleChange: handleNotifChange, isPending: notifPrefPending } = useNotifPrefBatcher();
+  const { handleChange: handleNotifChange, isPending: notifPrefPending, optimisticOverrides } = useNotifPrefBatcher();
 
   const checkoutMutation = useMutation({
     mutationFn: async (plan: string) => {
@@ -891,7 +891,8 @@ export default function SettingsPage() {
                 description: "Emails about changes and activity on projects you are assigned to.",
               },
             ].map(({ key, label, description }) => {
-              const enabled = notificationPrefs ? notificationPrefs[key] : true;
+              const serverValue = notificationPrefs ? notificationPrefs[key] : true;
+              const enabled = key in optimisticOverrides ? optimisticOverrides[key] : serverValue;
               return (
                 <div key={key} className="flex items-start gap-4">
                   <Checkbox
