@@ -1,0 +1,16 @@
+
+
+Do not make any code changes. This is a verification task only.
+I want to confirm the following understanding of the current architecture before we make any changes:
+Assumption A: There is a single codebase, a single Express server process, a single React app bundle, and a single database. Both olympikdesign.com and pixel-craft-ashokhiremath6.replit.app point at this same running app. They are not separate deployments, separate databases, or separate code branches.
+Assumption B: The marketing landing page (the page with the "Every project. Every vendor. Every render. One place." headline) is served at the root URL / by a single React component (e.g. LandingPage.tsx), and is rendered only when an unauthenticated visitor arrives at /.
+Assumption C: The authenticated app — the one Olympik's team uses daily, with the sidebar showing Projects, Renders, Working Drawings, Vendors, etc. — is served by a different set of components and routes (e.g. /dashboard, /projects/*, /renders, etc.). These authenticated routes do not depend on the landing page component being present. Removing or replacing the landing page component would not affect any authenticated route.
+Assumption D: The login page at /login is independent of the landing page. It can be reached directly by URL even if the landing page is replaced or removed. It does not inherit layout, components, or state from the landing page.
+Assumption E: Existing logged-in users (Ashok, his daughter, the designers, the project manager Vijay, and the existing clients) authenticate against the same users and organisations tables regardless of which domain they use, and would continue to log in and use the app exactly as today even if the public landing page were taken offline.
+For each assumption A through E:
+
+State whether it is TRUE, FALSE, or PARTIALLY TRUE.
+If FALSE or PARTIALLY TRUE, explain exactly what is different from the assumption.
+Cite the specific file(s) and code paths that confirm or refute it.
+
+Do not change any code. Do not propose fixes. Just verify the assumptions and report. Stop after the report.
