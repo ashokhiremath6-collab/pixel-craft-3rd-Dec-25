@@ -36,6 +36,12 @@ const mainItems: NavigationItem[] = [
   { title: "Works Orders", url: "/works-orders", icon: FileSignature },
   { title: "Accounts", url: "/accounts", icon: Wallet },
   { title: "SOPs", url: "/sops", icon: BookOpen },
+  { title: "Design Intelligence", url: "/ai-assistant", icon: BrainCircuit },
+  { title: "AI Renders", url: "/ai-renders", icon: Wand2 },
+  { title: "Asset Ingestion", url: "/asset-ingestion", icon: Camera },
+  { title: "Catalogues", url: "/catalogue", icon: BookOpen },
+  { title: "Specifications", url: "/specifications", icon: FileText },
+  { title: "Meeting Minutes", url: "/meeting-minutes", icon: Calendar },
 ];
 
 // Reduced nav for project managers — only what pertains to their role
@@ -52,16 +58,6 @@ const settingsItems: NavigationItem[] = [
 
 const accountItems: NavigationItem[] = [
   { title: "Account", url: "/account", icon: User },
-];
-
-const designerOnlyItems: NavigationItem[] = [
-  { title: "Design Intelligence", url: "/ai-assistant", icon: BrainCircuit },
-  { title: "AI Renders", url: "/ai-renders", icon: Wand2 },
-  { title: "Asset Ingestion", url: "/asset-ingestion", icon: Camera },
-  { title: "Catalogues", url: "/catalogue", icon: BookOpen },
-  { title: "Specifications", url: "/specifications", icon: FileText },
-  { title: "Meeting Minutes", url: "/meeting-minutes", icon: Calendar },
-  { title: "Client Access", url: "/client-access", icon: UserCheck },
 ];
 
 const projectManagerItems: NavigationItem[] = [
@@ -88,6 +84,22 @@ export function AppSidebar() {
     }
   };
 
+  const renderMenuItems = (items: NavigationItem[]) =>
+    items.map((item) => (
+      <SidebarMenuItem key={item.title}>
+        <SidebarMenuButton
+          asChild
+          data-active={location === item.url}
+          data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+        >
+          <Link href={item.url} onClick={handleLinkClick}>
+            <item.icon />
+            <span>{item.title}</span>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    ));
+
   return (
     <Sidebar data-testid="sidebar-main">
       <SidebarHeader className="px-3 py-3 border-b">
@@ -101,20 +113,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleMainItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild
-                    data-active={location === item.url}
-                    data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    <Link href={item.url} onClick={handleLinkClick}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {renderMenuItems(visibleMainItems)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -124,20 +123,18 @@ export function AppSidebar() {
             <SidebarGroupLabel>Administration</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {designerOnlyItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild
-                      data-active={location === item.url}
-                      data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <Link href={item.url} onClick={handleLinkClick}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    data-active={location === "/client-access"}
+                    data-testid="sidebar-link-client-access"
+                  >
+                    <Link href="/client-access" onClick={handleLinkClick}>
+                      <UserCheck />
+                      <span>Client Access</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -148,20 +145,7 @@ export function AppSidebar() {
             <SidebarGroupLabel>Project Management</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {projectManagerItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild
-                      data-active={location === item.url}
-                      data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <Link href={item.url} onClick={handleLinkClick}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                {renderMenuItems(projectManagerItems)}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -170,34 +154,8 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
-          {accountItems.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton
-                asChild
-                data-active={location === item.url}
-                data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-              >
-                <Link href={item.url} onClick={handleLinkClick}>
-                  <item.icon />
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-          {isAdminOrDesigner && settingsItems.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton 
-                asChild
-                data-active={location === item.url}
-                data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-              >
-                <Link href={item.url} onClick={handleLinkClick}>
-                  <item.icon />
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {renderMenuItems(accountItems)}
+          {isAdminOrDesigner && renderMenuItems(settingsItems)}
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
