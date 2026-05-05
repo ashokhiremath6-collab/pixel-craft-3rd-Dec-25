@@ -1,0 +1,29 @@
+Do not make any code changes. This is an audit task only. Produce a written report covering the items below, then stop and wait for my next instruction.
+Context: I want to understand the current state of the codebase before we make any further changes. The app is built for Olympik Design, an interior design studio in Mumbai. I want to commercially launch this to other studios eventually, so I need to understand what multi-tenant architecture exists today.
+1. Database schema. Confirm there is a top-level entity (organisation, workspace, tenant, or studio — whatever you've called it) that owns: users, projects, vendors, catalogues, specifications, working drawings, renders, moodboards, quotes, works orders, accounts entries, SOPs, meeting minutes, and all other studio data. Tell me what this entity is called in the schema and which tables foreign-key to it.
+2. Tenant isolation. Pick three database queries from existing route handlers — for example, the project list, the vendor list, and the catalogue list. Confirm each filters by the current user's organisation/workspace ID. List any query missing this filter.
+3. User-to-workspace relationship. Please be thorough.
+(a) Is the User table directly tied to one workspace via a foreign key, or is there a separate join table allowing one user to belong to multiple workspaces?
+(b) When a user signs up via the public signup form and the system reports "email already registered", what's actually happening in the code? Walk through the path.
+(c) Test scenario: A user was added as a client on a project at the Olympik Design workspace. She then tries to sign up via the public signup form as admin of a new workspace. What does the current code do? What should it do?
+(d) Are roles (admin / designer / project_manager / client) tied to the User record globally, or scoped to a (User × Workspace) pairing? They must be scoped per-workspace — confirm.
+4. Marketing landing page. The page at olympikdesign.com has full marketing copy: hero, Features section (8 feature blocks), How It Works (3 steps), Pricing section, sign-up flow.
+(a) Confirm whether this page is hardcoded in component files or pulled from a config or CMS.
+(b) Who wrote the marketing copy? Was it generated autonomously based on the codebase, or was it provided? I want to know what was decided without me.
+5. Sign-up flow. Walk through the signup code path. When a new user signs up:
+
+Does the system create a new workspace with them as admin?
+What happens if the email is already used as a client, designer, or PM in another workspace?
+What happens to their existing memberships?
+
+6. Domain routing — current state. Two domains currently point at the app:
+
+olympikdesign.com (live, serving the marketing page)
+pixel-craft-ashokhiremath6.replit.app (live, original dev URL)
+
+What does the current routing logic do for each? Is there per-domain logic, or do both serve the same content?
+7. What you've built autonomously. List every significant decision or feature you've added in the last 48 hours that I didn't explicitly request. I want to understand the scope of autonomous work — not because it's wrong, but because I need to audit it before building further. Don't be defensive — just list factually.
+Produce a single written report covering all seven items. Do not change any code. Do not propose specific fixes. Stop after the report.
+
+
+Send this. Paste the report back to me when it returns and we'll work out the next step from there.
