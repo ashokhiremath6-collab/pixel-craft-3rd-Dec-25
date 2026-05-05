@@ -42,7 +42,13 @@ import OnboardingWizard from "@/components/OnboardingWizard";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Shield, User, Crown, Eye, AlertTriangle, X } from "lucide-react";
+import { LogOut, Shield, User, Crown, Eye, AlertTriangle, X, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
 import { BILLING_VISIBLE_ROLES } from "@shared/schema";
 
@@ -126,17 +132,33 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
 
   useEffect(() => {
     if (!trialExpiryDismissKey) return;
-    // Snoozed if the stored epoch is still in the future (i.e. before midnight tonight)
-    const snoozedUntil = parseInt(localStorage.getItem(trialExpiryDismissKey) || '0', 10);
+    const raw = localStorage.getItem(trialExpiryDismissKey);
+    if (!raw) { setTrialBannerDismissed(false); return; }
+    // Support legacy format (plain epoch number) and new JSON format
+    let snoozedUntil: number;
+    try {
+      const parsed = JSON.parse(raw);
+      snoozedUntil = typeof parsed === 'object' ? parsed.snoozedUntil : parsed;
+    } catch {
+      snoozedUntil = parseInt(raw, 10);
+    }
     setTrialBannerDismissed(Date.now() < snoozedUntil);
   }, [trialExpiryDismissKey]);
 
-  const dismissTrialBanner = () => {
+  const dismissTrialBanner = (days: number | 'forever') => {
     if (trialExpiryDismissKey) {
-      // Snooze until the end of today (23:59:59.999)
-      const endOfDay = new Date();
-      endOfDay.setHours(23, 59, 59, 999);
-      localStorage.setItem(trialExpiryDismissKey, String(endOfDay.getTime()));
+      let snoozedUntil: number;
+      if (days === 'forever') {
+        // Far-future date: year 9999
+        snoozedUntil = new Date(9999, 11, 31).getTime();
+      } else {
+        // Exact duration from now: "1 day" means reappear after 24 h, not after end-of-day+1
+        snoozedUntil = Date.now() + days * 24 * 60 * 60 * 1000;
+      }
+      localStorage.setItem(
+        trialExpiryDismissKey,
+        JSON.stringify({ snoozedUntil, snoozeDuration: days }),
+      );
     }
     setTrialBannerDismissed(true);
   };
@@ -265,15 +287,30 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
                     Upgrade now
                   </Button>
                 )}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={dismissTrialBanner}
-                  title="Dismiss"
-                  data-testid="button-trial-banner-dismiss"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="flex items-center gap-1"
+                      data-testid="button-trial-banner-dismiss"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => dismissTrialBanner(1)}>
+                      Remind me tomorrow
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => dismissTrialBanner(3)}>
+                      Remind me in 3 days
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => dismissTrialBanner('forever')}>
+                      Don't show again
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           )}
