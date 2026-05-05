@@ -33,6 +33,7 @@ const mainItems: NavigationItem[] = [
   { title: "Unit Rate Quotes", url: "/unit-rates", icon: DollarSign },
   { title: "Import Quotes", url: "/import", icon: Upload },
   { title: "Quote Templates", url: "/templates", icon: FileText },
+  { title: "Works Orders", url: "/works-orders", icon: FileSignature },
   { title: "Accounts", url: "/accounts", icon: Wallet },
   { title: "SOPs", url: "/sops", icon: BookOpen },
 ];
