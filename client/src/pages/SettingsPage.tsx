@@ -119,7 +119,7 @@ export default function SettingsPage() {
     enabled: !!currentUser,
   });
 
-  const { handleChange: handleNotifChange, isPending: notifPrefPending, optimisticOverrides } = useNotifPrefBatcher();
+  const { handleChange: handleNotifChange, optimisticOverrides } = useNotifPrefBatcher();
 
   const checkoutMutation = useMutation({
     mutationFn: async (plan: string) => {
@@ -898,7 +898,6 @@ export default function SettingsPage() {
                   <Checkbox
                     id={`notif-${key}`}
                     checked={enabled}
-                    disabled={notifPrefPending}
                     onCheckedChange={(checked) => {
                       handleNotifChange(key, !!checked);
                     }}

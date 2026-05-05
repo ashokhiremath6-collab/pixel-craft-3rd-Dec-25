@@ -40,7 +40,12 @@ export function useNotifPrefBatcher() {
       setOptimisticOverrides((prev) => {
         const next = { ...prev };
         for (const key of Object.keys(variables) as Array<keyof NotifPrefs>) {
-          delete next[key];
+          // Only clear the override if its current value still matches what
+          // was sent. If the user toggled this key again after the request
+          // was dispatched, the override will differ and must be kept.
+          if (next[key] === variables[key]) {
+            delete next[key];
+          }
         }
         return next;
       });
@@ -54,16 +59,31 @@ export function useNotifPrefBatcher() {
         toast({ title: `${keys.length} preferences updated`, duration: 3000 });
       }
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
       const snapshot = prevValuesRef.current;
-      setOptimisticOverrides((prev) => ({ ...prev, ...snapshot }));
+      // Revert only the keys that belonged to this batch and whose override
+      // still reflects the value we tried to save (i.e. the user has not
+      // toggled them again since the request was sent).
+      setOptimisticOverrides((prev) => {
+        const next = { ...prev };
+        for (const k of Object.keys(variables) as Array<keyof NotifPrefs>) {
+          if (next[k] === variables[k]) {
+            next[k] = snapshot[k];
+          }
+        }
+        return next;
+      });
       queryClient
         .invalidateQueries({ queryKey: ["/api/user/notification-preferences"] })
         .then(() => {
           setOptimisticOverrides((prev) => {
             const next = { ...prev };
             for (const k of Object.keys(snapshot) as Array<keyof NotifPrefs>) {
-              delete next[k];
+              // Only remove the rollback override if it still holds the
+              // reverted value — the server query has now refreshed it.
+              if (next[k] === snapshot[k]) {
+                delete next[k];
+              }
             }
             return next;
           });
@@ -100,5 +120,5 @@ export function useNotifPrefBatcher() {
     }, DEBOUNCE_MS);
   }, []);
 
-  return { handleChange, isPending: mutation.isPending, optimisticOverrides };
+  return { handleChange, optimisticOverrides };
 }

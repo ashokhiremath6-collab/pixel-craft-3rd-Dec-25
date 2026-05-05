@@ -67,7 +67,7 @@ export default function AccountPage() {
     enabled: !!currentUser,
   });
 
-  const { handleChange: handleNotifChange, isPending: notifPrefPending, optimisticOverrides } = useNotifPrefBatcher();
+  const { handleChange: handleNotifChange, optimisticOverrides } = useNotifPrefBatcher();
 
   const isAdmin = currentUser?.role === "admin";
 
@@ -200,7 +200,6 @@ export default function AccountPage() {
                   <Checkbox
                     id={`notif-${key}`}
                     checked={enabled}
-                    disabled={notifPrefPending}
                     onCheckedChange={(checked) => {
                       handleNotifChange(key, !!checked);
                     }}
