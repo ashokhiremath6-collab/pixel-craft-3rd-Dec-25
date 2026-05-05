@@ -116,13 +116,6 @@ export default function LandingPage() {
 
           {/* Desktop CTAs */}
           <div className="hidden md:flex items-center gap-3">
-            <Button variant="ghost" onClick={() => navigate("/login")}>
-              Sign in
-            </Button>
-            <Button onClick={() => navigate("/signup")}>
-              Start free trial
-              <ArrowRight className="h-4 w-4 ml-1" />
-            </Button>
           </div>
 
           {/* Mobile menu toggle */}
@@ -142,8 +135,6 @@ export default function LandingPage() {
             <a href="#how-it-works" className="text-sm text-gray-600 hover:text-gray-900" onClick={() => setMobileMenuOpen(false)}>How it works</a>
             <a href="#pricing" className="text-sm text-gray-600 hover:text-gray-900" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
             <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
-              <Button variant="outline" onClick={() => navigate("/login")}>Sign in</Button>
-              <Button onClick={() => navigate("/signup")}>Start free trial</Button>
             </div>
           </div>
         )}
@@ -192,14 +183,6 @@ export default function LandingPage() {
             >
               Start free trial
               <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-white/40 text-white bg-white/10 backdrop-blur"
-              onClick={() => navigate("/login")}
-            >
-              Sign in to your workspace
             </Button>
           </div>
           <p className="mt-6 text-sm text-blue-200/70">
@@ -416,14 +399,6 @@ export default function LandingPage() {
               Start free trial
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-white/40 text-white bg-white/10"
-              onClick={() => navigate("/login")}
-            >
-              Sign in
-            </Button>
           </div>
         </div>
       </section>
@@ -439,8 +414,6 @@ export default function LandingPage() {
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#how-it-works" className="hover:text-white transition-colors">How it works</a>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
-            <button onClick={() => navigate("/login")} className="hover:text-white transition-colors">Sign in</button>
-            <button onClick={() => navigate("/signup")} className="hover:text-white transition-colors">Sign up</button>
           </div>
           <p className="text-xs text-gray-600">
             &copy; {new Date().getFullYear()} Olympik Design. All rights reserved.
