@@ -116,7 +116,7 @@ export default function LandingPage() {
 
           {/* Desktop CTAs */}
           <div className="hidden md:flex items-center gap-3">
-            <Button variant="ghost" onClick={() => navigate("/signup")}>
+            <Button variant="ghost" onClick={() => navigate("/login")}>
               Sign in
             </Button>
             <Button onClick={() => navigate("/signup")}>
@@ -142,7 +142,7 @@ export default function LandingPage() {
             <a href="#how-it-works" className="text-sm text-gray-600 hover:text-gray-900" onClick={() => setMobileMenuOpen(false)}>How it works</a>
             <a href="#pricing" className="text-sm text-gray-600 hover:text-gray-900" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
             <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
-              <Button variant="outline" onClick={() => navigate("/signup")}>Sign in</Button>
+              <Button variant="outline" onClick={() => navigate("/login")}>Sign in</Button>
               <Button onClick={() => navigate("/signup")}>Start free trial</Button>
             </div>
           </div>
