@@ -2116,6 +2116,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Transform project vendors into quotation format grouped by project
       const quotationsByProject: Record<string, any[]> = {};
       
+      // Pre-fetch ALL BOQ items in a single query to avoid N+1 database round trips
+      const allProjectVendorIds = projectVendors.map(pv => pv.id);
+      const allBOQItems = await storage.getBOQBulkByProjectVendors(allProjectVendorIds);
+      const boqByProjectVendor = new Map<string, typeof allBOQItems>();
+      for (const item of allBOQItems) {
+        if (!boqByProjectVendor.has(item.projectVendorId)) {
+          boqByProjectVendor.set(item.projectVendorId, []);
+        }
+        boqByProjectVendor.get(item.projectVendorId)!.push(item);
+      }
+
       // Calculate totals from BOQ items for quotes without explicit totals
       for (const pv of projectVendors) {
         const project = projectMap.get(pv.projectId);
@@ -2143,22 +2154,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // If no explicit quotation value or it's zero/null, calculate from BOQ items
           const numericValue = quotationValue ? parseFloat(quotationValue) : 0;
           if (!quotationValue || numericValue === 0 || isNaN(numericValue)) {
-            try {
-              const boqItems = await storage.getBOQByProjectVendor(pv.id);
-              if (boqItems && boqItems.length > 0) {
-                const calculatedTotal = boqItems.reduce((sum, item) => {
-                  const itemTotal = parseFloat(item.totalAmount || '0');
-                  return sum + itemTotal;
-                }, 0);
-                if (calculatedTotal > 0) {
-                  quotationValue = calculatedTotal.toString();
-                  console.log(`Calculated total for quote ${pv.quotationName}: ₹${calculatedTotal}`);
-                }
-              } else {
-                console.log(`No BOQ items found for quote ${pv.quotationName} (${pv.id})`);
+            const boqItems = boqByProjectVendor.get(pv.id) || [];
+            if (boqItems.length > 0) {
+              const calculatedTotal = boqItems.reduce((sum, item) => {
+                return sum + parseFloat(item.totalAmount || '0');
+              }, 0);
+              if (calculatedTotal > 0) {
+                quotationValue = calculatedTotal.toString();
               }
-            } catch (error) {
-              console.error(`Error calculating BOQ total for quote ${pv.id}:`, error);
             }
           }
           

@@ -3,6 +3,8 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
 import { WebhookHandlers } from "./webhookHandlers";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 
 const app = express();
 
@@ -71,6 +73,17 @@ app.use((req, res, next) => {
   }
 
   const server = await registerRoutes(app);
+
+  // Keep the Neon serverless database connection warm to avoid cold-start delays.
+  // Neon goes to sleep after ~5 minutes of inactivity; this ping every 4 minutes
+  // prevents that, cutting first-query latency from ~1000ms to <50ms.
+  setInterval(async () => {
+    try {
+      await db.execute(sql`SELECT 1`);
+    } catch {
+      // Silent — a failed ping just means the next real query will be slightly slower
+    }
+  }, 4 * 60 * 1000);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     if (err.limitExceeded) {
