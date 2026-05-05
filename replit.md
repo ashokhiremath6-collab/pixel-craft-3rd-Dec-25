@@ -1,8 +1,10 @@
-# PixelCraft Designer
+# Olympik Design
 
 ## Overview
 
-PixelCraft Designer is a comprehensive vendor management system focused on tracking projects, quotations, and vendor relationships across various construction categories (Civil, Electrical, Lighting). It centralizes vendor information, facilitates quote comparison, tracks project progress, and manages a database of construction-related vendors, their quotations, and project associations. The system also integrates advanced AI capabilities for design intelligence, render generation, and asset management to streamline interior design workflows.
+Olympik Design is a public SaaS platform for interior design studios. It provides comprehensive studio management — project tracking, vendor quotes, AI design intelligence, render generation, client portals, Gantt scheduling, catalogues, SOPs, and meeting minutes — all under one roof. It is sold under the brand name "Olympik Design" at olymikdesign.com and targets interior designers as its primary customer. The platform supports multi-tenant organisations with role-based access control (Admin, Designer, Project Manager, Client).
+
+**Public landing page**: Unauthenticated visitors at `/` see the public marketing page (LandingPage.tsx). `/login` shows the login form. `/signup` shows registration.
 
 ## User Preferences
 

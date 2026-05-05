@@ -62,9 +62,9 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-3 pb-4">
           <div className="flex justify-center">
-            <img src="/logo.png" alt="PixelCraft Designer" className="h-14 w-14 object-contain" />
+            <img src="/logo.png" alt="Olympik Design" className="h-14 w-14 object-contain" />
           </div>
-          <CardTitle className="text-2xl">PixelCraft Designer</CardTitle>
+          <CardTitle className="text-2xl">Olympik Design</CardTitle>
         </CardHeader>
 
         <CardContent className="space-y-6">

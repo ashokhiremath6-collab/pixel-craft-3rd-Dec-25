@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
 
-const FROM_NAME = "PixelCraft Designer";
+const FROM_NAME = "Olympik Design";
 
 function getResend(): Resend | null {
   const key = process.env.RESEND_API_KEY;
@@ -93,11 +93,11 @@ function buildEmailFooter(opts: {
 }): { html: string; text: string } {
   const settingsUrl = `${opts.baseUrl}/settings`;
   const orgLine = opts.orgName
-    ? `You're receiving this because you're an admin of <strong>${opts.orgName}</strong> on PixelCraft Designer.`
-    : `You're receiving this as a member of your organisation on PixelCraft Designer.`;
+    ? `You're receiving this because you're an admin of <strong>${opts.orgName}</strong> on Olympik Design.`
+    : `You're receiving this as a member of your organisation on Olympik Design.`;
   const orgLineText = opts.orgName
-    ? `You're receiving this because you're an admin of ${opts.orgName} on PixelCraft Designer.`
-    : `You're receiving this as a member of your organisation on PixelCraft Designer.`;
+    ? `You're receiving this because you're an admin of ${opts.orgName} on Olympik Design.`
+    : `You're receiving this as a member of your organisation on Olympik Design.`;
 
   let unsubscribeLinkHtml = "";
   let unsubscribeLinkText = "";
@@ -132,11 +132,11 @@ export async function sendPasswordResetEmail(
 
   await sendEmail({
     to: email,
-    subject: "Reset your PixelCraft Designer password",
+    subject: "Reset your Olympik Design password",
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
-          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
         </div>
         <div style="background:#fff;border-radius:12px;padding:28px;">
           <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Reset your password</h2>
@@ -152,7 +152,7 @@ export async function sendPasswordResetEmail(
         </div>
       </div>
     `,
-    text: `Reset your PixelCraft Designer password\n\nClick the link below to reset your password (expires in 1 hour):\n${resetUrl}\n\nIf you didn't request this, ignore this email.`,
+    text: `Reset your Olympik Design password\n\nClick the link below to reset your password (expires in 1 hour):\n${resetUrl}\n\nIf you didn't request this, ignore this email.`,
   });
 }
 
@@ -169,16 +169,16 @@ export async function sendInvitationEmail(
 
   await sendEmail({
     to: email,
-    subject: `You've been invited to join ${orgName} on PixelCraft Designer`,
+    subject: `You've been invited to join ${orgName} on Olympik Design`,
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
-          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
         </div>
         <div style="background:#fff;border-radius:12px;padding:28px;">
           <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">You're invited!</h2>
           <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 8px;">
-            <strong>${invitedBy}</strong> has invited you to join <strong>${orgName}</strong> on PixelCraft Designer as a <strong>${role}</strong>.
+            <strong>${invitedBy}</strong> has invited you to join <strong>${orgName}</strong> on Olympik Design as a <strong>${role}</strong>.
           </p>
           <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
             Click the button below to accept the invitation and set up your account. This link expires in 48 hours.
@@ -192,7 +192,7 @@ export async function sendInvitationEmail(
         </div>
       </div>
     `,
-    text: `You've been invited to join ${orgName} on PixelCraft Designer!\n\n${invitedBy} has invited you as a ${role}.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in 48 hours.`,
+    text: `You've been invited to join ${orgName} on Olympik Design!\n\n${invitedBy} has invited you as a ${role}.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in 48 hours.`,
   });
 }
 
@@ -211,11 +211,11 @@ export async function sendPaymentFailedEmail(
   });
   await sendEmail({
     to: email,
-    subject: `Action required: Payment failed for ${orgName} on PixelCraft Designer`,
+    subject: `Action required: Payment failed for ${orgName} on Olympik Design`,
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
-          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
         </div>
         <div style="background:#fff;border-radius:12px;padding:28px;">
           <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Payment failed</h2>
@@ -229,7 +229,7 @@ export async function sendPaymentFailedEmail(
         </div>
       </div>
     `,
-    text: `Payment failed for ${orgName} on PixelCraft Designer.\n\nWe were unable to process your latest payment. Please update your payment method to avoid any interruption to your service.${footer.text}`,
+    text: `Payment failed for ${orgName} on Olympik Design.\n\nWe were unable to process your latest payment. Please update your payment method to avoid any interruption to your service.${footer.text}`,
   });
 }
 
@@ -252,7 +252,7 @@ export async function sendSubscriptionCancelledEmail(
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
-          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
         </div>
         <div style="background:#fff;border-radius:12px;padding:28px;">
           <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Subscription cancelled</h2>
@@ -266,7 +266,7 @@ export async function sendSubscriptionCancelledEmail(
         </div>
       </div>
     `,
-    text: `Your ${orgName} subscription on PixelCraft Designer has been cancelled.\n\nYour workspace has been moved to the free trial plan. You can resubscribe at any time to restore full access.${footer.text}`,
+    text: `Your ${orgName} subscription on Olympik Design has been cancelled.\n\nYour workspace has been moved to the free trial plan. You can resubscribe at any time to restore full access.${footer.text}`,
   });
 }
 
@@ -290,11 +290,11 @@ export async function sendPlanChangedEmail(
   });
   await sendEmail({
     to: email,
-    subject: `Your ${orgName} plan has been updated on PixelCraft Designer`,
+    subject: `Your ${orgName} plan has been updated on Olympik Design`,
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
-          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
         </div>
         <div style="background:#fff;border-radius:12px;padding:28px;">
           <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Your plan has been updated</h2>
@@ -318,7 +318,7 @@ export async function sendPlanChangedEmail(
         </div>
       </div>
     `,
-    text: `Your plan for ${orgName} on PixelCraft Designer has been updated.\n\nPrevious plan: ${planLabel(previousPlan)}\nNew plan: ${planLabel(newPlan)}\n\nIf you have questions, please contact support.${footer.text}`,
+    text: `Your plan for ${orgName} on Olympik Design has been updated.\n\nPrevious plan: ${planLabel(previousPlan)}\nNew plan: ${planLabel(newPlan)}\n\nIf you have questions, please contact support.${footer.text}`,
   });
 }
 
@@ -352,7 +352,7 @@ async function sendTrialExpiryEmailCore(
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
-          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
         </div>
         <div style="background:#fff;border-radius:12px;padding:28px;">
           <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Your trial ${urgency}</h2>
@@ -369,7 +369,7 @@ async function sendTrialExpiryEmailCore(
         </div>
       </div>
     `,
-    text: `Your ${orgName} trial on PixelCraft Designer ${urgency}.\n\nAfter it ends, your workspace will be restricted to read-only access until you upgrade. Log in to your workspace to upgrade your plan.\n\nIf you have questions, please contact support.${footer.text}`,
+    text: `Your ${orgName} trial on Olympik Design ${urgency}.\n\nAfter it ends, your workspace will be restricted to read-only access until you upgrade. Log in to your workspace to upgrade your plan.\n\nIf you have questions, please contact support.${footer.text}`,
   });
 }
 
@@ -413,12 +413,12 @@ export async function sendInvitationAcceptedEmail(
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
-          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
         </div>
         <div style="background:#fff;border-radius:12px;padding:28px;">
           <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Invitation accepted</h2>
           <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
-            <strong>${inviteeName}</strong> has accepted your invitation and joined <strong>${orgName}</strong> on PixelCraft Designer.
+            <strong>${inviteeName}</strong> has accepted your invitation and joined <strong>${orgName}</strong> on Olympik Design.
           </p>
           <p style="color:#6e6e73;font-size:13px;margin:0;">
             You can view your team members in the Settings page of your workspace.
@@ -427,7 +427,7 @@ export async function sendInvitationAcceptedEmail(
         </div>
       </div>
     `,
-    text: `${inviteeName} has accepted your invitation to ${orgName} on PixelCraft Designer.\n\nYou can view your team members in the Settings page of your workspace.${footer.text}`,
+    text: `${inviteeName} has accepted your invitation to ${orgName} on Olympik Design.\n\nYou can view your team members in the Settings page of your workspace.${footer.text}`,
   });
 }
 
@@ -448,11 +448,11 @@ export async function sendProjectUpdateEmail(
 
   await sendEmail({
     to: email,
-    subject: `Project update: ${projectName} on PixelCraft Designer`,
+    subject: `Project update: ${projectName} on Olympik Design`,
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
-          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
         </div>
         <div style="background:#fff;border-radius:12px;padding:28px;">
           <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">A project has been updated</h2>
@@ -466,7 +466,7 @@ export async function sendProjectUpdateEmail(
         </div>
       </div>
     `,
-    text: `${projectName} has been updated by ${updatedBy} on PixelCraft Designer.\n\nLog in to view the latest changes: ${projectsUrl}${footer.text}`,
+    text: `${projectName} has been updated by ${updatedBy} on Olympik Design.\n\nLog in to view the latest changes: ${projectsUrl}${footer.text}`,
   });
 }
 
@@ -480,16 +480,16 @@ export async function sendVerificationEmail(
 
   await sendEmail({
     to: email,
-    subject: "Verify your PixelCraft Designer account",
+    subject: "Verify your Olympik Design account",
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
-          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">PixelCraft Designer</h1>
+          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
         </div>
         <div style="background:#fff;border-radius:12px;padding:28px;">
           <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Verify your email</h2>
           <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
-            Welcome to PixelCraft Designer! Click the button below to verify your email address and activate your account.
+            Welcome to Olympik Design! Click the button below to verify your email address and activate your account.
           </p>
           <a href="${verifyUrl}" style="display:inline-block;background:#0071e3;color:#fff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
             Verify Email
@@ -500,6 +500,6 @@ export async function sendVerificationEmail(
         </div>
       </div>
     `,
-    text: `Welcome to PixelCraft Designer!\n\nVerify your email address by visiting:\n${verifyUrl}\n\nIf you didn't create an account, ignore this email.`,
+    text: `Welcome to Olympik Design!\n\nVerify your email address by visiting:\n${verifyUrl}\n\nIf you didn't create an account, ignore this email.`,
   });
 }

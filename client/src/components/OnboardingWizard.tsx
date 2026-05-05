@@ -119,7 +119,7 @@ export default function OnboardingWizard({ orgId }: OnboardingWizardProps) {
                 <Building2 className="h-5 w-5 text-primary" />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Step 1 of 2</span>
               </div>
-              <CardTitle>Welcome to PixelCraft Designer!</CardTitle>
+              <CardTitle>Welcome to Olympik Design!</CardTitle>
               <CardDescription>
                 Let's confirm your workspace name. You can always change it later in Settings.
               </CardDescription>

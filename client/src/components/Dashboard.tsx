@@ -319,7 +319,7 @@ export default function Dashboard({
             style={{ fontSize: "clamp(1.5rem,4vw,3.75rem)", color: "#111827", letterSpacing: "-1px" }}
             data-testid="heading-dashboard"
           >
-            PixelCraft Designer
+            Olympik Design
           </h1>
           <p className="text-sm sm:text-[18px]" style={{ color: "#86868b" }}>
             Overview of your vendors, projects, and quotations.

@@ -164,7 +164,7 @@ export default function InviteAcceptPage() {
             /* Existing account — just link to org, no new password needed */
             <div className="space-y-4">
               <p className="text-sm text-center text-muted-foreground">
-                You already have a PixelCraft Designer account. Click below to join{" "}
+                You already have an Olympik Design account. Click below to join{" "}
                 <strong>{inviteDetails.orgName}</strong> using your existing account.
               </p>
               <Button className="w-full" onClick={acceptAsExistingUser} disabled={isLoading}>

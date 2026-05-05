@@ -34,6 +34,7 @@ import AIRendersPage from "@/pages/AIRendersPage";
 import AssetIngestionPage from "@/pages/AssetIngestionPage";
 import AIAssistantPage from "@/pages/AIAssistantPage";
 import LoginPage from "@/pages/LoginPage";
+import LandingPage from "@/pages/LandingPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import SignUpPage from "@/pages/SignUpPage";
@@ -189,9 +190,9 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
               <div className="flex items-center gap-2 min-w-0">
-                <img src="/logo.png" alt="PixelCraft Designer" className="h-7 w-7 object-contain shrink-0" />
+                <img src="/logo.png" alt="Olympik Design" className="h-7 w-7 object-contain shrink-0" />
                 <h1 className="text-sm sm:text-base font-semibold truncate hidden sm:block" data-testid="heading-app-title">
-                  PixelCraft Designer
+                  Olympik Design
                 </h1>
               </div>
             </div>
@@ -355,6 +356,7 @@ function AppContent() {
   if (location === "/forgot-password") return <ForgotPasswordPage />;
   if (location.startsWith("/reset-password")) return <ResetPasswordPage />;
   if (location === "/signup") return <SignUpPage />;
+  if (location === "/login") return <LoginPage />;
   if (location.startsWith("/invite/")) return <InviteAcceptPage />;
 
   if (isLoading) {
@@ -367,6 +369,12 @@ function AppContent() {
       </div>
     );
   }
+
+  // Unauthenticated visitors see the public landing page at "/"
+  if (!isAuthenticated && location === "/") return <LandingPage />;
+
+  // Any other unauthenticated deep-link goes to login
+  if (!isAuthenticated) return <LoginPage />;
 
   if (isAuthenticated) {
     // Elevated roles (admin, designer, project_manager) always stay in the admin view.

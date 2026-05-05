@@ -20,7 +20,7 @@ export interface DesignChatMessage {
   attachments?: DesignChatAttachment[];
 }
 
-const DESIGN_SYSTEM_PROMPT = `You are a highly knowledgeable AI assistant built into PixelCraft Designer, a professional design management platform. You have deep expertise in interior design and construction, but you are a general-purpose assistant — you can answer any question on any topic helpfully and accurately.
+const DESIGN_SYSTEM_PROMPT = `You are a highly knowledgeable AI assistant built into Olympik Design, a professional design management platform. You have deep expertise in interior design and construction, but you are a general-purpose assistant — you can answer any question on any topic helpfully and accurately.
 
 ## Your deep expertise includes:
 
@@ -521,7 +521,7 @@ LWPOLYLINE: { "type":"LWPOLYLINE", "layer":"...", "points":[[0,0],[1000,0],[1000
 3. All windows
 4. Room name labels (h=150mm) and area labels e.g. "16.5 m²" (h=100mm)
 5. Dimension lines along ALL four outer edges with real dimensions
-6. Title block text at y=-600: drawing title, "Scale 1:50", "PixelCraft Designer"
+6. Title block text at y=-600: drawing title, "Scale 1:50", "Olympik Design"
 
 ## Wall thickness
 - External walls: 240mm thick — draw as LWPOLYLINE with 8 points (outer rect + inner rect, closed=true, no fill needed — just the outline)
@@ -619,7 +619,7 @@ LWPOLYLINE: { "type":"LWPOLYLINE", "layer":"...", "points":[[0,0],[1000,0],[1000
 7. Material finish hatching (tile: grid of LINEs at 300mm centres; timber: horizontal LINEs at 20mm centres; etc.)
 8. Dimension lines: vertical left side (floor-to-ceiling, sill height, head height), horizontal bottom (wall width, element positions)
 9. Material / finish callout TEXT with leader lines (LINE from element to label)
-10. Title block at y=-500: elevation name, wall dimensions, "Scale 1:50", "PixelCraft Designer"`;
+10. Title block at y=-500: elevation name, wall dimensions, "Scale 1:50", "Olympik Design"`;
 
 export async function generateElevationDXFSpec(
   messages: DesignChatMessage[]

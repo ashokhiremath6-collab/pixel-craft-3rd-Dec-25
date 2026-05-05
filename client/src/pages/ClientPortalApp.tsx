@@ -579,8 +579,8 @@ export default function ClientPortalApp({
       )}
       <header className="border-b bg-background px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <img src="/logo.png" alt="PixelCraft Designer" className="h-7 w-7 object-contain shrink-0" />
-          <span className="font-semibold text-sm hidden sm:block shrink-0">PixelCraft Designer</span>
+          <img src="/logo.png" alt="Olympik Design" className="h-7 w-7 object-contain shrink-0" />
+          <span className="font-semibold text-sm hidden sm:block shrink-0">Olympik Design</span>
           {projects.length > 1 ? (
             <Select value={effectiveProjectId} onValueChange={v => { setSelectedProjectId(v); setActiveTab("overview"); }}>
               <SelectTrigger className="w-[180px] sm:w-[220px]">
