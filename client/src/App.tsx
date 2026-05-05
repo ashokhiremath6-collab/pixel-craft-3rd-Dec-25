@@ -435,11 +435,8 @@ function AppContent() {
     );
   }
 
-  // Unauthenticated visitors see the public landing page at "/"
-  if (!isAuthenticated && location === "/") return <LandingPage />;
-
-  // Any other unauthenticated deep-link goes to login
-  if (!isAuthenticated) return <LoginPage />;
+  // All unauthenticated visitors see the public landing page
+  if (!isAuthenticated) return <LandingPage />;
 
   if (isAuthenticated) {
     // Elevated roles (admin, designer, project_manager) always stay in the admin view.
