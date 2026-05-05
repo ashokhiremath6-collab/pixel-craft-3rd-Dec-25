@@ -418,6 +418,12 @@ function AppContent() {
             hello@olympikdesign.com
           </a>.
         </p>
+        <p className="text-sm text-muted-foreground/60 pt-2">
+          Already have an account?{" "}
+          <a href="/login" className="underline hover:text-muted-foreground">
+            Sign in here
+          </a>.
+        </p>
       </div>
     </div>
   );
