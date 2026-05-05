@@ -1,0 +1,70 @@
+I have built an Interior Design Workflow App. I want you to generate a COMPLETE PRODUCT SUMMARY in a structured format so that an external product expert can evaluate it.
+
+Please create a detailed document with the following sections:
+
+1. PRODUCT OVERVIEW
+- What problem does the app solve?
+- Who is the primary user? (independent designer, firm, client, contractor, etc.)
+- What stage of the design process does it cover?
+
+2. CORE FEATURES (VERY IMPORTANT – BE DETAILED)
+List ALL features with explanation of how each works:
+- Project creation & management
+- Floor plan handling (upload, editing, measurements, etc.)
+- Design tools (layout, furniture placement, rendering, etc.)
+- Vendor management
+- RFQ (request for quotation) workflows
+- Budgeting & cost tracking
+- Client interface (what client can see/do)
+- Team collaboration (roles, permissions, workflows)
+- Document generation (BOQs, work orders, etc.)
+- Communication tools (chat, notifications, approvals)
+- File management (images, drawings, versions)
+
+3. USER EXPERIENCE FLOW
+Describe step-by-step:
+- How a new project is created
+- How a designer works through a project
+- How a client interacts with the system
+- How vendors participate
+
+4. TECHNOLOGY STACK
+- Frontend
+- Backend
+- Database
+- Integrations (if any)
+- Hosting/deployment
+
+5. CURRENT LIMITATIONS
+- Known bugs
+- Missing features
+- Performance issues
+- UX pain points
+
+6. DIFFERENTIATION
+- What makes this app unique compared to existing tools?
+- Why would a designer switch to this?
+
+7. TARGET MARKET
+- Who exactly should use this? (solo designers, firms, luxury segment, etc.)
+- Geography focus (India / global)
+
+8. MONETIZATION IDEA (if any)
+- Subscription?
+- Per project?
+- Enterprise?
+
+9. REAL USAGE
+- How is it currently being used by my daughter?
+- What works well?
+- What does she still do outside the app?
+
+10. SCREEN DESCRIPTIONS (IMPORTANT)
+Since images may not be available, describe key screens:
+- Dashboard
+- Project page
+- Design interface
+- Vendor/RFQ module
+- Client view
+
+Make the output clear, structured, and detailed. Avoid generic statements.
