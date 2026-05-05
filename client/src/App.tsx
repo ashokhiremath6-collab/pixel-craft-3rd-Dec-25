@@ -44,6 +44,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Shield, User, Crown, Eye, AlertTriangle, X, ChevronDown } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -103,6 +104,7 @@ interface BillingStatus {
 
 function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: () => void }) {
   const { logout, user } = useAuth();
+  const [, navigate] = useLocation();
 
   const style = {
     "--sidebar-width": "14rem",
@@ -110,6 +112,7 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
   };
 
   const canPreviewPortal = ELEVATED_ROLES.includes(user?.role || '');
+  const isProjectManager = user?.role === 'project_manager';
 
   const isAdmin = user?.role === 'admin';
   const canSeeBilling = (BILLING_VISIBLE_ROLES as readonly string[]).includes(user?.role || '');
@@ -223,6 +226,29 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+              {user && isProjectManager && (
+                <button
+                  onClick={() => navigate("/account")}
+                  className="flex items-center gap-2 rounded-md px-2 py-1 hover-elevate active-elevate-2 transition-colors"
+                  data-testid="button-account-link"
+                  title="Go to Account settings"
+                >
+                  <Avatar className="h-7 w-7">
+                    <AvatarFallback className="text-xs">
+                      {user.firstName && user.lastName
+                        ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+                        : user.firstName
+                        ? user.firstName[0].toUpperCase()
+                        : (user.email?.[0] ?? "U").toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="hidden sm:inline text-sm font-medium text-foreground">
+                    {user.firstName && user.lastName
+                      ? `${user.firstName} ${user.lastName}`
+                      : user.firstName || user.email}
+                  </span>
+                </button>
+              )}
               {user && (
                 <div className="flex items-center gap-2">
                   <Badge
