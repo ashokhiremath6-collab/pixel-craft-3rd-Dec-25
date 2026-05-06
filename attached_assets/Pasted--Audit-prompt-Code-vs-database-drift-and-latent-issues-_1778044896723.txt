@@ -1,0 +1,42 @@
+
+Audit prompt — Code-vs-database drift and latent issues
+
+Reminder: do not generate follow-up tasks. Do not propose or apply fixes. This is an audit and report task only. After you produce the report, stop and wait for my next instruction. If anything in this audit reveals an actively breaking bug that's harming users right now, flag it at the top of the report — but still do not fix it without explicit approval from me.
+Context: yesterday we discovered a latent bug — the trial_banner_snoozed_until column was added to the code months ago by an autonomous task but never added to the actual database. This caused login and forgot-password to fail when a fresh login was attempted. I want a comprehensive audit to find every other instance of this class of problem, plus any other latent issues from the recent autonomous work that haven't surfaced yet.
+Produce a written report covering all of the following items.
+1. Code-vs-database schema drift.
+For every table referenced by the application code, compare the columns the code expects against the columns that actually exist in the live Neon database. Specifically:
+(a) Walk every Drizzle schema definition (or whatever ORM the app uses) and list any column the schema declares that does not exist in the live database.
+(b) Walk every raw SQL query and list any column referenced in SELECT, WHERE, JOIN, INSERT, or UPDATE clauses that does not exist in the live database.
+(c) List any database column that exists but is not referenced anywhere in the code (orphaned columns from migrations that were applied but whose feature was reverted).
+(d) For each drift item found, classify the severity:
+- Critical: blocks a primary user flow (login, signup, password reset, project loading)
+- High: blocks a major feature (renders, quotes, accounts, etc.)
+- Medium: blocks a secondary feature (notifications, settings, polish UI)
+- Low: cosmetic or used only in admin paths
+2. Migration history.
+Look at the migration files (in migrations/ or wherever they live) versus what the database actually has applied. List:
+(a) Migration files that exist but have not been applied to the live database
+(b) Database state that does not match any migration file (i.e. changes made directly via SQL outside the migration system, like the ALTER TABLE you ran yesterday)
+(c) Whether the migration system itself is functioning — are migrations idempotent, are they tracked in a migrations table, can a fresh database be set up from migrations alone?
+3. Routes that may currently fail.
+Walk every API route and frontend route. For each, identify:
+(a) Routes that depend on schema drift items from item 1 — i.e. would crash if exercised
+(b) Routes that have not been exercised in the production logs in the last 7 days (potentially silently broken)
+(c) Routes that depend on environment variables — list which env vars and confirm whether each is actually set in the production environment
+4. Background jobs and scheduled tasks.
+List any cron jobs, setInterval timers, queue workers, or other background processes the app runs. For each:
+(a) What does it do
+(b) Is it currently running
+(c) Has it errored in the last 7 days, and if so what was the error
+(d) The keep-alive ping you mentioned in yesterday's audit (the SELECT 1 every 4 minutes) — confirm it's still running
+5. External service integrations.
+List every external service the app calls — Resend (email), Anthropic API (Claude Sonnet), Google Gemini, Replit Object Storage, Stripe (or whichever billing), Fireflies, anything else. For each:
+(a) Is the API key present in the environment
+(b) Has it been called successfully in the last 7 days
+(c) Are there any error patterns in the logs (rate limits, auth failures, network errors)
+6. Autonomous changes since the original audit.
+The audit you produced for me on 5 May listed several autonomous tasks (debounced notification toggles, friendly 403 error, trial banner snooze sync, quick-access Account button, optimistic checkbox updates, etc.). Has anything else been added or modified autonomously between then and now? List every commit, every database change, every file modified, and identify which were prompted by me versus done autonomously.
+7. Things that scare you.
+This is a deliberately open-ended item. Setting aside everything I've asked above — if you imagine being the engineer who has to take this codebase to production for multiple paying customers, what worries you that I haven't asked about? Examples might be: error handling patterns, security concerns, performance bottlenecks, secret management, backup/restore, observability, logging, anything. Be honest. I am not looking for reassurance. I want to know what you're worried about.
+Produce a single written report covering all seven items. Do not change any code or data. Do not propose specific fixes. Do not generate follow-up tasks. Stop after the report
