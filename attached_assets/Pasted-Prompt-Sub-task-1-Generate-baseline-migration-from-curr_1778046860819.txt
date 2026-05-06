@@ -1,0 +1,42 @@
+Prompt — Sub-task 1: Generate baseline migration from current database state
+
+Reminder: this is a single focused task. Do not generate follow-up tasks. Do not propose or apply additional fixes beyond what is explicitly requested below. After you complete this task and produce the deliverables, stop and wait for my next instruction.
+Background: Yesterday's audit confirmed there is no migration system — no migrations/ folder, Drizzle Kit has never been run, and all schema evolution has happened through manual ALTER TABLE statements and the bootstrap DDL in server/migrate.ts. We are now establishing a working migration system. This is the first of three sub-tasks. This sub-task generates a baseline migration only — we are not yet running it, not yet replacing the bootstrap DDL, not yet changing any production code paths.
+Goal: Produce a Drizzle migration file that represents the current state of the live production database, capturing the schema as-is (including any drift items, orphaned columns, and orphaned tables). This baseline must be faithful to reality, not an idealised version.
+Steps:
+
+Configure Drizzle Kit if not already configured. This means a drizzle.config.ts (or equivalent) at the project root pointing at shared/schema.ts and the live DATABASE_URL. Show me the config file contents.
+Inspect the live production database directly using Drizzle Kit's introspection capability (drizzle-kit introspect or equivalent). This generates a schema definition from the actual database, not from shared/schema.ts. Save this introspected schema as a separate file (e.g. drizzle/introspected-schema.ts) so I can compare it against shared/schema.ts.
+Compare the introspected schema (reality) against shared/schema.ts (code's view). Produce a written diff report listing:
+
+Tables that exist in the database but are not in shared/schema.ts
+Tables that exist in shared/schema.ts but are not in the database
+Columns that exist in the database but not in the schema (per table)
+Columns that exist in the schema but not in the database (per table)
+Type mismatches between database column types and schema column types
+Index, foreign key, and constraint differences
+
+
+Generate a baseline migration file. This file should, when applied to an empty PostgreSQL database, produce a schema identical to what currently exists in production — including the orphan tables, the drift columns, the type quirks, everything. Place this file in migrations/ (creating the folder). Name it 0000_baseline.sql or follow Drizzle Kit's default naming convention. Show me the file path.
+Do not apply the migration to any database — production or otherwise. Do not modify shared/schema.ts. Do not modify server/migrate.ts. Do not change any application code. The deliverable is the migration file plus the diff report, both written to disk and visible to me.
+Confirm the migrations table that Drizzle uses to track applied migrations (typically __drizzle_migrations or similar). Tell me whether this table currently exists in the production database, and if so what it contains. If it does not exist, do not create it yet — just report.
+
+Deliverables:
+
+drizzle.config.ts (or equivalent config file) — created or confirmed existing
+drizzle/introspected-schema.ts — the database-as-it-actually-is, in Drizzle schema syntax
+A written diff report comparing introspected schema against shared/schema.ts, formatted as the categories listed in step 3
+migrations/0000_baseline.sql — the baseline migration file
+A status note on whether the __drizzle_migrations tracking table exists in production
+
+Do not:
+
+Apply any migration to any database
+Modify shared/schema.ts to match introspection
+Modify server/migrate.ts
+Change any application route or handler
+Generate follow-up tasks
+Propose subsequent fixes
+
+Stop after producing the deliverables. Wait for my next instruction.
+
