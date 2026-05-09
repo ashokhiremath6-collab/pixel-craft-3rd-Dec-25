@@ -1,0 +1,47 @@
+Prompt — Sub-task 2: Verify baseline on fresh database
+
+Reminder: This is a verification task. Do not delete, drop, or alter any tables in production. After you complete this task and provide the diff report, stop and wait for my next instruction.
+Context: Sub-task 1 (generate baseline) is complete and validated. The baseline migration file accurately reflects the current production schema. Sub-task 2 verifies this: apply the baseline SQL to a fresh test database and compare the result against production. Zero differences confirms the baseline is faithful.
+Steps:
+
+Create a test database:
+Create a new Neon branch from the current production snapshot (name it test-baseline-verify or similar). This gives us a full copy of production schema.
+Report the database URL and name.
+Prepare the baseline SQL for application:
+Create a temporary copy of migrations/0000_baseline.sql with the block comment removed (uncomment all the SQL).
+Save it as migrations/0000_baseline_uncommented.sql (temp file).
+Do NOT modify the original 0000_baseline.sql.
+Apply the baseline to the test database:
+Run the uncommented SQL against the test database:
+psql <TEST_DATABASE_URL> < migrations/0000_baseline_uncommented.sql
+Or use the Neon console to paste and execute.
+Report: Did it execute successfully? (Should have zero errors.)
+Schema comparison — production vs. test:
+Query both databases:
+SELECT schemaname, tablename, tableowner FROM pg_tables 
+WHERE schemaname NOT IN ('pg_catalog', 'information_schema', 'drizzle') 
+ORDER BY schemaname, tablename;
+Also list indexes on both. Compare side-by-side.
+Report findings:
+
+Tables in production but not in test (should be zero)
+Tables in test but not in production (should be zero)
+Any index differences
+Any other schema differences
+Overall: Baseline faithful? Yes/No.
+
+
+Cleanup:
+Delete the test database branch when done.
+Delete migrations/0000_baseline_uncommented.sql (temp file).
+Leave the original 0000_baseline.sql untouched.
+
+Deliverables:
+
+Test database name and URL
+Confirmation that baseline SQL executed successfully (or error details if not)
+Schema comparison results
+Overall verdict: Baseline is faithful? Yes/No, and any caveats.
+
+Do not: drop/alter production tables, leave uncommented baseline file in repo, modify original baseline.sql, or generate follow-up tasks.
+After you complete the verification and provide the diff report, stop. Wait for my next instruction.
