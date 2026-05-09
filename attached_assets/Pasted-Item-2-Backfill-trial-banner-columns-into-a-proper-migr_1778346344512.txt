@@ -1,0 +1,47 @@
+Item 2: Backfill trial_banner columns into a proper migration
+The issue: yesterday the trial_banner_snoozed_until and trial_banner_snooze_duration columns were added directly to the live database via manual ALTER TABLE. They're now in production, and they're captured in the baseline migration we just generated. But they're NOT in shared/schema.ts, so the code doesn't know about them.
+This means:
+
+If someone built a fresh database from code alone, these columns would be missing
+Future migrations might not understand these columns exist
+
+The fix: add them to shared/schema.ts in the users table, then run drizzle-kit generate to create a proper migration. The migration will use ADD COLUMN IF NOT EXISTS, so it's safe to run against production (no-op) and safe on fresh databases (adds the columns).
+Send this prompt:
+
+Prompt — Add trial_banner columns to schema and generate migration
+
+Reminder: Make only the changes specified below. Do not modify any other code. Do not modify the database. After completing, stop and wait for my next instruction.
+Context: The trial_banner_snoozed_until and trial_banner_snooze_duration columns exist in the production database but are not defined in shared/schema.ts. We are adding them to the schema definition and generating a proper migration so these columns are part of the code, not a hidden production-only detail.
+Steps:
+
+Open shared/schema.ts and find the users table definition.
+Add these two column definitions to the users table (add them near the other timestamp/date columns):
+trial_banner_snoozed_until: timestamp('timestamp with time zone'),
+trial_banner_snooze_duration: text(),
+(Match the exact types from production — check the baseline migration if unsure of the types.)
+Save the file.
+Run: npx drizzle-kit generate
+A new migration file will be created in migrations/ (likely 0001_add_trial_banner_columns.sql or similar). Open it and verify:
+
+It contains ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "trial_banner_snoozed_until" ... ;
+It contains ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "trial_banner_snooze_duration" ... ;
+The IF NOT EXISTS clause is present on both
+
+
+Show me:
+
+The two column definitions you added to users in shared/schema.ts
+The name of the new migration file created
+The first 20 lines of the new migration file (showing the ALTER TABLE statements)
+
+
+Do NOT apply this migration yet — just generate it. It will be applied on the next deployment.
+
+Deliverables:
+
+Column definitions added to shared/schema.ts (show the code)
+Name of the new migration file
+First 20 lines of the new migration file
+
+Do not: apply the migration, modify any other code, or generate follow-up tasks.
+After completing, stop. Wait for my next instruction.
