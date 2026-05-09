@@ -1,0 +1,35 @@
+Prompt — Sub-task 3: Neutralise bootstrap DDL and document migrations
+
+Reminder: This is code cleanup and documentation. Do not modify the database. Do not generate follow-up tasks. After you complete the steps, stop and wait for my next instruction.
+Context: Sub-tasks 1 and 2 verified the migration system is operational. Sub-task 3 finalises it by removing the now-redundant bootstrap DDL and documenting the workflow.
+Steps:
+
+Review server/migrate.ts:
+Locate the bootstrap DDL section with ALTER TABLE ... ADD COLUMN IF NOT EXISTS statements. Count them.
+Neutralise the bootstrap DDL:
+Delete the entire bootstrap section (preferred), or comment it out with a note: "Deprecated: schema evolution now handled by Drizzle migrations in /migrations."
+Show me the changed code.
+Create docs/migrations.md:
+New file at project root with these sections:
+
+Overview: Schema changes now go through Drizzle Kit. Every change is a discrete, reviewed migration.
+Workflow: (1) modify shared/schema.ts, (2) run npx drizzle-kit generate, (3) review the generated migration file, (4) commit, (5) on deploy run npx drizzle-kit migrate.
+What not to do: ❌ no manual ALTER TABLE, ❌ no hand-editing migrations, ❌ no skipping code review, ❌ don't delete applied migrations.
+The baseline: migrations/0000_baseline.sql is the complete schema state as of [DATE], verified to match production exactly.
+Questions?: Migrations are self-documenting code — read them to understand.
+
+
+Verify startup code:
+Confirm server/index.ts (or wherever) calls drizzle-kit migrate on startup.
+Show me the relevant lines. Confirm the bootstrap DDL call is removed.
+
+Deliverables:
+
+Changed code from server/migrate.ts (what was removed/neutralised)
+Full contents of new docs/migrations.md
+Relevant startup code from server/index.ts (showing migrations are called)
+One-sentence summary: "Migration system is now the single source of truth for schema changes."
+
+Do not: drop/alter production, modify shared/schema.ts or app code, generate tasks, or commit changes.
+After completing, stop. Wait for my next instruction.
+
