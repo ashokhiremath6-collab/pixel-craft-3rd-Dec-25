@@ -1,0 +1,57 @@
+Prompt — Reconcile shared/schema.ts with baseline snapshot
+
+Reminder: This is a careful reconciliation task. Do not run drizzle-kit migrate or apply any migrations. Do not modify the database. After completing the steps below and confirming zero diff, stop and wait for my next instruction.
+Context: shared/schema.ts and drizzle/introspected-schema.ts (the baseline snapshot) have diverged. We are updating schema.ts to match the baseline exactly so that drizzle-kit generate produces only incremental changes, not a destructive diff.
+Steps:
+
+Read both files in parallel:
+
+Read drizzle/introspected-schema.ts (the baseline — ground truth of what's in production)
+Read shared/schema.ts (the current code schema)
+
+
+Identify divergences — for each table/column/constraint, note:
+
+Tables in baseline but not in schema.ts
+Tables in schema.ts but not in baseline
+Columns with different types between the two
+Columns in baseline but missing from schema.ts
+Columns in schema.ts but missing from baseline
+Constraint or nullability differences
+Index differences
+
+
+Report divergences (do NOT fix yet — just list them):
+
+List each divergence clearly
+Categorize: missing table, missing column, type mismatch, extra column, constraint difference
+
+
+Fix schema.ts to match the baseline:
+
+Add any missing tables
+Add any missing columns
+Fix any type mismatches (e.g., timestamp vs. timestamp with time zone)
+Remove any columns that exist in schema.ts but not in baseline
+Match constraint/nullability exactly
+Keep the Zod validation schemas and export statements — only update the table definitions
+
+
+After all changes, run: npx drizzle-kit generate
+
+The generated migration file should be empty or nearly empty (just the journal entry, no SQL changes)
+If a migration file with substantial changes is generated, STOP and report the issue
+If zero changes, delete any generated migration file
+
+
+Show deliverables:
+
+List of divergences found (before fixes)
+Confirmation that schema.ts was updated
+Output from drizzle-kit generate (should show zero/minimal changes)
+Final confirmation: schema.ts now matches the baseline snapshot
+
+
+
+Do not: apply migrations, drop tables, modify the database, or generate follow-up tasks.
+After you complete the reconciliation and confirm zero diff from drizzle-kit generate, stop. Wait for my next instruction.

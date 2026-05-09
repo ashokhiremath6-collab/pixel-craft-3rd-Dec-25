@@ -307,6 +307,7 @@ export interface IStorage {
   
   // Task Management
   getAllTasks(orgId?: string): Promise<Task[]>;
+  getAllTasksByProjectIds(projectIds: string[]): Promise<Task[]>;
   getTasksByProject(projectId: string): Promise<Task[]>;
   getTasksBySchedule(scheduleId: string): Promise<Task[]>;
   getTask(id: string): Promise<Task | undefined>;
@@ -1333,6 +1334,10 @@ export class MemStorage implements IStorage {
 
   // Task Management (stubs for MemStorage - not used in production)
   async getAllTasks(_orgId?: string): Promise<Task[]> {
+    return [];
+  }
+
+  async getAllTasksByProjectIds(_projectIds: string[]): Promise<Task[]> {
     return [];
   }
 
@@ -2563,6 +2568,22 @@ export class DBStorage implements IStorage {
         // Original Excel row sequence is the primary sort within a schedule
         sql`${tasks.rowIndex} ASC NULLS LAST`,
         // createdAt insertion order is the fallback for manually-created tasks (rowIndex = NULL)
+        asc(tasks.createdAt),
+        asc(tasks.id)
+      );
+  }
+
+  async getAllTasksByProjectIds(projectIds: string[]): Promise<Task[]> {
+    if (projectIds.length === 0) return [];
+    return await db
+      .select(getTableColumns(tasks))
+      .from(tasks)
+      .leftJoin(projectSchedules, eq(tasks.scheduleId, projectSchedules.id))
+      .where(inArray(tasks.projectId, projectIds))
+      .orderBy(
+        asc(tasks.projectId),
+        sql`${projectSchedules.uploadedAt} ASC NULLS LAST`,
+        sql`${tasks.rowIndex} ASC NULLS LAST`,
         asc(tasks.createdAt),
         asc(tasks.id)
       );

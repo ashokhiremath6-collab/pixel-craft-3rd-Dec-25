@@ -5289,12 +5289,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all tasks across all projects
   app.get("/api/tasks", requireAuth, async (req: any, res) => {
     try {
-      // Scope tasks to the authenticated user's organisation so the dashboard
-      // only shows tasks that belong to this workspace.
       const userId = (req.user as any).id;
-      const user = await storage.getUser(userId);
-      const orgId = user?.orgId ?? undefined;
-      const tasks = await storage.getAllTasks(orgId);
+      // Use the same role-based project access as /api/projects so that tasks
+      // are always in sync with what the user can see in the project list.
+      // The old orgId INNER JOIN approach excluded projects with a null orgId
+      // (created before multi-tenant was introduced), causing tasks to disappear.
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role || 'client';
+      const accessibleProjects = await storage.getProjectsForUser(userId, role);
+      const projectIds = accessibleProjects.map((p: any) => p.id);
+      const tasks = await storage.getAllTasksByProjectIds(projectIds);
       res.json(tasks);
     } catch (error) {
       console.error('Error fetching all tasks:', error);
