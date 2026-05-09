@@ -10559,6 +10559,8 @@ Return your response in the following JSON format only (no markdown, no code blo
   // BEFORE express.json() so it receives the raw body required for
   // Stripe signature verification. All other billing endpoints live here.
 
+  // Stripe checkout/portal disabled until billing is configured. See docs/migrations.md for re-enabling.
+  /*
   // Map plan slugs to Stripe price IDs (set via environment variables)
   const PLAN_PRICE_IDS: Record<string, string | undefined> = {
     starter: process.env.STRIPE_PRICE_STARTER,
@@ -10571,6 +10573,7 @@ Return your response in the following JSON format only (no markdown, no code blo
     return process.env.APP_URL ||
       (domains ? `https://${domains.split(',')[0].trim()}` : `${req.protocol}://${req.hostname}`);
   }
+  */
 
   // GET /api/billing/status — current org plan info (admin, designer, project_manager)
   app.get('/api/billing/status', requireAuth, async (req, res) => {
@@ -10595,6 +10598,8 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // Stripe webhook disabled until billing is configured. See docs/migrations.md for re-enabling.
+  /*
   // POST /api/billing/checkout — create a Stripe Checkout session (admin-only, no designers)
   app.post('/api/billing/checkout', requireAdminOnly, async (req, res) => {
     try {
@@ -10634,6 +10639,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create checkout session' });
     }
   });
+  */
 
   // GET /api/billing/usage — current org plan limits and usage (admin + designer)
   app.get('/api/billing/usage', requireAdmin, async (req, res) => {
@@ -10651,6 +10657,8 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // Stripe webhook disabled until billing is configured. See docs/migrations.md for re-enabling.
+  /*
   // POST /api/billing/portal — create a Stripe Customer Portal session (admin-only, no designers)
   app.post('/api/billing/portal', requireAdminOnly, async (req, res) => {
     try {
@@ -10676,6 +10684,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create portal session' });
     }
   });
+  */
 
   // GET /api/billing/trial-banner-snooze — fetch the server-side snooze preference for the current user
   app.get('/api/billing/trial-banner-snooze', requireAuth, async (req, res) => {

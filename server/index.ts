@@ -8,6 +8,8 @@ import { sql } from "drizzle-orm";
 
 const app = express();
 
+// Stripe webhook disabled until billing is configured. See docs/migrations.md for re-enabling.
+/*
 // Stripe webhook MUST receive the raw body before express.json() parses it.
 // This route is intentionally placed before the global json middleware.
 app.post(
@@ -29,6 +31,7 @@ app.post(
     }
   }
 );
+*/
 
 app.use(express.json({ limit: '100mb' })); // Increased to 100MB to support large file uploads
 app.use(express.urlencoded({ extended: false, limit: '100mb' }));
