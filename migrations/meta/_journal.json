@@ -22,6 +22,13 @@
       "when": 1778405730129,
       "tag": "0002_premium_frightful_four",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778417271305,
+      "tag": "0003_drop_orphaned_tables",
+      "breakpoints": true
     }
   ]
 }
