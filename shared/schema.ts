@@ -19,7 +19,7 @@ export const vendors = pgTable("vendors", {
   categoryId: varchar("category_id").notNull().references(() => vendorCategories.id),
   contactPerson: text("contact_person").notNull(),
   phone: text("phone").notNull(),
-  email: text("email"), // Optional - some vendors may not have email
+  email: text("email").notNull(),
   notes: text("notes"),
 });
 
@@ -40,7 +40,7 @@ export const projects = pgTable("projects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectName: text("project_name").notNull(),
   clientName: text("client_name").notNull(),
-  clientEmail: text("client_email").notNull(), // Email for client access control (deprecated - use projectClients)
+  clientEmail: text("client_email").notNull().default(''), // Email for client access control (deprecated - use projectClients)
   startDate: date("start_date").notNull(),
   endDate: date("end_date"),
   canvaLink: text("canva_link"), // Canva design link for the project
@@ -267,7 +267,7 @@ export const vendorInvoices = pgTable("vendor_invoices", {
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   attachmentPath: text("attachment_path"), // Optional PDF attachment in object storage
   createdBy: varchar("created_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  createdAt: timestamp("created_at").default(sql`now()`),
 });
 
 // Vendor Payments table for recording payments made to vendors
@@ -280,7 +280,7 @@ export const vendorPayments = pgTable("vendor_payments", {
   paymentMethod: varchar("payment_method").notNull(), // cash, cheque, upi, bank_transfer
   notes: text("notes"),
   createdBy: varchar("created_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  createdAt: timestamp("created_at").default(sql`now()`),
   attachmentPath: text("attachment_path"),
 });
 
@@ -340,7 +340,7 @@ export const specifications = pgTable("specifications", {
   fileName: text("file_name").notNull(), // Original file name
   filePath: text("file_path").notNull(), // Object storage path
   uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
-  uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+  uploadedAt: timestamp("uploaded_at").default(sql`CURRENT_TIMESTAMP`),
 }, (table) => ({
   // Index for faster filtering by category
   categoryIdx: index("specifications_category_idx").on(table.category),
@@ -801,7 +801,7 @@ export type MeetingActionItem = typeof meetingActionItems.$inferSelect;
 export const sessions = pgTable(
   "sessions",
   {
-    sid: varchar("sid").primaryKey(),
+    sid: varchar("sid").primaryKey().notNull(),
     sess: jsonb("sess").notNull(),
     expire: timestamp("expire").notNull(),
   },
@@ -858,7 +858,7 @@ export function parseNotificationPreferences(raw: unknown): NotificationPreferen
 
 // User storage table
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey(),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`).notNull(),
   email: text("email").notNull(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
@@ -875,7 +875,7 @@ export const users = pgTable("users", {
   unsubscribeToken: varchar("unsubscribe_token").unique(), // token for one-click email unsubscribe (no login required)
   trialBannerSnoozedUntil: timestamp("trial_banner_snoozed_until"), // server-side snooze preference for trial expiry banner; null = not snoozed
   trialBannerSnoozeDuration: text("trial_banner_snooze_duration"), // "1", "3", or "forever"
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   imageUrl: varchar("image_url"),
   isActive: boolean("is_active").default(true).notNull(),
@@ -890,7 +890,7 @@ export const userRoles = pgTable("user_roles", {
   role: text("role").notNull().default("client"), // admin, designer, project_manager, client
   isActive: boolean("is_active").notNull().default(true),
   assignedBy: varchar("assigned_by").references(() => users.id),
-  assignedAt: timestamp("assigned_at").notNull().default(sql`now()`),
+  assignedAt: timestamp("assigned_at").default(sql`now()`),
   createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
   updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 });
@@ -912,7 +912,7 @@ export const designerAllowlist = pgTable("designer_allowlist", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
   isActive: boolean("is_active").notNull().default(true),
-  addedBy: varchar("added_by").references(() => users.id),
+  addedBy: varchar("added_by").notNull().references(() => users.id),
   addedAt: timestamp("added_at").notNull().default(sql`now()`),
 });
 
