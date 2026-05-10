@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, decimal, date, boolean, jsonb, index, uniqueIndex, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, decimal, numeric, date, boolean, jsonb, index, uniqueIndex, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -261,10 +261,10 @@ export const vendorInvoices = pgTable("vendor_invoices", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   vendorId: varchar("vendor_id").notNull().references(() => vendors.id),
   projectId: varchar("project_id").references(() => projects.id), // Optional - can be null for general invoices
-  invoiceNumber: text("invoice_number").notNull(),
+  invoiceNumber: varchar("invoice_number").notNull(),
   invoiceDate: date("invoice_date").notNull(),
   description: text("description").notNull(),
-  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   attachmentPath: text("attachment_path"), // Optional PDF attachment in object storage
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
@@ -275,12 +275,13 @@ export const vendorPayments = pgTable("vendor_payments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   vendorId: varchar("vendor_id").notNull().references(() => vendors.id),
   paymentDate: date("payment_date").notNull(),
-  paymentReference: text("payment_reference").notNull(), // Payment reference number
-  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
-  paymentMethod: text("payment_method").notNull(), // cash, cheque, upi, bank_transfer
+  paymentReference: varchar("payment_reference").notNull(), // Payment reference number
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  paymentMethod: varchar("payment_method").notNull(), // cash, cheque, upi, bank_transfer
   notes: text("notes"),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  attachmentPath: text("attachment_path"),
 });
 
 // Catalogue Items table for interior design product taxonomy
@@ -406,6 +407,7 @@ export const worksOrders = pgTable("works_orders", {
   signedAt: timestamp("signed_at"), // When fully signed
   voidedAt: timestamp("voided_at"), // When voided
   voidReason: text("void_reason"), // Reason for voiding
+  notes: text("notes"),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
@@ -458,7 +460,7 @@ export const worksOrderFiles = pgTable("works_order_files", {
   fileName: text("file_name").notNull(),
   filePath: text("file_path").notNull(), // path in object storage
   fileType: text("file_type").notNull(), // pdf, xlsx, doc, etc.
-  fileSize: decimal("file_size"), // in bytes
+  fileSize: text("file_size").notNull(),
   uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
 }, (table) => ({
@@ -857,7 +859,7 @@ export function parseNotificationPreferences(raw: unknown): NotificationPreferen
 // User storage table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey(),
-  email: varchar("email").unique(),
+  email: text("email").notNull(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
@@ -875,6 +877,10 @@ export const users = pgTable("users", {
   trialBannerSnoozeDuration: text("trial_banner_snooze_duration"), // "1", "3", or "forever"
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  imageUrl: varchar("image_url"),
+  isActive: boolean("is_active").default(true).notNull(),
+  name: varchar("name"),
+  username: varchar("username"),
 });
 
 // User roles table to maintain role-based access control
@@ -885,6 +891,8 @@ export const userRoles = pgTable("user_roles", {
   isActive: boolean("is_active").notNull().default(true),
   assignedBy: varchar("assigned_by").references(() => users.id),
   assignedAt: timestamp("assigned_at").notNull().default(sql`now()`),
+  createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 });
 
 // User Project Assignments - tracks which projects users (especially project managers) can access
