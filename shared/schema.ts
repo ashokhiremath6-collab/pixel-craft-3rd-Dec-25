@@ -47,7 +47,9 @@ export const projects = pgTable("projects", {
   ganttChartLink: text("gantt_chart_link"), // External Gantt chart link (e.g., Google Sheets, MS Project Online)
   foyrNeoLink: text("foyr_neo_link"), // Foyr Neo 3D design project link
   orgId: varchar("org_id"), // org that owns this project (nullable for legacy projects)
-});
+}, (table) => ({
+  orgIdIdx: index("projects_org_id_idx").on(table.orgId),
+}));
 
 // Project Clients table - supports multiple clients per project
 export const projectClients = pgTable("project_clients", {
@@ -268,7 +270,10 @@ export const vendorInvoices = pgTable("vendor_invoices", {
   attachmentPath: text("attachment_path"), // Optional PDF attachment in object storage
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").default(sql`now()`),
-});
+}, (table) => ({
+  vendorIdIdx: index("idx_vendor_invoices_vendor_id").on(table.vendorId),
+  projectIdIdx: index("idx_vendor_invoices_project_id").on(table.projectId),
+}));
 
 // Vendor Payments table for recording payments made to vendors
 export const vendorPayments = pgTable("vendor_payments", {
@@ -282,7 +287,9 @@ export const vendorPayments = pgTable("vendor_payments", {
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").default(sql`now()`),
   attachmentPath: text("attachment_path"),
-});
+}, (table) => ({
+  vendorIdIdx: index("idx_vendor_payments_vendor_id").on(table.vendorId),
+}));
 
 // Catalogue Items table for interior design product taxonomy
 export const catalogueItems = pgTable("catalogue_items", {
@@ -300,8 +307,8 @@ export const catalogueItems = pgTable("catalogue_items", {
   aiPromptHints: text("ai_prompt_hints"), // Optional AI-specific hints (e.g., "oak chevron pattern hardwood flooring")
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => ({
-  // Index for faster filtering by main category
   mainCategoryIdx: index("catalogue_main_category_idx").on(table.mainCategory),
+  orgIdIdx: index("catalogue_items_org_id_idx").on(table.orgId),
 }));
 
 // Object Assets table for uploaded photos of art, furniture, etc.
@@ -341,10 +348,7 @@ export const specifications = pgTable("specifications", {
   filePath: text("file_path").notNull(), // Object storage path
   uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
   uploadedAt: timestamp("uploaded_at").default(sql`CURRENT_TIMESTAMP`),
-}, (table) => ({
-  // Index for faster filtering by category
-  categoryIdx: index("specifications_category_idx").on(table.category),
-}));
+});
 
 // Saved Assets table for finalized processed images ready for use in renders
 export const savedAssets = pgTable("saved_assets", {
@@ -389,7 +393,7 @@ export const worksOrders = pgTable("works_orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectVendorId: varchar("project_vendor_id").notNull().references(() => projectVendors.id), // Links to quote
   quoteFileId: varchar("quote_file_id").references(() => quoteFiles.id), // Optional link to specific quote file
-  templateId: varchar("template_id").references(() => worksOrderTemplates.id), // Template used
+  templateId: varchar("template_id"), // Template used
   templateVersion: text("template_version"), // Snapshot of template at send time
   serialCounter: integer("serial_counter").notNull(), // Sequential counter for order numbering
   orderNumber: text("order_number").notNull().unique(), // Auto-generated order number (e.g., 1141125)
