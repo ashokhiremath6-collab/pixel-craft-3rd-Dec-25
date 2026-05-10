@@ -467,9 +467,7 @@ export const worksOrderFiles = pgTable("works_order_files", {
   fileSize: text("file_size").notNull(),
   uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
-}, (table) => ({
-  worksOrderIdx: index("works_order_files_works_order_idx").on(table.worksOrderId),
-}));
+});
 
 // Insert schemas
 export const insertVendorCategorySchema = createInsertSchema(vendorCategories).omit({

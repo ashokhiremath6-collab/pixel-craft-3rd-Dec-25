@@ -15,6 +15,13 @@
       "when": 1778405466651,
       "tag": "0001_big_wither",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778405730129,
+      "tag": "0002_premium_frightful_four",
+      "breakpoints": true
     }
   ]
 }
