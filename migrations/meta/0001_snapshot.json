@@ -1,6 +1,6 @@
 {
-  "id": "f22af97b-1377-4d7b-b1a9-099521507755",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "484747f7-e329-47da-a597-13e873584478",
+  "prevId": "f22af97b-1377-4d7b-b1a9-099521507755",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -405,6 +405,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "catalogue_items_org_id_idx": {
+          "name": "catalogue_items_org_id_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {},
@@ -442,7 +457,7 @@
           "name": "added_by",
           "type": "varchar",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "added_at": {
           "name": "added_at",
@@ -1706,7 +1721,8 @@
           "name": "client_email",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "''"
         },
         "start_date": {
           "name": "start_date",
@@ -1745,7 +1761,23 @@
           "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "projects_org_id_idx": {
+          "name": "projects_org_id_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -2295,27 +2327,11 @@
           "name": "uploaded_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
         }
       },
-      "indexes": {
-        "specifications_category_idx": {
-          "name": "specifications_category_idx",
-          "columns": [
-            {
-              "expression": "category",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "specifications_uploaded_by_users_id_fk": {
           "name": "specifications_uploaded_by_users_id_fk",
@@ -3039,7 +3055,21 @@
           "name": "assigned_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
           "default": "now()"
         }
       },
@@ -3086,13 +3116,14 @@
           "name": "id",
           "type": "varchar",
           "primaryKey": true,
-          "notNull": true
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
         "email": {
           "name": "email",
-          "type": "varchar",
+          "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "first_name": {
           "name": "first_name",
@@ -3189,7 +3220,7 @@
           "name": "created_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "default": "now()"
         },
         "updated_at": {
@@ -3198,19 +3229,37 @@
           "primaryKey": false,
           "notNull": false,
           "default": "now()"
+        },
+        "image_url": {
+          "name": "image_url",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "username": {
+          "name": "username",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "users_email_unique": {
-          "name": "users_email_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
-        },
         "users_email_verification_token_unique": {
           "name": "users_email_verification_token_unique",
           "nullsNotDistinct": false,
@@ -3385,7 +3434,7 @@
         },
         "invoice_number": {
           "name": "invoice_number",
-          "type": "text",
+          "type": "varchar",
           "primaryKey": false,
           "notNull": true
         },
@@ -3403,7 +3452,7 @@
         },
         "amount": {
           "name": "amount",
-          "type": "numeric(15, 2)",
+          "type": "numeric(12, 2)",
           "primaryKey": false,
           "notNull": true
         },
@@ -3423,11 +3472,42 @@
           "name": "created_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_vendor_invoices_vendor_id": {
+          "name": "idx_vendor_invoices_vendor_id",
+          "columns": [
+            {
+              "expression": "vendor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_vendor_invoices_project_id": {
+          "name": "idx_vendor_invoices_project_id",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "vendor_invoices_vendor_id_vendors_id_fk": {
           "name": "vendor_invoices_vendor_id_vendors_id_fk",
@@ -3500,19 +3580,19 @@
         },
         "payment_reference": {
           "name": "payment_reference",
-          "type": "text",
+          "type": "varchar",
           "primaryKey": false,
           "notNull": true
         },
         "amount": {
           "name": "amount",
-          "type": "numeric(15, 2)",
+          "type": "numeric(12, 2)",
           "primaryKey": false,
           "notNull": true
         },
         "payment_method": {
           "name": "payment_method",
-          "type": "text",
+          "type": "varchar",
           "primaryKey": false,
           "notNull": true
         },
@@ -3532,11 +3612,33 @@
           "name": "created_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "default": "now()"
+        },
+        "attachment_path": {
+          "name": "attachment_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_vendor_payments_vendor_id": {
+          "name": "idx_vendor_payments_vendor_id",
+          "columns": [
+            {
+              "expression": "vendor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "vendor_payments_vendor_id_vendors_id_fk": {
           "name": "vendor_payments_vendor_id_vendors_id_fk",
@@ -3610,7 +3712,7 @@
           "name": "email",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "notes": {
           "name": "notes",
@@ -3678,9 +3780,9 @@
         },
         "file_size": {
           "name": "file_size",
-          "type": "numeric",
+          "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "uploaded_by": {
           "name": "uploaded_by",
@@ -4274,6 +4376,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by": {
           "name": "created_by",
           "type": "varchar",
@@ -4347,19 +4455,6 @@
           "tableTo": "quote_files",
           "columnsFrom": [
             "quote_file_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "works_orders_template_id_works_order_templates_id_fk": {
-          "name": "works_orders_template_id_works_order_templates_id_fk",
-          "tableFrom": "works_orders",
-          "tableTo": "works_order_templates",
-          "columnsFrom": [
-            "template_id"
           ],
           "columnsTo": [
             "id"
