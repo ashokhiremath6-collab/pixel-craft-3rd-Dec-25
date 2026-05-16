@@ -1,0 +1,157 @@
+
+
+This session combines TypeScript cleanup with a small, deliberate data correction. Two distinct parts. Read both before starting.
+
+Do NOT modify any storage method bodies beyond what is specified. Do NOT add any orgId filtering logic yet — that is Step 3c. Do NOT restart the server unless explicitly asked.
+
+==============================================================
+PART A — DATA REVIEW (for human decision before any data change)
+==============================================================
+
+We've decided that 4 tables are "shared globally with tenant-override": specifications, sops, quoteTemplates, worksOrderTemplates. For these tables, org_id IS NULL means "preloaded / visible to all tenants" and a set org_id means "tenant-owned customization".
+
+The backfill stamped every existing row to Olympik Design's org. For these 4 tables, that may have been wrong — some rows may belong as global, some may legitimately be tenant-owned. We need to review before flipping.
+
+STEP A1 — Display the content of every row in the 4 tables, with org_id and a few content fields each. Truncate long text fields to 200 chars for readability:
+
+  -- specifications (1 row)
+  SELECT
+    id,
+    org_id,
+    LEFT(COALESCE(name, ''), 80) AS name,
+    LEFT(COALESCE(description, ''), 200) AS description,
+    category
+  FROM specifications;
+
+  -- sops (0 rows expected)
+  SELECT
+    id,
+    org_id,
+    LEFT(COALESCE(title, ''), 80) AS title,
+    category
+  FROM sops;
+
+  -- quote_templates (1 row)
+  SELECT
+    id,
+    org_id,
+    LEFT(COALESCE(name, ''), 80) AS name,
+    LEFT(COALESCE(description, ''), 200) AS description
+  FROM quote_templates;
+
+  -- works_order_templates (3 rows)
+  SELECT
+    id,
+    org_id,
+    LEFT(COALESCE(name, ''), 80) AS name,
+    LEFT(COALESCE(description, ''), 200) AS description,
+    is_active
+  FROM works_order_templates;
+
+If any of these tables has columns named differently (e.g. "title" vs "name", or no "description" column), adjust the SELECT to use whatever short text/name field actually exists. Show me what you found. Do NOT guess — list the actual columns of each table first if you're unsure:
+
+  \d+ specifications
+  \d+ sops
+  \d+ quote_templates
+  \d+ works_order_templates
+
+STEP A2 — STOP HERE and paste the row contents back. Do NOT proceed to any UPDATE yet. We will review the content together and I will tell you which rows to flip to NULL vs leave assigned.
+
+==============================================================
+PART B — TYPESCRIPT FIXES (proceed only after Part A is paused)
+==============================================================
+
+DO NOT START PART B UNTIL I CONFIRM. Wait for explicit instruction after I see the Part A row contents.
+
+Once instructed, perform these fixes in this order:
+
+STEP B1 — Export WorksOrderItem types from shared/schema.ts
+
+Find the worksOrderItems table definition in shared/schema.ts. Confirm whether these exports already exist:
+
+  grep -nE "export\s+(type|interface)\s+(WorksOrderItem|InsertWorksOrderItem)" shared/schema.ts
+
+If they do NOT exist, find the existing pattern for similar exports (e.g. how WorksOrder and InsertWorksOrder are exported — there will be a line like `export type WorksOrder = typeof worksOrders.$inferSelect;`). Mirror that pattern exactly:
+
+  export type WorksOrderItem = typeof worksOrderItems.$inferSelect;
+  export type InsertWorksOrderItem = typeof worksOrderItems.$inferInsert;
+
+Add them adjacent to the existing WorksOrder type exports for consistency. Show me the resulting block.
+
+STEP B2 — Add orgId: null to MemStorage object literals
+
+In server/storage.ts, lines 532, 618, 652, 835, 924, 964 are MemStorage methods constructing object literals that are missing orgId.
+
+For each line, view 5 lines of context and add `orgId: null,` to the literal. Example pattern:
+
+  // before
+  const newUser: User = {
+    id: randomUUID(),
+    email: ...,
+    // missing orgId
+  };
+
+  // after
+  const newUser: User = {
+    id: randomUUID(),
+    email: ...,
+    orgId: null,
+  };
+
+Apply this fix to all 6 locations. Confirm by re-running typecheck (Step B6) — these specific errors should disappear.
+
+STEP B3 — Fix meetingMinutes type mismatches at lines 2981 and 2986
+
+View those two lines and the method signatures. The TypeScript errors are caused by InsertMeetingMinutes having optional fields that don't align with the Drizzle column shape. Most likely fix:
+
+  - If the issue is db.insert() rejecting the type: cast the input with `as InsertMeetingMinutes` or align the schema.
+  - If the issue is db.update() rejecting Partial<InsertMeetingMinutes>: cast as `as Partial<InsertMeetingMinutes>`.
+
+DO NOT change schema definitions to "fix" this — that would have downstream effects. Use a localized cast. Show me the before/after for each.
+
+STEP B4 — Fix upsertProjectVendor null guard at line 2065
+
+View 10 lines of context at line 2065. The issue is `eq(projectVendors.quotationName, ...)` where quotationName may be string|null. Replace with one of:
+
+  - If quotationName parameter must be non-null for upsert logic: add an early null guard that throws or skips.
+  - If null is valid: use `quotationName == null ? isNull(projectVendors.quotationName) : eq(projectVendors.quotationName, quotationName)` wrapped appropriately.
+
+Show me the change.
+
+STEP B5 — DO NOT FIX
+
+Do NOT modify lines 2243, 2273, 2284 (quoteTemplates partial selects) or line 2771 (vendorPayments partial select). These will be fixed in Step 3c when we modify those methods for org filtering anyway. Touching them now is wasted work.
+
+STEP B6 — Typecheck and report
+
+  npm run check 2>&1 | tail -100
+
+Report:
+  - The new total error count (was 129; expected to drop to ~125 after B1, then further after B2/B3/B4)
+  - Confirmation that no errors remain inside lines we modified
+  - Any unexpected new errors caused by the changes
+  - Errors specifically in: tenantAuth.ts (must remain zero), MemStorage methods we touched, meetingMinutes methods, upsertProjectVendor, schema exports
+
+STEP B7 — Git diff
+
+  git diff --stat
+  git diff shared/schema.ts server/storage.ts
+
+Show me the diff. I want to see every line that was changed.
+
+==============================================================
+DO NOT in this session:
+==============================================================
+  - Add orgId filter logic to any query
+  - Wire requireOrg into routes
+  - Modify quoteTemplates or vendorPayments partial selects
+  - Restart the server
+  - Run migrations
+  - Run npm install
+  - "Fix" any other TypeScript errors you happen to notice
+
+PASTE BACK FOR PART A:
+  - Row contents from all 4 tables, formatted clearly
+  - Confirmation that no UPDATE has been run
+
+Then STOP and wait for my instructions on Part B.
