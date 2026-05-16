@@ -1,0 +1,146 @@
+Read-only audit of server/storage.ts to scope tenant-isolation work. Do NOT modify any file. Do NOT run migrations or restart the server.
+
+Background: we have 29 tenant-isolated tables (all have org_id columns, all backfilled). We have a requireOrg middleware ready but not wired. We need to inventory every method in storage.ts and categorize it so we know exactly what changes in step 3c, what stays untouched, and what is special.
+
+STEP 1 — Basic shape of storage.ts
+
+1.1  Size:
+     wc -l server/storage.ts
+
+1.2  List every exported function or class method. Use this command and paste the full output:
+     grep -nE "^\s*(export\s+)?(async\s+)?function\s+\w+|^\s*(public\s+|private\s+)?(async\s+)?\w+\s*\(" server/storage.ts | head -300
+
+1.3  List the table imports from the schema (tells us which tables storage.ts touches):
+     grep -nE "from\s+['\"]@?shared/schema['\"]|from\s+['\"]\.\./shared/schema" server/storage.ts
+     grep -nE "^import" server/storage.ts | head -20
+
+STEP 2 — Method inventory by table
+
+For each of the 29 tenant-isolated tables, find every method in storage.ts that references it. Use the table name (snake_case AND camelCase) as the search term:
+
+For each table in this list:
+  vendor_categories / vendorCategories
+  specifications
+  sops
+  designer_allowlist / designerAllowlist
+  user_roles / userRoles
+  user_project_assignments / userProjectAssignments
+  project_clients / projectClients
+  vendors
+  vendor_contacts / vendorContacts
+  quote_templates / quoteTemplates
+  works_order_templates / worksOrderTemplates
+  vendor_invoices / vendorInvoices
+  vendor_payments / vendorPayments
+  project_vendors / projectVendors
+  quote_files / quoteFiles
+  boq
+  object_assets / objectAssets
+  saved_assets / savedAssets
+  floor_plans / floorPlans
+  moodboards
+  project_schedules / projectSchedules
+  activity_log / activityLog
+  meeting_minutes / meetingMinutes
+  tasks
+  task_dependencies / taskDependencies
+  task_alerts / taskAlerts
+  approvals
+  works_orders / worksOrders
+  works_order_items / worksOrderItems
+
+Run this for each table (substitute the camelCase name):
+  grep -nE "\b<camelCaseName>\b" server/storage.ts | head -40
+
+Group the output by table. Format:
+
+  === <tableName> ===
+  line 234: async getVendors() { ... }
+  line 256: async createVendor(...) { ... }
+  line 289: async updateVendor(...) { ... }
+  ...
+
+STEP 3 — Global / non-tenant methods
+
+Some methods legitimately operate across all tenants (super-admin paths, organisation CRUD, user lookups by id). Identify methods that touch these tables:
+  - organisations
+  - users (the table itself, not user_roles)
+  - sessions
+  - any table NOT in the 29 above
+
+Run:
+  grep -nE "\b(organisations|sessions)\b" server/storage.ts
+  grep -nE "from\(users\)|users\." server/storage.ts | head -40
+
+List which exported methods reference these global tables. We'll keep these tenant-unaware on purpose.
+
+STEP 4 — Methods that already filter by orgId
+
+From the earlier inspection we know these exist:
+  getUsersByOrg, getAllTasks(orgId?), getRecentActivitiesByOrg,
+  setUserOrgId, markOrgTrialExpiryNotified, getOrgUsage,
+  findOrgAdmin (in webhookHandlers.ts), getUserRole
+
+Confirm by searching for orgId usage in storage.ts:
+  grep -nE "orgId|org_id" server/storage.ts
+
+Categorize each match into one of:
+  A. Already filters correctly (uses .where(eq(table.orgId, orgId)))
+  B. Accepts orgId as parameter but only uses it in part of the query
+  C. References orgId for other reasons (e.g. constructing return objects, audit logs)
+
+For each Type A method, paste the actual line(s) showing the .where(...) clause so we know the pattern in use.
+
+STEP 5 — Method signatures: who currently passes orgId?
+
+Find callers of storage methods. Search routes.ts for the most-called storage methods and check whether orgId is being passed in:
+
+  grep -nE "storage\.(get|list|create|update|delete)" server/routes.ts | head -60
+
+We are not analyzing every caller — just gathering enough to see the dominant pattern. Is it:
+  - storage.getX(userId)  (current: org implicit via user)
+  - storage.getX(userId, orgId)  (some are partially updated)
+  - storage.getX(orgId, otherArgs)  (cleaner refactor target)
+
+STEP 6 — TypeScript errors specific to storage.ts
+
+From the previous typecheck we know storage.ts has 40 errors. We need to know which methods they fall inside, because if we modify those methods we want to fix the errors at the same time. Run:
+
+  npm run check 2>&1 | grep -E "^server/storage\.ts" | head -60
+
+For each error, note the line number. Then map each line to the enclosing method name. A quick way:
+
+  for line_num in <line numbers from above>; do
+    echo "=== line $line_num ==="
+    awk -v target=$line_num '
+      /^\s*(export\s+)?(async\s+)?function\s+(\w+)|^\s*(public\s+|private\s+)?(async\s+)?(\w+)\s*\(/ {
+        last_fn=$0; last_line=NR
+      }
+      NR == target {
+        print "Error at line " NR ", inside: " last_fn " (declared at line " last_line ")"
+        exit
+      }
+    ' server/storage.ts
+  done
+
+If the awk script is awkward, just show me the 5-line context around each error line:
+  for line_num in <line numbers>; do
+    echo "=== line $line_num ==="
+    sed -n "$((line_num-5)),$((line_num+2))p" server/storage.ts
+  done
+
+STEP 7 — Git status confirmation at the end:
+  git status
+
+PASTE BACK:
+
+A consolidated report with these sections in order:
+  - Step 1 output (file size, method count, imports)
+  - Step 2 output: a method-by-table inventory. If a table has zero methods (e.g. designer_allowlist might be unused), say so explicitly.
+  - Step 3 output: list of global/admin-path methods
+  - Step 4 output: existing orgId-aware methods with their patterns
+  - Step 5 output: how routes.ts currently calls storage methods
+  - Step 6 output: TypeScript errors grouped by enclosing method
+  - Step 7: git status (must show no modified files)
+
+This is a survey. No fixes, no edits, no "while I'm here" cleanup. Just data.
