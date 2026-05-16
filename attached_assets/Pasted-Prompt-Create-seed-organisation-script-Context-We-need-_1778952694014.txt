@@ -1,0 +1,57 @@
+Prompt — Create seed organisation script:
+
+Context: We need a one-time script that creates a default organisation and backfills all existing data with its org_id. This follows the pattern of scripts/seed-superadmin.ts (if it exists) or creates a new pattern.
+Create file: scripts/seed-org.ts
+The script should:
+
+Connect to the database using the same connection pattern as server/storage.ts
+Check if any org exists:
+
+Query: SELECT COUNT(*) FROM organisations;
+If count > 0, log "Organisations already exist. Exiting." and exit cleanly.
+If count = 0, proceed to create default org.
+
+
+Create default organisation:
+
+INSERT INTO organisations (id, name, slug, plan, planStatus, createdAt)
+VALUES (uuid, 'Default', 'default', 'trial', 'active', now())
+Capture and log the inserted org's id
+
+
+Backfill all 29 tables with org_id:
+
+For each of these 29 tables, run:
+UPDATE <table> SET org_id = '<org_id>' WHERE org_id IS NULL;
+Tables: vendor_categories, vendors, vendor_contacts, specifications, sops, designer_allowlist, user_roles, user_project_assignments, project_clients, quote_templates, works_order_templates, vendor_invoices, vendor_payments, project_vendors, quote_files, boq, object_assets, saved_assets, floor_plans, moodboards, project_schedules, activity_log, meeting_minutes, tasks, task_dependencies, task_alerts, approvals, works_orders, works_order_items
+Log the result of each update (how many rows affected)
+
+
+Confirm backfill success:
+
+Query each of the 29 tables: SELECT COUNT(*) FROM <table> WHERE org_id IS NULL;
+Log count for each (should all be 0 if all rows had data)
+If any table still has NULL org_id rows, warn the user
+
+
+Exit cleanly:
+
+Log "Seed organisation created and backfill complete"
+Exit code 0
+
+
+
+Code style:
+
+Use the same DB connection pattern as server/storage.ts (Neon/PostgreSQL with pool)
+Use async/await
+Log every step (org creation, each table update, confirmation)
+Error handling: if any step fails, log error and exit with code 1
+
+After creating the script:
+
+Show me the first 50 lines of the script (connection setup + org creation logic)
+Show me one example table backfill section
+Report: Script created successfully? Yes/No
+
+Do not run the script. Just create it and verify it's syntactically valid TypeScript. Stop and wait for my instruction.
