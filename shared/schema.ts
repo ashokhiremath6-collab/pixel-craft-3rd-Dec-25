@@ -10,6 +10,7 @@ export const vendorCategories = pgTable("vendor_categories", {
   parentId: varchar("parent_id"), // null for main categories, references parent category
   description: text("description"),
   isActive: boolean("is_active").notNull().default(true),
+  orgId: varchar("org_id"),
 });
 
 // Vendors table
@@ -21,6 +22,7 @@ export const vendors = pgTable("vendors", {
   phone: text("phone").notNull(),
   email: text("email").notNull(),
   notes: text("notes"),
+  orgId: varchar("org_id"),
 });
 
 // Vendor Contacts table - supports multiple contact persons per vendor
@@ -33,6 +35,7 @@ export const vendorContacts = pgTable("vendor_contacts", {
   role: text("role"), // Optional role (e.g., "Sales Manager", "Project Lead", "Accounts")
   isPrimary: boolean("is_primary").notNull().default(false), // Mark one contact as primary
   addedAt: timestamp("added_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 });
 
 // Projects table  
@@ -59,6 +62,7 @@ export const projectClients = pgTable("project_clients", {
   clientName: text("client_name"), // Optional name for the client (e.g., "John Doe", "Architect")
   role: text("role"), // Optional role (e.g., "Family Member", "Architect", "Contractor")
   addedAt: timestamp("added_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 }, (table) => ({
   // Composite unique constraint to prevent duplicate emails per project
   uniqueProjectClient: uniqueIndex("unique_project_client").on(table.projectId, table.clientEmail),
@@ -77,6 +81,7 @@ export const quoteTemplates = pgTable("quote_templates", {
   originalMimeType: text("original_mime_type"), // Original MIME type for download
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 });
 
 // Project-Vendor junction table with enhanced quotation support
@@ -99,6 +104,7 @@ export const projectVendors = pgTable("project_vendors", {
   templateId: varchar("template_id").references(() => quoteTemplates.id),
   submittedAt: timestamp("submitted_at").default(sql`now()`),
   unitRateSubtype: text("unit_rate_subtype"), // For unit rate quotes: "quote" or "comparative"
+  orgId: varchar("org_id"),
 });
 
 // BOQ (Bill of Quantities) table
@@ -113,6 +119,7 @@ export const boq = pgTable("boq", {
   category: text("category"), // labor, material, equipment, etc.
   itemCode: text("item_code"),
   specifications: text("specifications"),
+  orgId: varchar("org_id"),
 });
 
 // Quote Files table for multiple file support
@@ -126,6 +133,7 @@ export const quoteFiles = pgTable("quote_files", {
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
   externalStorageProvider: text("external_storage_provider"), // dropbox, onedrive, etc.
   externalFileId: text("external_file_id"), // ID in external storage system
+  orgId: varchar("org_id"),
 });
 
 // Floor Plans table
@@ -141,6 +149,7 @@ export const floorPlans = pgTable("floor_plans", {
   version: text("version").notNull().default("1.0"),
   isActive: boolean("is_active").notNull().default(true),
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 });
 
 // Moodboards table (also used for working drawings and renders)
@@ -161,6 +170,7 @@ export const moodboards = pgTable("moodboards", {
   referenceMetadata: jsonb("reference_metadata"), // For AI renders: array of catalogue items used as references
   savedBy: varchar("saved_by").references(() => users.id), // User who saved the render
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 });
 
 // Project Schedules table for tracking uploaded Gantt files
@@ -173,6 +183,7 @@ export const projectSchedules = pgTable("project_schedules", {
   fileSize: decimal("file_size"), // in bytes
   status: text("status").notNull().default("active"), // active, archived
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 });
 
 // Tasks table for Gantt chart task management
@@ -208,6 +219,7 @@ export const tasks = pgTable("tasks", {
   deadlineHistory: jsonb("deadline_history").$type<Array<{ previousDeadline: string; newDeadline: string; reason: string; extendedBy: string; extendedByName: string; extendedAt: string }>>().default([]), // log of all deadline extensions
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 });
 
 // Task Dependencies table for managing task relationships
@@ -218,6 +230,7 @@ export const taskDependencies = pgTable("task_dependencies", {
   dependencyType: text("dependency_type").notNull().default("finish_to_start"), // finish_to_start, start_to_start, finish_to_finish, start_to_finish
   lag: decimal("lag", { precision: 10, scale: 2 }).default("0"), // lag time in days (can be negative for lead time)
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 });
 
 // Task Alerts table for tracking notifications
@@ -229,6 +242,7 @@ export const taskAlerts = pgTable("task_alerts", {
   message: text("message").notNull(),
   isRead: boolean("is_read").notNull().default(false),
   triggeredAt: timestamp("triggered_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 });
 
 // Approvals table for task approval workflow
@@ -241,6 +255,7 @@ export const approvals = pgTable("approvals", {
   comments: text("comments"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   resolvedAt: timestamp("resolved_at"),
+  orgId: varchar("org_id"),
 });
 
 // Activity Log table for tracking file uploads and user actions
@@ -256,6 +271,7 @@ export const activityLog = pgTable("activity_log", {
   description: text("description").notNull(), // "uploaded Floor Plan", "uploaded Moodboard", etc.
   metadata: jsonb("metadata"), // Additional data like projectVendorId, vendorId, etc.
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 });
 
 // Vendor Invoices table for tracking invoices raised to vendors
@@ -270,6 +286,7 @@ export const vendorInvoices = pgTable("vendor_invoices", {
   attachmentPath: text("attachment_path"), // Optional PDF attachment in object storage
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").default(sql`now()`),
+  orgId: varchar("org_id"),
 }, (table) => ({
   vendorIdIdx: index("idx_vendor_invoices_vendor_id").on(table.vendorId),
   projectIdIdx: index("idx_vendor_invoices_project_id").on(table.projectId),
@@ -287,6 +304,7 @@ export const vendorPayments = pgTable("vendor_payments", {
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").default(sql`now()`),
   attachmentPath: text("attachment_path"),
+  orgId: varchar("org_id"),
 }, (table) => ({
   vendorIdIdx: index("idx_vendor_payments_vendor_id").on(table.vendorId),
 }));
@@ -333,6 +351,7 @@ export const objectAssets = pgTable("object_assets", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   processedAt: timestamp("processed_at"), // When processing completed
   reprocessCount: integer("reprocess_count").notNull().default(0), // Number of times reprocessed
+  orgId: varchar("org_id"),
 }, (table) => ({
   objectTypeIdx: index("object_assets_type_idx").on(table.objectType),
   statusIdx: index("object_assets_status_idx").on(table.processingStatus),
@@ -348,6 +367,7 @@ export const specifications = pgTable("specifications", {
   filePath: text("file_path").notNull(), // Object storage path
   uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
   uploadedAt: timestamp("uploaded_at").default(sql`CURRENT_TIMESTAMP`),
+  orgId: varchar("org_id"),
 });
 
 // Saved Assets table for finalized processed images ready for use in renders
@@ -364,6 +384,7 @@ export const savedAssets = pgTable("saved_assets", {
   aiPromptHints: text("ai_prompt_hints"), // Hints for using in AI render generation
   savedBy: varchar("saved_by").notNull().references(() => users.id),
   savedAt: timestamp("saved_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 }, (table) => ({
   sourceTypeIdx: index("saved_assets_source_type_idx").on(table.sourceType),
   savedByIdx: index("saved_assets_saved_by_idx").on(table.savedBy),
@@ -383,6 +404,7 @@ export const worksOrderTemplates = pgTable("works_order_templates", {
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 }, (table) => ({
   // Index for faster filtering by category
   categoryIdx: index("works_order_templates_category_idx").on(table.categoryId),
@@ -415,6 +437,7 @@ export const worksOrders = pgTable("works_orders", {
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 }, (table) => ({
   // Index for faster filtering by status
   statusIdx: index("works_orders_status_idx").on(table.status),
@@ -452,6 +475,7 @@ export const worksOrderItems = pgTable("works_order_items", {
   sourceProjectVendorId: varchar("source_project_vendor_id").references(() => projectVendors.id), // Traceability to quote
   sourceWorksOrderId: varchar("source_works_order_id").references(() => worksOrders.id, { onDelete: 'set null' }), // Traceability to imported order
   sortOrder: decimal("sort_order", { precision: 10, scale: 0 }).notNull().default(sql`0`), // Display order
+  orgId: varchar("org_id"),
 }, (table) => ({
   // Composite index for ordered lookup
   worksOrderSortIdx: index("works_order_items_order_sort_idx").on(table.worksOrderId, table.sortOrder),
@@ -753,6 +777,7 @@ export const meetingMinutes = pgTable("meeting_minutes", {
   summary: text("summary"), // Optional text summary of key points
   uploadedBy: varchar("uploaded_by").references(() => users.id),
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 }, (table) => [
   index("idx_meeting_date").on(table.meetingDate),
   index("idx_project_id").on(table.projectId),
@@ -895,6 +920,7 @@ export const userRoles = pgTable("user_roles", {
   assignedAt: timestamp("assigned_at").default(sql`now()`),
   createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
   updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+  orgId: varchar("org_id"),
 });
 
 // User Project Assignments - tracks which projects users (especially project managers) can access
@@ -904,6 +930,7 @@ export const userProjectAssignments = pgTable("user_project_assignments", {
   projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: 'cascade' }),
   assignedBy: varchar("assigned_by").references(() => users.id),
   assignedAt: timestamp("assigned_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 }, (table) => ({
   // Composite unique constraint to prevent duplicate assignments
   uniqueUserProject: uniqueIndex("unique_user_project").on(table.userId, table.projectId),
@@ -916,6 +943,7 @@ export const designerAllowlist = pgTable("designer_allowlist", {
   isActive: boolean("is_active").notNull().default(true),
   addedBy: varchar("added_by").notNull().references(() => users.id),
   addedAt: timestamp("added_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 });
 
 export type UpsertUser = typeof users.$inferInsert;
@@ -987,6 +1015,7 @@ export const sops = pgTable("sops", {
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+  orgId: varchar("org_id"),
 }, (table) => ({
   categoryIdx: index("sops_category_idx").on(table.category),
 }));
