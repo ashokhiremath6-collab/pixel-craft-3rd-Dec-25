@@ -1,0 +1,185 @@
+We discovered the seed script's guard fired because an organisation ("Olympik Design", id 74195e4d-0c47-4413-af59-793218e45c74) already exists from before the script was written. The org is correct — we just need to backfill org_id on all NULL rows in the 29 tenant-isolated tables.
+
+Please do the following. Do NOT modify any existing files, schema, or middleware. Do NOT touch the running app.
+
+STEP 1 — Create a new file at scripts/backfill-org.ts with EXACTLY this content:
+
+------------------- START FILE -------------------
+// scripts/backfill-org.ts
+// One-time backfill: assign org_id to all NULL rows in 29 tenant-isolated tables.
+// Idempotent — only touches rows where org_id IS NULL.
+// Transactional — rolls back on any error or verification failure.
+// Usage: npx tsx scripts/backfill-org.ts <org-uuid>
+
+import { Pool } from 'pg';
+
+const TABLES_TO_BACKFILL = [
+  // Tier 1 — root
+  'vendor_categories', 'specifications', 'sops', 'designer_allowlist',
+  // Tier 2 — user/project dependents
+  'user_roles', 'user_project_assignments', 'project_clients',
+  // Tier 3 — vendor chain
+  'vendors', 'vendor_contacts', 'quote_templates', 'works_order_templates',
+  'vendor_invoices', 'vendor_payments',
+  // Tier 4 — project-vendor chain
+  'project_vendors', 'quote_files', 'boq',
+  // Tier 5 — assets
+  'object_assets', 'saved_assets',
+  // Tier 6 — project content
+  'floor_plans', 'moodboards', 'project_schedules', 'activity_log', 'meeting_minutes',
+  // Tier 7 — tasks chain
+  'tasks', 'task_dependencies', 'task_alerts', 'approvals',
+  // Tier 8 — works orders chain
+  'works_orders', 'works_order_items',
+];
+
+async function main() {
+  const orgId = process.argv[2];
+  if (!orgId) {
+    console.error('Usage: npx tsx scripts/backfill-org.ts <org-uuid>');
+    process.exit(1);
+  }
+  if (!/^[0-9a-f-]{36}$/i.test(orgId)) {
+    console.error('Invalid org_id format. Expected UUID.');
+    process.exit(1);
+  }
+
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const client = await pool.connect();
+
+  try {
+    const orgRes = await client.query(
+      'SELECT id, name FROM organisations WHERE id = $1',
+      [orgId]
+    );
+    if (orgRes.rowCount === 0) {
+      console.error(`No organisation found with id ${orgId}. Aborting.`);
+      process.exit(1);
+    }
+    console.log(`Target organisation: ${orgRes.rows[0].name} (${orgRes.rows[0].id})`);
+    console.log(`Tables to process: ${TABLES_TO_BACKFILL.length}`);
+    console.log('');
+
+    console.log('Pre-check: scanning for rows already assigned to a DIFFERENT org...');
+    let foreignRowsFound = false;
+    for (const tbl of TABLES_TO_BACKFILL) {
+      const r = await client.query(
+        `SELECT COUNT(*)::int AS n FROM "${tbl}" WHERE org_id IS NOT NULL AND org_id <> $1`,
+        [orgId]
+      );
+      if (r.rows[0].n > 0) {
+        console.error(`  FOREIGN: ${tbl} has ${r.rows[0].n} rows assigned to a different org`);
+        foreignRowsFound = true;
+      }
+    }
+    if (foreignRowsFound) {
+      console.error('Aborting: foreign-org rows present. Investigate before proceeding.');
+      process.exit(1);
+    }
+    console.log('Pre-check passed.');
+    console.log('');
+
+    await client.query('BEGIN');
+    console.log('Transaction started. Backfilling...');
+    console.log('');
+
+    const results: { table: string; updated: number }[] = [];
+    for (const tbl of TABLES_TO_BACKFILL) {
+      const r = await client.query(
+        `UPDATE "${tbl}" SET org_id = $1 WHERE org_id IS NULL`,
+        [orgId]
+      );
+      results.push({ table: tbl, updated: r.rowCount ?? 0 });
+      console.log(`  ${tbl.padEnd(28)} -> ${r.rowCount} rows updated`);
+    }
+
+    console.log('');
+    console.log('Verification: scanning for any remaining NULL org_id rows...');
+    let nullsRemaining = false;
+    for (const tbl of TABLES_TO_BACKFILL) {
+      const r = await client.query(
+        `SELECT COUNT(*)::int AS n FROM "${tbl}" WHERE org_id IS NULL`
+      );
+      if (r.rows[0].n > 0) {
+        console.error(`  STILL NULL: ${tbl} has ${r.rows[0].n} NULL rows`);
+        nullsRemaining = true;
+      }
+    }
+
+    if (nullsRemaining) {
+      console.error('Verification FAILED. Rolling back.');
+      await client.query('ROLLBACK');
+      process.exit(1);
+    }
+
+    console.log('Verification passed.');
+    await client.query('COMMIT');
+    console.log('Transaction committed.');
+    console.log('');
+
+    const total = results.reduce((s, r) => s + r.updated, 0);
+    console.log('Summary:');
+    console.log(`  Tables processed:   ${results.length}`);
+    console.log(`  Total rows updated: ${total}`);
+
+  } catch (err) {
+    console.error('Error during backfill:', err);
+    try { await client.query('ROLLBACK'); } catch {}
+    process.exit(1);
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+main();
+------------------- END FILE -------------------
+
+STEP 2 — Confirm the file was written correctly:
+  ls -la scripts/backfill-org.ts
+  wc -l scripts/backfill-org.ts   (should be roughly 95-110 lines)
+
+STEP 3 — Run the backfill against the existing org id:
+  npx tsx scripts/backfill-org.ts 74195e4d-0c47-4413-af59-793218e45c74
+
+Capture the FULL output (every log line — pre-check, all 29 update lines, verification, summary).
+
+STEP 4 — Independent verification queries (run these regardless of script outcome):
+
+  a) Confirm still exactly one organisation:
+     SELECT id, name, slug, plan, plan_status FROM organisations;
+
+  b) Count NULL vs filled org_id across ALL 29 tables. Use this query (run as a single statement):
+
+SELECT tbl,
+       (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = tbl AND column_name = 'org_id') AS has_col,
+       NULL AS null_rows,
+       NULL AS filled_rows
+FROM (VALUES
+  ('vendor_categories'),('specifications'),('sops'),('designer_allowlist'),
+  ('user_roles'),('user_project_assignments'),('project_clients'),
+  ('vendors'),('vendor_contacts'),('quote_templates'),('works_order_templates'),
+  ('vendor_invoices'),('vendor_payments'),('project_vendors'),('quote_files'),('boq'),
+  ('object_assets'),('saved_assets'),('floor_plans'),('moodboards'),('project_schedules'),
+  ('activity_log'),('meeting_minutes'),('tasks'),('task_dependencies'),('task_alerts'),
+  ('approvals'),('works_orders'),('works_order_items')
+) AS t(tbl);
+
+If that's awkward, just run the simpler per-table check for the 5 tables we sampled last time PLUS three more for breadth:
+
+SELECT 'vendors' AS tbl, COUNT(*) FILTER (WHERE org_id IS NULL) AS null_rows, COUNT(*) FILTER (WHERE org_id IS NOT NULL) AS filled_rows FROM vendors
+UNION ALL SELECT 'project_clients', COUNT(*) FILTER (WHERE org_id IS NULL), COUNT(*) FILTER (WHERE org_id IS NOT NULL) FROM project_clients
+UNION ALL SELECT 'tasks', COUNT(*) FILTER (WHERE org_id IS NULL), COUNT(*) FILTER (WHERE org_id IS NOT NULL) FROM tasks
+UNION ALL SELECT 'works_orders', COUNT(*) FILTER (WHERE org_id IS NULL), COUNT(*) FILTER (WHERE org_id IS NOT NULL) FROM works_orders
+UNION ALL SELECT 'moodboards', COUNT(*) FILTER (WHERE org_id IS NULL), COUNT(*) FILTER (WHERE org_id IS NOT NULL) FROM moodboards
+UNION ALL SELECT 'specifications', COUNT(*) FILTER (WHERE org_id IS NULL), COUNT(*) FILTER (WHERE org_id IS NOT NULL) FROM specifications
+UNION ALL SELECT 'floor_plans', COUNT(*) FILTER (WHERE org_id IS NULL), COUNT(*) FILTER (WHERE org_id IS NOT NULL) FROM floor_plans
+UNION ALL SELECT 'approvals', COUNT(*) FILTER (WHERE org_id IS NULL), COUNT(*) FILTER (WHERE org_id IS NOT NULL) FROM approvals;
+
+PASTE BACK:
+- Full terminal output of the backfill script (every log line)
+- Result of organisation query (4a)
+- Result of NULL-vs-filled query (4b)
+- Any errors, warnings, stack traces — even minor
+
+DO NOT touch the auth middleware, storage layer, or any other code. Single task: create script, run it, verify, report.
