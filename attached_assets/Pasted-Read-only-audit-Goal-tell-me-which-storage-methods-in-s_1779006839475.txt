@@ -1,0 +1,56 @@
+Read-only audit. Goal: tell me which storage methods in server/storage.ts currently have any form of tenant (org_id) filtering, and which do not. The codebase may have changed since the previous audit; we need a fresh ground truth.
+
+Do NOT modify any file. Do NOT restart the server. Do NOT consult any pre-existing task list or prior session notes — work only from the prompt below and the current state of the code.
+
+STEP 1 — Confirm starting state
+  git status
+  git diff --stat
+  (Both should show no modified files.)
+
+STEP 2 — For each of these 29 tables, find every read query in DbStorage and report whether it filters by org_id.
+
+Tables:
+  vendorCategories, vendors, vendorContacts, designerAllowlist,
+  userRoles, userProjectAssignments, projectClients,
+  vendorInvoices, vendorPayments, projectVendors, quoteFiles, boq,
+  objectAssets, savedAssets, floorPlans, moodboards, projectSchedules,
+  activityLog, meetingMinutes, tasks, taskDependencies, taskAlerts,
+  approvals, worksOrders, worksOrderItems,
+  specifications, sops, quoteTemplates, worksOrderTemplates
+
+For each table, run:
+  grep -nE "\.from\(<tableName>\)" server/storage.ts
+
+For each match, show me:
+  - The line number
+  - The enclosing method name
+  - The full .where(...) clause attached to that query (the next 3-5 lines after .from)
+  - Verdict: FILTERED (has eq(<table>.orgId, ...) or or(isNull, eq) on orgId) / UNFILTERED / SCOPED-VIA-JOIN (uses JOIN to another table and filters on that table's orgId) / OTHER (explain briefly)
+
+STEP 3 — For each of those 29 tables, find every write query (insert, update, delete) in DbStorage. For each:
+  - Line number, method name
+  - Verdict: SETS-ORG-ID (insert spreads orgId, update/delete filters by orgId) / NO-ORG-HANDLING / OTHER
+
+STEP 4 — Scan server/routes.ts for any handler that already uses requireOrg or req.orgId:
+  grep -n "requireOrg\|req\.orgId" server/routes.ts
+
+For each match, show 3 lines of context. We want to know whether anyone has already wired requireOrg anywhere.
+
+STEP 5 — Report format
+
+Produce a single consolidated table:
+
+  Table | Read methods | Reads filtered? | Write methods | Writes scoped? | Notes
+
+For "Reads filtered?" use: ALL / SOME / NONE
+For "Writes scoped?" use: ALL / SOME / NONE
+In "Notes": call out any method that has unusual filtering (e.g. filters by user role instead of orgId, scoped via JOIN, special-case public/token endpoint).
+
+Then a separate section listing every place in routes.ts that already uses requireOrg or req.orgId.
+
+DO NOT propose fixes. DO NOT write any code. DO NOT modify any file. This is purely a survey of the current state.
+
+End with:
+  git status
+  git diff --stat
+  (Should still show no modified files.)
