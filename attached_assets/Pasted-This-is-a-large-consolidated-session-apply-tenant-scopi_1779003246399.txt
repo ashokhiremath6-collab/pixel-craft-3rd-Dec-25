@@ -1,0 +1,233 @@
+This is a large consolidated session: apply tenant-scoping to ALL per-tenant and global-override storage methods, and wire requireOrg into all corresponding routes. One Replit session, one diff, one review.
+
+==============================================================
+HOW TO WORK IN THIS SESSION
+==============================================================
+
+You have authority to use best judgment on small ambiguities and proceed without stopping. BUT:
+
+  - When you make a judgment call (any place the pattern doesn't fit cleanly, any case you had to interpret), record it in a JUDGMENT LOG and report it at the end. Format: file:line — what was ambiguous — what you decided — why.
+
+  - If you disagree with anything in this prompt, or if you believe a direction is wrong, STOP and say so. Examples of legitimate pushback: "this pattern won't work for X because Y", "the prompt says do A but the existing code structure makes B safer", "this would break a flow I can see in routes.ts". Do not silently override the prompt; raise it. We'd rather discuss than have to reverse a 500-line diff.
+
+  - If something genuinely doesn't fit any pattern in this prompt (e.g. a method whose org context comes from somewhere unusual), STOP that method, leave it untouched, and add it to a NEEDS HUMAN REVIEW list. Continue with the rest.
+
+  - If the typecheck at the end shows new errors in methods/routes you modified that you can't resolve confidently, STOP, don't keep editing, and report.
+
+==============================================================
+DATA MODEL — TWO GROUPS
+==============================================================
+
+GROUP A — Per-tenant tables (25). Every row belongs to exactly one org.
+
+  vendorCategories, vendors, vendorContacts, designerAllowlist, userRoles,
+  userProjectAssignments, projectClients, vendorInvoices, vendorPayments,
+  projectVendors, quoteFiles, boq, objectAssets, savedAssets, floorPlans,
+  moodboards, projectSchedules, activityLog, meetingMinutes, tasks,
+  taskDependencies, taskAlerts, approvals, worksOrders, worksOrderItems
+
+GROUP B — Global-with-tenant-override (4). org_id NULL means "preloaded, visible to all tenants"; org_id set means tenant-owned customization.
+
+  specifications, sops, quoteTemplates, worksOrderTemplates
+
+GROUP C — Not in scope. Global by design. Do NOT modify storage methods for these tables: organisations, users, sessions, invitations, superadmin_audit_logs.
+
+==============================================================
+PATTERNS
+==============================================================
+
+GROUP A — Per-tenant pattern
+
+  Read (list):
+    db.select().from(T).where(eq(T.orgId, orgId))
+
+  Read (by id):
+    db.select().from(T)
+      .where(and(eq(T.id, id), eq(T.orgId, orgId)))
+      .limit(1)
+
+  Read (by other field, e.g. by parent FK):
+    db.select().from(T)
+      .where(and(eq(T.parentId, parentId), eq(T.orgId, orgId)))
+
+  Insert:
+    db.insert(T).values({ ...input, orgId }).returning()
+    // The spread-then-overwrite ensures route input can never override orgId
+
+  Update:
+    const { orgId: _ignored, ...safeUpdates } = updates;
+    db.update(T).set(safeUpdates)
+      .where(and(eq(T.id, id), eq(T.orgId, orgId)))
+      .returning()
+    // Prevents tenant from reassigning rows to another tenant
+
+  Delete:
+    db.delete(T).where(and(eq(T.id, id), eq(T.orgId, orgId))).returning()
+
+  Cascade deletes inside transactions (e.g. deleteProjectVendor cascades to quoteFiles/boq/etc):
+    Every cascade child delete must also include eq(child.orgId, orgId).
+    Even though the parent FK relationship would naturally scope, defence-in-depth says filter both.
+
+GROUP B — Global-with-tenant-override pattern
+
+  Read (list — returns global + tenant-owned):
+    db.select().from(T).where(or(isNull(T.orgId), eq(T.orgId, orgId)))
+
+  Read (by id — returns the row only if it's global OR belongs to the tenant):
+    db.select().from(T)
+      .where(and(eq(T.id, id), or(isNull(T.orgId), eq(T.orgId, orgId))))
+      .limit(1)
+
+  Insert (always tenant-owned — tenants cannot create global rows from the API):
+    db.insert(T).values({ ...input, orgId }).returning()
+
+  Update (only the tenant's own rows; globals are immutable from the API):
+    const { orgId: _ignored, ...safeUpdates } = updates;
+    db.update(T).set(safeUpdates)
+      .where(and(eq(T.id, id), eq(T.orgId, orgId)))   // NOT NULL — never global
+      .returning()
+    // If the row is global (org_id IS NULL), this returns no rows. Caller should treat that as "not found or not yours".
+
+  Delete (same restriction — globals untouchable):
+    db.delete(T).where(and(eq(T.id, id), eq(T.orgId, orgId))).returning()
+
+ROUTES (in server/routes.ts)
+
+  Add to imports if not present:
+    import { requireOrg } from "./tenantAuth";
+
+  For every route handler that calls a Group A or Group B storage method:
+    - Add requireOrg to the middleware chain AFTER isAuthenticated and AFTER any role check (requireAdmin, requireProjectManagerOrAdmin, etc).
+      Correct order: isAuthenticated → role check → requireOrg → handler
+      Reason: role checks should fail with their own error before tenant scoping fails with a different one.
+
+    - In the handler body, pass req.orgId! into the storage call.
+      The ! is safe because requireOrg refuses to call next() unless orgId is set.
+
+PUBLIC / TOKEN-BASED ENDPOINTS (no req.user)
+
+  There is at least one public endpoint that does NOT have req.user: getWorksOrderByToken (vendors viewing/signing a works order via emailed link). There may be others (search for routes that don't use isAuthenticated).
+
+  For these:
+    - Do NOT add requireOrg (there's no logged-in user).
+    - Inside the handler, after looking up the works order by token, READ its org_id from the row.
+    - Use that org_id to scope any related queries (worksOrderItems, vendor lookup, etc.).
+    - The storage methods for those related lookups still take orgId as a parameter; the route just sources it from the looked-up entity instead of req.user.
+
+  Show me which routes you identified as public/token-based and how you handled each.
+
+IStorage INTERFACE
+
+  Update the interface signatures at the top of server/storage.ts to match every method you change. The MemStorage class will report errors against the new signatures. LEAVE MemStorage broken — do not update MemStorage in this session. We'll handle it separately or never (it's unused by the running app).
+
+==============================================================
+SCOPE DISCIPLINE
+==============================================================
+
+DO touch:
+  - server/storage.ts (DbStorage methods on the 29 tables; IStorage interface signatures)
+  - server/routes.ts (handlers calling the modified methods)
+  - Imports needed for the above
+
+DO NOT touch:
+  - MemStorage (broken by design this session)
+  - Storage methods for organisations, users, sessions, invitations, superadmin_audit_logs, catalogue_items
+  - Frontend code (client/**)
+  - shared/schema.ts (no schema changes)
+  - Any migration file
+  - The 4 deferred partial-select errors (quoteTemplates lines ~2243/2273/2284, vendorPayments line ~2771) — fix these AS PART OF this session because we're modifying those exact methods anyway; the partial selects need orgId added to the column list. Don't skip them.
+  - The Replit-OIDC auth file (server/replitAuth.ts) — dead code
+  - tenantAuth.ts — already correct, no changes
+
+DO NOT introduce new dependencies. DO NOT restart the server. DO NOT run migrations.
+
+==============================================================
+PROCESS
+==============================================================
+
+Work table-by-table within Group A, then Group B. After each table:
+  - Update all DbStorage methods for that table per the pattern
+  - Update the IStorage interface signatures for those methods
+  - Update every route handler in routes.ts that calls those methods
+  - Move to the next table
+
+Do not run typecheck after every table — only at the end of each Group. Two typechecks total: end of Group A, end of Group B.
+
+==============================================================
+SPECIAL CASES TO ANTICIPATE
+==============================================================
+
+1. activityLog has TWO read methods today: getRecentActivities (unfiltered) and getRecentActivitiesByOrg (already filters correctly). Action: change getRecentActivities to require orgId and filter; keep getRecentActivitiesByOrg as-is (it already does the right thing — consider whether the two methods can now be merged, but only as a JUDGMENT LOG recommendation, don't merge in this session).
+
+2. tasks has getAllTasks(orgId?) where orgId is optional. Action: make orgId required and remove the unfiltered branch.
+
+3. Cascade deletes (e.g. deleteProjectVendor deletes quoteFiles, boq, worksOrderItems, worksOrders; deleteProjectSchedule deletes tasks and taskDependencies). Each cascade child delete must also include eq(orgId).
+
+4. Role-based access methods (getProjectVendorsForUser, getQuoteFilesForUser, getMoodboardsForUser, getProjectVendorBOQ). These already filter by role and project access. Add orgId on top: every branch (admin/designer/pm/client) must also filter by orgId. Do NOT change the role logic.
+
+5. getWorksOrderByToken (public, by accessToken). Do NOT add orgId filter to the lookup itself — the token IS the authorization. But once retrieved, use the resulting row's orgId for any related queries.
+
+6. generateOrderNumber counts existing works orders to generate the next number. This count MUST be scoped by orgId — otherwise tenant A's order numbers would skip ahead based on tenant B's volume.
+
+7. JOIN queries (e.g. getAllWorksOrders JOINs projectVendors; getVendorsWithProjects JOINs projectVendors; getOrgUsage joins multiple tables). For each JOIN, scope by the orgId column on the most natural table (usually the primary table). If both tables have orgId, filter on both for defence-in-depth.
+
+8. If you encounter ANY method whose correct orgId source is not obvious from context, STOP that method and add it to NEEDS HUMAN REVIEW.
+
+==============================================================
+END-OF-SESSION REPORT
+==============================================================
+
+Produce a clear, structured report:
+
+A. Summary statistics
+   - Total methods modified
+   - Total routes modified
+   - Lines added / removed (from git diff --stat)
+   - Final typecheck error count (was 99 after last session)
+   - Errors specifically introduced by this work (should be zero in DbStorage + routes.ts; expected nonzero in MemStorage)
+
+B. Per-table table-of-changes — for each of the 29 tables, list:
+   - Methods modified
+   - Routes modified
+   - Any judgment calls or deviations
+
+C. JUDGMENT LOG — every ambiguity encountered and how it was resolved:
+   - file:line
+   - What was ambiguous
+   - What you decided
+   - Why
+   - Confidence (high / medium / low)
+
+D. NEEDS HUMAN REVIEW — list of methods or routes you did NOT modify because the right call wasn't obvious. For each:
+   - Where it is
+   - What's unclear
+   - Your best guess at the right fix (don't implement, just describe)
+
+E. Public/token-based endpoints — list every public endpoint you identified and how you handled it.
+
+F. Anti-leak grep — after all edits, run:
+     grep -nE "\.from\((vendorCategories|vendors|vendorContacts|designerAllowlist|userRoles|userProjectAssignments|projectClients|vendorInvoices|vendorPayments|projectVendors|quoteFiles|boq|objectAssets|savedAssets|floorPlans|moodboards|projectSchedules|activityLog|meetingMinutes|tasks|taskDependencies|taskAlerts|approvals|worksOrders|worksOrderItems|specifications|sops|quoteTemplates|worksOrderTemplates)\)" server/storage.ts | head -200
+   For each match, confirm there is a corresponding eq(orgId) or or(isNull(orgId), eq(orgId)) in the same query. List any matches that do NOT have an orgId filter — those are either intentional (justify in JUDGMENT LOG) or bugs (fix).
+
+G. git diff --stat
+   AND
+   git diff server/storage.ts | head -500
+   AND
+   git diff server/routes.ts | head -500
+   (If the diff exceeds 500 lines each, give us the first 500 and tell us how many more there are.)
+
+==============================================================
+DO NOT
+==============================================================
+  - Restart the server
+  - Run migrations
+  - Modify MemStorage methods to make typecheck happy
+  - Fix unrelated TypeScript errors you happen to notice
+  - Touch frontend files
+  - Make any database change
+  - Modify schema.ts
+  - "Clean up" unrelated code patterns
+
+If you finish and the diff is much smaller or much larger than expected, mention that in the report. If the work takes you somewhere we didn't anticipate, stop and ask before continuing into new territory.
+
+PASTE BACK the full end-of-session report.
