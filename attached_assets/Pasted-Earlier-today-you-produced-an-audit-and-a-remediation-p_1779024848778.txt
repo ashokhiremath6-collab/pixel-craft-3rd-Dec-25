@@ -1,0 +1,49 @@
+Earlier today you produced an audit and a remediation plan for multi-tenant data isolation. Your plan was application-layer: middleware to populate req.orgId, requireOrg on routes, WHERE org_id = $current in every storage method, server-side stamping of orgId on inserts, orgId checks on UPDATE/DELETE.
+
+You did NOT mention Postgres Row-Level Security (RLS) in that plan. I want to understand your view on RLS for this codebase specifically.
+
+Context you may not have had in the previous session:
+  - Tenants will be competing interior design firms (existential isolation requirement)
+  - We are on Neon (Postgres, fully supports RLS, including policies on JSONB and JOINs)
+  - The org_id columns are already in place on all 29 tables
+  - The codebase has demonstrated past inconsistency in applying tenant isolation (some methods filter, most don't, some have been changed in past sessions without us knowing)
+  - There will be future feature work by multiple agents/sessions; the discipline of "remember to add WHERE org_id on every new query" has to hold forever
+
+Please answer the following questions HONESTLY. Push back on any assumption that you think is wrong. Tell me where you're uncertain. Do NOT just agree with the framing — give me your real assessment.
+
+QUESTION 1 — Was RLS deliberately omitted from your earlier plan, or did it just not come up?
+   Was it a considered decision ("RLS isn't worth it here because X"), or simply not on your radar in that session?
+
+QUESTION 2 — For THIS codebase specifically, what is your honest assessment of RLS?
+   Consider:
+   - The existing connection pool setup (we use a pg Pool, sessions are stored in Postgres via connect-pg-simple)
+   - The mix of authenticated routes and public token endpoints (getWorksOrderByToken is unauthenticated and would need special handling under RLS)
+   - The cascade-delete logic in deleteProjectVendor (transactional deletes across multiple tables)
+   - The fact that some methods use raw SQL via the `sql` template, not just Drizzle's typed builders
+   - Performance — RLS adds a predicate to every query plan
+
+   Is RLS:
+   (a) clearly worth the implementation cost for our scenario
+   (b) defensible but the application-layer plan you laid out is sufficient
+   (c) actively problematic in this codebase for some specific reason
+   (d) something you don't have enough information about to say
+
+QUESTION 3 — Is there any technical reason RLS would NOT work cleanly in this app?
+   For example:
+   - Are there cross-org operations (super-admin features, system tasks) that would be cumbersome under RLS?
+   - Does the connect-pg-simple session store interact badly with set_config / current_setting('app.current_org_id', ...)?
+   - Does Drizzle's query builder have known issues with RLS-protected tables?
+   - Anything you'd be worried about during implementation?
+
+QUESTION 4 — In your honest view, if a competing interior design firm signed up next month:
+   With ONLY your application-layer plan implemented (no RLS), how confident are you that there would be zero cross-tenant data leaks for the lifetime of the product?
+   With application-layer + RLS, how confident?
+
+   Rate each on a 1-10 scale and explain your reasoning.
+
+QUESTION 5 — If you DO think RLS is worthwhile here, what is the rough scope?
+   Number of migrations, number of policies, level of testing required, expected gotchas in OUR specific codebase.
+
+   If you DO NOT think RLS is worthwhile, what specific properties of this codebase or use case make you confident the application-layer plan is sufficient?
+
+This is read-only. Do not modify any files. Do not run anything except whatever you need to inspect the code to answer the questions above. Take your time. I am genuinely asking for your view, not seeking confirmation.
