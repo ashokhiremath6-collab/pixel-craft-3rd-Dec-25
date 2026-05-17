@@ -72,6 +72,8 @@ import {
   type InsertWorksOrder,
   type WorksOrderSignature,
   type InsertWorksOrderSignature,
+  type WorksOrderItem,
+  type InsertWorksOrderItem,
   superadminAuditLog,
   organisations,
   invitations,
@@ -618,9 +620,13 @@ export class MemStorage implements IStorage {
     const role: UserRole = {
       ...userRole,
       id,
+      orgId: userRole.orgId ?? null,
       role: userRole.role || "client",
       isActive: userRole.isActive ?? true,
       assignedAt: new Date(),
+      assignedBy: userRole.assignedBy ?? null,
+      createdAt: userRole.createdAt ?? null,
+      updatedAt: userRole.updatedAt ?? null,
     };
     this.userRoles.set(id, role);
     return role;
@@ -651,6 +657,7 @@ export class MemStorage implements IStorage {
     // Stub implementation for MemStorage
     const result: UserProjectAssignment = {
       id: randomUUID(),
+      orgId: assignment.orgId ?? null,
       userId: assignment.userId,
       projectId: assignment.projectId,
       assignedBy: assignment.assignedBy || null,
@@ -835,6 +842,7 @@ export class MemStorage implements IStorage {
     const category: VendorCategory = { 
       ...insertCategory, 
       id,
+      orgId: insertCategory.orgId ?? null,
       parentId: insertCategory.parentId || null,
       description: insertCategory.description || null,
       isActive: insertCategory.isActive ?? true
@@ -924,6 +932,7 @@ export class MemStorage implements IStorage {
     const vendor: Vendor = { 
       ...insertVendor, 
       id,
+      orgId: insertVendor.orgId ?? null,
       notes: insertVendor.notes || null
     };
     this.vendors.set(id, vendor);
@@ -964,8 +973,11 @@ export class MemStorage implements IStorage {
     const project: Project = { 
       ...insertProject, 
       id,
-      endDate: insertProject.endDate || null,
       orgId: insertProject.orgId ?? null,
+      endDate: insertProject.endDate || null,
+      canvaLink: insertProject.canvaLink ?? null,
+      ganttChartLink: insertProject.ganttChartLink ?? null,
+      foyrNeoLink: insertProject.foyrNeoLink ?? null,
     };
     this.projects.set(id, project);
     return project;
@@ -1027,6 +1039,7 @@ export class MemStorage implements IStorage {
     const projectVendor: ProjectVendor = { 
       ...insertProjectVendor, 
       id,
+      orgId: insertProjectVendor.orgId ?? null,
       quotationName: insertProjectVendor.quotationName || "Main Quote",
       quotationType: insertProjectVendor.quotationType || "item",
       parentQuotationId: insertProjectVendor.parentQuotationId || null,
@@ -1036,6 +1049,7 @@ export class MemStorage implements IStorage {
       dateOfQuotation: insertProjectVendor.dateOfQuotation || null,
       notes: insertProjectVendor.notes || null,
       templateId: insertProjectVendor.templateId || null,
+      unitRateSubtype: insertProjectVendor.unitRateSubtype ?? null,
       status: insertProjectVendor.status || "Quoted",
       submittedAt: new Date()
     };
@@ -1125,6 +1139,7 @@ export class MemStorage implements IStorage {
     const template: QuoteTemplate = { 
       ...insertTemplate, 
       id,
+      orgId: insertTemplate.orgId ?? null,
       description: insertTemplate.description || null,
       templateFile: insertTemplate.templateFile || null,
       fields: insertTemplate.fields || null,
@@ -1173,6 +1188,7 @@ export class MemStorage implements IStorage {
     const boq: Boq = { 
       ...insertBoq, 
       id,
+      orgId: insertBoq.orgId ?? null,
       category: insertBoq.category || null,
       itemCode: insertBoq.itemCode || null,
       specifications: insertBoq.specifications || null
@@ -1234,6 +1250,7 @@ export class MemStorage implements IStorage {
     const quoteFile: QuoteFile = { 
       ...insertQuoteFile, 
       id,
+      orgId: insertQuoteFile.orgId ?? null,
       fileSize: insertQuoteFile.fileSize || null,
       externalStorageProvider: insertQuoteFile.externalStorageProvider || null,
       externalFileId: insertQuoteFile.externalFileId || null,
@@ -1276,6 +1293,7 @@ export class MemStorage implements IStorage {
     const floorPlan: FloorPlan = { 
       ...insertFloorPlan, 
       id,
+      orgId: insertFloorPlan.orgId ?? null,
       description: insertFloorPlan.description || null,
       fileSize: insertFloorPlan.fileSize || null,
       version: insertFloorPlan.version || "1.0",
@@ -2057,6 +2075,9 @@ export class DBStorage implements IStorage {
   }
 
   async upsertProjectVendor(projectVendor: InsertProjectVendor): Promise<ProjectVendor> {
+    if (!projectVendor.vendorId) {
+      throw new Error("upsertProjectVendor requires vendorId");
+    }
     // Check if specific quotation already exists (project + vendor + quotation name)
     const existing = await db.select().from(projectVendors)
       .where(
@@ -2978,12 +2999,12 @@ export class DBStorage implements IStorage {
   }
 
   async createMeetingMinutes(minutes: InsertMeetingMinutes): Promise<MeetingMinutes> {
-    const result = await db.insert(meetingMinutes).values(minutes).returning();
+    const result = await db.insert(meetingMinutes).values(minutes as any).returning();
     return result[0];
   }
 
   async updateMeetingMinutes(id: string, minutes: Partial<InsertMeetingMinutes>): Promise<MeetingMinutes | undefined> {
-    const result = await db.update(meetingMinutes).set(minutes).where(eq(meetingMinutes.id, id)).returning();
+    const result = await db.update(meetingMinutes).set(minutes as any).where(eq(meetingMinutes.id, id)).returning();
     return result[0];
   }
 

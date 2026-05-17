@@ -1,0 +1,137 @@
+Mechanical TypeScript cleanup in server/storage.ts and shared/schema.ts. Do NOT add any orgId filtering logic. Do NOT modify route handlers. Do NOT restart the server. Do NOT run migrations.
+
+The goal: reduce the codebase's pre-existing TypeScript error count by fixing root causes that are unrelated to the upcoming filtering work. Skip the ones that will be naturally fixed during 3c.
+
+==============================================================
+STEP 1 — Confirm starting state
+==============================================================
+
+  git status
+  git diff --stat
+
+Should show no modified files. Run typecheck and record baseline:
+
+  npm run check 2>&1 | tail -5
+
+Expected: 129 errors total (per yesterday's audit).
+
+==============================================================
+STEP 2 — Export WorksOrderItem types from shared/schema.ts
+==============================================================
+
+2.1  Check whether the exports already exist:
+       grep -nE "export\s+(type|interface)\s+(WorksOrderItem|InsertWorksOrderItem)\b" shared/schema.ts
+
+     If they exist, skip this step and report. If not, proceed.
+
+2.2  Find the existing WorksOrder type export pattern (likely uses Drizzle's $inferSelect / $inferInsert):
+       grep -nE "export\s+type\s+WorksOrder\b" shared/schema.ts
+       grep -nE "export\s+type\s+InsertWorksOrder\b" shared/schema.ts
+
+     Show me both lines exactly as they appear.
+
+2.3  Add the two new exports IMMEDIATELY ADJACENT to the existing WorksOrder exports, mirroring the exact pattern:
+
+       export type WorksOrderItem = typeof worksOrderItems.$inferSelect;
+       export type InsertWorksOrderItem = typeof worksOrderItems.$inferInsert;
+
+     Show me the resulting block (5 lines of context).
+
+==============================================================
+STEP 3 — Add orgId: null to MemStorage object literals
+==============================================================
+
+6 locations in server/storage.ts: lines 532, 618, 652, 835, 924, 964.
+
+3.1  For each line, view 8 lines of context to see the surrounding object literal.
+
+3.2  Add `orgId: null,` to the object literal. Place it adjacent to other primary-key/id-style fields for readability. Show me the before/after for each of the 6 locations.
+
+3.3  CAVEAT: If line 964 (MemStorage.createProject) error message says something other than "missing orgId" — for example, a return-type shape error — pause and show me the full error message before changing it. We expect 5 of these to be straight "missing orgId" and 1 (line 964) to potentially be more complex.
+
+==============================================================
+STEP 4 — Fix meetingMinutes type mismatches at lines 2981 and 2986
+==============================================================
+
+4.1  View 10 lines of context at each line. Show me both blocks.
+
+4.2  Show me the exact TypeScript error messages for these two lines:
+       npm run check 2>&1 | grep -E "storage\.ts.(2981|2986)"
+
+4.3  Based on the error message, apply a localized cast — NOT a schema change. Options:
+       - `db.insert(meetingMinutes).values(input as InsertMeetingMinutes)`
+       - `db.update(meetingMinutes).set(updates as Partial<InsertMeetingMinutes>).where(...)`
+
+     If the error suggests the fix is something more invasive (e.g. an entire field is missing from the schema), STOP and report. Do not improvise.
+
+     Show me before/after for each.
+
+==============================================================
+STEP 5 — Fix upsertProjectVendor null guard at line 2065
+==============================================================
+
+5.1  View 15 lines of context around line 2065. Show me the block.
+
+5.2  Show me the exact TypeScript error:
+       npm run check 2>&1 | grep -E "storage\.ts.2065"
+
+5.3  Apply the smallest viable fix. The recommended pattern, depending on what the surrounding logic implies:
+
+     OPTION A — if quotationName must be non-null for upsert logic to make sense, add an early null guard:
+       if (pv.quotationName == null) {
+         throw new Error("upsertProjectVendor requires quotationName");
+       }
+
+     OPTION B — if null is a legitimate value to upsert on, use isNull in the WHERE:
+       pv.quotationName == null
+         ? isNull(projectVendors.quotationName)
+         : eq(projectVendors.quotationName, pv.quotationName)
+       (combined with the other AND conditions)
+
+     Pick whichever matches the surrounding code's intent. If unclear, default to OPTION A (explicit guard) — it's safer and easier to relax later than to tighten.
+
+     Show me before/after.
+
+==============================================================
+STEP 6 — DO NOT TOUCH
+==============================================================
+
+Do NOT modify these lines in this session — they'll be addressed during 3c:
+  - Lines 2243, 2273, 2284 (quoteTemplates partial selects)
+  - Line 2771 (vendorPayments partial select)
+  - Any line that currently lacks an orgId filter on a query
+
+If you notice these errors are still present after Steps 2-5, that is EXPECTED. Do not "helpfully" fix them.
+
+==============================================================
+STEP 7 — Final typecheck and report
+==============================================================
+
+  npm run check 2>&1 | tail -100
+
+Report:
+  - New total error count (was 129; expected to drop meaningfully — somewhere between 110 and 120)
+  - Confirmation that zero errors remain in: tenantAuth.ts, the MemStorage methods we touched, the meetingMinutes methods, upsertProjectVendor, the schema exports
+  - Any new errors introduced (must be zero)
+  - List of errors that remain, grouped by root cause, so we can see what's left for 3c vs what's unrelated
+
+==============================================================
+STEP 8 — Git diff
+==============================================================
+
+  git diff --stat
+  git diff shared/schema.ts server/storage.ts
+
+Show me the complete diff. I want to verify every line that changed.
+
+==============================================================
+PASTE BACK:
+==============================================================
+  - Step 1 baseline (error count, git clean)
+  - Step 2 result (whether exports already existed; if added, the new block)
+  - Step 3 result (before/after for all 6 MemStorage literals)
+  - Step 4 result (the two before/afters with the exact error messages)
+  - Step 5 result (before/after with the exact error message)
+  - Step 7 final typecheck (full output + grouping of remaining errors by root cause)
+  - Step 8 git diff (every line that changed)
+  - Any deviations or surprises
