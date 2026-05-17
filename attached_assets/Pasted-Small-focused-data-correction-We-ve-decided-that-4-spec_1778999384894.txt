@@ -1,0 +1,112 @@
+Small, focused data correction. We've decided that 4 specific rows across 3 tables should be flipped from org_id = '74195e4d-...' (Olympik Design) to org_id = NULL, meaning "preloaded / visible to all tenants" in the multi-tenant data model.
+
+This is data-only. Do NOT modify any code file. Do NOT restart the server. Do NOT run migrations. Do NOT touch any other rows.
+
+The 4 rows to flip:
+
+  Table                  | Row id                                | Name
+  -----------------------|---------------------------------------|--------------------
+  specifications         | bbe12cd6-04b8-40c8-8fe1-3d3d4932857a  | LG / Noise levels
+  quote_templates        | 52101135-aab1-4145-b0a1-9983ab9980db  | Civil quote template
+  works_order_templates  | 086cc3d3-1b9e-41d8-bb8c-87565fe44973  | Audio Systems
+  works_order_templates  | 29b40baf-18ca-4a59-9bae-3672cb0e1900  | Bathroom Fittings
+
+The 1 row to LEAVE UNTOUCHED:
+
+  works_order_templates  | 808e17b6-316b-4044-a208-679b3991fa81  | Terms of Contract
+  (stays assigned to Olympik — contract terms may contain firm-specific language)
+
+STEP 1 — Pre-flight: confirm current state of all 5 rows
+
+SELECT 'specifications' AS tbl, id, org_id IS NULL AS is_global FROM specifications WHERE id = 'bbe12cd6-04b8-40c8-8fe1-3d3d4932857a'
+UNION ALL
+SELECT 'quote_templates', id, org_id IS NULL FROM quote_templates WHERE id = '52101135-aab1-4145-b0a1-9983ab9980db'
+UNION ALL
+SELECT 'works_order_templates', id, org_id IS NULL FROM works_order_templates WHERE id = '086cc3d3-1b9e-41d8-bb8c-87565fe44973'
+UNION ALL
+SELECT 'works_order_templates', id, org_id IS NULL FROM works_order_templates WHERE id = '29b40baf-18ca-4a59-9bae-3672cb0e1900'
+UNION ALL
+SELECT 'works_order_templates (DO NOT TOUCH)', id, org_id IS NULL FROM works_order_templates WHERE id = '808e17b6-316b-4044-a208-679b3991fa81';
+
+Expected: all 5 rows return is_global = false. If any row already shows is_global = true, STOP and report — something has changed since last night.
+
+STEP 2 — Apply the update inside a transaction
+
+Run this as a single transactional block. Show me the row counts at each step.
+
+BEGIN;
+
+UPDATE specifications
+   SET org_id = NULL
+ WHERE id = 'bbe12cd6-04b8-40c8-8fe1-3d3d4932857a'
+   AND org_id = '74195e4d-0c47-4413-af59-793218e45c74';
+
+UPDATE quote_templates
+   SET org_id = NULL
+ WHERE id = '52101135-aab1-4145-b0a1-9983ab9980db'
+   AND org_id = '74195e4d-0c47-4413-af59-793218e45c74';
+
+UPDATE works_order_templates
+   SET org_id = NULL
+ WHERE id IN ('086cc3d3-1b9e-41d8-bb8c-87565fe44973',
+              '29b40baf-18ca-4a59-9bae-3672cb0e1900')
+   AND org_id = '74195e4d-0c47-4413-af59-793218e45c74';
+
+-- Verification before COMMIT: confirm exactly 4 rows now have org_id IS NULL,
+-- AND confirm the 'Terms of Contract' row STILL has org_id set.
+SELECT 'specifications' AS tbl,
+       COUNT(*) FILTER (WHERE org_id IS NULL) AS null_rows,
+       COUNT(*) FILTER (WHERE org_id IS NOT NULL) AS tenant_rows
+  FROM specifications
+UNION ALL
+SELECT 'quote_templates',
+       COUNT(*) FILTER (WHERE org_id IS NULL),
+       COUNT(*) FILTER (WHERE org_id IS NOT NULL)
+  FROM quote_templates
+UNION ALL
+SELECT 'works_order_templates',
+       COUNT(*) FILTER (WHERE org_id IS NULL),
+       COUNT(*) FILTER (WHERE org_id IS NOT NULL)
+  FROM works_order_templates
+UNION ALL
+SELECT 'sops',
+       COUNT(*) FILTER (WHERE org_id IS NULL),
+       COUNT(*) FILTER (WHERE org_id IS NOT NULL)
+  FROM sops;
+
+-- Independent confirmation: Terms of Contract row is still tenant-owned
+SELECT id, org_id IS NULL AS is_global, name
+  FROM works_order_templates
+ WHERE id = '808e17b6-316b-4044-a208-679b3991fa81';
+
+If verification looks correct, COMMIT. If anything looks wrong (e.g. an UPDATE returned 0 rows when it should have returned 1, or Terms of Contract flipped to NULL), ROLLBACK and report.
+
+Expected verification numbers AFTER the updates:
+  specifications:        null_rows = 1, tenant_rows = 0
+  quote_templates:       null_rows = 1, tenant_rows = 0
+  works_order_templates: null_rows = 2, tenant_rows = 1   (Terms of Contract still tenant-owned)
+  sops:                  null_rows = 0, tenant_rows = 0   (empty table — unchanged)
+
+  Terms of Contract row:  is_global = false  (still tenant-owned)
+
+If any of those numbers is wrong, ROLLBACK.
+
+STEP 3 — Post-commit independent verification
+
+After COMMIT, run the same SELECT from Step 1 again. Show me the result. All 4 flipped rows should now show is_global = true; the Terms of Contract row should still show is_global = false.
+
+STEP 4 — Confirm no files modified
+
+  git status
+  git diff --stat
+
+Should show no tracked files modified.
+
+PASTE BACK:
+  - Step 1 output (pre-state)
+  - Step 2 output (UPDATE row counts, verification SELECT, and whether you COMMITted or ROLLBACKed)
+  - Step 3 output (post-state)
+  - Step 4 output (git status confirming code untouched)
+  - Any warnings or unexpected results
+
+This is data-only. Five rows touched, four flipped, one explicitly preserved. No code, no schema, no restart.
