@@ -1,0 +1,130 @@
+Proceed with Phase 2 only of the multi-tenant migration.
+
+Important:
+- Do not implement all phases.
+- Do not add tenant_id to existing business tables yet.
+- Do not enable RLS yet.
+- Do not refactor all API routes yet.
+- Do not change the UI except if absolutely necessary.
+- Do not delete or modify portfolio, snapshot, holding, valuation, company, watchlist, notes, assumptions or decision data.
+
+Goal:
+Create a default tenant for the existing app and link existing users to that tenant.
+
+This is a data backfill and preparation step only.
+
+Tasks:
+
+1. Create one default tenant
+
+Create a tenant with:
+
+name: "Default Workspace"
+slug: "default-workspace"
+status: "active"
+plan: "internal"
+
+If a tenant with this slug already exists, do not create a duplicate.
+
+2. Create profiles for existing users
+
+For every row in the existing users table:
+- create a matching profile if one does not already exist
+- link profile.user_id to users.id
+- copy email if available
+- copy full name if available
+- leave missing fields null rather than inventing values
+
+This must be idempotent.
+
+3. Create tenant memberships
+
+For every existing user:
+- create a tenant_members row linking the user to the Default Workspace
+- status should be "active"
+
+Role assignment:
+- If the user is currently the app admin, assign role "owner"
+- All other existing users should be assigned role "admin" for now
+
+If the app currently has a hardcoded admin UUID or existing admin logic, use it only to identify the first owner, but do not introduce new hardcoded admin logic.
+
+This must be idempotent.
+
+4. Create default tenant settings
+
+Create one tenant_settings row for the Default Workspace if it does not already exist.
+
+settings_json should include:
+
+{
+  "currency": "INR",
+  "defaultForecastYears": 3,
+  "createdByMigration": true
+}
+
+5. Add a safe seed/backfill script
+
+Create a script such as:
+
+scripts/backfillDefaultTenant.ts
+
+or the equivalent pattern used in this project.
+
+The script should:
+- be safe to run multiple times
+- print how many tenants, profiles, memberships and settings were created
+- not modify any business tables
+- not delete any rows
+
+6. Add verification queries
+
+Provide SQL queries to verify:
+
+- default tenant exists
+- every user has a profile
+- every user has an active tenant_members row
+- exactly one owner exists for the default tenant, unless there are no users
+- tenant_settings exists for the default tenant
+- business table row counts are unchanged
+
+7. Add documentation
+
+Update or create a short document:
+
+MULTI_TENANT_PHASE_2.md
+
+Include:
+- what this phase does
+- what it does not do
+- how to run the backfill
+- how to verify it
+- rollback steps
+- risks and assumptions
+
+8. Do not touch business data
+
+Do not update:
+- portfolios
+- snapshots
+- holdings
+- companies
+- valuation models
+- watchlists
+- notes
+- assumptions
+- decisions
+- uploaded/imported data
+
+9. Output required
+
+After implementation, report:
+- files changed
+- script created
+- exact command to run
+- verification SQL
+- rollback SQL
+- whether the script has already been run
+- any concerns or assumptions
+
+This is Phase 2 only.
