@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -557,7 +558,7 @@ export default function Dashboard({
             </div>
 
             {/* Project Task Breakdown */}
-            {sortedBreakdown.length > 0 && (
+            {(tasksLoading || sortedBreakdown.length > 0) && (
               <ContentCard>
                 <div className="px-6 pt-6 pb-4 flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
@@ -587,7 +588,21 @@ export default function Dashboard({
                   </DropdownMenu>
                 </div>
                 <div className="px-6 pb-6 flex flex-col gap-3" data-testid="project-task-breakdown">
-                  {(showAllProjects ? sortedBreakdown : sortedBreakdown.slice(0, 5)).map((entry, idx) => {
+                  {tasksLoading ? (
+                    <>
+                      {[0, 1, 2].map(i => (
+                        <div key={i} className="rounded-[12px] overflow-hidden p-3 flex flex-col gap-2" style={{ background: "#f9fafb", border: "1px solid #f3f4f6" }}>
+                          <div className="flex items-center justify-between gap-2">
+                            <Skeleton className="h-3.5 rounded w-2/5" />
+                            <Skeleton className="h-3.5 rounded w-16" />
+                          </div>
+                          <Skeleton className="h-1.5 rounded-full w-full" />
+                          <Skeleton className="h-2.5 rounded w-12" />
+                        </div>
+                      ))}
+                    </>
+                  ) : null}
+                  {!tasksLoading && (showAllProjects ? sortedBreakdown : sortedBreakdown.slice(0, 5)).map((entry, idx) => {
                     const pct = entry.total > 0 ? Math.round((entry.completed / entry.total) * 100) : 0;
                     const hasOverdue = (entry.overdueCount ?? 0) > 0;
                     const isExpanded = expandedProjectIds.has(entry.projectId);
