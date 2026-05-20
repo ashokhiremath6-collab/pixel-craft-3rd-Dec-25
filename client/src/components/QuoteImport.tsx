@@ -211,14 +211,23 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-excel',
       'text/csv',
-      'application/pdf'
+      'application/pdf',
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+      'image/bmp',
+      'image/tiff',
     ];
+    const allowedExtensions = ['.xlsx', '.xls', '.csv', '.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff', '.tif'];
+    const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
     
-    if (!allowedTypes.includes(file.type)) {
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(ext)) {
       toast({
         variant: "destructive",
         title: "Invalid file type",
-        description: "Please upload an Excel (.xlsx, .xls), CSV, or PDF file.",
+        description: "Please upload an Excel (.xlsx, .xls), CSV, PDF, or image file (JPG, PNG, WebP).",
       });
       return;
     }
@@ -447,7 +456,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
                     Drag and drop your quote file here
                   </p>
                   <p className="text-muted-foreground">
-                    or click to browse for Excel (.xlsx, .xls), CSV, or PDF files
+                    or click to browse for Excel (.xlsx, .xls), CSV, PDF, or image files (JPG, PNG, WebP)
                   </p>
                 </div>
                 <Button
@@ -461,7 +470,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
                   ref={fileInputRef}
                   type="file"
                   className="hidden"
-                  accept=".xlsx,.xls,.csv,.pdf"
+                  accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.webp,.gif,.bmp,.tiff,.tif"
                   onChange={handleFileInputChange}
                   data-testid="input-file-hidden"
                 />

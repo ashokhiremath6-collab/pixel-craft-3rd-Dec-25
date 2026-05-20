@@ -23,7 +23,7 @@ import { getPlanLimits, UNLIMITED } from "./planLimits";
 import { setupAuth, isAuthenticated, requireAuth, requireAdmin, requireAdminOnly, requireProjectManagerOrAdmin, requireSuperAdmin, isSuperAdminUser } from "./localAuth";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
-import { RENDER_STYLES, generateInteriorRender, generateConceptRender, generatePhotorealConversion, detectRoomType, extractRoomName, paraphraseBrief } from "./ai/gemini";
+import { RENDER_STYLES, generateInteriorRender, generateConceptRender, generatePhotorealConversion, detectRoomType, extractRoomName, paraphraseBrief, extractQuoteTotalFromImage } from "./ai/gemini";
 import { chatWithDesignAssistant, generateRenderBrief, generateFloorPlanSVG, generateElevationSVG, generateFloorPlanDXFSpec, generateElevationDXFSpec, DesignChatMessage, DesignChatAttachment } from "./ai/claude";
 import { generateDXF } from "./utils/dxfGenerator";
 import {
@@ -2445,16 +2445,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'application/vnd.ms-excel', // .xls
         'text/csv', // .csv
         'application/pdf', // .pdf for reference files
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+        'image/gif',
+        'image/bmp',
+        'image/tiff',
       ];
       
       // Also check file extension as MIME types can be unreliable
-      const allowedExtensions = ['.xlsx', '.xls', '.csv', '.pdf'];
+      const allowedExtensions = ['.xlsx', '.xls', '.csv', '.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff', '.tif'];
       const fileExtension = path.extname(file.originalname).toLowerCase();
       
       if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
         cb(null, true);
       } else {
-        cb(new Error('Invalid file type. Only Excel (.xlsx, .xls), CSV, and PDF files are allowed.'));
+        cb(new Error('Invalid file type. Only Excel (.xlsx, .xls), CSV, PDF, and image files (JPG, PNG, WebP) are allowed.'));
       }
     }
   });
@@ -2911,11 +2918,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
           result.totals.grandTotal = undefined;
         }
         
+        // If the PDF had no extractable text (scanned image PDF), fall back to AI vision
+        const hasExtractedContent = result.items.length > 0 || (result.totals.grandTotal && result.totals.grandTotal > 0);
+        if (!hasExtractedContent && !isUnitRate) {
+          console.log('[QuoteExtraction] PDF has no extractable text — trying AI vision extraction');
+          const imageBase64 = fileBuffer.toString('base64');
+          const aiResult = await extractQuoteTotalFromImage(imageBase64, 'application/pdf');
+          console.log(`[QuoteExtraction] AI vision result for scanned PDF: grandTotal=${aiResult.grandTotal}, confidence=${aiResult.confidence}, items=${aiResult.items.length}`);
+          if (aiResult.grandTotal && aiResult.grandTotal > 0) {
+            const aiItems = aiResult.items.map((it: any) => ({
+              description: it.description || '',
+              quantity: it.quantity || 0,
+              unit: it.unit || 'unit',
+              'unit rate': it.unitRate || 0,
+              amount: it.amount || 0,
+            }));
+            return {
+              items: aiItems,
+              totals: { grandTotal: aiResult.grandTotal },
+              originalFormat: 'pdf',
+              aiExtracted: true,
+              aiConfidence: aiResult.confidence,
+            };
+          }
+        }
+
         // Return both items and totals for PDF processing
         return {
           items: result.items,
           totals: result.totals,
           originalFormat: 'pdf'
+        };
+      } else if (mimeType.startsWith('image/') || (fileName && /\.(jpe?g|png|webp|gif|bmp|tiff?)$/i.test(fileName))) {
+        // Image file — use Gemini vision to extract the quote total
+        console.log(`[QuoteExtraction] Image file detected (${mimeType}), using AI vision extraction`);
+        const imageBase64 = fileBuffer.toString('base64');
+        const aiResult = await extractQuoteTotalFromImage(imageBase64, mimeType);
+        console.log(`[QuoteExtraction] AI vision result: grandTotal=${aiResult.grandTotal}, confidence=${aiResult.confidence}, items=${aiResult.items.length}`);
+
+        if (isUnitRate) {
+          return {
+            items: [],
+            totals: { grandTotal: -1 },
+            originalFormat: 'image',
+            aiExtracted: true,
+            aiConfidence: aiResult.confidence,
+          };
+        }
+
+        const aiItems = aiResult.items.map((it: any) => ({
+          description: it.description || '',
+          quantity: it.quantity || 0,
+          unit: it.unit || 'unit',
+          'unit rate': it.unitRate || 0,
+          amount: it.amount || 0,
+        }));
+
+        return {
+          items: aiItems,
+          totals: { grandTotal: aiResult.grandTotal ?? undefined },
+          originalFormat: 'image',
+          aiExtracted: true,
+          aiConfidence: aiResult.confidence,
         };
       }
       

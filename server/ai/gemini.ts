@@ -1630,3 +1630,96 @@ export async function chatWithDesignAssistant(
   }
   return textPart.text.trim();
 }
+
+export interface QuoteImageExtractionResult {
+  grandTotal: number | null;
+  currency: string;
+  items: Array<{
+    description: string;
+    quantity: number;
+    unit: string;
+    unitRate: number;
+    amount: number;
+  }>;
+  confidence: 'high' | 'medium' | 'low';
+  rawText?: string;
+}
+
+export async function extractQuoteTotalFromImage(
+  imageBase64: string,
+  mimeType: string
+): Promise<QuoteImageExtractionResult> {
+  const prompt = `You are a quotation/invoice data extractor. Analyse this image of a vendor quote, invoice, or bill of quantities and extract the financial data.
+
+Return a JSON object with this exact structure:
+{
+  "grandTotal": <number or null>,
+  "currency": "<currency symbol or code, e.g. INR, ₹, USD>",
+  "confidence": "<high|medium|low>",
+  "items": [
+    {
+      "description": "<item description>",
+      "quantity": <number>,
+      "unit": "<unit string>",
+      "unitRate": <number>,
+      "amount": <number>
+    }
+  ]
+}
+
+Rules:
+- grandTotal: the final/grand total amount shown in the document (after taxes if applicable). If you see a label like "Grand Total", "Total Amount", "Net Total", "Amount Due", "Total Payable", use that value. If there is only one prominent total, use it. Return null if you cannot find any total.
+- items: extract each line item if visible. If the document is not itemised, return an empty array.
+- For quantity/unitRate/amount: use 0 if the field is not present for a line item.
+- currency: detect the currency (e.g. INR, USD, AED). Default to INR if ambiguous.
+- confidence: high if the total is clearly labelled, medium if inferred, low if uncertain.
+
+Return ONLY the JSON object, no markdown fences, no explanation.`;
+
+  try {
+    const response = await getAIClient().models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: imageBase64,
+              },
+            },
+            { text: prompt },
+          ],
+        },
+      ],
+    });
+
+    const candidate = response.candidates?.[0];
+    const textPart = candidate?.content?.parts?.find((p: any) => p.text);
+    if (!textPart?.text) {
+      console.error("[QuoteExtraction] No text response from Gemini");
+      return { grandTotal: null, currency: "INR", items: [], confidence: "low" };
+    }
+
+    const rawText = textPart.text.trim();
+    const jsonStr = rawText.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+
+    try {
+      const parsed = JSON.parse(jsonStr);
+      return {
+        grandTotal: typeof parsed.grandTotal === "number" ? parsed.grandTotal : null,
+        currency: parsed.currency || "INR",
+        items: Array.isArray(parsed.items) ? parsed.items : [],
+        confidence: parsed.confidence || "low",
+        rawText,
+      };
+    } catch {
+      console.error("[QuoteExtraction] Failed to parse JSON from Gemini response:", rawText.slice(0, 200));
+      return { grandTotal: null, currency: "INR", items: [], confidence: "low", rawText };
+    }
+  } catch (error) {
+    console.error("[QuoteExtraction] Gemini vision call failed:", error);
+    return { grandTotal: null, currency: "INR", items: [], confidence: "low" };
+  }
+}
