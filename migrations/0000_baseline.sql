@@ -1,20 +1,19 @@
 -- Current sql file was generated after introspecting the database
 -- If you want to run this migration please uncomment this code before executing migrations
-/*
-CREATE SEQUENCE "public"."works_order_serial_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1;--> statement-breakpoint
-CREATE TABLE "session" (
+CREATE SEQUENCE IF NOT EXISTS "public"."works_order_serial_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1;--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "session" (
         "sid" varchar PRIMARY KEY NOT NULL,
         "sess" json NOT NULL,
         "expire" timestamp(6) NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "sessions" (
+CREATE TABLE IF NOT EXISTS "sessions" (
         "sid" varchar PRIMARY KEY NOT NULL,
         "sess" jsonb NOT NULL,
         "expire" timestamp(6) NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "specifications" (
+CREATE TABLE IF NOT EXISTS "specifications" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "category" text NOT NULL,
         "title" text NOT NULL,
@@ -25,7 +24,7 @@ CREATE TABLE "specifications" (
         "uploaded_at" timestamp DEFAULT CURRENT_TIMESTAMP
 );
 --> statement-breakpoint
-CREATE TABLE "userRoles" (
+CREATE TABLE IF NOT EXISTS "userRoles" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "user_id" varchar NOT NULL,
         "role" varchar DEFAULT 'client' NOT NULL,
@@ -34,7 +33,7 @@ CREATE TABLE "userRoles" (
         "assigned_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "activity_log" (
+CREATE TABLE IF NOT EXISTS "activity_log" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "user_id" varchar NOT NULL,
         "user_name" text NOT NULL,
@@ -48,7 +47,7 @@ CREATE TABLE "activity_log" (
         "metadata" jsonb
 );
 --> statement-breakpoint
-CREATE TABLE "approvals" (
+CREATE TABLE IF NOT EXISTS "approvals" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "task_id" varchar NOT NULL,
         "requested_by" varchar NOT NULL,
@@ -59,7 +58,7 @@ CREATE TABLE "approvals" (
         "resolved_at" timestamp
 );
 --> statement-breakpoint
-CREATE TABLE "project_vendors" (
+CREATE TABLE IF NOT EXISTS "project_vendors" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "project_id" varchar NOT NULL,
         "vendor_id" varchar,
@@ -80,7 +79,7 @@ CREATE TABLE "project_vendors" (
         "category_id" varchar
 );
 --> statement-breakpoint
-CREATE TABLE "boq" (
+CREATE TABLE IF NOT EXISTS "boq" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "project_vendor_id" varchar NOT NULL,
         "item_description" text NOT NULL,
@@ -93,7 +92,7 @@ CREATE TABLE "boq" (
         "specifications" text
 );
 --> statement-breakpoint
-CREATE TABLE "designer_allowlist" (
+CREATE TABLE IF NOT EXISTS "designer_allowlist" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "email" text NOT NULL,
         "is_active" boolean DEFAULT true NOT NULL,
@@ -102,7 +101,7 @@ CREATE TABLE "designer_allowlist" (
         CONSTRAINT "designer_allowlist_email_key" UNIQUE("email")
 );
 --> statement-breakpoint
-CREATE TABLE "favorite_render_styles" (
+CREATE TABLE IF NOT EXISTS "favorite_render_styles" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "user_id" varchar NOT NULL,
         "name" text NOT NULL,
@@ -111,7 +110,7 @@ CREATE TABLE "favorite_render_styles" (
         "created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "floor_plans" (
+CREATE TABLE IF NOT EXISTS "floor_plans" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "project_id" varchar NOT NULL,
         "name" text NOT NULL,
@@ -125,7 +124,7 @@ CREATE TABLE "floor_plans" (
         "uploaded_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "meeting_minutes" (
+CREATE TABLE IF NOT EXISTS "meeting_minutes" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "project_id" varchar,
         "meeting_date" date NOT NULL,
@@ -143,7 +142,7 @@ CREATE TABLE "meeting_minutes" (
         "source" text DEFAULT 'manual'
 );
 --> statement-breakpoint
-CREATE TABLE "meeting_action_items" (
+CREATE TABLE IF NOT EXISTS "meeting_action_items" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "meeting_minutes_id" varchar NOT NULL,
         "serial_no" integer NOT NULL,
@@ -154,7 +153,7 @@ CREATE TABLE "meeting_action_items" (
         "created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "moodboards" (
+CREATE TABLE IF NOT EXISTS "moodboards" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "project_id" varchar,
         "name" text NOT NULL,
@@ -173,7 +172,7 @@ CREATE TABLE "moodboards" (
         "folder" text
 );
 --> statement-breakpoint
-CREATE TABLE "object_assets" (
+CREATE TABLE IF NOT EXISTS "object_assets" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "object_type" text NOT NULL,
         "original_file_name" text NOT NULL,
@@ -196,7 +195,7 @@ CREATE TABLE "object_assets" (
         "processing_instructions" text
 );
 --> statement-breakpoint
-CREATE TABLE "catalogue_items" (
+CREATE TABLE IF NOT EXISTS "catalogue_items" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "main_category" text NOT NULL,
         "subcategory" text NOT NULL,
@@ -212,7 +211,7 @@ CREATE TABLE "catalogue_items" (
         "org_id" varchar
 );
 --> statement-breakpoint
-CREATE TABLE "projects" (
+CREATE TABLE IF NOT EXISTS "projects" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "project_name" text NOT NULL,
         "client_name" text NOT NULL,
@@ -225,7 +224,7 @@ CREATE TABLE "projects" (
         "org_id" varchar
 );
 --> statement-breakpoint
-CREATE TABLE "project_clients" (
+CREATE TABLE IF NOT EXISTS "project_clients" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "project_id" varchar NOT NULL,
         "client_email" text NOT NULL,
@@ -234,7 +233,7 @@ CREATE TABLE "project_clients" (
         "added_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "project_schedules" (
+CREATE TABLE IF NOT EXISTS "project_schedules" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "project_id" varchar NOT NULL,
         "file_name" text NOT NULL,
@@ -245,7 +244,7 @@ CREATE TABLE "project_schedules" (
         "uploaded_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "vendor_categories" (
+CREATE TABLE IF NOT EXISTS "vendor_categories" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "name" text NOT NULL,
         "parent_id" varchar,
@@ -253,7 +252,7 @@ CREATE TABLE "vendor_categories" (
         "is_active" boolean DEFAULT true NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "quote_templates" (
+CREATE TABLE IF NOT EXISTS "quote_templates" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "name" text NOT NULL,
         "category_id" varchar NOT NULL,
@@ -267,7 +266,7 @@ CREATE TABLE "quote_templates" (
         "original_mime_type" text
 );
 --> statement-breakpoint
-CREATE TABLE "vendors" (
+CREATE TABLE IF NOT EXISTS "vendors" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "name" text NOT NULL,
         "category_id" varchar NOT NULL,
@@ -277,7 +276,7 @@ CREATE TABLE "vendors" (
         "notes" text
 );
 --> statement-breakpoint
-CREATE TABLE "quote_files" (
+CREATE TABLE IF NOT EXISTS "quote_files" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "project_vendor_id" varchar NOT NULL,
         "file_name" text NOT NULL,
@@ -289,7 +288,7 @@ CREATE TABLE "quote_files" (
         "external_file_id" text
 );
 --> statement-breakpoint
-CREATE TABLE "saved_assets" (
+CREATE TABLE IF NOT EXISTS "saved_assets" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "display_name" text NOT NULL,
         "description" text,
@@ -304,7 +303,7 @@ CREATE TABLE "saved_assets" (
         "saved_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "task_alerts" (
+CREATE TABLE IF NOT EXISTS "task_alerts" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "task_id" varchar NOT NULL,
         "user_id" varchar NOT NULL,
@@ -314,7 +313,7 @@ CREATE TABLE "task_alerts" (
         "triggered_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "task_dependencies" (
+CREATE TABLE IF NOT EXISTS "task_dependencies" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "from_task_id" varchar NOT NULL,
         "to_task_id" varchar NOT NULL,
@@ -323,7 +322,7 @@ CREATE TABLE "task_dependencies" (
         "lag" numeric(10, 2) DEFAULT '0'
 );
 --> statement-breakpoint
-CREATE TABLE "user_project_assignments" (
+CREATE TABLE IF NOT EXISTS "user_project_assignments" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "user_id" varchar NOT NULL,
         "project_id" varchar NOT NULL,
@@ -331,7 +330,7 @@ CREATE TABLE "user_project_assignments" (
         "assigned_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "user_roles" (
+CREATE TABLE IF NOT EXISTS "user_roles" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "user_id" varchar NOT NULL,
         "role" text DEFAULT 'client' NOT NULL,
@@ -342,7 +341,7 @@ CREATE TABLE "user_roles" (
         "assigned_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "vendor_contacts" (
+CREATE TABLE IF NOT EXISTS "vendor_contacts" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "vendor_id" varchar NOT NULL,
         "contact_person" text NOT NULL,
@@ -353,7 +352,7 @@ CREATE TABLE "vendor_contacts" (
         "added_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "vendor_invoices" (
+CREATE TABLE IF NOT EXISTS "vendor_invoices" (
         "id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
         "vendor_id" varchar NOT NULL,
         "project_id" varchar,
@@ -366,7 +365,7 @@ CREATE TABLE "vendor_invoices" (
         "attachment_path" text
 );
 --> statement-breakpoint
-CREATE TABLE "vendor_payments" (
+CREATE TABLE IF NOT EXISTS "vendor_payments" (
         "id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
         "vendor_id" varchar NOT NULL,
         "payment_date" date NOT NULL,
@@ -379,7 +378,7 @@ CREATE TABLE "vendor_payments" (
         "attachment_path" text
 );
 --> statement-breakpoint
-CREATE TABLE "works_order_documents" (
+CREATE TABLE IF NOT EXISTS "works_order_documents" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "works_order_id" varchar,
         "document_type" text NOT NULL,
@@ -392,7 +391,7 @@ CREATE TABLE "works_order_documents" (
         "uploaded_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "works_orders" (
+CREATE TABLE IF NOT EXISTS "works_orders" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "project_vendor_id" varchar NOT NULL,
         "quote_file_id" varchar,
@@ -421,7 +420,7 @@ CREATE TABLE "works_orders" (
         CONSTRAINT "works_orders_order_number_unique" UNIQUE("order_number")
 );
 --> statement-breakpoint
-CREATE TABLE "works_order_files" (
+CREATE TABLE IF NOT EXISTS "works_order_files" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "works_order_id" varchar NOT NULL,
         "file_name" text NOT NULL,
@@ -432,7 +431,7 @@ CREATE TABLE "works_order_files" (
         "uploaded_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "works_order_items" (
+CREATE TABLE IF NOT EXISTS "works_order_items" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "works_order_id" varchar NOT NULL,
         "description" text NOT NULL,
@@ -448,7 +447,7 @@ CREATE TABLE "works_order_items" (
         "sort_order" numeric(10, 0) DEFAULT '0' NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "works_order_signatures" (
+CREATE TABLE IF NOT EXISTS "works_order_signatures" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "works_order_id" varchar NOT NULL,
         "signer_id" varchar,
@@ -462,7 +461,7 @@ CREATE TABLE "works_order_signatures" (
         "signed_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "works_order_templates" (
+CREATE TABLE IF NOT EXISTS "works_order_templates" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "name" text NOT NULL,
         "category_id" varchar,
@@ -477,7 +476,7 @@ CREATE TABLE "works_order_templates" (
         "updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "tasks" (
+CREATE TABLE IF NOT EXISTS "tasks" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "project_id" varchar NOT NULL,
         "name" text NOT NULL,
@@ -511,7 +510,7 @@ CREATE TABLE "tasks" (
         "deadline_history" jsonb DEFAULT '[]'::jsonb
 );
 --> statement-breakpoint
-CREATE TABLE "sops" (
+CREATE TABLE IF NOT EXISTS "sops" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "title" text NOT NULL,
         "category" text NOT NULL,
@@ -524,7 +523,7 @@ CREATE TABLE "sops" (
         "updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "invitations" (
+CREATE TABLE IF NOT EXISTS "invitations" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "org_id" varchar NOT NULL,
         "email" text NOT NULL,
@@ -537,7 +536,7 @@ CREATE TABLE "invitations" (
         CONSTRAINT "invitations_token_key" UNIQUE("token")
 );
 --> statement-breakpoint
-CREATE TABLE "users" (
+CREATE TABLE IF NOT EXISTS "users" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "email" text NOT NULL,
         "is_active" boolean DEFAULT true NOT NULL,
@@ -567,7 +566,7 @@ CREATE TABLE "users" (
         CONSTRAINT "users_unsubscribe_token_key" UNIQUE("unsubscribe_token")
 );
 --> statement-breakpoint
-CREATE TABLE "superadmin_audit_log" (
+CREATE TABLE IF NOT EXISTS "superadmin_audit_log" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "super_admin_id" varchar,
         "action" text NOT NULL,
@@ -577,7 +576,7 @@ CREATE TABLE "superadmin_audit_log" (
         "created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "organisations" (
+CREATE TABLE IF NOT EXISTS "organisations" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "name" text NOT NULL,
         "slug" varchar NOT NULL,
@@ -653,30 +652,29 @@ ALTER TABLE "sops" ADD CONSTRAINT "sops_created_by_fkey" FOREIGN KEY ("created_b
 ALTER TABLE "superadmin_audit_log" ADD CONSTRAINT "superadmin_audit_log_super_admin_id_fkey" FOREIGN KEY ("super_admin_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "superadmin_audit_log" ADD CONSTRAINT "superadmin_audit_log_target_org_id_fkey" FOREIGN KEY ("target_org_id") REFERENCES "public"."organisations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "superadmin_audit_log" ADD CONSTRAINT "superadmin_audit_log_target_user_id_fkey" FOREIGN KEY ("target_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "IDX_session_expire" ON "session" USING btree ("expire" timestamp_ops);--> statement-breakpoint
-CREATE INDEX "idx_session_expire" ON "sessions" USING btree ("expire" timestamp_ops);--> statement-breakpoint
-CREATE INDEX "idx_meeting_date" ON "meeting_minutes" USING btree ("meeting_date" date_ops);--> statement-breakpoint
-CREATE INDEX "idx_project_id" ON "meeting_minutes" USING btree ("project_id" text_ops);--> statement-breakpoint
-CREATE INDEX "idx_meeting_action_meeting_id" ON "meeting_action_items" USING btree ("meeting_minutes_id" text_ops);--> statement-breakpoint
-CREATE INDEX "object_assets_status_idx" ON "object_assets" USING btree ("processing_status" text_ops);--> statement-breakpoint
-CREATE INDEX "object_assets_type_idx" ON "object_assets" USING btree ("object_type" text_ops);--> statement-breakpoint
-CREATE INDEX "catalogue_items_org_id_idx" ON "catalogue_items" USING btree ("org_id" text_ops);--> statement-breakpoint
-CREATE INDEX "catalogue_main_category_idx" ON "catalogue_items" USING btree ("main_category" text_ops);--> statement-breakpoint
-CREATE INDEX "projects_org_id_idx" ON "projects" USING btree ("org_id" text_ops);--> statement-breakpoint
-CREATE UNIQUE INDEX "unique_project_client" ON "project_clients" USING btree ("project_id" text_ops,"client_email" text_ops);--> statement-breakpoint
-CREATE INDEX "saved_assets_saved_by_idx" ON "saved_assets" USING btree ("saved_by" text_ops);--> statement-breakpoint
-CREATE INDEX "saved_assets_source_type_idx" ON "saved_assets" USING btree ("source_type" text_ops);--> statement-breakpoint
-CREATE UNIQUE INDEX "unique_user_project" ON "user_project_assignments" USING btree ("user_id" text_ops,"project_id" text_ops);--> statement-breakpoint
-CREATE INDEX "idx_vendor_invoices_project_id" ON "vendor_invoices" USING btree ("project_id" text_ops);--> statement-breakpoint
-CREATE INDEX "idx_vendor_invoices_vendor_id" ON "vendor_invoices" USING btree ("vendor_id" text_ops);--> statement-breakpoint
-CREATE INDEX "idx_vendor_payments_vendor_id" ON "vendor_payments" USING btree ("vendor_id" text_ops);--> statement-breakpoint
-CREATE INDEX "works_order_documents_global_template_idx" ON "works_order_documents" USING btree ("is_global_template" bool_ops);--> statement-breakpoint
-CREATE INDEX "works_order_documents_works_order_idx" ON "works_order_documents" USING btree ("works_order_id" text_ops);--> statement-breakpoint
-CREATE INDEX "works_orders_order_number_idx" ON "works_orders" USING btree ("order_number" text_ops);--> statement-breakpoint
-CREATE INDEX "works_orders_status_idx" ON "works_orders" USING btree ("status" text_ops);--> statement-breakpoint
-CREATE INDEX "works_order_items_order_sort_idx" ON "works_order_items" USING btree ("works_order_id" text_ops,"sort_order" numeric_ops);--> statement-breakpoint
-CREATE INDEX "works_order_templates_category_idx" ON "works_order_templates" USING btree ("category_id" text_ops);--> statement-breakpoint
-CREATE INDEX "sops_category_idx" ON "sops" USING btree ("category" text_ops);--> statement-breakpoint
-CREATE INDEX "superadmin_audit_created_at_idx" ON "superadmin_audit_log" USING btree ("created_at" timestamp_ops);--> statement-breakpoint
-CREATE INDEX "superadmin_audit_super_admin_idx" ON "superadmin_audit_log" USING btree ("super_admin_id" text_ops);
-*/
+CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" USING btree ("expire" timestamp_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_session_expire" ON "sessions" USING btree ("expire" timestamp_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_meeting_date" ON "meeting_minutes" USING btree ("meeting_date" date_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_project_id" ON "meeting_minutes" USING btree ("project_id" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_meeting_action_meeting_id" ON "meeting_action_items" USING btree ("meeting_minutes_id" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "object_assets_status_idx" ON "object_assets" USING btree ("processing_status" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "object_assets_type_idx" ON "object_assets" USING btree ("object_type" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "catalogue_items_org_id_idx" ON "catalogue_items" USING btree ("org_id" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "catalogue_main_category_idx" ON "catalogue_items" USING btree ("main_category" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "projects_org_id_idx" ON "projects" USING btree ("org_id" text_ops);--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "unique_project_client" ON "project_clients" USING btree ("project_id" text_ops,"client_email" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "saved_assets_saved_by_idx" ON "saved_assets" USING btree ("saved_by" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "saved_assets_source_type_idx" ON "saved_assets" USING btree ("source_type" text_ops);--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "unique_user_project" ON "user_project_assignments" USING btree ("user_id" text_ops,"project_id" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_vendor_invoices_project_id" ON "vendor_invoices" USING btree ("project_id" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_vendor_invoices_vendor_id" ON "vendor_invoices" USING btree ("vendor_id" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_vendor_payments_vendor_id" ON "vendor_payments" USING btree ("vendor_id" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "works_order_documents_global_template_idx" ON "works_order_documents" USING btree ("is_global_template" bool_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "works_order_documents_works_order_idx" ON "works_order_documents" USING btree ("works_order_id" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "works_orders_order_number_idx" ON "works_orders" USING btree ("order_number" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "works_orders_status_idx" ON "works_orders" USING btree ("status" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "works_order_items_order_sort_idx" ON "works_order_items" USING btree ("works_order_id" text_ops,"sort_order" numeric_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "works_order_templates_category_idx" ON "works_order_templates" USING btree ("category_id" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "sops_category_idx" ON "sops" USING btree ("category" text_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "superadmin_audit_created_at_idx" ON "superadmin_audit_log" USING btree ("created_at" timestamp_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "superadmin_audit_super_admin_idx" ON "superadmin_audit_log" USING btree ("super_admin_id" text_ops);
