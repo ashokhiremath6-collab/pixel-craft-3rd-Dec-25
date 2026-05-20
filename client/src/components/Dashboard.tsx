@@ -371,8 +371,12 @@ export default function Dashboard({
                   <div
                     key={activity.id}
                     data-testid={`activity-${activity.id}`}
-                    className="flex items-start gap-3 px-4 py-3.5 rounded-[14px] relative"
+                    className={`flex items-start gap-3 px-4 py-3.5 rounded-[14px] relative${navPath ? " cursor-pointer hover-elevate" : ""}`}
                     style={{ background: cfg.accent, border: `1px solid ${cfg.iconBg}` }}
+                    onClick={navPath ? () => handleNavigate(navPath) : undefined}
+                    role={navPath ? "button" : undefined}
+                    tabIndex={navPath ? 0 : undefined}
+                    onKeyDown={navPath ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleNavigate(navPath); } } : undefined}
                   >
                     {/* New indicator dot */}
                     {recent && (
