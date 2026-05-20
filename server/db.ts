@@ -2,6 +2,7 @@ import { Pool, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from "ws";
 import * as schema from "@shared/schema";
+import { AsyncLocalStorage } from "async_hooks";
 
 neonConfig.webSocketConstructor = ws;
 
@@ -33,3 +34,11 @@ pool.on('error', (err) => {
 });
 
 export const db = drizzle({ client: pool, schema });
+
+type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export const txStorage = new AsyncLocalStorage<DbTx>();
+
+export function requestDb(): typeof db | DbTx {
+  return txStorage.getStore() ?? db;
+}
