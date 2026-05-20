@@ -699,23 +699,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // req.user is already the effective user (impersonated or real) thanks to
   // the effective-user middleware registered above.
   app.get('/api/auth/user', isAuthenticated, withRequestOrg, async (req, res) => {
-    // TEMP: tenant-context diagnostic. REMOVE at end of session.
-    (async () => {
-      try {
-        const conn = requestDb();
-        const result = await conn.execute(sql`SELECT current_setting('app.current_org_id', true) AS org_id`);
-        const rows = (result as any).rows ?? result;
-        console.log("[tenant-context-diagnostic]", {
-          route: req.path,
-          userId: (req.user as any)?.id,
-          userOrgId: (req.user as any)?.orgId,
-          orgIdInDb: rows?.[0]?.org_id ?? null,
-          usingTransaction: conn !== db,
-        });
-      } catch (err) {
-        console.error("[tenant-context-diagnostic] failed:", err);
-      }
-    })();
     try {
       const effectiveUser = req.user as { id: string };
       const isImpersonating = !!req.session?.impersonatingUserId;
