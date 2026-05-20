@@ -4,8 +4,7 @@ import express from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import { pool, db, requestDb } from "./db";
-import { withRequestOrg } from "./tenantContext";
+import { pool, db } from "./db";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
@@ -168,41 +167,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If lookup fails, leave req.user unchanged so the super-admin isn't locked out
     }
     next();
-  });
-
-  // TEMP: tenant-context end-to-end smoke test. REMOVE at end of session.
-  // Tests three scenarios:
-  //   1. No req.user                -> setting should be empty/null
-  //   2. req.user with no orgId     -> setting should be empty/null
-  //   3. req.user.orgId set         -> setting should equal that orgId
-  app.get("/api/_test/tenant-context", (req, res, next) => {
-    // Simulate different user states based on a query param so we can test
-    // all three paths without needing a real login.
-    const mode = req.query.mode as string | undefined;
-    if (mode === "no-user") {
-      // leave req.user untouched (unauthenticated)
-    } else if (mode === "no-org") {
-      (req as any).user = { id: "test-user", orgId: null };
-    } else if (mode === "with-org") {
-      (req as any).user = { id: "test-user", orgId: "test-org-abc-123" };
-    }
-    next();
-  }, withRequestOrg, async (req, res) => {
-    try {
-      const conn = requestDb();
-      const result = await conn.execute(sql`SELECT current_setting('app.current_org_id', true) AS org_id`);
-      // The shape of result depends on the driver; we handle both common shapes.
-      const rows = (result as any).rows ?? result;
-      const orgIdSeen = rows?.[0]?.org_id ?? null;
-      res.json({
-        mode: req.query.mode ?? "(default)",
-        reqUser: req.user ?? null,
-        orgIdSeenInDb: orgIdSeen,
-        usingTransaction: conn !== (await import("./db")).db,
-      });
-    } catch (err: any) {
-      res.status(500).json({ error: err?.message ?? String(err) });
-    }
   });
 
   // Object Storage endpoints for permanent file storage
