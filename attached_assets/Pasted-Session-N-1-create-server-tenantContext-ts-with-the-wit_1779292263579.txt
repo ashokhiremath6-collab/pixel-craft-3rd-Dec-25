@@ -1,0 +1,258 @@
+Session N+1: create server/tenantContext.ts with the withRequestOrg middleware, and test it end-to-end against the real database via a temporary test route.
+
+This session has THREE stop points where Replit must pause and report before continuing. They are clearly marked. Do NOT proceed past a stop point until the prior step's output has been shown.
+
+==============================================================
+STEP 1 — Pre-flight (read-only)
+==============================================================
+
+1.1  git status (must show no modified tracked files)
+
+1.2  Confirm server/db.ts has the txStorage and requestDb exports from the previous session:
+       grep -nE "^export (const txStorage|function requestDb)" server/db.ts
+     Expected: two matches.
+
+1.3  Show me the top of server/routes.ts — the imports and the first ~50 lines so I can see how the file is structured. This matters because we'll add a temporary test route to it, and we need to do that in a place that won't conflict with existing middleware chains.
+
+1.4  Confirm Drizzle's sql tag is available:
+       grep -n 'import.*\bsql\b.*drizzle-orm' server/storage.ts server/routes.ts | head -3
+     We need to know what import path to use.
+
+1.5  npm run check 2>&1 | grep -c "error TS"
+     Record baseline error count.
+
+STOP HERE. Show me Step 1's full output. Wait for "proceed to Step 2" before continuing.
+
+==============================================================
+STEP 2 — Create server/tenantContext.ts (DO NOT START UNTIL TOLD)
+==============================================================
+
+Create server/tenantContext.ts with EXACTLY this content. If any import path is wrong for this codebase (e.g. the sql import), STOP and report — do not improvise a fix.
+
+------------------- BEGIN server/tenantContext.ts -------------------
+// server/tenantContext.ts
+// Per-request transaction + AsyncLocalStorage context for tenant isolation.
+//
+// What this does:
+//   For authenticated requests with a known orgId, opens a Drizzle
+//   transaction, sets app.current_org_id as a transaction-local Postgres
+//   setting (via set_config(..., true)), and stores the transaction
+//   client in txStorage so storage methods that call requestDb() see
+//   the transaction-scoped client instead of the module-level db.
+//
+// For unauthenticated requests (or requests where req.user has no
+// orgId), this middleware is a no-op: it calls next() without opening
+// any transaction. That keeps login, signup, public-token endpoints,
+// health checks, etc. behaving exactly as before.
+//
+// This middleware is NOT yet wired into any production route — it is
+// being smoke-tested end-to-end first.
+
+import type { Request, Response, NextFunction } from "express";
+import { sql } from "drizzle-orm";
+import { db, txStorage } from "./db";
+
+export function withRequestOrg(req: Request, res: Response, next: NextFunction): void {
+  const orgId = req.user?.orgId;
+
+  // No org context: pass through with no transaction.
+  if (!orgId) {
+    return next();
+  }
+
+  // We open a transaction, set the session variable, then run next()
+  // inside the AsyncLocalStorage scope. The transaction commits when
+  // the response finishes successfully; it rolls back on error or if
+  // the connection closes before response completion.
+  let settled = false;
+
+  db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
+
+    await new Promise<void>((resolve, reject) => {
+      const finalize = (errored: boolean) => {
+        if (settled) return;
+        settled = true;
+        if (errored) reject(new Error("Request errored — rolling back transaction"));
+        else resolve();
+      };
+
+      // res 'finish' fires after the response is fully sent.
+      // res 'close' fires if the underlying connection closes early.
+      res.on("finish", () => finalize(res.statusCode >= 500));
+      res.on("close", () => {
+        if (!settled) finalize(true);
+      });
+
+      txStorage.run(tx, () => {
+        try {
+          next();
+        } catch (err) {
+          finalize(true);
+        }
+      });
+    });
+  }).catch((err) => {
+    if (!res.headersSent) {
+      next(err);
+    } else {
+      console.error("Request transaction rolled back after response sent:", err);
+    }
+  });
+}
+------------------- END server/tenantContext.ts -------------------
+
+After creating the file:
+  - Show me its full final contents.
+  - Run npm run check 2>&1 | grep -c "error TS" and compare to the Step 1.5 baseline. Expected: same count or one less.
+  - If new errors appear, STOP and paste them back. Do not fix.
+
+STOP HERE. Show me Step 2's output. Wait for "proceed to Step 3" before continuing.
+
+==============================================================
+STEP 3 — Add a TEMPORARY test route to server/routes.ts
+==============================================================
+
+We need to verify that withRequestOrg actually works end-to-end against the real database. We'll add a temporary route that:
+  - Mounts withRequestOrg
+  - Reads back current_setting('app.current_org_id') from inside the request
+  - Returns the value as JSON
+
+This route is for THIS SESSION ONLY. It will be removed at the end.
+
+3.1  Find a sensible spot to add the route. It should:
+       - Be inside the registerRoutes() function (or wherever app.get() routes are registered in this codebase — confirm from Step 1.3 output)
+       - Be ABOVE any catch-all or 404 handler
+       - Be ABOVE any production route registrations to keep things tidy
+
+3.2  Add this import to the top of server/routes.ts if not already present:
+       import { withRequestOrg } from "./tenantContext";
+       import { requestDb } from "./db";
+       import { sql } from "drizzle-orm";    // only if not already imported
+
+3.3  Add this temporary route. Place a clear comment marker so it's easy to find for deletion:
+
+------------------- BEGIN TEMPORARY TEST ROUTE -------------------
+// TEMP: tenant-context end-to-end smoke test. REMOVE at end of session.
+// Tests three scenarios:
+//   1. No req.user                -> setting should be empty/null
+//   2. req.user with no orgId     -> setting should be empty/null
+//   3. req.user.orgId set         -> setting should equal that orgId
+app.get("/api/_test/tenant-context", (req, res, next) => {
+  // Simulate different user states based on a query param so we can test
+  // all three paths without needing a real login.
+  const mode = req.query.mode as string | undefined;
+  if (mode === "no-user") {
+    // leave req.user untouched (unauthenticated)
+  } else if (mode === "no-org") {
+    (req as any).user = { id: "test-user", orgId: null };
+  } else if (mode === "with-org") {
+    (req as any).user = { id: "test-user", orgId: "test-org-abc-123" };
+  }
+  next();
+}, withRequestOrg, async (req, res) => {
+  try {
+    const conn = requestDb();
+    const result = await conn.execute(sql`SELECT current_setting('app.current_org_id', true) AS org_id`);
+    // The shape of result depends on the driver; we handle both common shapes.
+    const rows = (result as any).rows ?? result;
+    const orgIdSeen = rows?.[0]?.org_id ?? null;
+    res.json({
+      mode: req.query.mode ?? "(default)",
+      reqUser: req.user ?? null,
+      orgIdSeenInDb: orgIdSeen,
+      usingTransaction: conn !== (await import("./db")).db,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? String(err) });
+  }
+});
+------------------- END TEMPORARY TEST ROUTE -------------------
+
+3.4  Run npm run check 2>&1 | grep -c "error TS" and compare to baseline.
+
+STOP HERE. Show me Step 3's diff and typecheck result. Wait for "proceed to Step 4" before continuing.
+
+==============================================================
+STEP 4 — Run the smoke test
+==============================================================
+
+4.1  Start the dev server (or note that it's already running via Replit's auto-reload). Confirm it started cleanly with no errors:
+       (whatever command starts the dev server in this Replit, e.g. `npm run dev` if not already running)
+
+4.2  From a separate terminal, hit the test endpoint three times and capture the responses:
+
+       curl -s "http://localhost:5000/api/_test/tenant-context?mode=no-user"
+       curl -s "http://localhost:5000/api/_test/tenant-context?mode=no-org"
+       curl -s "http://localhost:5000/api/_test/tenant-context?mode=with-org"
+
+     (Adjust port if not 5000 — check what port the server actually listens on.)
+
+4.3  Expected results:
+
+     Test 1 (no-user):
+       reqUser: null
+       orgIdSeenInDb: "" or null
+       usingTransaction: false
+
+     Test 2 (no-org):
+       reqUser: { id: "test-user", orgId: null }
+       orgIdSeenInDb: "" or null
+       usingTransaction: false
+
+     Test 3 (with-org):  ← THE IMPORTANT ONE
+       reqUser: { id: "test-user", orgId: "test-org-abc-123" }
+       orgIdSeenInDb: "test-org-abc-123"
+       usingTransaction: true
+
+If Test 3 returns orgIdSeenInDb = "test-org-abc-123" — the entire approach is validated. set_config is working through the Neon serverless driver, the transaction holds the session variable across the storage call, AsyncLocalStorage correctly routes requestDb() to the tx client.
+
+If Test 3 returns something OTHER than "test-org-abc-123" — STOP IMMEDIATELY. Do not delete the test route. Do not modify anything. Report the exact response and we discuss. This is the most important diagnostic of the entire RLS effort.
+
+==============================================================
+STEP 5 — Clean up (only if Step 4 fully passed)
+==============================================================
+
+If and only if all three tests behaved as expected:
+
+5.1  Remove the temporary test route block from server/routes.ts (find by the "TEMP: tenant-context end-to-end smoke test. REMOVE at end of session." comment).
+
+5.2  Decide whether to keep the new imports (withRequestOrg, requestDb, sql) in server/routes.ts. Recommendation: REMOVE them too — they're not used by any other route yet. We'll add them back when we wire withRequestOrg into a real route in a future session.
+
+5.3  Verify:
+       grep -n "tenant-context" server/routes.ts || echo "test route removed (expected)"
+       grep -n "withRequestOrg" server/routes.ts || echo "import removed (expected)"
+
+5.4  Run npm run check 2>&1 | grep -c "error TS" — should be back to the Step 1.5 baseline.
+
+5.5  git status
+     git diff --stat
+     git diff server/tenantContext.ts
+
+     Expected final state:
+       - server/tenantContext.ts: NEW file
+       - server/routes.ts: NO CHANGES (the temporary route was added and removed within the session)
+       - server/db.ts: NO CHANGES (already done last session)
+
+==============================================================
+PASTE BACK
+==============================================================
+
+A consolidated report:
+  1. Step 1 pre-flight output
+  2. Step 2 — file created, typecheck delta, any unexpected errors
+  3. Step 3 — diff of the temporary test route, typecheck delta
+  4. Step 4 — the THREE curl responses verbatim, especially Test 3
+  5. Step 5 — confirmation of cleanup, final git status
+
+==============================================================
+DO NOT IN THIS SESSION
+==============================================================
+  - Wire withRequestOrg into any production route (next session)
+  - Modify any storage method to use requestDb() (much later)
+  - Enable RLS or create any policy
+  - Run any database migration
+  - Touch tenantAuth.ts
+  - Keep the temporary test route after Step 5
+
+If anything during Step 4 doesn't match expectations, STOP and report. Don't keep editing. We discuss first.
