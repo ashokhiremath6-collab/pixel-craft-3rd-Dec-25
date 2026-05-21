@@ -179,7 +179,7 @@ export default function ProjectCostPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [newRowKey, setNewRowKey] = useState(0);
   const { user } = useAuth();
-  const canEdit = user?.role === "admin" || user?.role === "designer";
+  const canEdit = user?.role === "admin" || user?.role === "designer" || user?.role === "project_manager";
   const [, navigate] = useLocation();
 
   const { data: categoriesData = [], isLoading: catLoading } = useQuery<VendorCategory[]>({
