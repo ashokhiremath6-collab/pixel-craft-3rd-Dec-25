@@ -51,19 +51,19 @@ export default function ProjectCostPage() {
     .sort((a, b) => a.name.localeCompare(b.name));
   const allCategories = categoriesData;
 
-  const getTotal = (projectId: string): number => {
+  const getSelectedQuotes = (projectId: string): QuotationData[] => {
     const quotes = quotations[projectId] ?? [];
-    return quotes
-      .filter((q) => isVendorQuote(q) && q.status !== "Rejected")
+    return quotes.filter((q) => isVendorQuote(q) && q.status === "Selected");
+  };
+
+  const getTotal = (projectId: string): number => {
+    return getSelectedQuotes(projectId)
       .reduce((sum, q) => sum + parseFloat(q.quotationValue || "0"), 0);
   };
 
   const getQuotedCategoryCount = (projectId: string): number => {
-    const quotes = quotations[projectId] ?? [];
     const quotedNames = new Set(
-      quotes
-        .filter((q) => isVendorQuote(q) && q.status !== "Rejected")
-        .map((q) => q.category)
+      getSelectedQuotes(projectId).map((q) => q.category)
     );
     return rootCategories.filter((cat) => {
       if (quotedNames.has(cat.name)) return true;
