@@ -2212,6 +2212,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Project Cost Items — custom line items added by designers
+  app.get("/api/project-cost-items/:projectId", requireAuth, async (req, res) => {
+    try {
+      const items = await storage.getProjectCostItems(req.params.projectId);
+      res.json(items);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch project cost items" });
+    }
+  });
+
+  app.post("/api/project-cost-items/:projectId", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const item = await storage.createProjectCostItem({
+        projectId: req.params.projectId,
+        categoryName: req.body.categoryName ?? "",
+        vendorName: req.body.vendorName ?? "",
+        amount: req.body.amount ?? "0",
+        sortOrder: req.body.sortOrder ?? 0,
+        orgId: user.orgId ?? null,
+      });
+      res.json(item);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create project cost item" });
+    }
+  });
+
+  app.put("/api/project-cost-items/:id", requireAuth, async (req, res) => {
+    try {
+      const item = await storage.updateProjectCostItem(req.params.id, {
+        categoryName: req.body.categoryName,
+        vendorName: req.body.vendorName,
+        amount: req.body.amount,
+        sortOrder: req.body.sortOrder,
+      });
+      if (!item) return res.status(404).json({ error: "Item not found" });
+      res.json(item);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update project cost item" });
+    }
+  });
+
+  app.delete("/api/project-cost-items/:id", requireAuth, async (req, res) => {
+    try {
+      const deleted = await storage.deleteProjectCostItem(req.params.id);
+      if (!deleted) return res.status(404).json({ error: "Item not found" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete project cost item" });
+    }
+  });
+
   // Export Project Cost Breakdown as Excel
   app.post("/api/quotations/export-cost-breakdown", requireAuth, async (req, res) => {
     try {

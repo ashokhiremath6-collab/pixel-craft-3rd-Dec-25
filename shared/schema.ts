@@ -1046,5 +1046,25 @@ export const superadminAuditLog = pgTable("superadmin_audit_log", {
 export type SuperadminAuditLog = typeof superadminAuditLog.$inferSelect;
 export type InsertSuperadminAuditLog = typeof superadminAuditLog.$inferInsert;
 
+// Project Cost Items — custom/additional line items added by designer on Project Cost page
+export const projectCostItems = pgTable("project_cost_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  categoryName: text("category_name").notNull().default(""),
+  vendorName: text("vendor_name").notNull().default(""),
+  amount: text("amount").notNull().default("0"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  orgId: varchar("org_id"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertProjectCostItemSchema = createInsertSchema(projectCostItems).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertProjectCostItem = z.infer<typeof insertProjectCostItemSchema>;
+export type ProjectCostItem = typeof projectCostItems.$inferSelect;
+
 // Roles that can read billing status (used by both server and client to stay in sync)
 export const BILLING_VISIBLE_ROLES = ['admin', 'designer', 'project_manager'] as const;

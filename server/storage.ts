@@ -114,6 +114,9 @@ import {
   sops,
   type InsertSop,
   type Sop,
+  projectCostItems,
+  type InsertProjectCostItem,
+  type ProjectCostItem,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -381,6 +384,12 @@ export interface IStorage {
   createSop(sop: InsertSop): Promise<Sop>;
   updateSop(id: string, sop: Partial<InsertSop>): Promise<Sop | undefined>;
   deleteSop(id: string): Promise<boolean>;
+
+  // Project Cost Items
+  getProjectCostItems(projectId: string): Promise<ProjectCostItem[]>;
+  createProjectCostItem(item: InsertProjectCostItem): Promise<ProjectCostItem>;
+  updateProjectCostItem(id: string, item: Partial<InsertProjectCostItem>): Promise<ProjectCostItem | undefined>;
+  deleteProjectCostItem(id: string): Promise<boolean>;
   
   // Saved Assets
   getAllSavedAssets(): Promise<SavedAsset[]>;
@@ -3442,6 +3451,28 @@ export class DBStorage implements IStorage {
 
   async deleteSop(id: string): Promise<boolean> {
     const result = await db.delete(sops).where(eq(sops.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Project Cost Items
+  async getProjectCostItems(projectId: string): Promise<ProjectCostItem[]> {
+    return await db.select().from(projectCostItems)
+      .where(eq(projectCostItems.projectId, projectId))
+      .orderBy(asc(projectCostItems.sortOrder), asc(projectCostItems.createdAt));
+  }
+
+  async createProjectCostItem(item: InsertProjectCostItem): Promise<ProjectCostItem> {
+    const result = await db.insert(projectCostItems).values(item).returning();
+    return result[0];
+  }
+
+  async updateProjectCostItem(id: string, item: Partial<InsertProjectCostItem>): Promise<ProjectCostItem | undefined> {
+    const result = await db.update(projectCostItems).set(item).where(eq(projectCostItems.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteProjectCostItem(id: string): Promise<boolean> {
+    const result = await db.delete(projectCostItems).where(eq(projectCostItems.id, id));
     return result.rowCount !== null && result.rowCount > 0;
   }
 

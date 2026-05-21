@@ -1,11 +1,13 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useRef } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { VendorCategory, Project } from "@shared/schema";
+import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import type { VendorCategory, Project, ProjectCostItem } from "@shared/schema";
 import { formatCurrencyCompact } from "@/lib/currencyUtils";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 
 interface QuotationData {
   id: string;
@@ -29,8 +31,144 @@ interface QuotationsResponse {
 const isVendorQuote = (q: QuotationData) =>
   q.unitRateSubtype === null || q.unitRateSubtype === undefined;
 
+interface EditableRowProps {
+  item: ProjectCostItem;
+  onSave: (id: string, fields: Partial<ProjectCostItem>) => void;
+  onDelete: (id: string) => void;
+  canEdit: boolean;
+}
+
+function SavedItemRow({ item, onSave, onDelete, canEdit }: EditableRowProps) {
+  const [category, setCategory] = useState(item.categoryName);
+  const [vendor, setVendor] = useState(item.vendorName);
+  const [amount, setAmount] = useState(item.amount);
+
+  const handleBlur = () => {
+    if (
+      category !== item.categoryName ||
+      vendor !== item.vendorName ||
+      amount !== item.amount
+    ) {
+      onSave(item.id, { categoryName: category, vendorName: vendor, amount });
+    }
+  };
+
+  return (
+    <tr className="border-b last:border-b-0 hover:bg-muted/20 group">
+      <td className="px-3 py-1.5 text-muted-foreground text-xs align-middle">
+        {canEdit && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6 opacity-0 group-hover:opacity-100"
+            onClick={() => onDelete(item.id)}
+          >
+            <Trash2 className="h-3 w-3 text-destructive" />
+          </Button>
+        )}
+      </td>
+      <td className="px-1 py-1.5 align-middle">
+        {canEdit ? (
+          <input
+            className="w-full bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm font-medium"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            onBlur={handleBlur}
+          />
+        ) : (
+          <span className="px-2 text-sm font-medium">{category}</span>
+        )}
+      </td>
+      <td className="px-1 py-1.5 align-middle">
+        {canEdit ? (
+          <input
+            className="w-full bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm text-muted-foreground"
+            value={vendor}
+            placeholder="Vendor name"
+            onChange={(e) => setVendor(e.target.value)}
+            onBlur={handleBlur}
+          />
+        ) : (
+          <span className="px-2 text-sm text-muted-foreground">{vendor || "—"}</span>
+        )}
+      </td>
+      <td className="px-1 py-1.5 align-middle text-right">
+        {canEdit ? (
+          <input
+            className="w-full bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm font-medium tabular-nums text-right"
+            value={amount}
+            placeholder="0"
+            onChange={(e) => setAmount(e.target.value)}
+            onBlur={handleBlur}
+          />
+        ) : (
+          <span className="px-2 text-sm font-medium tabular-nums">
+            {parseFloat(amount) > 0 ? formatCurrencyCompact(amount) : "—"}
+          </span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+interface NewItemRowProps {
+  onCommit: (fields: { categoryName: string; vendorName: string; amount: string }) => void;
+  rowKey: number;
+}
+
+function NewItemRow({ onCommit, rowKey }: NewItemRowProps) {
+  const [category, setCategory] = useState("");
+  const [vendor, setVendor] = useState("");
+  const [amount, setAmount] = useState("");
+  const committed = useRef(false);
+
+  const handleBlur = () => {
+    if (committed.current) return;
+    if (category.trim()) {
+      committed.current = true;
+      onCommit({ categoryName: category.trim(), vendorName: vendor.trim(), amount: amount.trim() || "0" });
+    }
+  };
+
+  return (
+    <tr key={rowKey} className="border-b last:border-b-0 hover:bg-muted/20">
+      <td className="px-3 py-1.5 align-middle" />
+      <td className="px-1 py-1.5 align-middle">
+        <input
+          className="w-full bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm font-medium placeholder:text-muted-foreground/40 placeholder:italic"
+          placeholder="Your category name here"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          onBlur={handleBlur}
+        />
+      </td>
+      <td className="px-1 py-1.5 align-middle">
+        <input
+          className="w-full bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm text-muted-foreground placeholder:text-muted-foreground/40"
+          placeholder="Vendor name"
+          value={vendor}
+          onChange={(e) => setVendor(e.target.value)}
+          onBlur={handleBlur}
+        />
+      </td>
+      <td className="px-1 py-1.5 align-middle text-right">
+        <input
+          className="w-full bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm font-medium tabular-nums text-right placeholder:text-muted-foreground/40"
+          placeholder="0"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          onBlur={handleBlur}
+        />
+      </td>
+    </tr>
+  );
+}
+
 export default function ProjectCostPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [newRowKey, setNewRowKey] = useState(0);
+  const { user } = useAuth();
+  const canEdit = user?.role === "admin" || user?.role === "designer";
 
   const { data: categoriesData = [], isLoading: catLoading } = useQuery<VendorCategory[]>({
     queryKey: ["/api/vendor-categories/tree"],
@@ -40,6 +178,36 @@ export default function ProjectCostPage() {
     queryKey: ["/api/quotations"],
     staleTime: 0,
     refetchOnMount: "always",
+  });
+
+  const { data: customItems = [], isLoading: customLoading } = useQuery<ProjectCostItem[]>({
+    queryKey: ["/api/project-cost-items", selectedProjectId],
+    enabled: !!selectedProjectId,
+    staleTime: 0,
+  });
+
+  const createItemMutation = useMutation({
+    mutationFn: (fields: { categoryName: string; vendorName: string; amount: string }) =>
+      apiRequest("POST", `/api/project-cost-items/${selectedProjectId}`, fields),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-cost-items", selectedProjectId] });
+      setNewRowKey((k) => k + 1);
+    },
+  });
+
+  const updateItemMutation = useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: Partial<ProjectCostItem> }) =>
+      apiRequest("PUT", `/api/project-cost-items/${id}`, fields),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-cost-items", selectedProjectId] });
+    },
+  });
+
+  const deleteItemMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/project-cost-items/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-cost-items", selectedProjectId] });
+    },
   });
 
   const isLoading = catLoading || quotLoading;
@@ -111,7 +279,10 @@ export default function ProjectCostPage() {
       return { cat, catQuotes, catTotal, vendorNames, idx: idx + 1 };
     });
 
-    const total = rows.reduce((sum, r) => sum + r.catTotal, 0);
+    const quotesTotal = rows.reduce((sum, r) => sum + r.catTotal, 0);
+    const customTotal = customItems.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
+    const total = quotesTotal + customTotal;
+    const startIdx = rows.length + 1;
 
     return (
       <div className="p-6 space-y-4 max-w-4xl">
@@ -166,7 +337,7 @@ export default function ProjectCostPage() {
                 <th className="text-left px-3 py-2.5 font-semibold text-xs uppercase tracking-wide text-muted-foreground">
                   Vendor
                 </th>
-                <th className="text-right px-3 py-2.5 font-semibold text-xs uppercase tracking-wide text-muted-foreground w-32">
+                <th className="text-right px-3 py-2.5 font-semibold text-xs uppercase tracking-wide text-muted-foreground w-36">
                   Amount
                 </th>
               </tr>
@@ -174,9 +345,7 @@ export default function ProjectCostPage() {
             <tbody>
               {rows.map(({ cat, catTotal, vendorNames, idx }) => (
                 <tr key={cat.id} className="border-b last:border-b-0 hover:bg-muted/20">
-                  <td className="px-3 py-2.5 text-muted-foreground text-xs">
-                    {idx}
-                  </td>
+                  <td className="px-3 py-2.5 text-muted-foreground text-xs">{idx}</td>
                   <td className="px-3 py-2.5 font-medium">{cat.name}</td>
                   <td className="px-3 py-2.5 text-muted-foreground">
                     {vendorNames.length > 0 ? vendorNames.join(", ") : (
@@ -190,6 +359,26 @@ export default function ProjectCostPage() {
                   </td>
                 </tr>
               ))}
+
+              {/* Saved custom items */}
+              {!customLoading && customItems.map((item, idx) => (
+                <SavedItemRow
+                  key={item.id}
+                  item={item}
+                  canEdit={canEdit}
+                  onSave={(id, fields) => updateItemMutation.mutate({ id, fields })}
+                  onDelete={(id) => deleteItemMutation.mutate(id)}
+                />
+              ))}
+
+              {/* New editable empty row — only for admin/designer */}
+              {canEdit && (
+                <NewItemRow
+                  key={newRowKey}
+                  rowKey={newRowKey}
+                  onCommit={(fields) => createItemMutation.mutate(fields)}
+                />
+              )}
             </tbody>
             <tfoot>
               <tr className="bg-muted/40 border-t-2">
