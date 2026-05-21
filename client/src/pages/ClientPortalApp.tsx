@@ -33,10 +33,12 @@ import {
   ChevronRight,
   ArrowLeft,
   BrainCircuit,
+  Receipt,
 } from "lucide-react";
 import AIAssistantPage from "@/pages/AIAssistantPage";
 import { format, parseISO } from "date-fns";
-import type { Project, Moodboard, Specification, MeetingMinutes, Task } from "@shared/schema";
+import type { Project, Moodboard, Specification, MeetingMinutes, Task, VendorCategory } from "@shared/schema";
+import { formatCurrencyCompact } from "@/lib/currencyUtils";
 
 interface PortalData {
   project: Project;
@@ -51,6 +53,7 @@ interface PortalData {
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "timeline", label: "Timeline", icon: Clock },
+  { id: "project-cost", label: "Project Cost", icon: Receipt },
   { id: "renders", label: "Renders", icon: Sparkles },
   { id: "moodboards", label: "Moodboards", icon: Image },
   { id: "drawings", label: "Working Drawings", icon: PenTool },
@@ -504,6 +507,141 @@ function MinutesSection({ items }: { items: MeetingMinutes[] }) {
   );
 }
 
+// ── PROJECT COST ──────────────────────────────────────────────────────────────
+interface CostQuotation {
+  id: string;
+  vendorName: string;
+  category: string;
+  quotationValue: string | null | undefined;
+  status: "Quoted" | "Selected" | "Rejected";
+  unitRateSubtype?: string | null;
+}
+
+function ProjectCostSection({
+  projectId,
+  categories,
+  quotations,
+}: {
+  projectId: string;
+  categories: VendorCategory[];
+  quotations: CostQuotation[];
+}) {
+  const rootCategories = [...categories]
+    .filter((c) => !c.parentId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const vendorQuotes = quotations.filter(
+    (q) => (q.unitRateSubtype === null || q.unitRateSubtype === undefined) && q.status !== "Rejected"
+  );
+
+  const total = vendorQuotes.reduce(
+    (sum, q) => sum + parseFloat(q.quotationValue || "0"),
+    0
+  );
+
+  const quotedCatNames = new Set(vendorQuotes.map((q) => q.category));
+  const quotedCount = rootCategories.filter((cat) => {
+    if (quotedCatNames.has(cat.name)) return true;
+    return categories
+      .filter((c) => c.parentId === cat.id)
+      .some((child) => quotedCatNames.has(child.name));
+  }).length;
+
+  const getBest = (catName: string): CostQuotation | null => {
+    const matching = vendorQuotes.filter((q) => q.category === catName);
+    if (matching.length === 0) return null;
+    return matching.find((q) => q.status === "Selected") ?? matching[0];
+  };
+
+  return (
+    <div className="space-y-4 max-w-3xl">
+      <div className="grid grid-cols-2 gap-3">
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground mb-1">Total quoted</p>
+            <p className="text-base font-semibold">
+              {total > 0 ? formatCurrencyCompact(total) : "—"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground mb-1">Categories covered</p>
+            <p className="text-base font-semibold">
+              {quotedCount}{" "}
+              <span className="text-sm font-normal text-muted-foreground">
+                / {rootCategories.length}
+              </span>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="h-1 bg-muted rounded-full overflow-hidden">
+        <div
+          className="h-full bg-primary rounded-full"
+          style={{
+            width: `${rootCategories.length > 0 ? (quotedCount / rootCategories.length) * 100 : 0}%`,
+          }}
+        />
+      </div>
+
+      <Card>
+        <CardHeader className="pb-2 pt-4">
+          <CardTitle className="text-sm">All Categories</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y">
+            {rootCategories.map((cat) => {
+              const quote = getBest(cat.name);
+              const childQuote =
+                categories
+                  .filter((c) => c.parentId === cat.id)
+                  .map((child) => getBest(child.name))
+                  .find(Boolean) ?? null;
+              const displayQuote = quote ?? childQuote;
+
+              return (
+                <div
+                  key={cat.id}
+                  className="flex items-center justify-between px-4 py-2.5 gap-4"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {displayQuote ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                    ) : (
+                      <Circle className="h-4 w-4 text-muted-foreground/30 shrink-0" />
+                    )}
+                    <span className="text-sm truncate">{cat.name}</span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {displayQuote ? (
+                      <>
+                        <span className="text-sm text-muted-foreground max-w-[140px] truncate text-right">
+                          {displayQuote.vendorName}
+                        </span>
+                        <span className="text-sm font-medium tabular-nums w-20 text-right">
+                          {displayQuote.quotationValue
+                            ? formatCurrencyCompact(displayQuote.quotationValue)
+                            : "—"}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted-foreground/50 italic">
+                        No quote yet
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ── EMPTY STATE ───────────────────────────────────────────────────────────────
 function EmptyState({
   icon: Icon,
@@ -556,6 +694,20 @@ export default function ClientPortalApp({
     enabled: !!effectiveProjectId,
     staleTime: 2 * 60 * 1000,
   });
+
+  const { data: costCategories = [] } = useQuery<VendorCategory[]>({
+    queryKey: ["/api/vendor-categories/tree"],
+    enabled: activeTab === "project-cost",
+  });
+
+  const { data: costQuotationsData } = useQuery<{ projects: Project[]; quotations: Record<string, CostQuotation[]> }>({
+    queryKey: ["/api/quotations"],
+    enabled: activeTab === "project-cost" && !!effectiveProjectId,
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+
+  const costQuotations = costQuotationsData?.quotations?.[effectiveProjectId] ?? [];
 
   const selectedProject = portalData?.project || projects.find(p => p.id === effectiveProjectId);
 
@@ -690,6 +842,13 @@ export default function ClientPortalApp({
             )}
             {activeTab === "timeline" && (
               <TimelineSection tasks={portalData?.tasks || []} />
+            )}
+            {activeTab === "project-cost" && (
+              <ProjectCostSection
+                projectId={effectiveProjectId}
+                categories={costCategories}
+                quotations={costQuotations}
+              />
             )}
             {activeTab === "renders" && (
               <MediaSection title="Renders" items={portalData?.renders || []} />
