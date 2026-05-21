@@ -542,26 +542,23 @@ function ProjectCostSection({
       .some((child) => quotedCatNames.has(child.name));
   }).length;
 
-  const getBest = (catName: string): CostQuotation | null => {
-    return vendorQuotes.find(
-      (q) => q.category === catName && q.status === "Selected"
-    ) ?? null;
+  const getQuotesForCat = (cat: VendorCategory): CostQuotation[] => {
+    const childNames = new Set(
+      categories.filter((c) => c.parentId === cat.id).map((c) => c.name)
+    );
+    return vendorQuotes.filter(
+      (q) => q.status === "Selected" && (q.category === cat.name || childNames.has(q.category))
+    );
   };
 
   const rows = rootCategories.map((cat, idx) => {
-    const quote = getBest(cat.name);
-    const childQuote =
-      categories
-        .filter((c) => c.parentId === cat.id)
-        .map((child) => getBest(child.name))
-        .find(Boolean) ?? null;
-    return { cat, displayQuote: quote ?? childQuote, idx: idx + 1 };
+    const catQuotes = getQuotesForCat(cat);
+    const catTotal = catQuotes.reduce((s, q) => s + parseFloat(q.quotationValue || "0"), 0);
+    const vendorNames = [...new Set(catQuotes.map((q) => q.vendorName))];
+    return { cat, catQuotes, catTotal, vendorNames, idx: idx + 1 };
   });
 
-  const total = rows.reduce(
-    (sum, { displayQuote }) => sum + parseFloat(displayQuote?.quotationValue || "0"),
-    0
-  );
+  const total = rows.reduce((sum, r) => sum + r.catTotal, 0);
 
   return (
     <div className="space-y-4 max-w-4xl">
@@ -604,18 +601,18 @@ function ProjectCostSection({
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ cat, displayQuote, idx }) => (
+            {rows.map(({ cat, catTotal, vendorNames, idx }) => (
               <tr key={cat.id} className="border-b last:border-b-0 hover:bg-muted/20">
                 <td className="px-3 py-2.5 text-muted-foreground text-xs">{idx}</td>
                 <td className="px-3 py-2.5 font-medium">{cat.name}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">
-                  {displayQuote ? displayQuote.vendorName : (
+                  {vendorNames.length > 0 ? vendorNames.join(", ") : (
                     <span className="italic text-muted-foreground/50 text-xs">No quote yet</span>
                   )}
                 </td>
                 <td className="px-3 py-2.5 text-right tabular-nums font-medium">
-                  {displayQuote?.quotationValue
-                    ? formatCurrencyCompact(displayQuote.quotationValue)
+                  {catTotal > 0
+                    ? formatCurrencyCompact(catTotal)
                     : <span className="text-muted-foreground/40">—</span>}
                 </td>
               </tr>

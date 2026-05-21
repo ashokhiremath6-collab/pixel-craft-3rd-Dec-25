@@ -72,14 +72,20 @@ export default function ProjectCostPage() {
     }).length;
   };
 
-  const getBestQuoteForCategory = (
+  const getSelectedQuotesForCategory = (
     projectId: string,
-    catName: string
-  ): QuotationData | null => {
+    cat: VendorCategory
+  ): QuotationData[] => {
     const quotes = quotations[projectId] ?? [];
-    return quotes.find(
-      (q) => isVendorQuote(q) && q.category === catName && q.status === "Selected"
-    ) ?? null;
+    const childNames = new Set(
+      allCategories.filter((c) => c.parentId === cat.id).map((c) => c.name)
+    );
+    return quotes.filter(
+      (q) =>
+        isVendorQuote(q) &&
+        q.status === "Selected" &&
+        (q.category === cat.name || childNames.has(q.category))
+    );
   };
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
@@ -96,20 +102,16 @@ export default function ProjectCostPage() {
     const quotedCount = getQuotedCategoryCount(selectedProjectId);
 
     const rows = rootCategories.map((cat, idx) => {
-      const quote = getBestQuoteForCategory(selectedProjectId, cat.name);
-      const childCategories = allCategories.filter((c) => c.parentId === cat.id);
-      const childQuote =
-        childCategories
-          .map((child) => getBestQuoteForCategory(selectedProjectId, child.name))
-          .find(Boolean) ?? null;
-      const displayQuote = quote ?? childQuote;
-      return { cat, displayQuote, idx: idx + 1 };
+      const catQuotes = getSelectedQuotesForCategory(selectedProjectId, cat);
+      const catTotal = catQuotes.reduce(
+        (s, q) => s + parseFloat(q.quotationValue || "0"),
+        0
+      );
+      const vendorNames = [...new Set(catQuotes.map((q) => q.vendorName))];
+      return { cat, catQuotes, catTotal, vendorNames, idx: idx + 1 };
     });
 
-    const total = rows.reduce(
-      (sum, { displayQuote }) => sum + parseFloat(displayQuote?.quotationValue || "0"),
-      0
-    );
+    const total = rows.reduce((sum, r) => sum + r.catTotal, 0);
 
     return (
       <div className="p-6 space-y-4 max-w-4xl">
@@ -170,20 +172,20 @@ export default function ProjectCostPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ cat, displayQuote, idx }) => (
+              {rows.map(({ cat, catTotal, vendorNames, idx }) => (
                 <tr key={cat.id} className="border-b last:border-b-0 hover:bg-muted/20">
                   <td className="px-3 py-2.5 text-muted-foreground text-xs">
                     {idx}
                   </td>
                   <td className="px-3 py-2.5 font-medium">{cat.name}</td>
                   <td className="px-3 py-2.5 text-muted-foreground">
-                    {displayQuote ? displayQuote.vendorName : (
+                    {vendorNames.length > 0 ? vendorNames.join(", ") : (
                       <span className="italic text-muted-foreground/50 text-xs">No quote yet</span>
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-medium">
-                    {displayQuote?.quotationValue
-                      ? formatCurrencyCompact(displayQuote.quotationValue)
+                    {catTotal > 0
+                      ? formatCurrencyCompact(catTotal)
                       : <span className="text-muted-foreground/40">—</span>}
                   </td>
                 </tr>
