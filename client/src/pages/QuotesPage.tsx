@@ -2,6 +2,7 @@ import ComparativeQuotes from '@/components/ComparativeQuotes';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useSearch } from 'wouter';
 import type { VendorCategory, Project } from '@shared/schema';
 
 interface QuotationsResponse {
@@ -12,6 +13,10 @@ interface QuotationsResponse {
 export default function QuotesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const initialProject = params.get("project") ?? undefined;
+  const initialCategory = params.get("category") ?? undefined;
 
   // Fetch vendor categories for hierarchical filtering
   const { data: categories = [] } = useQuery({
@@ -104,6 +109,8 @@ export default function QuotesPage() {
       categories={categories as VendorCategory[]}
       quotations={filteredQuotations}
       onStatusChange={handleStatusChange}
+      initialProject={initialProject}
+      initialCategory={initialCategory}
     />
   );
 }

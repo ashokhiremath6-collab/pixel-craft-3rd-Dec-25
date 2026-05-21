@@ -54,11 +54,13 @@ interface ComparativeQuotesProps {
   quotations: Record<string, QuotationData[]>; // projectId -> quotations
   onStatusChange?: (quotationId: string, status: "Quoted" | "Selected" | "Rejected") => void;
   hideValueColumns?: boolean; // Hide quote value and variance columns
+  initialProject?: string;
+  initialCategory?: string;
 }
 
-export default function ComparativeQuotes({ projects, categories, quotations, onStatusChange, hideValueColumns = false }: ComparativeQuotesProps) {
-  const [selectedProject, setSelectedProject] = useState<string>("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+export default function ComparativeQuotes({ projects, categories, quotations, onStatusChange, hideValueColumns = false, initialProject, initialCategory }: ComparativeQuotesProps) {
+  const [selectedProject, setSelectedProject] = useState<string>(initialProject ?? "");
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory ?? "all");
   const [isExporting, setIsExporting] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);

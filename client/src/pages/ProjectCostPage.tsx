@@ -8,6 +8,7 @@ import type { VendorCategory, Project, ProjectCostItem } from "@shared/schema";
 import { formatCurrencyCompact } from "@/lib/currencyUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "wouter";
 
 interface QuotationData {
   id: string;
@@ -169,6 +170,7 @@ export default function ProjectCostPage() {
   const [newRowKey, setNewRowKey] = useState(0);
   const { user } = useAuth();
   const canEdit = user?.role === "admin" || user?.role === "designer";
+  const [, navigate] = useLocation();
 
   const { data: categoriesData = [], isLoading: catLoading } = useQuery<VendorCategory[]>({
     queryKey: ["/api/vendor-categories/tree"],
@@ -343,22 +345,29 @@ export default function ProjectCostPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ cat, catTotal, vendorNames, idx }) => (
-                <tr key={cat.id} className="border-b last:border-b-0 hover:bg-muted/20">
-                  <td className="px-3 py-2.5 text-muted-foreground text-xs">{idx}</td>
-                  <td className="px-3 py-2.5 font-medium">{cat.name}</td>
-                  <td className="px-3 py-2.5 text-muted-foreground">
-                    {vendorNames.length > 0 ? vendorNames.join(", ") : (
-                      <span className="italic text-muted-foreground/50 text-xs">No quote yet</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums font-medium">
-                    {catTotal > 0
-                      ? formatCurrencyCompact(catTotal)
-                      : <span className="text-muted-foreground/40">—</span>}
-                  </td>
-                </tr>
-              ))}
+              {rows.map(({ cat, catTotal, vendorNames, idx }) => {
+                const hasQuote = catTotal > 0;
+                return (
+                  <tr
+                    key={cat.id}
+                    className={`border-b last:border-b-0 hover:bg-muted/20 ${hasQuote ? "cursor-pointer" : ""}`}
+                    onClick={hasQuote ? () => navigate(`/quotes?project=${selectedProjectId}&category=${cat.id}`) : undefined}
+                  >
+                    <td className="px-3 py-2.5 text-muted-foreground text-xs">{idx}</td>
+                    <td className="px-3 py-2.5 font-medium">{cat.name}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground">
+                      {vendorNames.length > 0 ? vendorNames.join(", ") : (
+                        <span className="italic text-muted-foreground/50 text-xs">No quote yet</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums font-medium">
+                      {hasQuote
+                        ? <span className="underline decoration-dotted underline-offset-2">{formatCurrencyCompact(catTotal)}</span>
+                        : <span className="text-muted-foreground/40">—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
 
               {/* Saved custom items */}
               {!customLoading && customItems.map((item, idx) => (
