@@ -95,7 +95,6 @@ export default function ProjectCostPage() {
   }
 
   if (selectedProjectId && selectedProject) {
-    const total = getTotal(selectedProjectId);
     const quotedCount = getQuotedCategoryCount(selectedProjectId);
 
     const rows = rootCategories.map((cat, idx) => {
@@ -108,6 +107,11 @@ export default function ProjectCostPage() {
       const displayQuote = quote ?? childQuote;
       return { cat, displayQuote, idx: idx + 1 };
     });
+
+    const total = rows.reduce(
+      (sum, { displayQuote }) => sum + parseFloat(displayQuote?.quotationValue || "0"),
+      0
+    );
 
     return (
       <div className="p-6 space-y-4 max-w-4xl">

@@ -534,11 +534,6 @@ function ProjectCostSection({
     (q) => (q.unitRateSubtype === null || q.unitRateSubtype === undefined) && q.status !== "Rejected"
   );
 
-  const total = vendorQuotes.reduce(
-    (sum, q) => sum + parseFloat(q.quotationValue || "0"),
-    0
-  );
-
   const quotedCatNames = new Set(vendorQuotes.map((q) => q.category));
   const quotedCount = rootCategories.filter((cat) => {
     if (quotedCatNames.has(cat.name)) return true;
@@ -562,6 +557,11 @@ function ProjectCostSection({
         .find(Boolean) ?? null;
     return { cat, displayQuote: quote ?? childQuote, idx: idx + 1 };
   });
+
+  const total = rows.reduce(
+    (sum, { displayQuote }) => sum + parseFloat(displayQuote?.quotationValue || "0"),
+    0
+  );
 
   return (
     <div className="space-y-4 max-w-4xl">
