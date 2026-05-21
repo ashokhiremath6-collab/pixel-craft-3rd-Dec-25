@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, CheckCircle2, Circle } from "lucide-react";
 import type { VendorCategory, Project } from "@shared/schema";
@@ -186,16 +185,6 @@ export default function ProjectCostPage() {
                               ? formatCurrencyCompact(displayQuote.quotationValue)
                               : "—"}
                           </span>
-                          <Badge
-                            variant={
-                              displayQuote.status === "Selected"
-                                ? "default"
-                                : "secondary"
-                            }
-                            className="text-xs"
-                          >
-                            {displayQuote.status}
-                          </Badge>
                         </>
                       ) : (
                         <span className="text-xs text-muted-foreground/50 italic">
