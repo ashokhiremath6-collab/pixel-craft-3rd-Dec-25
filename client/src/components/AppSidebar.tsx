@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -24,6 +24,7 @@ interface NavigationItem {
 const mainItems: NavigationItem[] = [
   { title: "Dashboard", url: "/", icon: Home },
   { title: "Projects", url: "/projects", icon: Building2 },
+  { title: "Project Cost", url: "/project-cost", icon: Receipt },
   { title: "Project scheduling", url: "/gantt-chart", icon: GanttChart },
   { title: "Moodboards", url: "/moodboards", icon: ImageIcon },
   { title: "Renders", url: "/renders", icon: Sparkles },

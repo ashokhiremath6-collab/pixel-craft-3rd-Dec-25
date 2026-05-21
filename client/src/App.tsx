@@ -31,6 +31,7 @@ import MeetingMinutesPage from "@/pages/MeetingMinutesPage";
 import WorksOrdersPage from "@/pages/WorksOrdersPage";
 import ClientPortalApp from "@/pages/ClientPortalApp";
 import AIRendersPage from "@/pages/AIRendersPage";
+import ProjectCostPage from "@/pages/ProjectCostPage";
 import AssetIngestionPage from "@/pages/AssetIngestionPage";
 import AIAssistantPage from "@/pages/AIAssistantPage";
 import LoginPage from "@/pages/LoginPage";
@@ -64,6 +65,7 @@ function Router() {
     <Switch>
       <Route path="/" component={DashboardPage} />
       <Route path="/projects" component={ProjectsPage} />
+      <Route path="/project-cost" component={ProjectCostPage} />
       <Route path="/gantt-chart" component={GanttChartPage} />
       <Route path="/gantt" component={GanttChartPage} />
       <Route path="/schedule" component={GanttChartPage} />
