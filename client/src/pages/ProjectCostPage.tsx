@@ -43,8 +43,10 @@ function SavedItemRow({ item, onSave, onDelete, canEdit }: EditableRowProps) {
   const [category, setCategory] = useState(item.categoryName);
   const [vendor, setVendor] = useState(item.vendorName);
   const [amount, setAmount] = useState(item.amount);
+  const [amountFocused, setAmountFocused] = useState(false);
 
   const handleBlur = () => {
+    setAmountFocused(false);
     if (
       category !== item.categoryName ||
       vendor !== item.vendorName ||
@@ -55,13 +57,13 @@ function SavedItemRow({ item, onSave, onDelete, canEdit }: EditableRowProps) {
   };
 
   return (
-    <tr className="border-b last:border-b-0 hover:bg-muted/20 group">
+    <tr className="border-b last:border-b-0 hover:bg-muted/20">
       <td className="px-3 py-1.5 text-muted-foreground text-xs align-middle">
         {canEdit && (
           <Button
             size="icon"
             variant="ghost"
-            className="h-6 w-6 opacity-0 group-hover:opacity-100"
+            className="h-6 w-6"
             onClick={() => onDelete(item.id)}
           >
             <Trash2 className="h-3 w-3 text-destructive" />
@@ -71,7 +73,7 @@ function SavedItemRow({ item, onSave, onDelete, canEdit }: EditableRowProps) {
       <td className="px-1 py-1.5 align-middle">
         {canEdit ? (
           <input
-            className="w-full bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm font-medium"
+            className="w-full bg-transparent border border-dashed border-transparent hover:border-border focus:border-primary/40 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm font-medium"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             onBlur={handleBlur}
@@ -83,7 +85,7 @@ function SavedItemRow({ item, onSave, onDelete, canEdit }: EditableRowProps) {
       <td className="px-1 py-1.5 align-middle">
         {canEdit ? (
           <input
-            className="w-full bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm text-muted-foreground"
+            className="w-full bg-transparent border border-dashed border-transparent hover:border-border focus:border-primary/40 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm text-muted-foreground"
             value={vendor}
             placeholder="Vendor name"
             onChange={(e) => setVendor(e.target.value)}
@@ -95,13 +97,19 @@ function SavedItemRow({ item, onSave, onDelete, canEdit }: EditableRowProps) {
       </td>
       <td className="px-1 py-1.5 align-middle text-right">
         {canEdit ? (
-          <input
-            className="w-full bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm font-medium tabular-nums text-right"
-            value={amount}
-            placeholder="0"
-            onChange={(e) => setAmount(e.target.value)}
-            onBlur={handleBlur}
-          />
+          <div className="relative flex items-center justify-end">
+            {!amountFocused && (
+              <span className="absolute left-2 text-xs text-muted-foreground pointer-events-none">₹</span>
+            )}
+            <input
+              className="w-full bg-transparent border border-dashed border-transparent hover:border-border focus:border-primary/40 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm font-medium tabular-nums text-right"
+              value={amountFocused ? amount : (parseFloat(amount) > 0 ? formatCurrencyCompact(amount) : "")}
+              placeholder="e.g. 500000"
+              onFocus={() => setAmountFocused(true)}
+              onChange={(e) => setAmount(e.target.value)}
+              onBlur={handleBlur}
+            />
+          </div>
         ) : (
           <span className="px-2 text-sm font-medium tabular-nums">
             {parseFloat(amount) > 0 ? formatCurrencyCompact(amount) : "—"}
@@ -131,13 +139,15 @@ function NewItemRow({ onCommit, rowKey }: NewItemRowProps) {
     }
   };
 
+  const inputCls = "w-full bg-transparent border border-dashed border-border/60 hover:border-border focus:border-primary/40 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm";
+
   return (
     <tr key={rowKey} className="border-b last:border-b-0 hover:bg-muted/20">
       <td className="px-3 py-1.5 align-middle" />
       <td className="px-1 py-1.5 align-middle">
         <input
-          className="w-full bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm font-medium placeholder:text-muted-foreground/40 placeholder:italic"
-          placeholder="Your category name here"
+          className={`${inputCls} font-medium placeholder:text-muted-foreground/40 placeholder:italic`}
+          placeholder="Add a custom line item…"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           onBlur={handleBlur}
@@ -145,7 +155,7 @@ function NewItemRow({ onCommit, rowKey }: NewItemRowProps) {
       </td>
       <td className="px-1 py-1.5 align-middle">
         <input
-          className="w-full bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm text-muted-foreground placeholder:text-muted-foreground/40"
+          className={`${inputCls} text-muted-foreground placeholder:text-muted-foreground/40`}
           placeholder="Vendor name"
           value={vendor}
           onChange={(e) => setVendor(e.target.value)}
@@ -154,8 +164,8 @@ function NewItemRow({ onCommit, rowKey }: NewItemRowProps) {
       </td>
       <td className="px-1 py-1.5 align-middle text-right">
         <input
-          className="w-full bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary/40 rounded px-2 py-1 text-sm font-medium tabular-nums text-right placeholder:text-muted-foreground/40"
-          placeholder="0"
+          className={`${inputCls} tabular-nums text-right font-medium placeholder:text-muted-foreground/40`}
+          placeholder="e.g. 500000"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           onBlur={handleBlur}
