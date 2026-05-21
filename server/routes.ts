@@ -1286,7 +1286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Vendor Categories Routes (protected)
-  app.get("/api/vendor-categories", requireAuth, withRequestOrg, async (req, res) => {
+  app.get("/api/vendor-categories", requireAuth, async (req, res) => {
     try {
       const categories = await storage.getAllVendorCategories();
       res.json(categories);
@@ -1373,7 +1373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Vendors Routes
-  app.get("/api/vendors", requireAuth, withRequestOrg, async (req, res) => {
+  app.get("/api/vendors", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
@@ -1651,7 +1651,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/projects", requireAuth, withRequestOrg, async (req, res) => {
+  app.get("/api/projects", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
@@ -1668,7 +1668,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/projects/:id", requireAuth, withRequestOrg, async (req, res) => {
+  app.get("/api/projects/:id", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
@@ -4617,7 +4617,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==================== MOODBOARDS ROUTES ====================
 
   // Get all moodboards (with optional project and assetType filters)
-  app.get("/api/moodboards", requireAuth, withRequestOrg, async (req, res) => {
+  app.get("/api/moodboards", requireAuth, async (req, res) => {
     try {
       // Prevent browser caching to ensure fresh data after saves
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
