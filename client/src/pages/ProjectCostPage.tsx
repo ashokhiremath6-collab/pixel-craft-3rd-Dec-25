@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { VendorCategory, Project } from "@shared/schema";
 import { formatCurrencyCompact } from "@/lib/currencyUtils";
 
@@ -25,7 +26,6 @@ interface QuotationsResponse {
   quotations: Record<string, QuotationData[]>;
 }
 
-// Only vendor quotes where BOQ × unit rates produced the total — exclude raw unit-rate quotes
 const isVendorQuote = (q: QuotationData) =>
   q.unitRateSubtype === null || q.unitRateSubtype === undefined;
 
@@ -98,8 +98,19 @@ export default function ProjectCostPage() {
     const total = getTotal(selectedProjectId);
     const quotedCount = getQuotedCategoryCount(selectedProjectId);
 
+    const rows = rootCategories.map((cat, idx) => {
+      const quote = getBestQuoteForCategory(selectedProjectId, cat.name);
+      const childCategories = allCategories.filter((c) => c.parentId === cat.id);
+      const childQuote =
+        childCategories
+          .map((child) => getBestQuoteForCategory(selectedProjectId, child.name))
+          .find(Boolean) ?? null;
+      const displayQuote = quote ?? childQuote;
+      return { cat, displayQuote, idx: idx + 1 };
+    });
+
     return (
-      <div className="p-6 max-w-3xl mx-auto space-y-4">
+      <div className="p-6 space-y-4 max-w-4xl">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -118,86 +129,80 @@ export default function ProjectCostPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Card>
-            <CardContent className="pt-4 pb-3">
-              <p className="text-xs text-muted-foreground mb-1">Total quoted</p>
-              <p className="text-base font-semibold">
-                {total > 0 ? formatCurrencyCompact(total) : "—"}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-3">
-              <p className="text-xs text-muted-foreground mb-1">Categories covered</p>
-              <p className="text-base font-semibold">
-                {quotedCount}{" "}
-                <span className="text-sm font-normal text-muted-foreground">
-                  / {rootCategories.length}
-                </span>
-              </p>
-            </CardContent>
-          </Card>
+        <div className="flex items-center justify-between border rounded-md px-4 py-3 bg-muted/30">
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+              Total Project Cost
+            </p>
+            <p className="text-xl font-bold tabular-nums mt-0.5">
+              {total > 0 ? formatCurrencyCompact(total) : "—"}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-muted-foreground">Categories covered</p>
+            <p className="text-sm font-semibold">
+              {quotedCount}{" "}
+              <span className="text-muted-foreground font-normal">
+                / {rootCategories.length}
+              </span>
+            </p>
+          </div>
         </div>
 
-        <Card>
-          <CardHeader className="pb-2 pt-4">
-            <CardTitle className="text-sm">All Categories</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {rootCategories.map((cat) => {
-                const quote = getBestQuoteForCategory(selectedProjectId, cat.name);
-                const childCategories = allCategories.filter(
-                  (c) => c.parentId === cat.id
-                );
-                const childQuote =
-                  childCategories
-                    .map((child) =>
-                      getBestQuoteForCategory(selectedProjectId, child.name)
-                    )
-                    .find(Boolean) ?? null;
-                const displayQuote = quote ?? childQuote;
-                const hasQuote = !!displayQuote;
-
-                return (
-                  <div
-                    key={cat.id}
-                    className="flex items-center justify-between px-4 py-2.5 gap-4"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {hasQuote ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                      ) : (
-                        <Circle className="h-4 w-4 text-muted-foreground/30 shrink-0" />
-                      )}
-                      <span className="text-sm truncate">{cat.name}</span>
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      {displayQuote ? (
-                        <>
-                          <span className="text-sm text-muted-foreground max-w-[150px] truncate text-right">
-                            {displayQuote.vendorName}
-                          </span>
-                          <span className="text-sm font-medium tabular-nums w-20 text-right">
-                            {displayQuote.quotationValue
-                              ? formatCurrencyCompact(displayQuote.quotationValue)
-                              : "—"}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-xs text-muted-foreground/50 italic">
-                          No quote yet
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="border rounded-md overflow-hidden">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-muted/50 border-b">
+                <th className="text-left px-3 py-2.5 font-semibold text-xs uppercase tracking-wide text-muted-foreground w-10">
+                  Sr.
+                </th>
+                <th className="text-left px-3 py-2.5 font-semibold text-xs uppercase tracking-wide text-muted-foreground">
+                  Category
+                </th>
+                <th className="text-left px-3 py-2.5 font-semibold text-xs uppercase tracking-wide text-muted-foreground">
+                  Vendor
+                </th>
+                <th className="text-right px-3 py-2.5 font-semibold text-xs uppercase tracking-wide text-muted-foreground w-32">
+                  Amount
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ cat, displayQuote, idx }) => (
+                <tr key={cat.id} className="border-b last:border-b-0 hover:bg-muted/20">
+                  <td className="px-3 py-2.5 text-muted-foreground text-xs">
+                    {idx}
+                  </td>
+                  <td className="px-3 py-2.5 font-medium">{cat.name}</td>
+                  <td className="px-3 py-2.5 text-muted-foreground">
+                    {displayQuote ? displayQuote.vendorName : (
+                      <span className="italic text-muted-foreground/50 text-xs">No quote yet</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular-nums font-medium">
+                    {displayQuote?.quotationValue
+                      ? formatCurrencyCompact(displayQuote.quotationValue)
+                      : <span className="text-muted-foreground/40">—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-muted/40 border-t-2">
+                <td className="px-3 py-3" />
+                <td
+                  colSpan={2}
+                  className="px-3 py-3 font-bold text-xs uppercase tracking-wide"
+                >
+                  Total Project Cost
+                </td>
+                <td className="px-3 py-3 text-right font-bold tabular-nums">
+                  {total > 0 ? formatCurrencyCompact(total) : "—"}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
     );
   }
@@ -243,7 +248,7 @@ export default function ProjectCostPage() {
                     </div>
                     <div className="flex items-center gap-4 shrink-0">
                       <div className="text-right">
-                        <p className="text-xs text-muted-foreground">Total quoted</p>
+                        <p className="text-xs text-muted-foreground">Total project cost</p>
                         <p className="text-sm font-medium tabular-nums">
                           {total > 0 ? formatCurrencyCompact(total) : "—"}
                         </p>
@@ -273,9 +278,7 @@ export default function ProjectCostPage() {
                     <div
                       className="h-full bg-primary rounded-full"
                       style={{
-                        width: `${
-                          totalCats > 0 ? (quotedCount / totalCats) * 100 : 0
-                        }%`,
+                        width: `${totalCats > 0 ? (quotedCount / totalCats) * 100 : 0}%`,
                       }}
                     />
                   </div>
