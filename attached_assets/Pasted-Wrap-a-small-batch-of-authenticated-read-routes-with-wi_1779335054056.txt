@@ -1,0 +1,143 @@
+Wrap a small batch of authenticated read routes with withRequestOrg, following the same pattern proven on /api/auth/user in the last session.
+
+The middleware is purely additive: it opens a transaction and sets app.current_org_id from req.user.orgId. It does NOT yet enforce filtering — no RLS policy reads the variable yet. So this session's risk is low: the worst plausible outcome is a route slowed slightly by transaction overhead, not a data error.
+
+==============================================================
+SCOPE — read routes only, this session
+==============================================================
+
+Target routes for this session:
+  - GET /api/projects (list projects)
+  - GET /api/projects/:id (project detail)
+  - GET /api/vendors (list vendors)
+  - GET /api/vendor-categories (list vendor categories)
+  - GET /api/moodboards (list moodboards)
+
+These five are:
+  - All authenticated (use isAuthenticated already)
+  - All read-only (no mutation risk)
+  - All called from common screens, so smoke testing is just "use the app"
+
+DO NOT wrap any POST/PATCH/DELETE routes this session.
+DO NOT wrap any route that does not currently use isAuthenticated.
+DO NOT wrap any route that has an unusual middleware chain (custom auth, public token, file upload, etc) — if you encounter one, SKIP it and add it to a "deferred" list with a one-line reason.
+
+==============================================================
+STEP 1 — Pre-flight (read-only)
+==============================================================
+
+1.1  git status (should show no modified tracked files since the last checkpoint)
+
+1.2  Confirm the middleware is still wired on /api/auth/user from last session:
+       grep -n "withRequestOrg" server/routes.ts
+     Expected: 2 matches (import + /api/auth/user route)
+
+1.3  Find each target route. Use grep with word boundaries to avoid false matches:
+       grep -nE "app\.get\(['\"]\\/api\\/projects['\"]" server/routes.ts
+       grep -nE "app\.get\(['\"]\\/api\\/projects/:id['\"]" server/routes.ts
+       grep -nE "app\.get\(['\"]\\/api\\/vendors['\"]" server/routes.ts
+       grep -nE "app\.get\(['\"]\\/api\\/vendor-categories['\"]" server/routes.ts
+       grep -nE "app\.get\(['\"]\\/api\\/moodboards['\"]" server/routes.ts
+
+     For each match found, show 10 lines of context so I can see:
+       - The exact middleware chain (isAuthenticated? requireAdmin? other?)
+       - That the handler is read-only (no res.write or insert/update/delete calls visible)
+
+     If a route is NOT FOUND, or the chain has unexpected middleware, or it's not GET, STOP and report which ones differ from expectation. Do not improvise.
+
+1.4  npm run check 2>&1 | grep -c "error TS"
+     Record baseline.
+
+STOP HERE. Show me Step 1 output. Wait for "proceed to Step 2" before any edits.
+
+==============================================================
+STEP 2 — Wrap each route (DO NOT START UNTIL TOLD)
+==============================================================
+
+For each route that passed Step 1's checks:
+
+2.1  Insert withRequestOrg into the chain, placed AFTER isAuthenticated (and after any role check like requireAdmin if present), and BEFORE the async handler.
+
+     Pattern:
+       BEFORE: app.get("/api/projects", isAuthenticated, async (req, res) => {...})
+       AFTER:  app.get("/api/projects", isAuthenticated, withRequestOrg, async (req, res) => {...})
+
+     If a route has a role check (e.g. isAuthenticated, requireAdmin), the order becomes:
+       isAuthenticated → requireAdmin → withRequestOrg → handler
+
+     Do NOT modify the handler body. Do NOT remove any existing middleware. Only insert withRequestOrg.
+
+2.2  Do NOT add any diagnostic logging this round. The pattern is proven; we don't need per-route diagnostics. We'll verify by behaviour instead.
+
+2.3  After all edits, show me:
+       grep -n "withRequestOrg" server/routes.ts
+     Expected: 1 import line + 6 route matches (the original /api/auth/user + 5 new ones).
+
+2.4  Typecheck:
+       npm run check 2>&1 | grep -c "error TS"
+     Must match the Step 1 baseline. Zero new errors.
+
+STOP HERE. Show me Step 2 output. Wait for "proceed to Step 3" before testing.
+
+==============================================================
+STEP 3 — Behavioural smoke test
+==============================================================
+
+The server will auto-reload after Step 2. Wait a few seconds.
+
+3.1  Confirm the server is up:
+       curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5000/api/health
+
+3.2  Tell me you're ready and I will refresh the app + click through it. Specifically I will:
+       - Refresh the dashboard (exercises /api/auth/user, /api/projects, possibly /api/moodboards)
+       - Open a project (exercises /api/projects/:id)
+       - Open the vendors screen (exercises /api/vendors, /api/vendor-categories)
+       - Open the moodboards screen (exercises /api/moodboards)
+
+3.3  While I do this, watch the server logs for:
+       - Any error or stack trace
+       - Any 5xx response
+       - Any unusually slow response (anything over ~500ms on routes that were previously fast)
+
+3.4  After I report "done clicking", paste back:
+       - Any errors or warnings observed in the log window
+       - The HTTP status codes for any of the five wrapped routes that were hit (look for the express log lines like "GET /api/projects 200 in Xms")
+       - A subjective note on whether response times looked normal
+
+3.5  Do NOT modify any code in Step 3. Observe and report only.
+
+==============================================================
+STEP 4 — Final state confirmation
+==============================================================
+
+If Step 3 had no errors and no unusually slow responses:
+
+4.1  git status
+     git diff --stat
+     git diff server/routes.ts
+
+     Expected: only server/routes.ts modified. 5 routes have withRequestOrg added (one word inserted into each chain). Net change: +5 occurrences of "withRequestOrg" on route lines.
+
+4.2  Confirm:
+       grep -c "withRequestOrg" server/routes.ts
+     Expected: 7 (1 import + 6 routes total, including the /api/auth/user one from last session)
+
+==============================================================
+PASTE BACK
+==============================================================
+
+  1. Step 1 — the 5 routes found with their middleware chains shown
+  2. Step 2 — diff summary and typecheck delta
+  3. Step 3 — what you saw in the logs while I clicked around
+  4. Step 4 — final git diff, grep count
+
+==============================================================
+DO NOT IN THIS SESSION
+==============================================================
+  - Wrap any other routes beyond the 5 listed
+  - Wrap any POST/PATCH/DELETE route
+  - Modify any storage method
+  - Enable RLS or create any policy
+  - Add the org_id column to catalogue_items
+  - Add diagnostic logging
+  - "Helpfully" refactor any handler body
