@@ -77,11 +77,9 @@ export default function ProjectCostPage() {
     catName: string
   ): QuotationData | null => {
     const quotes = quotations[projectId] ?? [];
-    const matching = quotes.filter(
-      (q) => isVendorQuote(q) && q.category === catName && q.status !== "Rejected"
-    );
-    if (matching.length === 0) return null;
-    return matching.find((q) => q.status === "Selected") ?? matching[0];
+    return quotes.find(
+      (q) => isVendorQuote(q) && q.category === catName && q.status === "Selected"
+    ) ?? null;
   };
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);

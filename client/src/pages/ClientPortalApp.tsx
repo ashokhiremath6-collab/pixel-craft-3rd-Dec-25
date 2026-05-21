@@ -543,9 +543,9 @@ function ProjectCostSection({
   }).length;
 
   const getBest = (catName: string): CostQuotation | null => {
-    const matching = vendorQuotes.filter((q) => q.category === catName);
-    if (matching.length === 0) return null;
-    return matching.find((q) => q.status === "Selected") ?? matching[0];
+    return vendorQuotes.find(
+      (q) => q.category === catName && q.status === "Selected"
+    ) ?? null;
   };
 
   const rows = rootCategories.map((cat, idx) => {
