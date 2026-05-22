@@ -8,6 +8,8 @@ Olympik Design is a public SaaS platform for interior design studios. It provide
 
 ## User Preferences
 
+- Do not create tasks unless explicitly requested.
+
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
