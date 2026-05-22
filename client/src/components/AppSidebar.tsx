@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -110,6 +110,18 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent className="pb-4">
+        <SidebarGroup>
+          <SidebarGroupLabel className="flex items-center gap-1.5">
+            <ClipboardList className="h-3.5 w-3.5" />
+            Project Brief
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <div className="px-2 py-2 text-xs text-muted-foreground/50 italic">
+              Coming soon
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
