@@ -30,8 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Pencil, Trash2, FileText, ChevronRight, BookOpen, Eye, MoreVertical } from "lucide-react";
-import { RecentBadge } from "@/components/RecentBadge";
+import { Plus, Search, Pencil, Trash2, FileText, ChevronRight, BookOpen, Eye, MoreVertical, Download } from "lucide-react";
 import { FileViewerModal } from "@/components/FileViewerModal";
 
 interface Sop {
@@ -216,6 +215,24 @@ export default function SOPsPage() {
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
+  function exportSop(sop: Sop) {
+    const lines = [
+      sop.title,
+      `Category: ${sop.category}`,
+      "",
+      sop.description ? `Summary: ${sop.description}` : "",
+      "",
+      sop.content || "",
+    ].filter((l, i) => !(i > 1 && l === "" && !sop.description)).join("\n");
+    const blob = new Blob([lines.trim()], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${sop.title.replace(/[^a-z0-9]/gi, "_")}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
@@ -297,10 +314,7 @@ export default function SOPsPage() {
                         : "hover:bg-muted text-foreground"}`}
                   >
                     <span className="font-medium flex-1 break-words">{sop.title}</span>
-                    <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                      <RecentBadge date={sop.updatedAt} days={3} />
-                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                    </div>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground" />
                   </button>
                 ))}
               </div>
@@ -328,33 +342,40 @@ export default function SOPsPage() {
                       {selectedSop.fileName || "View Attachment"}
                     </Button>
                   )}
-                  {canWrite && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button size="icon" variant="ghost">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openEdit(selectedSop)}>
-                          <Pencil className="h-4 w-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        {isAdmin && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => setDeleteTarget(selectedSop)}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="icon" variant="ghost">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => exportSop(selectedSop)}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Export as text
+                      </DropdownMenuItem>
+                      {canWrite && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => openEdit(selectedSop)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      {isAdmin && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteTarget(selectedSop)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 overflow-y-auto">
