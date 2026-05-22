@@ -1,0 +1,109 @@
+Please write and run a one-time seed script to insert 25 execution SOPs into the `sops` table. These are technical work specifications to be handed to vendors and contractors.
+
+## What to do
+
+1. **Before anything**, check the `sops` table structure:
+   - Run: `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'sops' ORDER BY ordinal_position;`
+   - Tell me the column names. The body field may be named `content`, `body`, `description`, or something else — I need to know.
+   - Run: `SELECT COUNT(*) FROM sops` and tell me the current count.
+
+2. **Check for duplicates.** Run:
+   ```
+   SELECT title FROM sops WHERE title IN (
+     'Plywood Selection & Grading',
+     'Veneer Application on Plywood',
+     'Cabinet Carcass Construction',
+     'PU (Polyurethane) Polish Application',
+     'Melamine Polish Application',
+     'Veneer Polish Finishing',
+     'Wall Surface Preparation Before Painting',
+     'Emulsion Paint Application',
+     'Enamel Paint on Wood & Metal',
+     'Plaster of Paris False Ceiling',
+     'Waterproofing in Wet Areas',
+     'Floor Tile Laying',
+     'Marble & Natural Stone Installation',
+     'Concealed Electrical Wiring Installation',
+     'Switch & Socket Installation',
+     'CPVC Pipe Installation',
+     'Sanitary Fixture Installation',
+     'Air Conditioning Indoor Unit Installation',
+     'Aluminium Window & Door Installation',
+     'Toughened Glass Installation',
+     'Curtain & Drape Installation',
+     'Sofa & Upholstery Manufacturing Standards',
+     'Site Cleanliness & Safety',
+     'Drawing Issue & Revision Control',
+     'Project Handover'
+   );
+   ```
+   If any of these titles already exist, STOP and ask me whether to skip, overwrite, or rename. Do not proceed with creating duplicates.
+
+3. **Create a seed script** at `scripts/seed-sops-v2.ts`. Use the same connection pattern as `scripts/backfill-org.ts` for consistency.
+
+4. **The content for all 25 SOPs is in the attached file `sops_v2.md`.** Each SOP has a clear delimiter — they are separated by `---` and labeled `## SOP N — Title`. Parse the file as follows:
+   - **Category:** The category section header above the SOP (e.g., `# TIER 1 — DEEP SOPs` is NOT the category; the actual categories are in my list below).
+   - **Title:** From the SOP header line `## SOP N — Title`, extract the title (everything after `— `).
+   - **Body:** Everything between the title line and the next `---` separator. Preserve all formatting including line breaks, lists, and section headers like `**Purpose:**`, `**Procedure:**`, etc.
+
+5. **Category mapping.** Use this mapping from SOP number to category:
+
+   | SOP # | Title | Category |
+   |-------|-------|----------|
+   | 1 | Plywood Selection & Grading | Carpentry & Joinery |
+   | 2 | Veneer Application on Plywood | Carpentry & Joinery |
+   | 3 | Cabinet Carcass Construction | Carpentry & Joinery |
+   | 4 | PU (Polyurethane) Polish Application | Polishing & Finishing |
+   | 5 | Melamine Polish Application | Polishing & Finishing |
+   | 6 | Veneer Polish Finishing | Polishing & Finishing |
+   | 7 | Wall Surface Preparation Before Painting | Painting |
+   | 8 | Emulsion Paint Application | Painting |
+   | 9 | Enamel Paint on Wood & Metal | Painting |
+   | 10 | Plaster of Paris False Ceiling | Civil & Masonry |
+   | 11 | Waterproofing in Wet Areas | Civil & Masonry |
+   | 12 | Floor Tile Laying | Civil & Masonry |
+   | 13 | Marble & Natural Stone Installation | Civil & Masonry |
+   | 14 | Concealed Electrical Wiring Installation | Electrical |
+   | 15 | Switch & Socket Installation | Electrical |
+   | 16 | CPVC Pipe Installation | Plumbing & Sanitary |
+   | 17 | Sanitary Fixture Installation | Plumbing & Sanitary |
+   | 18 | Air Conditioning Indoor Unit Installation | HVAC |
+   | 19 | Aluminium Window & Door Installation | Glass & Aluminium |
+   | 20 | Toughened Glass Installation | Glass & Aluminium |
+   | 21 | Curtain & Drape Installation | Soft Furnishings |
+   | 22 | Sofa & Upholstery Manufacturing Standards | Soft Furnishings |
+   | 23 | Site Cleanliness & Safety | Studio Operations |
+   | 24 | Drawing Issue & Revision Control | Studio Operations |
+   | 25 | Project Handover | Studio Operations |
+
+   Wait — looking at the document order, the SOPs are organized by Tier (depth), not by category. Use my mapping above to assign the correct category to each title. The titles in the document are the canonical titles to match against.
+
+6. **For each SOP record:**
+   - `org_id` = NULL (preloaded global, visible to all tenants — Group B pattern)
+   - `category` = from the mapping above
+   - `title` = from the document
+   - body field (whichever name applies in the schema) = full body content with formatting preserved
+   - Any required timestamps = `now()`
+   - Any required boolean flags (e.g., `is_active`) = true
+   - Slug if required = kebab-case of title
+
+7. **After inserting**, verify:
+   - `SELECT COUNT(*) FROM sops` shows 25 more than the original count
+   - `SELECT category, title FROM sops WHERE org_id IS NULL ORDER BY category, title` — show me the full list
+   - Show me **one full row** including the body content — pick the PU Polish SOP (longest one) so I can verify formatting was preserved
+
+8. **Delete the seed script** after running. It's one-time data, not code to keep.
+
+9. **Show `git status` at the end** — only expectation is one new untracked attached_assets file. The seed script should be deleted.
+
+## Things to be careful about
+
+- **Body field formatting.** The bodies contain markdown-style formatting (`**bold**`, lists, line breaks). These must be preserved exactly. The body is meant to be displayed as-is, so any markdown rendering happens at the display layer, not at insert time.
+
+- **Quotes in body content.** Some SOPs contain quoted text. Use proper SQL escaping (parameterized queries) — do NOT use string concatenation that could break on apostrophes or quotes.
+
+- **Don't truncate.** Some bodies are 1500-2000 words long. If your insert script has a length limit, increase it. The `content` field is likely `text` type in Postgres which has no length limit, but verify.
+
+- **If the table has more required fields than I've listed**, ask me before guessing. Don't make up data for fields like `tags`, `version`, or `priority`.
+
+Do not modify any other table, do not change schema, do not modify any application code.
