@@ -23,7 +23,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Pencil, Trash2, FileText, ChevronRight, BookOpen, Eye } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Search, Pencil, Trash2, FileText, ChevronRight, BookOpen, Eye, MoreVertical } from "lucide-react";
 import { RecentBadge } from "@/components/RecentBadge";
 import { FileViewerModal } from "@/components/FileViewerModal";
 
@@ -284,14 +291,16 @@ export default function SOPsPage() {
                   <button
                     key={sop.id}
                     onClick={() => setSelectedSop(sop)}
-                    className={`w-full text-left px-3 py-2.5 rounded-md text-sm transition-colors flex items-center justify-between gap-2 group
+                    className={`w-full text-left px-3 py-2.5 rounded-md text-sm transition-colors flex items-start justify-between gap-2 group
                       ${selectedSop?.id === sop.id
                         ? "bg-accent text-accent-foreground"
                         : "hover:bg-muted text-foreground"}`}
                   >
-                    <span className="truncate font-medium flex-1">{sop.title}</span>
-                    <RecentBadge date={sop.updatedAt} days={3} />
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="font-medium flex-1 break-words">{sop.title}</span>
+                    <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                      <RecentBadge date={sop.updatedAt} days={3} />
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
                   </button>
                 ))}
               </div>
@@ -320,18 +329,31 @@ export default function SOPsPage() {
                     </Button>
                   )}
                   {canWrite && (
-                    <Button size="icon" variant="ghost" onClick={() => openEdit(selectedSop)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {isAdmin && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setDeleteTarget(selectedSop)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEdit(selectedSop)}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                        {isAdmin && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setDeleteTarget(selectedSop)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </div>
               </CardHeader>
