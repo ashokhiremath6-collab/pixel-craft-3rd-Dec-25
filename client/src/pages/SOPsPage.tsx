@@ -237,7 +237,7 @@ export default function SOPsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 h-full">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -287,7 +287,7 @@ export default function SOPsPage() {
       </div>
 
       {/* Main content — two-panel layout */}
-      <div className="flex gap-4 min-h-[500px]">
+      <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
         {/* Left — SOP list */}
         <div className="w-72 shrink-0 flex flex-col gap-1 overflow-y-auto pr-1">
           {isLoading ? (
@@ -326,9 +326,9 @@ export default function SOPsPage() {
         </div>
 
         {/* Right — SOP detail */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col">
           {selectedSop ? (
-            <Card className="h-full">
+            <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
               <CardHeader className="pb-3 flex flex-row items-start justify-between gap-4 flex-wrap">
                 <div className="min-w-0">
                   <CardTitle className="text-lg leading-tight">{selectedSop.title}</CardTitle>
@@ -381,7 +381,7 @@ export default function SOPsPage() {
                   </DropdownMenu>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4 overflow-y-auto">
+              <CardContent className="space-y-4 overflow-y-auto flex-1 min-h-0">
                 {selectedSop.description && (
                   <p className="text-sm text-muted-foreground">{selectedSop.description}</p>
                 )}
