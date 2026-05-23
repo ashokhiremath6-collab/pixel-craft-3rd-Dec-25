@@ -166,22 +166,23 @@ function main() {
   lines.push(`-- Idempotent: UPDATE/DELETE are safe to re-run; INSERTs use WHERE NOT EXISTS.`);
   lines.push(`-- All within a single transaction — full rollback on any error.`);
   lines.push(``);
-  lines.push(`BEGIN;`);
+  lines.push(`DO $$`);
+  lines.push(`BEGIN`);
   lines.push(``);
 
   // -------------------------------------------------------------------------
   // 1. DELETE old titles (9 rows)
   // -------------------------------------------------------------------------
-  lines.push(`-- Step 1: Delete 9 old titles replaced by v2 renames`);
+  lines.push(`  -- Step 1: Delete 9 old titles replaced by v2 renames`);
   for (const title of DELETE_TITLES) {
-    lines.push(`DELETE FROM sops WHERE title = '${title.replace(/'/g, "''")}';`);
+    lines.push(`  DELETE FROM sops WHERE title = '${title.replace(/'/g, "''")}';`);
   }
   lines.push(``);
 
   // -------------------------------------------------------------------------
   // 2. UPDATE 16 rows that keep the same title
   // -------------------------------------------------------------------------
-  lines.push(`-- Step 2: Update 16 existing rows with v2 content`);
+  lines.push(`  -- Step 2: Update 16 existing rows with v2 content`);
   let idx = 0;
   for (const [oldTitle, newTitle] of Object.entries(UPDATE_TITLE_MAP)) {
     const sop = sopMap.get(newTitle);
@@ -192,19 +193,19 @@ function main() {
     const tag = dollarTag(idx++);
     const cat = CATEGORY_MAP[newTitle];
     const desc = sop.description.replace(/'/g, "''");
-    lines.push(`UPDATE sops`);
-    lines.push(`  SET category    = '${cat}',`);
-    lines.push(`      description = '${desc}',`);
-    lines.push(`      content     = ${tag}${sop.content}${tag},`);
-    lines.push(`      updated_at  = NOW()`);
-    lines.push(`  WHERE title = '${oldTitle.replace(/'/g, "''")}';`);
+    lines.push(`  UPDATE sops`);
+    lines.push(`    SET category    = '${cat}',`);
+    lines.push(`        description = '${desc}',`);
+    lines.push(`        content     = ${tag}${sop.content}${tag},`);
+    lines.push(`        updated_at  = NOW()`);
+    lines.push(`    WHERE title = '${oldTitle.replace(/'/g, "''")}';`);
     lines.push(``);
   }
 
   // -------------------------------------------------------------------------
   // 3. INSERT 9 new rows (only if they don't already exist by title)
   // -------------------------------------------------------------------------
-  lines.push(`-- Step 3: Insert 9 new v2 titles (idempotent: WHERE NOT EXISTS)`);
+  lines.push(`  -- Step 3: Insert 9 new v2 titles (idempotent: WHERE NOT EXISTS)`);
   for (const title of INSERT_TITLES) {
     const sop = sopMap.get(title);
     if (!sop) {
@@ -214,21 +215,22 @@ function main() {
     const tag = dollarTag(idx++);
     const cat = CATEGORY_MAP[title];
     const desc = sop.description.replace(/'/g, "''");
-    lines.push(`INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)`);
-    lines.push(`SELECT gen_random_uuid(),`);
-    lines.push(`       '${title.replace(/'/g, "''")}',`);
-    lines.push(`       '${cat}',`);
-    lines.push(`       '${desc}',`);
-    lines.push(`       ${tag}${sop.content}${tag},`);
-    lines.push(`       '${CREATED_BY}',`);
-    lines.push(`       NULL,`);
-    lines.push(`       NOW(),`);
-    lines.push(`       NOW()`);
-    lines.push(`WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = '${title.replace(/'/g, "''")}');`);
+    lines.push(`  INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)`);
+    lines.push(`  SELECT gen_random_uuid(),`);
+    lines.push(`         '${title.replace(/'/g, "''")}',`);
+    lines.push(`         '${cat}',`);
+    lines.push(`         '${desc}',`);
+    lines.push(`         ${tag}${sop.content}${tag},`);
+    lines.push(`         '${CREATED_BY}',`);
+    lines.push(`         NULL,`);
+    lines.push(`         NOW(),`);
+    lines.push(`         NOW()`);
+    lines.push(`  WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = '${title.replace(/'/g, "''")}');`);
     lines.push(``);
   }
 
-  lines.push(`COMMIT;`);
+  lines.push(`END`);
+  lines.push(`$$;`);
 
   const sql = lines.join('\n');
   const outPath = path.resolve('scripts/proposed_0006_update_sops_v2.sql');

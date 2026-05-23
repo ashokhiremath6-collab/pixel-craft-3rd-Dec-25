@@ -6,24 +6,25 @@
 -- Idempotent: UPDATE/DELETE are safe to re-run; INSERTs use WHERE NOT EXISTS.
 -- All within a single transaction — full rollback on any error.
 
-BEGIN;
+DO $$
+BEGIN
 
--- Step 1: Delete 9 old titles replaced by v2 renames
-DELETE FROM sops WHERE title = 'AC Indoor Unit Installation';
-DELETE FROM sops WHERE title = 'CPVC & UPVC Pipe Installation';
-DELETE FROM sops WHERE title = 'Concealed Wiring Installation';
-DELETE FROM sops WHERE title = 'Marble & Stone Installation';
-DELETE FROM sops WHERE title = 'PU Polish (Polyurethane) Application';
-DELETE FROM sops WHERE title = 'Plaster of Paris (POP) False Ceiling';
-DELETE FROM sops WHERE title = 'Project Handover Checklist';
-DELETE FROM sops WHERE title = 'Sofa Upholstery Standards';
-DELETE FROM sops WHERE title = 'Tile Laying - Floor';
+  -- Step 1: Delete 9 old titles replaced by v2 renames
+  DELETE FROM sops WHERE title = 'AC Indoor Unit Installation';
+  DELETE FROM sops WHERE title = 'CPVC & UPVC Pipe Installation';
+  DELETE FROM sops WHERE title = 'Concealed Wiring Installation';
+  DELETE FROM sops WHERE title = 'Marble & Stone Installation';
+  DELETE FROM sops WHERE title = 'PU Polish (Polyurethane) Application';
+  DELETE FROM sops WHERE title = 'Plaster of Paris (POP) False Ceiling';
+  DELETE FROM sops WHERE title = 'Project Handover Checklist';
+  DELETE FROM sops WHERE title = 'Sofa Upholstery Standards';
+  DELETE FROM sops WHERE title = 'Tile Laying - Floor';
 
--- Step 2: Update 16 existing rows with v2 content
-UPDATE sops
-  SET category    = 'Carpentry & Joinery',
-      description = 'Achieve a flat, bubble-free veneer surface with proper grain alignment and edge integrity that remains stable over decades.',
-      content     = $sop0$**Purpose:** Achieve a flat, bubble-free veneer surface with proper grain alignment and edge integrity that remains stable over decades. Veneer failures (bubbling, lifting, telegraphing of substrate joints) become visible only after months and are nearly impossible to repair invisibly — the entire panel must be re-veneered.
+  -- Step 2: Update 16 existing rows with v2 content
+  UPDATE sops
+    SET category    = 'Carpentry & Joinery',
+        description = 'Achieve a flat, bubble-free veneer surface with proper grain alignment and edge integrity that remains stable over decades.',
+        content     = $sop0$**Purpose:** Achieve a flat, bubble-free veneer surface with proper grain alignment and edge integrity that remains stable over decades. Veneer failures (bubbling, lifting, telegraphing of substrate joints) become visible only after months and are nearly impossible to repair invisibly — the entire panel must be re-veneered.
 
 **System acceptability:**
 
@@ -99,13 +100,13 @@ UPDATE sops
 - Use a router to trim edges — always paring chisel or hand sanding
 - Mix veneer flitches without checking color/figure match
 - Lay veneer over unsanded filler patches or visible substrate defects$sop0$,
-      updated_at  = NOW()
-  WHERE title = 'Veneer Application on Plywood';
+        updated_at  = NOW()
+    WHERE title = 'Veneer Application on Plywood';
 
-UPDATE sops
-  SET category    = 'Painting',
-      description = 'Prepare wall surfaces so the paint system bonds, covers evenly, and remains free from peeling, blistering, efflorescence, and color variation for 7+ years.',
-      content     = $sop1$**Purpose:** Prepare wall surfaces so the paint system bonds, covers evenly, and remains free from peeling, blistering, efflorescence, and color variation for 7+ years. The single biggest cause of paint failure in Indian residential work is rushed wall preparation — paint that looks excellent at handover and fails at the first monsoon.
+  UPDATE sops
+    SET category    = 'Painting',
+        description = 'Prepare wall surfaces so the paint system bonds, covers evenly, and remains free from peeling, blistering, efflorescence, and color variation for 7+ years.',
+        content     = $sop1$**Purpose:** Prepare wall surfaces so the paint system bonds, covers evenly, and remains free from peeling, blistering, efflorescence, and color variation for 7+ years. The single biggest cause of paint failure in Indian residential work is rushed wall preparation — paint that looks excellent at handover and fails at the first monsoon.
 
 **System acceptability:**
 
@@ -181,13 +182,13 @@ UPDATE sops
 - Skip primer because "the wall looks white anyway"
 - Apply primer over efflorescence
 - Sand without dust extraction or masking — dust contaminates adjacent surfaces and ruins polish work in nearby rooms$sop1$,
-      updated_at  = NOW()
-  WHERE title = 'Wall Surface Preparation Before Painting';
+        updated_at  = NOW()
+    WHERE title = 'Wall Surface Preparation Before Painting';
 
-UPDATE sops
-  SET category    = 'Civil & Masonry',
-      description = 'Eliminate water penetration from bathrooms, balconies, and terraces into the structure below.',
-      content     = $sop2$**Purpose:** Eliminate water penetration from bathrooms, balconies, and terraces into the structure below. Waterproofing failure is the single most expensive defect in residential interior work — discovery typically requires breaking up finished floors below to access the failed membrane. A bathroom that leaks at month 18 costs more to repair than the entire bathroom cost.
+  UPDATE sops
+    SET category    = 'Civil & Masonry',
+        description = 'Eliminate water penetration from bathrooms, balconies, and terraces into the structure below.',
+        content     = $sop2$**Purpose:** Eliminate water penetration from bathrooms, balconies, and terraces into the structure below. Waterproofing failure is the single most expensive defect in residential interior work — discovery typically requires breaking up finished floors below to access the failed membrane. A bathroom that leaks at month 18 costs more to repair than the entire bathroom cost.
 
 **System acceptability:**
 
@@ -287,13 +288,13 @@ UPDATE sops
 - Tile over waterproofing before ponding test passes
 - Tile over waterproofing before protection screed is applied (tiles will puncture the membrane)
 - Accept "we'll test after the tiles are down" — this is the most common excuse for waterproofing failure$sop2$,
-      updated_at  = NOW()
-  WHERE title = 'Waterproofing in Wet Areas';
+        updated_at  = NOW()
+    WHERE title = 'Waterproofing in Wet Areas';
 
-UPDATE sops
-  SET category    = 'Plumbing & Sanitary',
-      description = 'Install sanitary fixtures level, properly sealed, and leak-tested with attention to long-term water integrity.',
-      content     = $sop3$**Purpose:** Install sanitary fixtures level, properly sealed, and leak-tested with attention to long-term water integrity. Sanitary installation defects (slow leaks at concealed pipe joints, failed wax seals on WCs, water damage from improperly sealed fixtures) cause progressive water damage that may not be visible for months but compromises the entire bathroom.
+  UPDATE sops
+    SET category    = 'Plumbing & Sanitary',
+        description = 'Install sanitary fixtures level, properly sealed, and leak-tested with attention to long-term water integrity.',
+        content     = $sop3$**Purpose:** Install sanitary fixtures level, properly sealed, and leak-tested with attention to long-term water integrity. Sanitary installation defects (slow leaks at concealed pipe joints, failed wax seals on WCs, water damage from improperly sealed fixtures) cause progressive water damage that may not be visible for months but compromises the entire bathroom.
 
 **System acceptability:**
 
@@ -430,13 +431,13 @@ UPDATE sops
 - Test for leaks for only 1-2 minutes
 - Reuse old supply lines, gaskets, or sealants
 - Install fixtures over uncured silicone$sop3$,
-      updated_at  = NOW()
-  WHERE title = 'Sanitary Fixture Installation';
+        updated_at  = NOW()
+    WHERE title = 'Sanitary Fixture Installation';
 
-UPDATE sops
-  SET category    = 'Glass & Aluminium',
-      description = 'Install aluminium frames that are square, weather-sealed against rain and wind, properly anchored, and operate smoothly for decades.',
-      content     = $sop4$**Purpose:** Install aluminium frames that are square, weather-sealed against rain and wind, properly anchored, and operate smoothly for decades. Window and door installation defects are the single biggest source of monsoon water ingress into Mumbai homes — defects manifest only during heavy rain, when discovery and repair are extremely difficult.
+  UPDATE sops
+    SET category    = 'Glass & Aluminium',
+        description = 'Install aluminium frames that are square, weather-sealed against rain and wind, properly anchored, and operate smoothly for decades.',
+        content     = $sop4$**Purpose:** Install aluminium frames that are square, weather-sealed against rain and wind, properly anchored, and operate smoothly for decades. Window and door installation defects are the single biggest source of monsoon water ingress into Mumbai homes — defects manifest only during heavy rain, when discovery and repair are extremely difficult.
 
 **System acceptability:**
 
@@ -585,13 +586,13 @@ UPDATE sops
 - Accept "we'll do the water test in monsoon" — by then, fixing problems is much harder
 - Use plated steel fixings (corrode and stain the frame)
 - Tile or finish the surrounding wall before water test passes$sop4$,
-      updated_at  = NOW()
-  WHERE title = 'Aluminium Window & Door Installation';
+        updated_at  = NOW()
+    WHERE title = 'Aluminium Window & Door Installation';
 
-UPDATE sops
-  SET category    = 'Glass & Aluminium',
-      description = 'Install toughened glass safely, with proper edge protection, setting blocks, and secure fixing that doesn''t fail catastrophically.',
-      content     = $sop5$**Purpose:** Install toughened glass safely, with proper edge protection, setting blocks, and secure fixing that doesn't fail catastrophically.
+  UPDATE sops
+    SET category    = 'Glass & Aluminium',
+        description = 'Install toughened glass safely, with proper edge protection, setting blocks, and secure fixing that doesn''t fail catastrophically.',
+        content     = $sop5$**Purpose:** Install toughened glass safely, with proper edge protection, setting blocks, and secure fixing that doesn't fail catastrophically.
 
 **System acceptability:**
 
@@ -676,13 +677,13 @@ UPDATE sops
 - Over-tighten clamps
 - Substitute annealed for toughened glass
 - Skip safety markings on walking-zone panels$sop5$,
-      updated_at  = NOW()
-  WHERE title = 'Toughened Glass Installation';
+        updated_at  = NOW()
+    WHERE title = 'Toughened Glass Installation';
 
-UPDATE sops
-  SET category    = 'Painting',
-      description = 'Apply interior emulsion paint to achieve uniform color, sheen, and coverage with no application marks.',
-      content     = $sop6$**Purpose:** Apply interior emulsion paint to achieve uniform color, sheen, and coverage with no application marks.
+  UPDATE sops
+    SET category    = 'Painting',
+        description = 'Apply interior emulsion paint to achieve uniform color, sheen, and coverage with no application marks.',
+        content     = $sop6$**Purpose:** Apply interior emulsion paint to achieve uniform color, sheen, and coverage with no application marks.
 
 **System acceptability:**
 
@@ -743,13 +744,13 @@ UPDATE sops
 - Apply in direct sunlight on exterior walls (causes drying defects)
 - Skip the second coat regardless of how good the first coat looks
 - Paint with windows open if humidity is over 80% (paint won't cure properly)$sop6$,
-      updated_at  = NOW()
-  WHERE title = 'Emulsion Paint Application';
+        updated_at  = NOW()
+    WHERE title = 'Emulsion Paint Application';
 
-UPDATE sops
-  SET category    = 'Painting',
-      description = 'Apply enamel finish to wood trim, doors, frames, and metal surfaces with proper preparation and durable coverage.',
-      content     = $sop7$**Purpose:** Apply enamel finish to wood trim, doors, frames, and metal surfaces with proper preparation and durable coverage.
+  UPDATE sops
+    SET category    = 'Painting',
+        description = 'Apply enamel finish to wood trim, doors, frames, and metal surfaces with proper preparation and durable coverage.',
+        content     = $sop7$**Purpose:** Apply enamel finish to wood trim, doors, frames, and metal surfaces with proper preparation and durable coverage.
 
 **System acceptability:**
 
@@ -792,13 +793,13 @@ UPDATE sops
 - Use water-based enamel on rust-prone metal without rust-converting primer first
 - Skip intermediate sanding
 - Paint over rust without proper removal$sop7$,
-      updated_at  = NOW()
-  WHERE title = 'Enamel Paint on Wood & Metal';
+        updated_at  = NOW()
+    WHERE title = 'Enamel Paint on Wood & Metal';
 
-UPDATE sops
-  SET category    = 'Carpentry & Joinery',
-      description = 'Ensure correct plywood grade is used for each application, preventing warping, delamination, or moisture failure.',
-      content     = $sop8$**Purpose:** Ensure correct plywood grade is used for each application, preventing warping, delamination, or moisture failure. Plywood substitution (lower grade than specified) is one of the most common cost-cutting tricks by vendors and is invisible until failure occurs.
+  UPDATE sops
+    SET category    = 'Carpentry & Joinery',
+        description = 'Ensure correct plywood grade is used for each application, preventing warping, delamination, or moisture failure.',
+        content     = $sop8$**Purpose:** Ensure correct plywood grade is used for each application, preventing warping, delamination, or moisture failure. Plywood substitution (lower grade than specified) is one of the most common cost-cutting tricks by vendors and is invisible until failure occurs.
 
 **System acceptability:**
 
@@ -867,13 +868,13 @@ UPDATE sops
 - Use plywood stored on a wet floor
 - Use plywood without ISI marking
 - Skip edge sealing on cut edges$sop8$,
-      updated_at  = NOW()
-  WHERE title = 'Plywood Selection & Grading';
+        updated_at  = NOW()
+    WHERE title = 'Plywood Selection & Grading';
 
-UPDATE sops
-  SET category    = 'Carpentry & Joinery',
-      description = 'Build cabinet structures that hold square, support specified loads, and remain rigid for decades.',
-      content     = $sop9$**Purpose:** Build cabinet structures that hold square, support specified loads, and remain rigid for decades.
+  UPDATE sops
+    SET category    = 'Carpentry & Joinery',
+        description = 'Build cabinet structures that hold square, support specified loads, and remain rigid for decades.',
+        content     = $sop9$**Purpose:** Build cabinet structures that hold square, support specified loads, and remain rigid for decades.
 
 **System acceptability:**
 
@@ -951,13 +952,13 @@ UPDATE sops
 - Skip pre-drilling
 - Apply finish to unsquare carcass (cannot be corrected after finishing)
 - Skip back panel grooving (causes racking)$sop9$,
-      updated_at  = NOW()
-  WHERE title = 'Cabinet Carcass Construction';
+        updated_at  = NOW()
+    WHERE title = 'Cabinet Carcass Construction';
 
-UPDATE sops
-  SET category    = 'Polishing & Finishing',
-      description = 'Apply melamine finish to indoor furniture in dry areas with proper sealer base and adequate top-coat protection.',
-      content     = $sop10$**Purpose:** Apply melamine finish to indoor furniture in dry areas with proper sealer base and adequate top-coat protection.
+  UPDATE sops
+    SET category    = 'Polishing & Finishing',
+        description = 'Apply melamine finish to indoor furniture in dry areas with proper sealer base and adequate top-coat protection.',
+        content     = $sop10$**Purpose:** Apply melamine finish to indoor furniture in dry areas with proper sealer base and adequate top-coat protection.
 
 **System acceptability:**
 
@@ -1001,13 +1002,13 @@ UPDATE sops
 - Apply over uncured PU or other incompatible base
 - Mix brand systems
 - Skip intermediate sanding$sop10$,
-      updated_at  = NOW()
-  WHERE title = 'Melamine Polish Application';
+        updated_at  = NOW()
+    WHERE title = 'Melamine Polish Application';
 
-UPDATE sops
-  SET category    = 'Polishing & Finishing',
-      description = 'Finish veneer to specified open-pore or close-pore appearance, preserving grain visibility while providing surface protection.',
-      content     = $sop11$**Purpose:** Finish veneer to specified open-pore or close-pore appearance, preserving grain visibility while providing surface protection.
+  UPDATE sops
+    SET category    = 'Polishing & Finishing',
+        description = 'Finish veneer to specified open-pore or close-pore appearance, preserving grain visibility while providing surface protection.',
+        content     = $sop11$**Purpose:** Finish veneer to specified open-pore or close-pore appearance, preserving grain visibility while providing surface protection.
 
 **System acceptability:**
 
@@ -1053,13 +1054,13 @@ UPDATE sops
 - Sand through veneer face
 - Apply heavy coats that obscure grain on open-pore finishes
 - Mix open-pore and close-pore on the same piece without drawing instruction$sop11$,
-      updated_at  = NOW()
-  WHERE title = 'Veneer Polish Finishing';
+        updated_at  = NOW()
+    WHERE title = 'Veneer Polish Finishing';
 
-UPDATE sops
-  SET category    = 'Electrical',
-      description = 'Install switches and sockets at standard heights, aligned, tested, and free from electrical defects.',
-      content     = $sop12$**Purpose:** Install switches and sockets at standard heights, aligned, tested, and free from electrical defects.
+  UPDATE sops
+    SET category    = 'Electrical',
+        description = 'Install switches and sockets at standard heights, aligned, tested, and free from electrical defects.',
+        content     = $sop12$**Purpose:** Install switches and sockets at standard heights, aligned, tested, and free from electrical defects.
 
 **System acceptability:**
 
@@ -1109,13 +1110,13 @@ UPDATE sops
 - Leave loose strands of wire
 - Mix switch brands within a room (inconsistent appearance)
 - Install before walls are dry and clean$sop12$,
-      updated_at  = NOW()
-  WHERE title = 'Switch & Socket Installation';
+        updated_at  = NOW()
+    WHERE title = 'Switch & Socket Installation';
 
-UPDATE sops
-  SET category    = 'Soft Furnishings',
-      description = 'Install curtain tracks/rods and drapes with proper drop, stack-back, and operating smoothness.',
-      content     = $sop13$**Purpose:** Install curtain tracks/rods and drapes with proper drop, stack-back, and operating smoothness.
+  UPDATE sops
+    SET category    = 'Soft Furnishings',
+        description = 'Install curtain tracks/rods and drapes with proper drop, stack-back, and operating smoothness.',
+        content     = $sop13$**Purpose:** Install curtain tracks/rods and drapes with proper drop, stack-back, and operating smoothness.
 
 **System acceptability:**
 
@@ -1160,13 +1161,13 @@ UPDATE sops
 - Hem drapes before they have settled
 - Mix bracket types within a window
 - Install on uncured wall paint (24 hours minimum)$sop13$,
-      updated_at  = NOW()
-  WHERE title = 'Curtain & Drape Installation';
+        updated_at  = NOW()
+    WHERE title = 'Curtain & Drape Installation';
 
-UPDATE sops
-  SET category    = 'Studio Operations',
-      description = 'Ensure vendors and site teams always work from the current approved drawing.',
-      content     = $sop14$**Purpose:** Ensure vendors and site teams always work from the current approved drawing. Drawing-version mistakes cause expensive rework when work is done to an outdated drawing.
+  UPDATE sops
+    SET category    = 'Studio Operations',
+        description = 'Ensure vendors and site teams always work from the current approved drawing.',
+        content     = $sop14$**Purpose:** Ensure vendors and site teams always work from the current approved drawing. Drawing-version mistakes cause expensive rework when work is done to an outdated drawing.
 
 **Procedure:**
 
@@ -1237,13 +1238,13 @@ UPDATE sops
 - Allow work to proceed on a drawing older than what's in the register
 
 ---$sop14$,
-      updated_at  = NOW()
-  WHERE title = 'Drawing Issue & Revision Control';
+        updated_at  = NOW()
+    WHERE title = 'Drawing Issue & Revision Control';
 
-UPDATE sops
-  SET category    = 'Studio Operations',
-      description = 'Maintain a clean, safe site that supports good workmanship, protects existing finishes from damage, and prevents accidents.',
-      content     = $sop15$**Purpose:** Maintain a clean, safe site that supports good workmanship, protects existing finishes from damage, and prevents accidents.
+  UPDATE sops
+    SET category    = 'Studio Operations',
+        description = 'Maintain a clean, safe site that supports good workmanship, protects existing finishes from damage, and prevents accidents.',
+        content     = $sop15$**Purpose:** Maintain a clean, safe site that supports good workmanship, protects existing finishes from damage, and prevents accidents.
 
 **Pre-conditions:**
 
@@ -1283,16 +1284,16 @@ UPDATE sops
 - Skip daily cleanup
 - Use power tools without confirming circuit protection
 - Leave site without locking and securing$sop15$,
-      updated_at  = NOW()
-  WHERE title = 'Site Cleanliness & Safety';
+        updated_at  = NOW()
+    WHERE title = 'Site Cleanliness & Safety';
 
--- Step 3: Insert 9 new v2 titles (idempotent: WHERE NOT EXISTS)
-INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
-SELECT gen_random_uuid(),
-       'PU (Polyurethane) Polish Application',
-       'Polishing & Finishing',
-       'Achieve a furniture-grade PU finish that retains clarity, sheen, and adhesion for 7+ years in Indian residential conditions.',
-       $sop16$**Purpose:** Achieve a furniture-grade PU finish that retains clarity, sheen, and adhesion for 7+ years in Indian residential conditions. PU is the most-failed finish in Indian interior work — typically through use of inferior products, inadequate cure time, or wrong sheen consistency between panels.
+  -- Step 3: Insert 9 new v2 titles (idempotent: WHERE NOT EXISTS)
+  INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
+  SELECT gen_random_uuid(),
+         'PU (Polyurethane) Polish Application',
+         'Polishing & Finishing',
+         'Achieve a furniture-grade PU finish that retains clarity, sheen, and adhesion for 7+ years in Indian residential conditions.',
+         $sop16$**Purpose:** Achieve a furniture-grade PU finish that retains clarity, sheen, and adhesion for 7+ years in Indian residential conditions. PU is the most-failed finish in Indian interior work — typically through use of inferior products, inadequate cure time, or wrong sheen consistency between panels.
 
 **System acceptability:**
 
@@ -1363,18 +1364,18 @@ SELECT gen_random_uuid(),
 - Apply over uncured stain, filler, or sealer of another system
 - Use turpentine as a wipe-down — only the system's matched thinner
 - Accept "we're behind schedule, we'll do the cure shorter" — there is no shortened cure for PU$sop16$,
-       '46833846',
-       NULL,
-       NOW(),
-       NOW()
-WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'PU (Polyurethane) Polish Application');
+         '46833846',
+         NULL,
+         NOW(),
+         NOW()
+  WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'PU (Polyurethane) Polish Application');
 
-INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
-SELECT gen_random_uuid(),
-       'Marble & Natural Stone Installation',
-       'Civil & Masonry',
-       'Install marble, granite, or other natural stone with full bedding, no staining, and a polished finish that lasts decades.',
-       $sop17$**Purpose:** Install marble, granite, or other natural stone with full bedding, no staining, and a polished finish that lasts decades. Stone installation defects (yellowing, picture-framing, hollow spots, polish failure) are extremely expensive to correct because the stone must be lifted, the bedding reworked, and the stone re-laid — often with damage to the stone.
+  INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
+  SELECT gen_random_uuid(),
+         'Marble & Natural Stone Installation',
+         'Civil & Masonry',
+         'Install marble, granite, or other natural stone with full bedding, no staining, and a polished finish that lasts decades.',
+         $sop17$**Purpose:** Install marble, granite, or other natural stone with full bedding, no staining, and a polished finish that lasts decades. Stone installation defects (yellowing, picture-framing, hollow spots, polish failure) are extremely expensive to correct because the stone must be lifted, the bedding reworked, and the stone re-laid — often with damage to the stone.
 
 **System acceptability:**
 
@@ -1489,18 +1490,18 @@ SELECT gen_random_uuid(),
 - Use acidic cleaners on marble (etches the polish)
 - Walk on bedded stones before 48-hour cure
 - Apply sealer to wet stone — must be fully dry$sop17$,
-       '46833846',
-       NULL,
-       NOW(),
-       NOW()
-WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Marble & Natural Stone Installation');
+         '46833846',
+         NULL,
+         NOW(),
+         NOW()
+  WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Marble & Natural Stone Installation');
 
-INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
-SELECT gen_random_uuid(),
-       'Concealed Electrical Wiring Installation',
-       'Electrical',
-       'Install electrical wiring that is safe, accessible for future fault-finding, properly earthed, and code-compliant.',
-       $sop18$**Purpose:** Install electrical wiring that is safe, accessible for future fault-finding, properly earthed, and code-compliant. Concealed wiring defects are the most dangerous failures in residential interiors — they cause fires and electrocution. Defects are invisible after plastering and discovered only when something fails catastrophically.
+  INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
+  SELECT gen_random_uuid(),
+         'Concealed Electrical Wiring Installation',
+         'Electrical',
+         'Install electrical wiring that is safe, accessible for future fault-finding, properly earthed, and code-compliant.',
+         $sop18$**Purpose:** Install electrical wiring that is safe, accessible for future fault-finding, properly earthed, and code-compliant. Concealed wiring defects are the most dangerous failures in residential interiors — they cause fires and electrocution. Defects are invisible after plastering and discovered only when something fails catastrophically.
 
 **System acceptability:**
 
@@ -1640,18 +1641,18 @@ SELECT gen_random_uuid(),
 - Skip the earth electrode resistance test
 - Substitute unbranded switches and sockets for the approved brand without written approval
 - Leave the DB unlabeled$sop18$,
-       '46833846',
-       NULL,
-       NOW(),
-       NOW()
-WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Concealed Electrical Wiring Installation');
+         '46833846',
+         NULL,
+         NOW(),
+         NOW()
+  WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Concealed Electrical Wiring Installation');
 
-INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
-SELECT gen_random_uuid(),
-       'Air Conditioning Indoor Unit Installation',
-       'HVAC',
-       'Install split or VRF AC indoor units securely, with proper drainage, refrigerant pipe routing, electrical safety, and acoustic isolation.',
-       $sop19$**Purpose:** Install split or VRF AC indoor units securely, with proper drainage, refrigerant pipe routing, electrical safety, and acoustic isolation. AC installation defects cause drainage leaks (water damage to walls and ceilings), refrigerant leaks (cooling failure, environmental issue), excessive noise, and electrical hazards.
+  INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
+  SELECT gen_random_uuid(),
+         'Air Conditioning Indoor Unit Installation',
+         'HVAC',
+         'Install split or VRF AC indoor units securely, with proper drainage, refrigerant pipe routing, electrical safety, and acoustic isolation.',
+         $sop19$**Purpose:** Install split or VRF AC indoor units securely, with proper drainage, refrigerant pipe routing, electrical safety, and acoustic isolation. AC installation defects cause drainage leaks (water damage to walls and ceilings), refrigerant leaks (cooling failure, environmental issue), excessive noise, and electrical hazards.
 
 **System acceptability:**
 
@@ -1790,18 +1791,18 @@ SELECT gen_random_uuid(),
 - Use a hacksaw to cut copper pipe
 - Mix brands of refrigerant
 - Accept "I'll come back and check the cooling after a week" — commissioning must be complete at the time of installation$sop19$,
-       '46833846',
-       NULL,
-       NOW(),
-       NOW()
-WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Air Conditioning Indoor Unit Installation');
+         '46833846',
+         NULL,
+         NOW(),
+         NOW()
+  WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Air Conditioning Indoor Unit Installation');
 
-INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
-SELECT gen_random_uuid(),
-       'Sofa & Upholstery Manufacturing Standards',
-       'Soft Furnishings',
-       'Ensure custom-manufactured sofas, armchairs, and upholstered furniture meet the structural, comfort, and durability standards expected of premium interior design work.',
-       $sop20$**Purpose:** Ensure custom-manufactured sofas, armchairs, and upholstered furniture meet the structural, comfort, and durability standards expected of premium interior design work. Upholstery failures (sagging cushions, frame creaking, fabric loosening, foam collapse) become apparent within 6-18 months and are the most common cause of client complaints in custom furniture work.
+  INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
+  SELECT gen_random_uuid(),
+         'Sofa & Upholstery Manufacturing Standards',
+         'Soft Furnishings',
+         'Ensure custom-manufactured sofas, armchairs, and upholstered furniture meet the structural, comfort, and durability standards expected of premium interior design work.',
+         $sop20$**Purpose:** Ensure custom-manufactured sofas, armchairs, and upholstered furniture meet the structural, comfort, and durability standards expected of premium interior design work. Upholstery failures (sagging cushions, frame creaking, fabric loosening, foam collapse) become apparent within 6-18 months and are the most common cause of client complaints in custom furniture work.
 
 **System acceptability:**
 
@@ -1971,18 +1972,18 @@ SELECT gen_random_uuid(),
 - Manufacture without confirming path of travel to the room
 
 ---$sop20$,
-       '46833846',
-       NULL,
-       NOW(),
-       NOW()
-WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Sofa & Upholstery Manufacturing Standards');
+         '46833846',
+         NULL,
+         NOW(),
+         NOW()
+  WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Sofa & Upholstery Manufacturing Standards');
 
-INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
-SELECT gen_random_uuid(),
-       'Plaster of Paris False Ceiling',
-       'Civil & Masonry',
-       'Construct a flat, crack-free POP false ceiling that holds level and accepts paint finish, with no visible joints or cracks.',
-       $sop21$**Purpose:** Construct a flat, crack-free POP false ceiling that holds level and accepts paint finish, with no visible joints or cracks.
+  INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
+  SELECT gen_random_uuid(),
+         'Plaster of Paris False Ceiling',
+         'Civil & Masonry',
+         'Construct a flat, crack-free POP false ceiling that holds level and accepts paint finish, with no visible joints or cracks.',
+         $sop21$**Purpose:** Construct a flat, crack-free POP false ceiling that holds level and accepts paint finish, with no visible joints or cracks.
 
 **System acceptability:**
 
@@ -2078,18 +2079,18 @@ SELECT gen_random_uuid(),
 - Paint before POP is fully dry (minimum 7 days)
 - Use undersized GI channels — sag is inevitable
 - Skip access panels at locations where concealed services will need future maintenance$sop21$,
-       '46833846',
-       NULL,
-       NOW(),
-       NOW()
-WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Plaster of Paris False Ceiling');
+         '46833846',
+         NULL,
+         NOW(),
+         NOW()
+  WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Plaster of Paris False Ceiling');
 
-INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
-SELECT gen_random_uuid(),
-       'Floor Tile Laying',
-       'Civil & Masonry',
-       'Lay floor tiles level, with consistent joints, full mortar bedding, and clean grouting that will not develop hollow spots, edge chipping, or grout failure.',
-       $sop22$**Purpose:** Lay floor tiles level, with consistent joints, full mortar bedding, and clean grouting that will not develop hollow spots, edge chipping, or grout failure.
+  INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
+  SELECT gen_random_uuid(),
+         'Floor Tile Laying',
+         'Civil & Masonry',
+         'Lay floor tiles level, with consistent joints, full mortar bedding, and clean grouting that will not develop hollow spots, edge chipping, or grout failure.',
+         $sop22$**Purpose:** Lay floor tiles level, with consistent joints, full mortar bedding, and clean grouting that will not develop hollow spots, edge chipping, or grout failure.
 
 **System acceptability:**
 
@@ -2188,18 +2189,18 @@ SELECT gen_random_uuid(),
 - Use adhesive past its working time
 - Mix grout colors mid-project
 - Use cement-sand bedding alone for ceramic/porcelain (causes cracking)$sop22$,
-       '46833846',
-       NULL,
-       NOW(),
-       NOW()
-WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Floor Tile Laying');
+         '46833846',
+         NULL,
+         NOW(),
+         NOW()
+  WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Floor Tile Laying');
 
-INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
-SELECT gen_random_uuid(),
-       'CPVC Pipe Installation',
-       'Plumbing & Sanitary',
-       'Install hot and cold water supply pipes with proper joints, supports, and pressure testing for decades of leak-free service.',
-       $sop23$**Purpose:** Install hot and cold water supply pipes with proper joints, supports, and pressure testing for decades of leak-free service.
+  INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
+  SELECT gen_random_uuid(),
+         'CPVC Pipe Installation',
+         'Plumbing & Sanitary',
+         'Install hot and cold water supply pipes with proper joints, supports, and pressure testing for decades of leak-free service.',
+         $sop23$**Purpose:** Install hot and cold water supply pipes with proper joints, supports, and pressure testing for decades of leak-free service.
 
 **System acceptability:**
 
@@ -2281,18 +2282,18 @@ SELECT gen_random_uuid(),
 - Use hacksaw for cutting
 - Skip the pressure test
 - Use UPVC for hot water lines$sop23$,
-       '46833846',
-       NULL,
-       NOW(),
-       NOW()
-WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'CPVC Pipe Installation');
+         '46833846',
+         NULL,
+         NOW(),
+         NOW()
+  WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'CPVC Pipe Installation');
 
-INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
-SELECT gen_random_uuid(),
-       'Project Handover',
-       'Studio Operations',
-       'Close out a project formally with all documentation, snags closed, and warranties transferred to the client.',
-       $sop24$**Purpose:** Close out a project formally with all documentation, snags closed, and warranties transferred to the client.
+  INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
+  SELECT gen_random_uuid(),
+         'Project Handover',
+         'Studio Operations',
+         'Close out a project formally with all documentation, snags closed, and warranties transferred to the client.',
+         $sop24$**Purpose:** Close out a project formally with all documentation, snags closed, and warranties transferred to the client.
 
 **Pre-conditions:**
 
@@ -2378,10 +2379,11 @@ Total: 25 SOPs across 8 categories — Carpentry & Joinery, Polishing & Finishin
 These SOPs are written to be handed to vendors as the standard your firm expects. The depth varies by failure cost — work where failures are expensive and hidden (PU polish, waterproofing, marble, electrical, AC) receives the longest treatment; work that's more straightforward receives a tighter format.
 
 Editable by your daughter to reflect her firm's brand preferences, regional supplier networks, and accumulated experience.$sop24$,
-       '46833846',
-       NULL,
-       NOW(),
-       NOW()
-WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Project Handover');
+         '46833846',
+         NULL,
+         NOW(),
+         NOW()
+  WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'Project Handover');
 
-COMMIT;
+END
+$$;
