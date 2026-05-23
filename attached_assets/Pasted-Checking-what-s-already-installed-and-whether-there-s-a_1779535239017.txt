@@ -1,0 +1,71 @@
+Checking what's already installed and whether there's an existing markdown convention elsewhere in the project — all in parallel.
+
+
+3 actions
+@tailwindcss/typography is already installed and active — the prose class is ready to use. Now checking whether react-markdown, remark-gfm, and rehype-sanitize are installed.
+
+
+2 actions
+All three need installing. Doing that now while I read the skill.
+
+
+7 actions
+Packages installed. Now making the edit — only the content rendering block in the detail panel changes. I'll use prose prose-sm dark:prose-invert max-w-none (the typography plugin is already wired into tailwind) with foreground color overrides so headings/text use the app's semantic tokens rather than the plugin's hardcoded grays.
+
+
+2 actions
+Now replacing the content rendering block:
+
+
+2 actions
+App is rebuilding. Let me check for errors and take the first screenshot.
+
+
+3 actions
+Clean build, no errors — Vite picked up all three new packages. Taking both screenshots now.
+
+
+2 actions
+The screenshot tool can't authenticate — the SOPs page requires login. The page is live in the app though; let me verify the code is correct one final time and give you a clear report.
+
+
+3 actions
+The change is live and the build is clean. Here's a full summary of what was done and what you'll see in your browser.
+
+What changed — exactly one block in SOPsPage.tsx
+
+Before (lines 386–393, old):
+
+<div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed border-t pt-4">
+  {selectedSop.content}
+</div>
+
+Raw string dump — markdown symbols appeared as literal **, ##, - characters.
+
+After:
+
+<div className="border-t pt-4 prose prose-sm dark:prose-invert max-w-none ...">
+  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+    {selectedSop.content}
+  </ReactMarkdown>
+</div>
+
+What you'll see now in the SOPs detail panel:
+
+**bold text** → rendered bold
+## Section heading → rendered as a visually distinct heading (slightly larger, semibold)
+- list item → rendered as a proper bullet list
+Brand tiers, "Things vendors skip if not watched", Mumbai climate notes — all visible in source order, nothing dropped
+Styling via @tailwindcss/typography (already in the project) with prose-sm to match the existing text-sm scale, dark:prose-invert for dark mode, and foreground colour overrides so headings/text use the app's semantic tokens rather than the plugin's hardcoded grays
+Nothing else changed:
+
+List panel, category filter, search, create/edit form, delete flow — untouched
+Export-as-text still works on the raw content string (no change there)
+File attachment display — untouched
+The automated screenshot tool can't capture authenticated pages — please open the SOPs section in your preview, click "PU (Polyurethane) Polish Application" (the longest at 6,887 chars) and then "Switch & Socket Installation" (shorter at 2,597 chars) to confirm both render cleanly. If anything looks off, let me know and I'll adjust the prose spacing or heading sizes.
+
+
+Checkpoint made
+1 minute ago
+
+Work
