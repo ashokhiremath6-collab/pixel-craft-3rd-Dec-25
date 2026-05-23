@@ -1,0 +1,29 @@
+There's a serious discrepancy. The PU Polish SOP visible in the app is the stripped-down version, not the v2 content from sops_v2.md.
+
+The v2 source file for PU Polish includes:
+- A "System acceptability" section listing Sirca, Sayerlack, Renner, Milesi as premium brands and Asian Paints PU 2K, Pidilite Wudfin as standard
+- A "Sheen specification" section with gloss unit (GU) numbers — 5-10 GU, 15-20 GU, etc.
+- A "Things vendors skip if not watched" section with three numbered items: internal surfaces of cabinets, end-grain treatment, inter-coat sanding documentation
+- An "Inspection points" section with cross-cut adhesion test details
+- Mumbai-specific notes about monsoon humidity in multiple places
+
+None of these are visible in the app. What's showing is roughly the same content as the original simplistic SOPs.
+
+Earlier you reported that the database content length matched the source within 10 characters. That can't be reconciled with what I'm seeing on screen.
+
+Please do these checks and report back, no changes yet:
+
+1. Run: SELECT LENGTH(content) FROM sops WHERE title = 'PU Polish (Polyurethane) Application';
+   Report the exact number.
+
+2. Run: SELECT SUBSTRING(content FROM 1 FOR 5000) FROM sops WHERE title = 'PU Polish (Polyurethane) Application';
+   Show me the first 5000 characters of the actual content. Do not summarize, do not paraphrase — paste the raw bytes.
+
+3. Check the sops_v2.md file. Find the PU Polish section (it starts with "## SOP 1 — PU (Polyurethane) Polish Application"). Count from there to the end of the "Do NOT" list. Report that character length.
+
+4. Are there any OTHER text-like columns in the sops table besides "content" and "description"? Run: SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'sops';
+   Show me the full output.
+
+5. Search the app's frontend code for which field the SOP detail page reads from. Is it definitely "content"? Show me the line of code.
+
+Do not modify any data, code, or schema. Just report.
