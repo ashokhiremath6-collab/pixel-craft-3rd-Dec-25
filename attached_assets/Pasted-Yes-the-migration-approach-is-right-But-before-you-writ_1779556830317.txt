@@ -1,0 +1,40 @@
+Yes, the migration approach is right. But before you write it, I need to understand the full picture and the migration must be carefully scoped.
+
+First, three questions to answer (no changes yet):
+
+1. Confirm the production database is the SAME database that Drizzle migrations have been writing to on every deploy. If migrations have been running there, then the existing data (old 25 SOPs) got there via either a previous migration or some other seed mechanism. Find which migration file created the sops table and which one seeded the original 25 rows. Show me both.
+
+2. List every migration file in the migrations folder, in order, with a one-line description of what each does. I want to understand the migration history.
+
+3. Earlier in this project we did substantial multi-tenant work:
+   - Migration 0004 adding nullable org_id to 29 tables
+   - Backfill of 263 rows to Olympik's org_id
+   - 4 rows flipped to NULL for Group B globals
+   
+   Did migration 0004 run against production? Run the production-environment check (the read-only one) to see if production's sops table has an org_id column. Also check if any other table has org_id. Report what you find.
+
+Now, the SOP migration design:
+
+The new migration must:
+- Be idempotent (safe to run multiple times — but Drizzle's tracking should prevent that anyway)
+- UPDATE existing rows by title for the 16 titles that match v2 exactly
+- INSERT 9 new rows for the v2 titles that didn't exist before
+- DELETE 9 old-title rows that v2 replaces
+- Preserve created_at and id of UPDATED rows
+- Set updated_at = now() on all changes
+- All within a single transaction — full rollback if any step fails
+
+The 9 old titles to delete are the exact ones we identified before:
+- AC Indoor Unit Installation
+- CPVC & UPVC Pipe Installation
+- Concealed Wiring Installation
+- Marble & Stone Installation
+- PU Polish (Polyurethane) Application
+- Plaster of Paris (POP) False Ceiling
+- Project Handover Checklist
+- Sofa Upholstery Standards
+- Tile Laying - Floor
+
+The full v2 content is already in sops_v2.md — same source we used for the dev seed. Use that file as the source of truth.
+
+Answer the three questions first. Then propose the migration file (do not commit it yet) and show me the SQL. I'll review before you deploy.
