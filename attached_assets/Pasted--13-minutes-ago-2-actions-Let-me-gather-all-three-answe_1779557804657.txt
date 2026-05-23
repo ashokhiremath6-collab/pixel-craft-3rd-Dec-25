@@ -1,0 +1,120 @@
+
+13 minutes ago
+
+2 actions
+Let me gather all three answers in parallel.
+
+
+4 actions
+Good. Now I need to read the migration files and check which ones have already run in production. Let me do this all in parallel.
+
+
+7 actions
+The __drizzle_migrations query returned nothing — it may be in the drizzle schema. Let me check that and also inspect the journal to understand tracking, alongside reading the v2 source to confirm the migration content.
+
+
+5 actions
+I have everything needed. Let me get the complete title list from the original seed for the comparison, then I'll compile all three answers together.
+
+
+5 actions
+Now I have all three answers. Let me read the full v2 source to prepare the proposed SQL before reporting everything together.
+
+
+2 actions
+Still reading the v2 source. Let me pull the rest of the file in two parallel chunks.
+
+
+9 actions
+I now have everything I need. Let me write the generation script to parse the v2 markdown and build the proposed migration SQL — I'll also read the two missing SOP sections simultaneously.
+
+
+3 actions
+Now I have all the content. Let me write the generation script to produce the full migration SQL.
+
+
+4 actions
+Good, the SQL was generated. Let me verify it before showing the answers.
+
+
+2 actions
+The SQL file is structurally correct: 9 deletes, 16 updates, 9 inserts, all dollar-quote tags balanced. Let me do one final safety check — making sure no SOP content accidentally contains any of the dollar-quote tags — then compile the full answers.
+
+
+2 actions
+The SQL is verified. Here are the three answers, followed by the proposed migration structure for your review.
+
+Q1 — Confirmed: same database, complete migration history
+The production database is the exact same database Drizzle has been migrating. Proof: drizzle.__drizzle_migrations in production contains 6 rows whose timestamps match the journal exactly:
+
+Timestamp	Migration file
+1778046921931	0000_baseline
+1778405466651	0001_big_wither
+1778405730129	0002_premium_frightful_four
+1778417271305	0003_drop_orphaned_tables
+1778951820628	0004_square_scalphunter
+1779500000000	0005_seed_sops
+sops table created by: 0000_baseline.sql (line 513 — CREATE TABLE IF NOT EXISTS "sops")
+Original 25 rows seeded by: 0005_seed_sops.sql — it has an idempotent guard (IF COUNT(*) < 25 THEN INSERT ...) that ran once when production was empty, creating the 25 original short-content rows. That content is what the live app shows today.
+Q2 — Full migration history
+File	What it does
+0000_baseline.sql (43 KB)	Full schema baseline — creates all 36+ tables including sops
+0001_big_wither.sql	No-op placeholder — changes already existed in DB before Drizzle tracking
+0002_premium_frightful_four.sql	No-op placeholder — works_order_files_works_order_idx already absent
+0003_drop_orphaned_tables.sql	Drops 4 orphaned tables: session, userRoles, favorite_render_styles, works_order_documents
+0004_square_scalphunter.sql	Multi-tenant: adds nullable org_id varchar to 29 tables
+0005_seed_sops.sql	Seeds 25 original SOPs (idempotent guard: only if row count < 25)
+Q3 — Yes, migration 0004 ran in production
+Confirmed two ways:
+
+The 0004 hash is in production's drizzle.__drizzle_migrations (timestamp 1778951820628)
+The sops table in production has an org_id column (nullable varchar, all 25 rows have org_id IS NULL)
+34 tables in production have org_id — 29 from the migration itself, plus 5 more that were created with org_id already in their baseline DDL.
+
+Proposed migration: 0006_update_sops_v2.sql
+The file has been generated to scripts/proposed_0006_update_sops_v2.sql (156 KB, 2,386 lines). Not yet in the migrations/ folder — awaiting your review.
+
+Structure:
+
+BEGIN;
+-- Step 1: Delete 9 old titles (9 DELETEs)
+DELETE FROM sops WHERE title = 'AC Indoor Unit Installation';
+DELETE FROM sops WHERE title = 'CPVC & UPVC Pipe Installation';
+DELETE FROM sops WHERE title = 'Concealed Wiring Installation';
+DELETE FROM sops WHERE title = 'Marble & Stone Installation';
+DELETE FROM sops WHERE title = 'PU Polish (Polyurethane) Application';
+DELETE FROM sops WHERE title = 'Plaster of Paris (POP) False Ceiling';
+DELETE FROM sops WHERE title = 'Project Handover Checklist';
+DELETE FROM sops WHERE title = 'Sofa Upholstery Standards';
+DELETE FROM sops WHERE title = 'Tile Laying - Floor';
+-- Step 2: Update 16 existing rows (UPDATE ... WHERE title = 'exact old title')
+UPDATE sops
+  SET category    = 'Carpentry & Joinery',
+      description = 'Achieve a flat, bubble-free veneer surface...',
+      content     = $sop0$...full v2 markdown...$sop0$,
+      updated_at  = NOW()
+  WHERE title = 'Veneer Application on Plywood';
+-- (×16 total)
+-- Step 3: Insert 9 new rows (INSERT ... WHERE NOT EXISTS)
+INSERT INTO sops (id, title, category, description, content, created_by, org_id, created_at, updated_at)
+SELECT gen_random_uuid(), 'PU (Polyurethane) Polish Application', 'Polishing & Finishing',
+       '...', $sop16$...full v2 markdown...$sop16$, '46833846', NULL, NOW(), NOW()
+WHERE NOT EXISTS (SELECT 1 FROM sops WHERE title = 'PU (Polyurethane) Polish Application');
+-- (×9 total)
+COMMIT;
+
+Safety properties:
+
+Wrapped in a single BEGIN/COMMIT — any error rolls back everything
+UPDATEs and DELETEs are idempotent (harmless re-run)
+INSERTs use WHERE NOT EXISTS so no duplicates if somehow triggered twice
+id and created_at of the 16 updated rows are preserved (only content, category, description, updated_at change)
+org_id = NULL on all new inserts (matches the existing 25 rows)
+Dollar-quoting ($sopN$...$sopN$) — all 25 tags verified balanced, no tag leaks into content
+When you approve, I move proposed_0006_update_sops_v2.sql to migrations/0006_update_sops_v2.sql, add it to the Drizzle journal, and deploy. Drizzle's tracking ensures it runs exactly once in production.
+
+
+Checkpoint made
+6 minutes ago
+
+Worked for 7 minutes
