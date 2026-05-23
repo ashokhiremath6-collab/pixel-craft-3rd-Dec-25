@@ -32,6 +32,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Plus, Search, Pencil, Trash2, FileText, ChevronRight, BookOpen, Eye, MoreVertical, Download } from "lucide-react";
 import { FileViewerModal } from "@/components/FileViewerModal";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeSanitize from "rehype-sanitize";
 
 interface Sop {
   id: string;
@@ -383,8 +386,22 @@ export default function SOPsPage() {
                   <p className="text-sm text-muted-foreground">{selectedSop.description}</p>
                 )}
                 {selectedSop.content ? (
-                  <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed border-t pt-4">
-                    {selectedSop.content}
+                  <div className="border-t pt-4 prose prose-sm dark:prose-invert max-w-none
+                    prose-headings:text-foreground prose-headings:font-semibold
+                    prose-p:text-foreground prose-p:leading-relaxed
+                    prose-li:text-foreground
+                    prose-strong:text-foreground prose-strong:font-semibold
+                    prose-h2:text-base prose-h2:mt-4 prose-h2:mb-1.5
+                    prose-h3:text-sm prose-h3:mt-3 prose-h3:mb-1
+                    prose-ul:my-1.5 prose-ol:my-1.5
+                    prose-li:my-0.5
+                    prose-p:my-1.5">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeSanitize]}
+                    >
+                      {selectedSop.content}
+                    </ReactMarkdown>
                   </div>
                 ) : (
                   !selectedSop.description && !selectedSop.filePath && (
