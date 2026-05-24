@@ -56,9 +56,10 @@ interface ComparativeQuotesProps {
   hideValueColumns?: boolean; // Hide quote value and variance columns
   initialProject?: string;
   initialCategory?: string;
+  initialQuoteId?: string; // projectVendorId — auto-opens the file viewer for this quote
 }
 
-export default function ComparativeQuotes({ projects, categories, quotations, onStatusChange, hideValueColumns = false, initialProject, initialCategory }: ComparativeQuotesProps) {
+export default function ComparativeQuotes({ projects, categories, quotations, onStatusChange, hideValueColumns = false, initialProject, initialCategory, initialQuoteId }: ComparativeQuotesProps) {
   const [selectedProject, setSelectedProject] = useState<string>(initialProject ?? "");
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory ?? "all");
   const [isExporting, setIsExporting] = useState(false);
@@ -97,6 +98,22 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     });
     setIsModalOpen(true);
   };
+
+  // Auto-open the file viewer when a specific quote ID is requested via URL
+  useEffect(() => {
+    if (!initialQuoteId || Object.keys(quotations).length === 0) return;
+    // Search all projects for the matching quotation
+    for (const quotes of Object.values(quotations)) {
+      const match = quotes.find(q => q.id === initialQuoteId);
+      if (match?.quotationFile) {
+        const fileName = match.quotationFile.split('/').pop() || `${match.vendorName}_quote`;
+        setFileViewerUrl(match.quotationFile);
+        setFileViewerName(fileName);
+        setFileViewerOpen(true);
+        break;
+      }
+    }
+  }, [initialQuoteId, quotations]);
 
   const handleCloseModal = () => {
     setIsModalOpen(false);

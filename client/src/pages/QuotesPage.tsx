@@ -17,6 +17,7 @@ export default function QuotesPage() {
   const params = new URLSearchParams(search);
   const initialProject = params.get("project") ?? undefined;
   const initialCategory = params.get("category") ?? undefined;
+  const initialQuoteId = params.get("file") ?? undefined;
 
   // Fetch vendor categories for hierarchical filtering
   const { data: categories = [] } = useQuery({
@@ -111,6 +112,7 @@ export default function QuotesPage() {
       onStatusChange={handleStatusChange}
       initialProject={initialProject}
       initialCategory={initialCategory}
+      initialQuoteId={initialQuoteId}
     />
   );
 }

@@ -146,7 +146,12 @@ function getActivityNavPath(activityType: string, projectId: string | null, meta
   if (activityType.startsWith('working_drawing_')) return pid ? `/working-drawings?projectId=${pid}` : '/working-drawings';
   if (activityType.startsWith('schedule_') || activityType === 'schedule') return pid ? `/gantt?projectId=${pid}` : '/gantt';
   if (activityType.startsWith('task_')) return pid ? `/gantt?projectId=${pid}` : '/gantt';
-  if (activityType.startsWith('quote_') || activityType.startsWith('boq_')) return pid ? `/quotes?project=${pid}` : '/quotes';
+  if (activityType.startsWith('quote_') || activityType.startsWith('boq_')) {
+    const pvId = meta?.projectVendorId as string | null;
+    if (pid && pvId) return `/quotes?project=${pid}&file=${pvId}`;
+    if (pid) return `/quotes?project=${pid}`;
+    return '/quotes';
+  }
   if (activityType.startsWith('specification_')) return '/specifications';
   if (activityType.startsWith('catalogue_')) return '/catalogue';
   if (activityType.startsWith('meeting_minutes_')) return pid ? `/gantt?projectId=${pid}` : null;
