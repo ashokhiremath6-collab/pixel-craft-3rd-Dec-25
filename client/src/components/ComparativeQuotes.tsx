@@ -64,6 +64,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory ?? "all");
   const [isExporting, setIsExporting] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const [highlightedQuoteId, setHighlightedQuoteId] = useState<string | null>(initialQuoteId ?? null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalData, setModalData] = useState<{ vendorName: string; projectName: string } | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -99,20 +100,17 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     setIsModalOpen(true);
   };
 
-  // Auto-open the file viewer when a specific quote ID is requested via URL
+  // Scroll to and highlight the specific quote row when navigating from the dashboard
   useEffect(() => {
     if (!initialQuoteId || Object.keys(quotations).length === 0) return;
-    // Search all projects for the matching quotation
-    for (const quotes of Object.values(quotations)) {
-      const match = quotes.find(q => q.id === initialQuoteId);
-      if (match?.quotationFile) {
-        const fileName = match.quotationFile.split('/').pop() || `${match.vendorName}_quote`;
-        setFileViewerUrl(match.quotationFile);
-        setFileViewerName(fileName);
-        setFileViewerOpen(true);
-        break;
+    // Small delay to allow the table to render after project filter is applied
+    const timer = setTimeout(() => {
+      const row = document.querySelector(`[data-testid="quotation-row-${initialQuoteId}"]`);
+      if (row) {
+        row.scrollIntoView({ behavior: "smooth", block: "center" });
       }
-    }
+    }, 300);
+    return () => clearTimeout(timer);
   }, [initialQuoteId, quotations]);
 
   const handleCloseModal = () => {
@@ -777,12 +775,14 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         const isLowest = quotationValue > 0 && quotationValue === lowestQuote;
                         const isFirstQuoteForVendor = quotationIndex === 0;
                         const isSelected = quotation.status === "Selected";
+                        const isHighlighted = quotation.id === highlightedQuoteId;
                         
                         return (
                           <TableRow 
                             key={quotation.id}
-                            className={`h-10 border-l-4 ${isSelected ? "bg-emerald-50 dark:bg-emerald-900/25 border-l-emerald-500" : "border-l-transparent"}`}
+                            className={`h-10 border-l-4 ${isHighlighted ? "bg-amber-50 dark:bg-amber-900/25 border-l-amber-400" : isSelected ? "bg-emerald-50 dark:bg-emerald-900/25 border-l-emerald-500" : "border-l-transparent"}`}
                             data-testid={`quotation-row-${quotation.id}`}
+                            onClick={() => isHighlighted && setHighlightedQuoteId(null)}
                           >
                             <TableCell className="font-medium text-sm py-2" data-testid="text-vendor-name">
                               <div className="flex flex-col">
@@ -1154,12 +1154,14 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                             const isLowest = quotationValue > 0 && quotationValue === lowestQuote;
                             const isFirstQuoteForVendor = quotationIndex === 0;
                             const isSelected = quotation.status === "Selected";
+                            const isHighlighted = quotation.id === highlightedQuoteId;
                             
                             return (
                               <TableRow 
                                 key={quotation.id}
-                                className={`h-10 border-l-4 ${isSelected ? "bg-emerald-50 dark:bg-emerald-900/25 border-l-emerald-500" : "border-l-transparent"}`}
+                                className={`h-10 border-l-4 ${isHighlighted ? "bg-amber-50 dark:bg-amber-900/25 border-l-amber-400" : isSelected ? "bg-emerald-50 dark:bg-emerald-900/25 border-l-emerald-500" : "border-l-transparent"}`}
                                 data-testid={`quotation-row-${quotation.id}`}
+                                onClick={() => isHighlighted && setHighlightedQuoteId(null)}
                               >
                                 <TableCell className="font-medium text-sm py-2" data-testid="text-vendor-name">
                                   <div className="flex flex-col">
