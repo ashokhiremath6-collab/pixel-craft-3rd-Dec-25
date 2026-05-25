@@ -75,6 +75,26 @@ app.use((req, res, next) => {
     process.exit(1);
   }
 
+  // Seed any missing vendor categories (safe: skips names that already exist)
+  try {
+    await db.execute(sql`
+      INSERT INTO vendor_categories (id, name, parent_id, is_active)
+      SELECT gen_random_uuid(), v.name, NULL, true
+      FROM (VALUES
+        ('Architectural Lighting'),
+        ('Decorative Lighting'),
+        ('Finishes (Veneer and Laminates)'),
+        ('Laminates and Veneers'),
+        ('Special Hardware')
+      ) AS v(name)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM vendor_categories vc WHERE vc.name = v.name
+      )
+    `);
+  } catch (err) {
+    console.error("Failed to seed vendor categories:", err);
+  }
+
   const server = await registerRoutes(app);
 
   // Keep the Neon serverless database connection warm to avoid cold-start delays.
