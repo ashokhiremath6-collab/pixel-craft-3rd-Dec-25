@@ -211,7 +211,7 @@ export default function ProjectView({
 
                     {/* Status pill — top right */}
                     <div
-                      className="absolute top-3 right-3 flex items-center gap-1 px-2 py-0.5 rounded-full"
+                      className="absolute top-2 right-2 flex items-center gap-0.5 px-1 py-px rounded-full"
                       style={{
                         background: "rgba(255,255,255,0.88)",
                         backdropFilter: "blur(8px)",
@@ -219,11 +219,11 @@ export default function ProjectView({
                       }}
                     >
                       <div
-                        className="rounded-full w-1.5 h-1.5 flex-shrink-0"
+                        className="rounded-full w-1 h-1 flex-shrink-0"
                         style={{ background: active ? "#34c759" : "#86868b" }}
                       />
                       <span
-                        className="text-[10px] font-semibold uppercase tracking-wide"
+                        className="text-[9px] font-semibold uppercase tracking-wide"
                         style={{ color: active ? "#1a7a30" : "#555" }}
                         data-testid="badge-project-status"
                       >
