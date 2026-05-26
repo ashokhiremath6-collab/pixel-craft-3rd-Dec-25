@@ -4842,12 +4842,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      // Allow updating name, description, tags, canvaLink, folder, and roomType
-      const { name, description, tags, canvaLink, folder, roomType } = req.body;
+      // Allow updating name, description, tags, canvaLink, folder, roomType, and isLatestVersion
+      const { name, description, tags, canvaLink, folder, roomType, isLatestVersion } = req.body;
       const updates: any = {};
       
       if (name !== undefined) updates.name = name;
       if (description !== undefined) updates.description = description;
+      if (isLatestVersion !== undefined) updates.isLatestVersion = Boolean(isLatestVersion);
       if (tags !== undefined) {
         if (Array.isArray(tags)) {
           updates.tags = tags.filter(tag => typeof tag === 'string' && tag.trim().length > 0);

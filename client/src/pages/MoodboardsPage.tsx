@@ -599,6 +599,25 @@ export default function MoodboardsPage() {
     },
   });
 
+  // Toggle "Latest Version" pin mutation (for working drawings)
+  const toggleLatestVersionMutation = useMutation({
+    mutationFn: async ({ id, isLatestVersion }: { id: string; isLatestVersion: boolean }) => {
+      return await apiRequest("PUT", `/api/moodboards/${id}`, { isLatestVersion });
+    },
+    onSuccess: (_data, { isLatestVersion }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+      toast({
+        title: isLatestVersion ? "Marked as Latest Version" : "Label removed",
+        description: isLatestVersion
+          ? "This drawing is now labelled as the Latest Version."
+          : "Latest Version label has been removed.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Update failed", description: error.message });
+    },
+  });
+
   // Move to folder mutation (for working drawings)
   const moveFolderMutation = useMutation({
     mutationFn: async ({ id, folder }: { id: string; folder: string }) => {
@@ -1265,8 +1284,9 @@ export default function MoodboardsPage() {
                           {folderItems.map((moodboard: Moodboard) => {
                             const cadMeta = parseCadMeta(moodboard.description);
                             const isCAD = isCadFile(moodboard);
-                            const isLatest = latestOfNameIds.has(moodboard.id);
-                            const isOlder = olderVersionIds.has(moodboard.id);
+                            const isPinnedLatest = (moodboard as any).isLatestVersion === true;
+                            const isLatest = isPinnedLatest || latestOfNameIds.has(moodboard.id);
+                            const isOlder = !isPinnedLatest && olderVersionIds.has(moodboard.id);
                             return (
                             <div key={moodboard.id}
                               className={`flex items-center justify-between gap-4 p-4 rounded-lg hover-elevate ${
@@ -1368,6 +1388,21 @@ export default function MoodboardsPage() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
+                                    {isPinnedLatest ? (
+                                      <DropdownMenuItem
+                                        onClick={() => toggleLatestVersionMutation.mutate({ id: moodboard.id, isLatestVersion: false })}
+                                      >
+                                        <Badge className="h-3 w-3 mr-2 p-0 bg-emerald-600" />
+                                        Remove Latest label
+                                      </DropdownMenuItem>
+                                    ) : (
+                                      <DropdownMenuItem
+                                        onClick={() => toggleLatestVersionMutation.mutate({ id: moodboard.id, isLatestVersion: true })}
+                                      >
+                                        <Badge className="h-3 w-3 mr-2 p-0 bg-emerald-600" />
+                                        Mark as Latest Version
+                                      </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuSub>
                                       <DropdownMenuSubTrigger>
                                         <FolderInput className="h-4 w-4 mr-2" />

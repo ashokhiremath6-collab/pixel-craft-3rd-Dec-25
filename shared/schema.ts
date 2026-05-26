@@ -169,6 +169,7 @@ export const moodboards = pgTable("moodboards", {
   roomType: text("room_type"), // For renders: living room, bedroom, kitchen, etc. (extracted from filename)
   referenceMetadata: jsonb("reference_metadata"), // For AI renders: array of catalogue items used as references
   savedBy: varchar("saved_by").references(() => users.id), // User who saved the render
+  isLatestVersion: boolean("is_latest_version").default(false), // Manually pinned as "Latest Version" by a designer
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
   orgId: varchar("org_id"),
 });
