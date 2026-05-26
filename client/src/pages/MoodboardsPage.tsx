@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download, FolderInput, MoreVertical, FileCode2, Layers, ChevronDown, ChevronUp, Pencil } from "lucide-react";
+import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download, FolderInput, MoreVertical, FileCode2, Layers, ChevronDown, ChevronUp, Pencil, BookmarkCheck, Bookmark } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1381,6 +1381,19 @@ export default function MoodboardsPage() {
                                     </Button>
                                   )
                                 )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => toggleLatestVersionMutation.mutate({ id: moodboard.id, isLatestVersion: !isPinnedLatest })}
+                                  title={isPinnedLatest ? "Remove Latest Version label" : "Mark as Latest Version"}
+                                  className={isPinnedLatest ? "text-emerald-600" : "text-muted-foreground"}
+                                  data-testid={`button-latest-${moodboard.id}`}
+                                >
+                                  {isPinnedLatest
+                                    ? <BookmarkCheck className="h-4 w-4" />
+                                    : <Bookmark className="h-4 w-4" />
+                                  }
+                                </Button>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="icon" data-testid={`button-actions-${moodboard.id}`}>
