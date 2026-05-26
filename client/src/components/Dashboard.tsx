@@ -143,7 +143,12 @@ function getActivityNavPath(activityType: string, projectId: string | null, meta
   if (activityType.startsWith('floor_plan_')) return pid ? `/floor-plans?projectId=${pid}` : '/floor-plans';
   if (activityType.startsWith('moodboard_')) return pid ? `/moodboards?projectId=${pid}` : '/moodboards';
   if (activityType.startsWith('render_')) return pid ? `/renders?projectId=${pid}` : '/renders';
-  if (activityType.startsWith('working_drawing_')) return pid ? `/working-drawings?projectId=${pid}` : '/working-drawings';
+  if (activityType.startsWith('working_drawing_')) {
+    const mid = meta?.moodboardId as string | null;
+    if (pid && mid) return `/working-drawings?projectId=${pid}&file=${mid}`;
+    if (pid) return `/working-drawings?projectId=${pid}`;
+    return '/working-drawings';
+  }
   if (activityType.startsWith('schedule_') || activityType === 'schedule') return pid ? `/gantt?projectId=${pid}` : '/gantt';
   if (activityType.startsWith('task_')) return pid ? `/gantt?projectId=${pid}` : '/gantt';
   if (activityType.startsWith('quote_') || activityType.startsWith('boq_')) {

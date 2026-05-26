@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +36,7 @@ export default function MoodboardsPage() {
   const [location, setLocation] = useLocation();
   const search = useSearch();
   const filterProjectId = new URLSearchParams(search).get("projectId") || "";
+  const deepLinkFileId = new URLSearchParams(search).get("file") || "";
   const setFilterProjectId = (value: string) => {
     const params = new URLSearchParams(search);
     if (value) {
@@ -248,6 +249,15 @@ export default function MoodboardsPage() {
     refetchOnWindowFocus: true,
     refetchOnMount: 'always',
   });
+
+  // Auto-open file viewer when navigated from dashboard activity card
+  useEffect(() => {
+    if (!deepLinkFileId || isLoading || moodboards.length === 0) return;
+    const target = moodboards.find((m: Moodboard) => m.id === deepLinkFileId);
+    if (target && getPreviewUrl(target)) {
+      setPreviewImage(target);
+    }
+  }, [deepLinkFileId, isLoading, moodboards]);
 
   // Floor plans query — fetched when on working-drawings route and a project is selected
   const { data: allFloorPlans = [] } = useQuery<FloorPlan[]>({
