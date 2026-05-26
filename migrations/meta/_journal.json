@@ -50,6 +50,13 @@
       "when": 1779558000000,
       "tag": "0006_update_sops_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779822000000,
+      "tag": "0007_moodboard_is_latest_version",
+      "breakpoints": true
     }
   ]
 }
