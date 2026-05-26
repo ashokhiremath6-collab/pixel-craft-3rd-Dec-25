@@ -1134,6 +1134,24 @@ export default function MoodboardsPage() {
                         !a || new Date(b.uploadedAt) > new Date(a.uploadedAt) ? b : a
                       , null)?.id;
                       const totalCount = fps.length + moodboardFps.length;
+                      // Duplicate-name detection for moodboardFps items
+                      const fpNameToIds: Record<string, string[]> = {};
+                      moodboardFps.forEach((m: Moodboard) => {
+                        const title = getDisplayTitle(m) || m.id;
+                        if (!fpNameToIds[title]) fpNameToIds[title] = [];
+                        fpNameToIds[title].push(m.id);
+                      });
+                      const fpLatestOfNameIds = new Set<string>();
+                      const fpOlderVersionIds = new Set<string>();
+                      Object.values(fpNameToIds).forEach(ids => {
+                        if (ids.length < 2) return;
+                        const candidates = moodboardFps.filter((i: Moodboard) => ids.includes(i.id));
+                        const latest = candidates.reduce((a: Moodboard, b: Moodboard) =>
+                          new Date(a.uploadedAt) > new Date(b.uploadedAt) ? a : b
+                        );
+                        fpLatestOfNameIds.add(latest.id);
+                        candidates.forEach((c: Moodboard) => { if (c.id !== latest.id) fpOlderVersionIds.add(c.id); });
+                      });
                       return (
                         <div className="space-y-3">
                           <div className="flex items-center gap-2 pb-2 border-b">
@@ -1206,9 +1224,18 @@ export default function MoodboardsPage() {
                             {moodboardFps.map((moodboard: Moodboard) => {
                               const cadMeta = parseCadMeta(moodboard.description);
                               const isCAD = isCadFile(moodboard);
+                              const isPinnedLatest = (moodboard as any).isLatestVersion === true;
+                              const isFpLatest = isPinnedLatest || fpLatestOfNameIds.has(moodboard.id);
+                              const isFpOlder = !isPinnedLatest && fpOlderVersionIds.has(moodboard.id);
                               return (
                                 <div key={moodboard.id}
-                                  className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate"
+                                  className={`flex items-center justify-between gap-4 p-4 rounded-lg hover-elevate ${
+                                    isFpLatest
+                                      ? "border-2 border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/30"
+                                      : isFpOlder
+                                        ? "border border-dashed opacity-70"
+                                        : "border"
+                                  }`}
                                   data-testid={`drawing-item-${moodboard.id}`}>
                                   <div className="flex-1 min-w-0 flex items-start gap-3">
                                     {isCAD && <FileCode2 className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />}
@@ -1217,6 +1244,12 @@ export default function MoodboardsPage() {
                                         <h4 className="font-medium text-base truncate" title={getDisplayTitle(moodboard)}>
                                           {getDisplayTitle(moodboard) || "Floor Plan"}
                                         </h4>
+                                        {isFpLatest && (
+                                          <Badge className="text-[10px] shrink-0 bg-emerald-600 hover:bg-emerald-600 text-white">Latest Version</Badge>
+                                        )}
+                                        {isFpOlder && (
+                                          <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground">Older Version</Badge>
+                                        )}
                                         {isCAD && <Badge variant="secondary" className="text-xs shrink-0 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">CAD</Badge>}
                                         <RecentBadge date={moodboard.uploadedAt} />
                                       </div>
@@ -1229,17 +1262,91 @@ export default function MoodboardsPage() {
                                             <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy')}</span>
                                           </>
                                         ) : (
-                                          <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+                                          <>
+                                            {moodboard.description && moodboard.fileName && (
+                                              <><span>{moodboard.fileName}</span><span>•</span></>
+                                            )}
+                                            <span>{format(new Date(moodboard.uploadedAt), 'dd MMM yyyy, HH:mm')}</span>
+                                          </>
                                         )}
                                       </div>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2 shrink-0">
                                     {getPreviewUrl(moodboard) && (
-                                      <Button variant="ghost" size="icon" onClick={() => setPreviewImage(moodboard)} title="Preview">
-                                        <Eye className="h-4 w-4" />
-                                      </Button>
+                                      isCAD ? (
+                                        <div className="flex items-center gap-1">
+                                          <Button variant="ghost" size="icon" onClick={() => setPreviewImage(moodboard)} title="Preview CAD drawing" data-testid={`button-view-${moodboard.id}`}>
+                                            <Eye className="h-4 w-4" />
+                                          </Button>
+                                          <Button variant="outline" size="sm" onClick={() => downloadFile(moodboard)} title="Download for AutoCAD" data-testid={`button-download-${moodboard.id}`}>
+                                            <Download className="h-3.5 w-3.5 mr-1.5" />Download
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <Button variant="ghost" size="icon" onClick={() => setPreviewImage(moodboard)} data-testid={`button-view-${moodboard.id}`}>
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                      )
                                     )}
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => toggleLatestVersionMutation.mutate({ id: moodboard.id, isLatestVersion: !isPinnedLatest })}
+                                      title={isPinnedLatest ? "Remove Latest Version label" : "Mark as Latest Version"}
+                                      className={isPinnedLatest ? "text-emerald-600" : "text-muted-foreground"}
+                                      data-testid={`button-latest-${moodboard.id}`}
+                                    >
+                                      {isPinnedLatest
+                                        ? <BookmarkCheck className="h-4 w-4" />
+                                        : <Bookmark className="h-4 w-4" />
+                                      }
+                                    </Button>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" data-testid={`button-actions-${moodboard.id}`}>
+                                          <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        {isPinnedLatest ? (
+                                          <DropdownMenuItem onClick={() => toggleLatestVersionMutation.mutate({ id: moodboard.id, isLatestVersion: false })}>
+                                            <Badge className="h-3 w-3 mr-2 p-0 bg-emerald-600" />
+                                            Remove Latest label
+                                          </DropdownMenuItem>
+                                        ) : (
+                                          <DropdownMenuItem onClick={() => toggleLatestVersionMutation.mutate({ id: moodboard.id, isLatestVersion: true })}>
+                                            <Badge className="h-3 w-3 mr-2 p-0 bg-emerald-600" />
+                                            Mark as Latest Version
+                                          </DropdownMenuItem>
+                                        )}
+                                        <DropdownMenuSub>
+                                          <DropdownMenuSubTrigger>
+                                            <FolderInput className="h-4 w-4 mr-2" />
+                                            Move to Folder
+                                          </DropdownMenuSubTrigger>
+                                          <DropdownMenuPortal>
+                                            <DropdownMenuSubContent>
+                                              {workingDrawingFolders.map((f) => (
+                                                <DropdownMenuItem
+                                                  key={f}
+                                                  onClick={() => moveMoodboardToFolder(moodboard.id, f)}
+                                                >
+                                                  {f}
+                                                </DropdownMenuItem>
+                                              ))}
+                                            </DropdownMenuSubContent>
+                                          </DropdownMenuPortal>
+                                        </DropdownMenuSub>
+                                        <DropdownMenuItem
+                                          className="text-destructive"
+                                          onClick={() => deleteMoodboard(moodboard.id)}
+                                        >
+                                          <Trash2 className="h-4 w-4 mr-2" />
+                                          Delete
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                   </div>
                                 </div>
                               );
