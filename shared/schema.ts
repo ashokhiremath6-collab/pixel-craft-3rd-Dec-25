@@ -148,6 +148,7 @@ export const floorPlans = pgTable("floor_plans", {
   fileSize: decimal("file_size"), // in bytes
   version: text("version").notNull().default("1.0"),
   isActive: boolean("is_active").notNull().default(true),
+  isLatestVersion: boolean("is_latest_version").default(false),
   uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
   orgId: varchar("org_id"),
 });

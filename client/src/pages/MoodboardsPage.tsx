@@ -618,6 +618,24 @@ export default function MoodboardsPage() {
     },
   });
 
+  const toggleFloorPlanLatestVersionMutation = useMutation({
+    mutationFn: async ({ id, isLatestVersion }: { id: string; isLatestVersion: boolean }) => {
+      return await apiRequest("PUT", `/api/floor-plans/${id}`, { isLatestVersion });
+    },
+    onSuccess: (_data, { isLatestVersion }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/floor-plans"] });
+      toast({
+        title: isLatestVersion ? "Marked as Latest Version" : "Label removed",
+        description: isLatestVersion
+          ? "This floor plan is now labelled as the Latest Version."
+          : "Latest Version label has been removed.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Update failed", description: error.message });
+    },
+  });
+
   // Move to folder mutation (for working drawings)
   const moveFolderMutation = useMutation({
     mutationFn: async ({ id, folder }: { id: string; folder: string }) => {
@@ -1161,7 +1179,8 @@ export default function MoodboardsPage() {
                           </div>
                           <div className="space-y-3 pl-2">
                             {fps.map((fp: FloorPlan) => {
-                              const isLatest = fp.id === latestFpId;
+                              const isPinnedFpLatest = fp.isLatestVersion === true;
+                              const isLatest = isPinnedFpLatest || fp.id === latestFpId;
                               const isCAD = fp.fileType === "dxf" || fp.fileType === "dwg" || fp.fileName?.toLowerCase().endsWith(".dxf") || fp.fileName?.toLowerCase().endsWith(".dwg");
                               return (
                                 <div key={fp.id}
@@ -1196,7 +1215,7 @@ export default function MoodboardsPage() {
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 shrink-0">
                                     {fp.filePath && (
                                       <>
                                         <Button variant="ghost" size="icon"
@@ -1216,6 +1235,38 @@ export default function MoodboardsPage() {
                                         </Button>
                                       </>
                                     )}
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => toggleFloorPlanLatestVersionMutation.mutate({ id: fp.id, isLatestVersion: !isPinnedFpLatest })}
+                                      title={isPinnedFpLatest ? "Remove Latest Version label" : "Mark as Latest Version"}
+                                      className={isPinnedFpLatest ? "text-emerald-600" : "text-muted-foreground"}
+                                    >
+                                      {isPinnedFpLatest
+                                        ? <BookmarkCheck className="h-4 w-4" />
+                                        : <Bookmark className="h-4 w-4" />
+                                      }
+                                    </Button>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon">
+                                          <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        {isPinnedFpLatest ? (
+                                          <DropdownMenuItem onClick={() => toggleFloorPlanLatestVersionMutation.mutate({ id: fp.id, isLatestVersion: false })}>
+                                            <Badge className="h-3 w-3 mr-2 p-0 bg-emerald-600" />
+                                            Remove Latest label
+                                          </DropdownMenuItem>
+                                        ) : (
+                                          <DropdownMenuItem onClick={() => toggleFloorPlanLatestVersionMutation.mutate({ id: fp.id, isLatestVersion: true })}>
+                                            <Badge className="h-3 w-3 mr-2 p-0 bg-emerald-600" />
+                                            Mark as Latest Version
+                                          </DropdownMenuItem>
+                                        )}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                   </div>
                                 </div>
                               );
