@@ -84,7 +84,6 @@ app.use((req, res, next) => {
         ('Architectural Lighting'),
         ('Decorative Lighting'),
         ('Finishes (Veneer and Laminates)'),
-        ('Laminates and Veneers'),
         ('Special Hardware')
       ) AS v(name)
       WHERE NOT EXISTS (
