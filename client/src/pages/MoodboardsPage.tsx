@@ -60,6 +60,7 @@ export default function MoodboardsPage() {
   const [previewImage, setPreviewImage] = useState<Moodboard | null>(null);
   const [floorPlanViewer, setFloorPlanViewer] = useState<{url: string, name: string} | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingFpId, setDeletingFpId] = useState<string | null>(null);
 
   // Edit render state
   const [editingRender, setEditingRender] = useState<Moodboard | null>(null);
@@ -617,6 +618,26 @@ export default function MoodboardsPage() {
       toast({ variant: "destructive", title: "Update failed", description: error.message });
     },
   });
+
+  const deleteFloorPlanMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest("DELETE", `/api/floor-plans/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/floor-plans"] });
+      toast({ title: "Floor plan deleted", description: "The floor plan has been removed." });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Delete failed", description: error.message });
+    },
+  });
+
+  const confirmDeleteFp = () => {
+    if (deletingFpId) {
+      deleteFloorPlanMutation.mutate(deletingFpId);
+      setDeletingFpId(null);
+    }
+  };
 
   const toggleFloorPlanLatestVersionMutation = useMutation({
     mutationFn: async ({ id, isLatestVersion }: { id: string; isLatestVersion: boolean }) => {
@@ -1265,6 +1286,13 @@ export default function MoodboardsPage() {
                                             Mark as Latest Version
                                           </DropdownMenuItem>
                                         )}
+                                        <DropdownMenuItem
+                                          className="text-destructive"
+                                          onClick={() => setDeletingFpId(fp.id)}
+                                        >
+                                          <Trash2 className="h-4 w-4 mr-2" />
+                                          Delete
+                                        </DropdownMenuItem>
                                       </DropdownMenuContent>
                                     </DropdownMenu>
                                   </div>
@@ -1968,6 +1996,13 @@ export default function MoodboardsPage() {
         onClose={() => setDeletingId(null)}
         onConfirm={confirmDelete}
         isDeleting={deleteMutation.isPending}
+      />
+
+      <DeleteConfirmDialog
+        isOpen={!!deletingFpId}
+        onClose={() => setDeletingFpId(null)}
+        onConfirm={confirmDeleteFp}
+        isDeleting={deleteFloorPlanMutation.isPending}
       />
 
       {/* CAD Import Dialog — Working Drawings only */}
