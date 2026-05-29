@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -30,7 +30,11 @@ import {
   Shirt,
   Package,
   Save,
-  Clock
+  Clock,
+  Maximize2,
+  X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import type { ObjectAsset } from "@shared/schema";
 import { AccessDenied } from "@/components/AccessDenied";
@@ -80,6 +84,7 @@ export default function AssetIngestionPage() {
   const [selectedObjectType, setSelectedObjectType] = useState<string>("");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const { user, isLoading: userLoading } = useAuth();
 
@@ -296,6 +301,19 @@ export default function AssetIngestionPage() {
     return true;
   }) || [];
 
+  const lightboxAssets = filteredAssets.filter(a => a.originalFilePath || a.thumbnailPath || a.processedFilePath);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxIndex(null);
+      if (e.key === 'ArrowRight') setLightboxIndex(i => i !== null ? Math.min(i + 1, lightboxAssets.length - 1) : null);
+      if (e.key === 'ArrowLeft') setLightboxIndex(i => i !== null ? Math.max(i - 1, 0) : null);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [lightboxIndex, lightboxAssets.length]);
+
   const [catalogueForm, setCatalogueForm] = useState({
     mainCategory: '',
     subcategory: '',
@@ -392,7 +410,7 @@ export default function AssetIngestionPage() {
                 data-testid={`card-asset-${asset.id}`}
               >
                 <CardContent className="p-4">
-                  <div className="aspect-square w-full rounded-lg mb-3 bg-muted overflow-hidden">
+                  <div className="aspect-square w-full rounded-lg mb-3 bg-muted overflow-hidden relative group">
                     {asset.originalFilePath ? (
                       <img 
                         src={asset.originalFilePath}
@@ -409,6 +427,19 @@ export default function AssetIngestionPage() {
                       <div className="w-full h-full flex items-center justify-center">
                         <ImageIcon className="w-8 h-8 text-muted-foreground" />
                       </div>
+                    )}
+                    {(asset.originalFilePath || asset.thumbnailPath || asset.processedFilePath) && (
+                      <button
+                        className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors duration-200"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const idx = lightboxAssets.findIndex(a => a.id === asset.id);
+                          if (idx !== -1) setLightboxIndex(idx);
+                        }}
+                        aria-label="View fullscreen"
+                      >
+                        <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg" />
+                      </button>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mb-2">
@@ -891,6 +922,63 @@ export default function AssetIngestionPage() {
         }}
         isDeleting={deleteMutation.isPending}
       />
+
+      {/* Full-screen lightbox */}
+      {lightboxIndex !== null && lightboxAssets[lightboxIndex] && (() => {
+        const asset = lightboxAssets[lightboxIndex];
+        const src = asset.originalFilePath || asset.thumbnailPath || asset.processedFilePath || '';
+        return (
+          <div
+            className="fixed inset-0 z-[9999] bg-black flex items-center justify-center"
+            onClick={() => setLightboxIndex(null)}
+          >
+            {/* Close */}
+            <button
+              className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/40 rounded-full p-2 transition-colors"
+              onClick={() => setLightboxIndex(null)}
+              aria-label="Close"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            {/* Left arrow */}
+            {lightboxIndex > 0 && (
+              <button
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-black/40 rounded-full p-3 transition-colors"
+                onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1); }}
+                aria-label="Previous"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+            )}
+
+            {/* Image */}
+            <img
+              src={src}
+              alt={asset.originalFileName}
+              className="max-w-full max-h-full w-full h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+
+            {/* Right arrow */}
+            {lightboxIndex < lightboxAssets.length - 1 && (
+              <button
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-black/40 rounded-full p-3 transition-colors"
+                onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1); }}
+                aria-label="Next"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            )}
+
+            {/* Caption */}
+            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-6 py-4 pointer-events-none">
+              <p className="text-white font-medium text-sm">{asset.originalFileName}</p>
+              <p className="text-white/60 text-xs mt-0.5">{lightboxIndex + 1} / {lightboxAssets.length}</p>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
