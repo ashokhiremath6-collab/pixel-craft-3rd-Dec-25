@@ -934,7 +934,7 @@ export default function AssetIngestionPage() {
           >
             {/* Top toolbar */}
             <div
-              className="flex items-center justify-between px-4 py-3 bg-black/70 backdrop-blur-sm flex-shrink-0"
+              className="flex items-center justify-between px-4 py-3 bg-zinc-800 border-b border-zinc-700 flex-shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Left: filename + counter */}
