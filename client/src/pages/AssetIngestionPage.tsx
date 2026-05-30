@@ -85,6 +85,7 @@ export default function AssetIngestionPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [showOriginal, setShowOriginal] = useState(false);
 
   const { user, isLoading: userLoading } = useAuth();
 
@@ -926,7 +927,10 @@ export default function AssetIngestionPage() {
       {/* Full-screen lightbox */}
       {lightboxIndex !== null && lightboxAssets[lightboxIndex] && (() => {
         const asset = lightboxAssets[lightboxIndex];
-        const src = asset.originalFilePath || asset.thumbnailPath || asset.processedFilePath || '';
+        const hasProcessed = !!asset.processedFilePath;
+        const src = (hasProcessed && !showOriginal)
+          ? asset.processedFilePath!
+          : (asset.originalFilePath || asset.thumbnailPath || asset.processedFilePath || '');
         return (
           <div
             className="fixed inset-0 z-[9999] bg-black flex flex-col"
@@ -943,11 +947,11 @@ export default function AssetIngestionPage() {
                 <span className="text-gray-500 text-xs whitespace-nowrap">{lightboxIndex + 1} / {lightboxAssets.length}</span>
               </div>
 
-              {/* Centre: navigation */}
+              {/* Centre: navigation + version toggle */}
               <div className="flex items-center gap-2">
                 <button
                   className="flex items-center gap-1 text-gray-700 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-100 transition-colors text-sm font-medium"
-                  onClick={() => setLightboxIndex(lightboxIndex - 1)}
+                  onClick={() => { setLightboxIndex(lightboxIndex - 1); setShowOriginal(false); }}
                   disabled={lightboxIndex === 0}
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -955,12 +959,20 @@ export default function AssetIngestionPage() {
                 </button>
                 <button
                   className="flex items-center gap-1 text-gray-700 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-100 transition-colors text-sm font-medium"
-                  onClick={() => setLightboxIndex(lightboxIndex + 1)}
+                  onClick={() => { setLightboxIndex(lightboxIndex + 1); setShowOriginal(false); }}
                   disabled={lightboxIndex === lightboxAssets.length - 1}
                 >
                   Next
                   <ChevronRight className="w-4 h-4" />
                 </button>
+                {hasProcessed && (
+                  <button
+                    className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${showOriginal ? 'border-gray-300 text-gray-700 hover:bg-gray-100' : 'border-indigo-400 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}
+                    onClick={() => setShowOriginal(v => !v)}
+                  >
+                    {showOriginal ? 'Show Processed' : 'Show Original'}
+                  </button>
+                )}
               </div>
 
               {/* Right: actions */}
