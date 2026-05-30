@@ -976,6 +976,22 @@ export default function AssetIngestionPage() {
                   </button>
                 )}
                 <button
+                  className="flex items-center gap-2 text-white px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => reprocessMutation.mutate({
+                    id: asset.id,
+                    processingInstructions: "Detect the painting or artwork in this photo. Crop tightly to include only the artwork and its frame, removing all surrounding wall, furniture, or background. Scale and centre the artwork to fill the entire image. Keep the full artwork visible with no part cut off."
+                  })}
+                  disabled={reprocessMutation.isPending || asset.processingStatus === 'processing'}
+                  title="Automatically crop to the artwork and remove the background wall"
+                >
+                  {(reprocessMutation.isPending || asset.processingStatus === 'processing') ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Maximize2 className="w-4 h-4" />
+                  )}
+                  Crop & Centre
+                </button>
+                <button
                   className="flex items-center gap-2 text-gray-700 hover:text-gray-900 px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-100 transition-colors text-sm font-medium"
                   onClick={() => {
                     setLightboxIndex(null);
