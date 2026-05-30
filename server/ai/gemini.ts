@@ -1393,7 +1393,7 @@ Maintain the original colors, lighting, and details of the object.`;
     const result = await withRetry(async () => {
       const response = await withTimeout(
         getAIClient().models.generateContent({
-          model: "gemini-2.0-flash-exp-image-generation",
+          model: "gemini-2.5-flash-image",
           contents: [{
             role: "user",
             parts: [
@@ -1464,7 +1464,7 @@ OUTPUT: Generate the edited image now, following the user's instructions precise
     const result = await withRetry(async () => {
       const response = await withTimeout(
         getAIClient().models.generateContent({
-          model: "gemini-2.0-flash-exp-image-generation",
+          model: "gemini-2.5-flash-image",
           contents: [{
             role: "user",
             parts: [
