@@ -8458,9 +8458,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const imgW = meta.width || 1;
             const imgH = meta.height || 1;
 
-            // Add a small extra padding (1% of image dims) so the frame is never clipped
-            const padX = Math.round(imgW * 0.01);
-            const padY = Math.round(imgH * 0.01);
+            // Add extra padding (3% of image dims) so the frame is never clipped
+            const padX = Math.round(imgW * 0.03);
+            const padY = Math.round(imgH * 0.03);
 
             const left   = Math.max(0, Math.round(imgW * bbox.leftPct   / 100) - padX);
             const top    = Math.max(0, Math.round(imgH * bbox.topPct    / 100) - padY);
