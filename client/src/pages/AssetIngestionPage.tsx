@@ -929,52 +929,94 @@ export default function AssetIngestionPage() {
         const src = asset.originalFilePath || asset.thumbnailPath || asset.processedFilePath || '';
         return (
           <div
-            className="fixed inset-0 z-[9999] bg-black flex items-center justify-center"
+            className="fixed inset-0 z-[9999] bg-black flex flex-col"
             onClick={() => setLightboxIndex(null)}
           >
-            {/* Close */}
-            <button
-              className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/40 rounded-full p-2 transition-colors"
-              onClick={() => setLightboxIndex(null)}
-              aria-label="Close"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            {/* Left arrow */}
-            {lightboxIndex > 0 && (
-              <button
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-black/40 rounded-full p-3 transition-colors"
-                onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1); }}
-                aria-label="Previous"
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </button>
-            )}
-
-            {/* Image */}
-            <img
-              src={src}
-              alt={asset.originalFileName}
-              className="max-w-full max-h-full w-full h-full object-contain"
+            {/* Top toolbar */}
+            <div
+              className="flex items-center justify-between px-4 py-3 bg-black/70 backdrop-blur-sm flex-shrink-0"
               onClick={(e) => e.stopPropagation()}
-            />
+            >
+              {/* Left: filename + counter */}
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-white font-medium text-sm truncate max-w-xs">{asset.originalFileName}</span>
+                <span className="text-white/50 text-xs whitespace-nowrap">{lightboxIndex + 1} / {lightboxAssets.length}</span>
+              </div>
 
-            {/* Right arrow */}
-            {lightboxIndex < lightboxAssets.length - 1 && (
-              <button
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-black/40 rounded-full p-3 transition-colors"
-                onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1); }}
-                aria-label="Next"
-              >
-                <ChevronRight className="w-6 h-6" />
-              </button>
-            )}
+              {/* Centre: navigation */}
+              <div className="flex items-center gap-1">
+                <button
+                  className="flex items-center gap-1 text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors text-sm"
+                  onClick={() => setLightboxIndex(lightboxIndex - 1)}
+                  disabled={lightboxIndex === 0}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Prev
+                </button>
+                <button
+                  className="flex items-center gap-1 text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors text-sm"
+                  onClick={() => setLightboxIndex(lightboxIndex + 1)}
+                  disabled={lightboxIndex === lightboxAssets.length - 1}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
 
-            {/* Caption */}
-            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-6 py-4 pointer-events-none">
-              <p className="text-white font-medium text-sm">{asset.originalFileName}</p>
-              <p className="text-white/60 text-xs mt-0.5">{lightboxIndex + 1} / {lightboxAssets.length}</p>
+              {/* Right: actions */}
+              <div className="flex items-center gap-2">
+                {asset.processingStatus === 'pending' && (
+                  <button
+                    className="flex items-center gap-2 text-white px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 transition-colors text-sm font-medium"
+                    onClick={() => {
+                      processMutation.mutate({ id: asset.id });
+                    }}
+                    disabled={processMutation.isPending}
+                  >
+                    {processMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                    Analyze
+                  </button>
+                )}
+                <button
+                  className="flex items-center gap-2 text-white px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors text-sm"
+                  onClick={() => {
+                    setLightboxIndex(null);
+                    setSelectedAsset(asset);
+                    setDetailDialogOpen(true);
+                  }}
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  View Details
+                </button>
+                <button
+                  className="text-white/70 hover:text-white p-1.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors"
+                  onClick={() => setLightboxIndex(null)}
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Image area */}
+            <div className="flex-1 flex items-center justify-center min-h-0" onClick={() => setLightboxIndex(null)}>
+              <img
+                src={src}
+                alt={asset.originalFileName}
+                className="max-w-full max-h-full object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+
+            {/* Status bar */}
+            <div
+              className="flex items-center justify-center gap-3 px-4 py-2 bg-black/60 flex-shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {getStatusBadge(asset.processingStatus)}
+              {asset.aiDescription && (
+                <p className="text-white/50 text-xs truncate max-w-md">{asset.aiDescription}</p>
+              )}
             </div>
           </div>
         );
