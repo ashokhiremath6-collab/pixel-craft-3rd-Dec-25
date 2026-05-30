@@ -1516,15 +1516,20 @@ export async function detectArtworkBoundingBox(
   imageData: string,
   mimeType: string
 ): Promise<{ leftPct: number; topPct: number; rightPct: number; bottomPct: number } | null> {
-  const prompt = `Analyse this photo and find the main artwork, painting, or decorative object mounted on the wall.
-Return ONLY a JSON object with the bounding box of the artwork (including its frame if any) expressed as percentages (0–100) of the image dimensions.
-Do not include any wall, background, furniture, or surrounding space — just the artwork itself.
+  const prompt = `Analyse this photo and find the main artwork, painting, or decorative object.
+Return ONLY a JSON object with the OUTER bounding box that includes:
+- The complete artwork canvas/paper
+- The complete frame/border/mount around it (if present)
+- A small margin of ~1-2% extra beyond the outermost edge of the frame
+
+Do NOT cut into the frame. The frame is part of the artwork and must be fully included.
+Do NOT include the surrounding wall, furniture, or background beyond the frame.
 
 Format (no extra text, no markdown, just raw JSON):
 {"left": <number>, "top": <number>, "right": <number>, "bottom": <number>}
 
-Where left/top/right/bottom are percentages from the respective edges of the image.
-Example: {"left": 15, "top": 8, "right": 85, "bottom": 92}`;
+Where left/top/right/bottom are percentages (0-100) from the respective edges of the image.
+Example: {"left": 12, "top": 6, "right": 88, "bottom": 94}`;
 
   try {
     const response = await withTimeout(
