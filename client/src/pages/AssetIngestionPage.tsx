@@ -934,19 +934,19 @@ export default function AssetIngestionPage() {
           >
             {/* Top toolbar */}
             <div
-              className="flex items-center justify-between px-4 py-3 bg-zinc-800 border-b border-zinc-700 flex-shrink-0"
+              className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 flex-shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Left: filename + counter */}
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-white font-medium text-sm truncate max-w-xs">{asset.originalFileName}</span>
-                <span className="text-white/50 text-xs whitespace-nowrap">{lightboxIndex + 1} / {lightboxAssets.length}</span>
+                <span className="text-gray-900 font-semibold text-sm truncate max-w-xs">{asset.originalFileName}</span>
+                <span className="text-gray-500 text-xs whitespace-nowrap">{lightboxIndex + 1} / {lightboxAssets.length}</span>
               </div>
 
               {/* Centre: navigation */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 <button
-                  className="flex items-center gap-1 text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors text-sm"
+                  className="flex items-center gap-1 text-gray-700 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-100 transition-colors text-sm font-medium"
                   onClick={() => setLightboxIndex(lightboxIndex - 1)}
                   disabled={lightboxIndex === 0}
                 >
@@ -954,7 +954,7 @@ export default function AssetIngestionPage() {
                   Prev
                 </button>
                 <button
-                  className="flex items-center gap-1 text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors text-sm"
+                  className="flex items-center gap-1 text-gray-700 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-100 transition-colors text-sm font-medium"
                   onClick={() => setLightboxIndex(lightboxIndex + 1)}
                   disabled={lightboxIndex === lightboxAssets.length - 1}
                 >
@@ -968,9 +968,7 @@ export default function AssetIngestionPage() {
                 {asset.processingStatus === 'pending' && (
                   <button
                     className="flex items-center gap-2 text-white px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 transition-colors text-sm font-medium"
-                    onClick={() => {
-                      processMutation.mutate({ id: asset.id });
-                    }}
+                    onClick={() => processMutation.mutate({ id: asset.id })}
                     disabled={processMutation.isPending}
                   >
                     {processMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
@@ -978,18 +976,18 @@ export default function AssetIngestionPage() {
                   </button>
                 )}
                 <button
-                  className="flex items-center gap-2 text-white px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors text-sm"
+                  className="flex items-center gap-2 text-gray-700 hover:text-gray-900 px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-100 transition-colors text-sm font-medium"
                   onClick={() => {
                     setLightboxIndex(null);
                     setSelectedAsset(asset);
                     setDetailDialogOpen(true);
                   }}
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <Eye className="w-4 h-4" />
                   View Details
                 </button>
                 <button
-                  className="text-white/70 hover:text-white p-1.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors"
+                  className="text-gray-500 hover:text-gray-900 p-1.5 rounded-md border border-gray-300 hover:bg-gray-100 transition-colors"
                   onClick={() => setLightboxIndex(null)}
                   aria-label="Close"
                 >
