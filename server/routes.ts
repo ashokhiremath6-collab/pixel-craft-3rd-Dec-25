@@ -8458,12 +8458,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const imgW = meta.width || 1;
             const imgH = meta.height || 1;
 
-            // The AI prompt already asks Gemini to include 1-2% extra around the frame,
-            // so we clamp to image bounds only — no additional server-side padding needed.
-            const left   = Math.max(0,    Math.round(imgW * bbox.leftPct   / 100));
-            const top    = Math.max(0,    Math.round(imgH * bbox.topPct    / 100));
-            const right  = Math.min(imgW, Math.round(imgW * bbox.rightPct  / 100));
-            const bottom = Math.min(imgH, Math.round(imgH * bbox.bottomPct / 100));
+            // Add 1.5% padding on each side — Gemini consistently clips just inside
+            // the outer frame edge, so a small fixed buffer corrects this.
+            const padX = Math.round(imgW * 0.015);
+            const padY = Math.round(imgH * 0.015);
+            const left   = Math.max(0,    Math.round(imgW * bbox.leftPct   / 100) - padX);
+            const top    = Math.max(0,    Math.round(imgH * bbox.topPct    / 100) - padY);
+            const right  = Math.min(imgW, Math.round(imgW * bbox.rightPct  / 100) + padX);
+            const bottom = Math.min(imgH, Math.round(imgH * bbox.bottomPct / 100) + padY);
 
             const cropWidth  = Math.max(1, right - left);
             const cropHeight = Math.max(1, bottom - top);
