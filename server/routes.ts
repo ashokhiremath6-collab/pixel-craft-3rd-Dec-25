@@ -8397,8 +8397,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Import AI editing function
-  const { applyProcessingInstructions } = await import("./ai/gemini");
+  // Import AI editing functions
+  const { applyProcessingInstructions, detectArtworkBoundingBox } = await import("./ai/gemini");
 
   // Background processing function - supports two modes:
   // 1. Analyze-only (no instructions): Just detect metadata, use original image
@@ -8445,34 +8445,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let aiEditingFailed = false;
       
       if (processingInstructions && processingInstructions.trim()) {
-        console.log('[Asset Processing] Using AI-based editing with instructions:', processingInstructions);
-        
-        // Use AI to edit the image based on user instructions
-        const aiResult = await applyProcessingInstructions(
-          imageData,
-          correctedMimeType,
-          processingInstructions,
-          detection.description
-        );
+        const isCropAndCentre = processingInstructions.trim() === '__CROP_AND_CENTRE__';
 
-        if (aiResult.processedData && aiResult.dimensions) {
-          // Use AI-edited image
-          processedBuffer = Buffer.from(aiResult.processedData, 'base64');
-          dimensions = aiResult.dimensions;
-          console.log('[Asset Processing] AI editing successful');
+        if (isCropAndCentre) {
+          // ── Pixel-perfect crop using sharp (no AI image generation) ──────────
+          console.log('[Asset Processing] Crop & Centre mode: detecting artwork bbox then cropping with sharp');
           
-          // Upload the AI-processed image
-          processedPath = await uploadToObjectStorage(
-            processedBuffer,
-            `processed_${asset.originalFileName}`,
-            asset.uploadedBy,
-            'image/png'
-          );
+          const bbox = await detectArtworkBoundingBox(imageData, correctedMimeType);
+          
+          if (bbox) {
+            const meta = await sharp(rotatedBuffer).metadata();
+            const imgW = meta.width || 1;
+            const imgH = meta.height || 1;
+
+            const left   = Math.round(imgW * bbox.leftPct   / 100);
+            const top    = Math.round(imgH * bbox.topPct    / 100);
+            const right  = Math.round(imgW * bbox.rightPct  / 100);
+            const bottom = Math.round(imgH * bbox.bottomPct / 100);
+
+            const cropWidth  = Math.max(1, right - left);
+            const cropHeight = Math.max(1, bottom - top);
+
+            console.log(`[Asset Processing] Cropping: left=${left}, top=${top}, width=${cropWidth}, height=${cropHeight}`);
+
+            processedBuffer = await sharp(rotatedBuffer)
+              .extract({ left, top, width: cropWidth, height: cropHeight })
+              .jpeg({ quality: 95 })
+              .toBuffer();
+
+            dimensions = { width: cropWidth, height: cropHeight };
+
+            processedPath = await uploadToObjectStorage(
+              processedBuffer,
+              `processed_${asset.originalFileName}`,
+              asset.uploadedBy,
+              'image/jpeg'
+            );
+            console.log('[Asset Processing] Crop & Centre complete — pixel-perfect crop applied');
+          } else {
+            aiEditingFailed = true;
+            throw new Error('Could not detect artwork bounds — please try again');
+          }
         } else {
-          // If AI editing fails, mark as failed so user knows
-          console.log('[Asset Processing] AI editing failed - will report error to user');
-          aiEditingFailed = true;
-          throw new Error('AI editing failed - please try again with different instructions');
+          // ── General AI image editing ──────────────────────────────────────────
+          console.log('[Asset Processing] Using AI-based editing with instructions:', processingInstructions);
+          
+          const aiResult = await applyProcessingInstructions(
+            imageData,
+            correctedMimeType,
+            processingInstructions,
+            detection.description
+          );
+
+          if (aiResult.processedData && aiResult.dimensions) {
+            processedBuffer = Buffer.from(aiResult.processedData, 'base64');
+            dimensions = aiResult.dimensions;
+            console.log('[Asset Processing] AI editing successful');
+            
+            processedPath = await uploadToObjectStorage(
+              processedBuffer,
+              `processed_${asset.originalFileName}`,
+              asset.uploadedBy,
+              'image/png'
+            );
+          } else {
+            console.log('[Asset Processing] AI editing failed - will report error to user');
+            aiEditingFailed = true;
+            throw new Error('AI editing failed - please try again with different instructions');
+          }
         }
 
         // Create thumbnail from the processed image

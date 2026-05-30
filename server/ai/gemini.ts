@@ -1510,6 +1510,66 @@ OUTPUT: Generate the edited image now, following the user's instructions precise
   }
 }
 
+// ─── Artwork Bounding Box Detection (text-only, for pixel-perfect crop) ──────
+
+export async function detectArtworkBoundingBox(
+  imageData: string,
+  mimeType: string
+): Promise<{ leftPct: number; topPct: number; rightPct: number; bottomPct: number } | null> {
+  const prompt = `Analyse this photo and find the main artwork, painting, or decorative object mounted on the wall.
+Return ONLY a JSON object with the bounding box of the artwork (including its frame if any) expressed as percentages (0–100) of the image dimensions.
+Do not include any wall, background, furniture, or surrounding space — just the artwork itself.
+
+Format (no extra text, no markdown, just raw JSON):
+{"left": <number>, "top": <number>, "right": <number>, "bottom": <number>}
+
+Where left/top/right/bottom are percentages from the respective edges of the image.
+Example: {"left": 15, "top": 8, "right": 85, "bottom": 92}`;
+
+  try {
+    const response = await withTimeout(
+      getAIClient().models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [{
+          role: "user",
+          parts: [
+            { inlineData: { data: imageData, mimeType } },
+            { text: prompt }
+          ]
+        }],
+        config: { safetySettings: SAFETY_SETTINGS },
+      }),
+      AI_TIMEOUT_MS,
+      "artwork bounding box detection"
+    );
+
+    const text = response.candidates?.[0]?.content?.parts
+      ?.filter((p: any) => p.text)
+      ?.map((p: any) => p.text)
+      ?.join('') || '';
+
+    // Strip markdown code fences if present
+    const clean = text.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim();
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON in response');
+
+    const box = JSON.parse(match[0]);
+    const { left, top, right, bottom } = box;
+    if ([left, top, right, bottom].some((v) => typeof v !== 'number')) throw new Error('Invalid bbox values');
+
+    console.log('[Bbox] Detected artwork bounds (%):', box);
+    return {
+      leftPct: Math.max(0, Math.min(100, left)),
+      topPct: Math.max(0, Math.min(100, top)),
+      rightPct: Math.max(0, Math.min(100, right)),
+      bottomPct: Math.max(0, Math.min(100, bottom)),
+    };
+  } catch (error) {
+    console.error('[Bbox] Failed to detect artwork bounds:', error);
+    return null;
+  }
+}
+
 // ─── Design Intelligence Chat ────────────────────────────────────────────────
 
 const DESIGN_SYSTEM_PROMPT = `You are a senior interior design consultant with 25+ years of experience across residential, hospitality, retail, and commercial projects. You assist professional interior designers with the full spectrum of design intelligence — from creative concept to technical specification.
