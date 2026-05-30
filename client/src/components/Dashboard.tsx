@@ -159,7 +159,7 @@ function getActivityNavPath(activityType: string, projectId: string | null, meta
   }
   if (activityType.startsWith('specification_')) return '/specifications';
   if (activityType.startsWith('catalogue_')) return '/catalogue';
-  if (activityType.startsWith('meeting_minutes_')) return pid ? `/gantt?projectId=${pid}` : null;
+  if (activityType.startsWith('meeting_minutes_')) return '/meeting-minutes';
   if (activityType.startsWith('works_order_')) return pid ? `/gantt?projectId=${pid}` : null;
   return null;
 }
