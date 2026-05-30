@@ -991,6 +991,23 @@ export default function AssetIngestionPage() {
                   )}
                   Crop & Centre
                 </button>
+                {asset.processedFilePath && (
+                  <button
+                    className="flex items-center gap-2 text-white px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => saveToSavedAssetsMutation.mutate({
+                      displayName: asset.originalFileName.replace(/\.[^/.]+$/, ''),
+                      filePath: asset.processedFilePath!,
+                      thumbnailPath: asset.thumbnailPath || undefined,
+                      objectAssetId: asset.id,
+                      aiPromptHints: (asset as any).aiPromptHints || undefined,
+                    })}
+                    disabled={saveToSavedAssetsMutation.isPending}
+                    title="Save the processed/cropped version to your Saved Assets collection"
+                  >
+                    {saveToSavedAssetsMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Save
+                  </button>
+                )}
                 <button
                   className="flex items-center gap-2 text-gray-700 hover:text-gray-900 px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-100 transition-colors text-sm font-medium"
                   onClick={() => {
