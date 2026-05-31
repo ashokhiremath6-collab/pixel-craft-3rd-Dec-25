@@ -8458,10 +8458,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const imgW = meta.width || 1;
             const imgH = meta.height || 1;
 
-            // Add 1.5% padding on each side — Gemini consistently clips just inside
-            // the outer frame edge, so a small fixed buffer corrects this.
-            const padX = Math.round(imgW * 0.015);
-            const padY = Math.round(imgH * 0.015);
+            // Step 1: Gemini bbox crop with 2% padding so the frame is never clipped
+            const padX = Math.round(imgW * 0.02);
+            const padY = Math.round(imgH * 0.02);
             const left   = Math.max(0,    Math.round(imgW * bbox.leftPct   / 100) - padX);
             const top    = Math.max(0,    Math.round(imgH * bbox.topPct    / 100) - padY);
             const right  = Math.min(imgW, Math.round(imgW * bbox.rightPct  / 100) + padX);
@@ -8472,12 +8471,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             console.log(`[Asset Processing] Cropping: left=${left}, top=${top}, width=${cropWidth}, height=${cropHeight}`);
 
-            processedBuffer = await sharp(rotatedBuffer)
+            // Step 2: Trim uniform-coloured wall/background from edges automatically.
+            // sharp.trim() removes edge pixels whose colour matches the corner sample
+            // within a threshold — precisely removes remaining wall without touching the frame.
+            const coarseCrop = await sharp(rotatedBuffer)
               .extract({ left, top, width: cropWidth, height: cropHeight })
               .jpeg({ quality: 95 })
               .toBuffer();
 
-            dimensions = { width: cropWidth, height: cropHeight };
+            const trimmedBuffer = await sharp(coarseCrop)
+              .trim({ threshold: 15 })
+              .jpeg({ quality: 95 })
+              .toBuffer();
+
+            processedBuffer = trimmedBuffer;
+            const trimMeta = await sharp(trimmedBuffer).metadata();
+            dimensions = { width: trimMeta.width || cropWidth, height: trimMeta.height || cropHeight };
 
             processedPath = await uploadToObjectStorage(
               processedBuffer,
