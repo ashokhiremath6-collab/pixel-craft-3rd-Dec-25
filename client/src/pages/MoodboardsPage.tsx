@@ -1131,7 +1131,7 @@ export default function MoodboardsPage() {
                                     href={moodboard.canvaLink}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
+                                    className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline mt-1 font-medium"
                                     data-testid={`link-external-${moodboard.id}`}
                                   >
                                     <ExternalLink className="h-3 w-3" />
@@ -1567,7 +1567,7 @@ export default function MoodboardsPage() {
                                   {cadMeta?.notes && <p className="text-xs text-muted-foreground mt-1">{cadMeta.notes}</p>}
                                   {moodboard.canvaLink && (
                                     <a href={moodboard.canvaLink} target="_blank" rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
+                                      className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline mt-1 font-medium"
                                       data-testid={`link-canva-${moodboard.id}`}
                                     >
                                       <ExternalLink className="h-3 w-3" /><span>{labels.viewLinkText}</span>
@@ -1703,7 +1703,7 @@ export default function MoodboardsPage() {
                               href={moodboard.canvaLink}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline mt-1"
+                              className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline mt-1 font-medium"
                               data-testid={`link-canva-${moodboard.id}`}
                             >
                               <ExternalLink className="h-3 w-3" />
