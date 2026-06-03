@@ -229,7 +229,7 @@ export default function MoodboardsPage() {
 
   // Fetch moodboards from backend (with optional project and assetType filters)
   const { data: moodboards = [], isLoading, isFetching, isError, error, refetch: refetchMoodboards } = useQuery({
-    queryKey: ["/api/moodboards", filterProjectId !== "all" ? { projectId: filterProjectId } : {}, assetType],
+    queryKey: ["/api/moodboards/by-type", assetType, filterProjectId !== "all" ? filterProjectId : null],
     queryFn: async () => {
       // Return empty immediately if no project selected — no HTTP call needed
       if (!filterProjectId) return [];
@@ -238,9 +238,9 @@ export default function MoodboardsPage() {
       if (filterProjectId !== "all") {
         params.append("projectId", filterProjectId);
       }
-      params.append("assetType", assetType);
       
-      const url = `/api/moodboards?${params.toString()}`;
+      // Use path-based URL (/by-type/:type) to avoid proxy WAF blocks on assetType query param
+      const url = `/api/moodboards/by-type/${encodeURIComponent(assetType)}${params.size > 0 ? `?${params.toString()}` : ""}`;
       const response = await fetch(url, { credentials: "include" });
       if (!response.ok) {
         const text = await response.text();

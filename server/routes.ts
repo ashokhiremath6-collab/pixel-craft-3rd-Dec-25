@@ -4702,6 +4702,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get moodboards by asset type — uses a path segment instead of query param to avoid proxy WAF blocks
+  app.get("/api/moodboards/by-type/:type", requireAuth, async (req, res) => {
+    try {
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      const { type } = req.params;
+      const { projectId } = req.query;
+      const validProjectId = typeof projectId === 'string' ? projectId : undefined;
+      const role = userRole?.role || 'client';
+
+      console.log('[Moodboards Fetch] type:', type, 'projectId:', validProjectId, 'role:', role);
+
+      const moodboards = await storage.getMoodboardsForUser(userId, role, validProjectId, type);
+
+      console.log('[Moodboards Fetch] Returning', moodboards.length, 'items of type', type);
+      res.json(moodboards);
+    } catch (error) {
+      console.error('Error fetching moodboards by type:', error);
+      res.status(500).json({ error: "Failed to fetch moodboards" });
+    }
+  });
+
   // Get single moodboard
   app.get("/api/moodboards/:id", requireAuth, async (req, res) => {
     try {
