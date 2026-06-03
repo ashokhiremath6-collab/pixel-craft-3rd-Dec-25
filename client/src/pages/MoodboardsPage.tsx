@@ -228,26 +228,29 @@ export default function MoodboardsPage() {
   };
 
   // Fetch moodboards from backend (with optional project and assetType filters)
-  // For working drawings/renders, require explicit project selection
-  // For moodboards, load automatically when filterProjectId is set (including "all")
-  const shouldFetchMoodboards = assetType === "moodboard" ? (filterProjectId !== "") : (filterProjectId !== "");
-  
-  const { data: moodboards = [], isLoading, isFetching } = useQuery({
+  const { data: moodboards = [], isLoading, isFetching, isError, error, refetch: refetchMoodboards } = useQuery({
     queryKey: ["/api/moodboards", filterProjectId !== "all" ? { projectId: filterProjectId } : {}, assetType],
-    enabled: shouldFetchMoodboards,
     queryFn: async () => {
+      // Return empty immediately if no project selected — no HTTP call needed
+      if (!filterProjectId) return [];
+      
       const params = new URLSearchParams();
-      if (filterProjectId && filterProjectId !== "all") {
+      if (filterProjectId !== "all") {
         params.append("projectId", filterProjectId);
       }
       params.append("assetType", assetType);
       
       const url = `/api/moodboards?${params.toString()}`;
       const response = await fetch(url, { credentials: "include" });
-      if (!response.ok) throw new Error("Failed to fetch moodboards");
-      return response.json();
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`${response.status}: ${text}`);
+      }
+      const data = await response.json();
+      return data;
     },
     staleTime: 0,
+    retry: false,
     refetchOnWindowFocus: true,
     refetchOnMount: 'always',
   });
@@ -1048,6 +1051,27 @@ export default function MoodboardsPage() {
           <CardContent className="text-center py-12">
             <Loader2 className="h-8 w-8 mx-auto mb-4 animate-spin" />
             <p className="text-muted-foreground">{labels.loadingText}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Error State - shown when query fails */}
+      {isError && filterProjectId && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <p className="text-destructive font-medium mb-2">Failed to load {assetType === "working_drawing" ? "working drawings" : assetType === "render" ? "renders" : "moodboards"}.</p>
+            <p className="text-sm text-muted-foreground mb-4">{(error as Error)?.message}</p>
+            <Button variant="outline" onClick={() => refetchMoodboards()}>Retry</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Empty State - project selected but no items found */}
+      {!isLoading && !isFetching && !isError && filterProjectId && moodboards.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <p className="text-muted-foreground">{labels.emptyState}</p>
+            <p className="text-sm text-muted-foreground mt-1">{labels.emptyStateDescription}</p>
           </CardContent>
         </Card>
       )}
