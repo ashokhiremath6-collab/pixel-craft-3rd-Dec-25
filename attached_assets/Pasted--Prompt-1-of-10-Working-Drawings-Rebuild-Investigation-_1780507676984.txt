@@ -1,0 +1,93 @@
+# Prompt 1 of 10: Working Drawings Rebuild — Investigation Phase
+
+We are about to rebuild the Working Drawings feature in this app. This is Prompt 1 of a planned 10-prompt build, based on a detailed design spec (attached: working_drawings_spec_v1_1.md).
+
+**Prompt 1 is investigation only. Do not write any new code. Do not modify any tables. Do not change any UI. The output of this prompt is a written report.**
+
+## What I need you to find out
+
+Answer each of these. Be specific. Include file paths, line numbers, library versions, query results.
+
+### 1. PDF preview capability
+
+The new system needs to display PDF drawings inline. Find out:
+
+- What PDF rendering libraries (if any) are currently in `package.json`?
+- Is there existing code anywhere in the app that renders PDFs in the browser? Where?
+- If no PDF rendering exists, which library would you recommend for a React/Vite frontend (react-pdf, pdf.js, something else)? Give me the recommendation with reasoning, but don't install it.
+
+### 2. File storage
+
+The new system will store uploaded drawing files. Find out:
+
+- Where do uploaded files currently live for the existing `working_drawings` feature? Filesystem path, Replit object storage, external S3, something else?
+- Look at the existing upload code path — show me the relevant lines in `routes.ts` or wherever the upload endpoint lives.
+- Show me where the file_path is constructed and where the file is actually written.
+- Is there any size limit, type check, or virus scan in the existing upload flow?
+
+### 3. Current working_drawings table
+
+Run this query against the **production database** (Neon, via DATABASE_URL — confirm you're hitting the production database before running):
+
+```
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_name = 'working_drawings'
+ORDER BY ordinal_position;
+```
+
+Show me the full output.
+
+Then run:
+
+```
+SELECT COUNT(*) AS total FROM working_drawings;
+
+SELECT project_id, COUNT(*) AS drawings_count
+FROM working_drawings
+GROUP BY project_id
+ORDER BY drawings_count DESC;
+
+SELECT
+  CASE WHEN org_id IS NULL THEN 'null' ELSE 'set' END AS org_id_state,
+  COUNT(*) AS row_count
+FROM working_drawings
+GROUP BY org_id_state;
+```
+
+Show me the output of all three.
+
+### 4. Notifications mechanism
+
+The new system will send notifications to users when drawings are issued for review, approved, returned with comments, etc. Find out:
+
+- Is there an existing notifications table or system in the app?
+- If there are notifications in the UI today (badges, bell icons, etc.), trace one through — where is it triggered, where is it stored, where is it displayed?
+- Is there any email-sending capability currently wired up? Look for nodemailer, SendGrid, SES, Resend, or any similar imports.
+- If no notification system exists at all, that's a fine answer — say so.
+
+### 5. Role and permission patterns
+
+The new system will have four per-project roles (Designer, Architect, Project Manager, Client). Find out:
+
+- How does the app currently distinguish between users? Is there a `role` field on `users`?
+- Is there an existing concept of per-project roles? Look at `user_project_assignments` table if it exists, or similar.
+- Does the current Working Drawings page filter what different users can see, or does everyone see everything?
+
+### 6. Multi-tenant readiness
+
+The new system will be fully multi-tenant from day one. Confirm:
+
+- Does the running production app currently filter queries by `org_id`? Look at the routes that read working_drawings and tell me whether org_id is in the WHERE clauses.
+- The previous multi-tenant migration (0004) added `org_id` columns. Did migration 0004 actually populate them, or are they all NULL? Run the org_id check above (Q3) and tell me what you find.
+
+## Output
+
+Produce a written report covering all six sections. For each section:
+- The findings (concrete, with code references)
+- Any concerns or surprises
+- Recommendations for the build phases (if applicable)
+
+Do not write any new code. Do not start designing the new tables. Do not propose migrations. The build starts in Prompt 2 after I read your report.
+
+If any of these checks turn up something unexpected (e.g., we discover three working_drawings tables, or files are stored somewhere unexpected, or org_id is NULL on existing rows), flag it clearly and stop. We will discuss before proceeding to Prompt 2.
