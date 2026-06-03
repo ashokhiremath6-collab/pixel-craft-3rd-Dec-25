@@ -108,7 +108,7 @@ export default function ProjectCard({ project, vendorCount = 0, onEdit, onView, 
               href={project.canvaLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 hover:underline"
+              className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
               data-testid="link-canva"
             >
               <ExternalLink className="h-4 w-4" />
@@ -122,7 +122,7 @@ export default function ProjectCard({ project, vendorCount = 0, onEdit, onView, 
               href={project.foyrNeoLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 dark:hover:text-emerald-300 hover:underline"
+              className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
               data-testid="link-foyr-neo"
             >
               <ExternalLink className="h-4 w-4" />

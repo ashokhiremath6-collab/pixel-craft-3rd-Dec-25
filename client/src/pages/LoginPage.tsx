@@ -115,7 +115,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                 <button
                   type="button"
                   onClick={() => navigate("/forgot-password")}
-                  className="text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline underline-offset-4"
                 >
                   Forgot password?
                 </button>

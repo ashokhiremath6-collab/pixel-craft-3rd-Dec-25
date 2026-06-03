@@ -867,7 +867,7 @@ export default function GanttChartPage() {
                             href={selectedProject.ganttChartLink} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-base text-primary hover:underline break-all"
+                            className="text-base text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline break-all font-medium"
                             data-testid="link-current-gantt"
                           >
                             {selectedProject.ganttChartLink}

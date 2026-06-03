@@ -2077,7 +2077,7 @@ export default function AIRendersPage() {
             <p className="text-sm text-muted-foreground">
               AI renders are great for quick concept exploration and client discussions. 
               For precise 3D modeling, furniture placement, and final presentations, 
-              continue using <a href="https://neo.foyr.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Foyr Neo</a>.
+              continue using <a href="https://neo.foyr.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium">Foyr Neo</a>.
             </p>
           </div>
         </CardContent>

@@ -295,7 +295,7 @@ function MediaSection({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
-                    className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline"
+                    className="mt-2 flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
                   >
                     <ChevronRight className="h-3 w-3" /> Open in Canva
                   </a>

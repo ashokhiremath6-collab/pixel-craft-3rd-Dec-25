@@ -388,7 +388,7 @@ export default function SpecificationsPage() {
                                 <a
                                   href={spec.filePath}
                                   download={spec.fileName}
-                                  className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 px-2"
+                                  className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline flex items-center gap-1 px-2"
                                   data-testid={`link-download-${spec.id}`}
                                 >
                                   <Download className="h-3.5 w-3.5" />

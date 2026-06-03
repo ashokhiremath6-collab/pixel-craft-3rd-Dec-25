@@ -594,7 +594,7 @@ export default function CataloguePage() {
                                 href={item.filePath}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-2 text-primary hover:underline"
+                                className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
                                 data-testid={`link-file-${item.id}`}
                               >
                                 <FileText className="h-4 w-4" />
@@ -607,7 +607,7 @@ export default function CataloguePage() {
                               href={item.catalogueUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-primary hover:underline"
+                              className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
                               data-testid={`link-url-${item.id}`}
                             >
                               <Download className="h-4 w-4" />

@@ -416,13 +416,13 @@ function AppContent() {
         <p className="text-muted-foreground">
           Sign-up is currently invitation-only. If you've been invited, please use the link in
           your invitation email. To request access, contact us at{" "}
-          <a href="mailto:hello@olympikdesign.com" className="underline hover:text-foreground">
+          <a href="mailto:hello@olympikdesign.com" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline font-medium">
             hello@olympikdesign.com
           </a>.
         </p>
         <p className="text-sm text-muted-foreground/60 pt-2">
           Already have an account?{" "}
-          <a href="/login" className="underline hover:text-muted-foreground">
+          <a href="/login" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline font-medium">
             Sign in here
           </a>.
         </p>
