@@ -84,9 +84,10 @@ export default function MoodboardsPage() {
   const [cadUploadProgress, setCadUploadProgress] = useState(0);
   
   // Determine asset type based on route
+  // Use startsWith to handle cases where location may include a query string
   const assetType = useMemo(() => {
-    if (location === "/working-drawings") return "working_drawing";
-    if (location === "/renders") return "render";
+    if (location.startsWith("/working-drawings")) return "working_drawing";
+    if (location.startsWith("/renders")) return "render";
     return "moodboard";
   }, [location]);
 
@@ -231,7 +232,7 @@ export default function MoodboardsPage() {
   // For moodboards, load automatically when filterProjectId is set (including "all")
   const shouldFetchMoodboards = assetType === "moodboard" ? (filterProjectId !== "") : (filterProjectId !== "");
   
-  const { data: moodboards = [], isLoading } = useQuery({
+  const { data: moodboards = [], isLoading, isFetching } = useQuery({
     queryKey: ["/api/moodboards", filterProjectId !== "all" ? { projectId: filterProjectId } : {}, assetType],
     enabled: shouldFetchMoodboards,
     queryFn: async () => {
@@ -1041,8 +1042,8 @@ export default function MoodboardsPage() {
         </p>
       )}
 
-      {/* Loading State */}
-      {isLoading && (
+      {/* Loading State - show when first loading OR when fetching with no cached data yet */}
+      {(isLoading || (isFetching && moodboards.length === 0)) && filterProjectId && (
         <Card>
           <CardContent className="text-center py-12">
             <Loader2 className="h-8 w-8 mx-auto mb-4 animate-spin" />
@@ -1052,7 +1053,7 @@ export default function MoodboardsPage() {
       )}
 
       {/* Uploaded Moodboards - Grouped by Project (and Room Type for Renders) */}
-      {!isLoading && moodboards.length > 0 && (
+      {!isLoading && !(isFetching && moodboards.length === 0) && moodboards.length > 0 && (
         <div className="space-y-6">
           {Object.entries(groupedMoodboards).map(([projectId, group]) => (
             <Card key={projectId}>

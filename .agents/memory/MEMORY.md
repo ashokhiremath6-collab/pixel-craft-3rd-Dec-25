@@ -1,0 +1,1 @@
+- [Working drawings assetType bug](working-drawings-assettype.md) — assetType detection must use startsWith not === because location can include query string after project selection.
