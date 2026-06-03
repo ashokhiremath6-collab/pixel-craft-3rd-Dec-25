@@ -1,1 +1,1 @@
-- [Working drawings assetType bug](working-drawings-assettype.md) — assetType detection must use startsWith not === because location can include query string after project selection.
+- [Replit proxy WAF blocks assetType query param](replit-proxy-waf-assettype.md) — /api/moodboards?assetType=... returns 403 HTML from Replit proxy before Express; fix: move assetType to URL path segment.
