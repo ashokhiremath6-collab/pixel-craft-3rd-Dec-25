@@ -203,6 +203,14 @@ export default function MoodboardsPage() {
     queryKey: ["/api/projects"],
   });
 
+  // Auto-select the first project when landing on working-drawings or renders
+  // with no project already chosen, so drawings/renders show immediately.
+  useEffect(() => {
+    if (assetType !== "moodboard" && !filterProjectId && projects.length > 0) {
+      setFilterProjectId(projects[0].id);
+    }
+  }, [assetType, projects.length]);
+
   // Fetch users to display who saved each render — admin only (designers don't have access to the full user list)
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
