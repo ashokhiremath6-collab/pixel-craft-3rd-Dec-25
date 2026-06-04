@@ -1,0 +1,138 @@
+ Prompt 2 of 10: Working Drawings Rebuild — Data Model and Migration
+
+This is Prompt 2 of the Working Drawings rebuild. Prompt 1 was investigation; you have its findings. Working from the attached **spec v1.2** (working_drawings_spec_v1_2.md).
+
+**Important context from Prompt 1 findings:**
+- There is NO `working_drawings` table. Working drawings live in `moodboards` where `asset_type = 'working_drawing'`. 34 such rows exist in production for Maker Tower.
+- The notifications table is OUT of scope. Email-only via existing Resend infra.
+- Per-project roles are OUT of scope. Use existing global `users.role`.
+- `org_id` must be in every WHERE clause on the new tables.
+
+## Scope of this prompt
+
+Build the data model and the one-time migration. No UI changes. The existing Working Drawings page continues to read from the existing `moodboards`-based code path and is not touched. After this prompt, the new tables exist and contain the migrated data; nothing in the user-facing app changes.
+
+## What to build
+
+### Step 1: Drizzle schema definitions
+
+Add new table definitions to the schema file (likely `shared/schema.ts`). The six tables per spec Section 4:
+
+- `rooms` (Section 4.1)
+- `drawings` (Section 4.2)
+- `drawing_revisions` (Section 4.3)
+- `drawing_approvals` (Section 4.4)
+- `revision_events` (Section 4.5)
+- `drawing_comments` (Section 4.6)
+
+Every table has `org_id` from creation. All foreign keys with appropriate ON DELETE behaviour. All timestamps default to `now()` where appropriate.
+
+For text-constrained columns (state, category, room_type), use Postgres `text` type with application-layer validation rather than enums. This matches the project's existing pattern (see how `sops.category` is handled). Easier to extend later than ENUMs.
+
+Indexes:
+- `org_id` on every table
+- `project_id` on `rooms`, `drawings`
+- `drawing_id` on `drawing_revisions`
+- `revision_id` on `drawing_approvals`, `revision_events`, `drawing_comments`
+- Composite unique on `(drawing_id, revision_letter)` for `drawing_revisions`
+- Composite unique on `(project_id, room_id, title)` for `drawings`
+- Composite unique on `(project_id, name)` for `rooms`
+
+### Step 2: Drizzle migration file
+
+Create a new migration file in `migrations/` following the project's existing migration conventions (look at how migration 0006 was structured — `DO $$ BEGIN ... END $$` pattern, breakpoint comments). The migration:
+
+1. Creates all six tables with full schema
+2. Creates all indexes and constraints
+
+This is schema-only. Data migration is in Step 3 as a separate script.
+
+### Step 3: Data migration script (one-time)
+
+Create a script at `scripts/migrate-working-drawings.ts` that:
+
+1. Connects via `DATABASE_URL` (same pattern as `scripts/backfill-org.ts`)
+2. Reads all rows from `moodboards` WHERE `asset_type = 'working_drawing'`
+3. For each row, creates the three rows in new tables per spec Section 10.2:
+   - `drawings` row with status='approved', is_template_placeholder=false
+   - `drawing_revisions` row as Revision A, state='approved', file fields copied
+   - `revision_events` row with event_type='uploaded'
+4. Category inference: best-effort match the moodboard `name` against the category list (Section 4.8). If no clear match, use 'Other'. Show me the mapping output before committing so I can sanity-check.
+5. Wraps everything in a transaction with explicit rollback on any error
+6. Reports counts at the end: rows read from moodboards, rows created in drawings/revisions/events, any rows skipped and why
+
+The script is for one-time use. It does NOT delete the source rows in moodboards. It does NOT modify the moodboards table. After running, the script can be deleted.
+
+### Step 4: Verification
+
+After migration completes, run these checks against production:
+
+```sql
+-- Count of new drawings
+SELECT COUNT(*) FROM drawings;
+-- Expected: 34
+
+-- Count of revisions
+SELECT COUNT(*) FROM drawing_revisions;
+-- Expected: 34, all state='approved'
+
+-- Sample of category inference
+SELECT category, COUNT(*) FROM drawings GROUP BY category ORDER BY COUNT(*) DESC;
+-- Show me the distribution
+
+-- Verify org_id populated everywhere
+SELECT
+  (SELECT COUNT(*) FROM drawings WHERE org_id IS NULL) AS drawings_null_org,
+  (SELECT COUNT(*) FROM drawing_revisions WHERE org_id IS NULL) AS revisions_null_org,
+  (SELECT COUNT(*) FROM revision_events WHERE org_id IS NULL) AS events_null_org;
+-- Expected: all zero
+
+-- Verify foreign keys intact
+SELECT COUNT(*) FROM drawing_revisions r
+LEFT JOIN drawings d ON r.drawing_id = d.id
+WHERE d.id IS NULL;
+-- Expected: 0
+
+-- Confirm moodboards untouched
+SELECT COUNT(*) FROM moodboards WHERE asset_type = 'working_drawing';
+-- Expected: 34 (unchanged)
+```
+
+Show me the output of all six checks.
+
+## Order of operations
+
+1. Plan: tell me your proposed schema, then wait for my approval before writing the migration file
+2. After my approval, write the schema and migration
+3. Run the migration in dev (Drizzle picks it up on next app start)
+4. Verify in dev that all six tables exist with correct structure
+5. Show me dev verification results before deploying to production
+6. After my approval, deploy to production
+7. Run the data migration script against production
+8. Show me production verification results
+
+## Things to be careful about
+
+- **Database confusion from earlier work.** The production database is what the deployed app uses, accessible only through Drizzle migrations on deploy or scripts using `DATABASE_URL`. Do NOT use the `executeSql` tool for production verification — it queries an unrelated internal database. Use a script with the same connection pattern as `backfill-org.ts`.
+
+- **`vite.config.ts` is NOT touched in this prompt.** That question is for Prompt 7 (when we wire up PDF rendering).
+
+- **The category inference is fuzzy.** Show me your inference mapping output before committing. Examples like "Original" or "Walling layout" don't cleanly match any category — these should probably go to "Other". I want to see your list before it's written to the database.
+
+- **The `description` field on drawings** can be populated from moodboards `description` if non-null, otherwise leave NULL.
+
+- **Don't try to combine this with Prompt 3 (UI rewire).** This prompt ends after migration verification. The UI is still reading from moodboards; that's intentional and stays that way until Prompt 3.
+
+## Acceptance
+
+After this prompt completes:
+- Six new tables exist in production with correct schema and indexes
+- 34 rows in `drawings`, 34 rows in `drawing_revisions`, 34 rows in `revision_events`
+- All rows have `org_id` populated
+- The `moodboards` table is unchanged (34 working_drawing rows still there)
+- The user-facing Working Drawings page in the app looks and behaves identically to before
+- No UI code was modified
+
+If anything in the investigation or migration turns up unexpected (a project_id that doesn't exist in `projects`, an `org_id` that doesn't match the project's `org_id`, a saved_by that doesn't exist in `users`), STOP and report. Don't try to fix it inline.
+
+Begin by proposing the schema. Wait for my approval before writing the migration.
