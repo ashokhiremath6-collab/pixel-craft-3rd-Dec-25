@@ -1,0 +1,30 @@
+STOP. Do not run the data migration. There's a problem.
+
+You found 2 working_drawing rows. The actual production database has 34 — confirmed in the Prompt 1 investigation report and visible in the live app at olympikdesign.com. The 2 rows you see are dev data, not production data.
+
+This is the same dev/prod database confusion we hit multiple times during the SOPs work. Your statement that "Both dev and production read DATABASE_URL from the same Replit secret" contradicts what we definitively established earlier in this project, where you mapped out three databases:
+- Helium (Replit internal dev) — DATABASE_URL in dev environment
+- Replit-managed Postgres — what production app actually used at the time of the SOPs migration
+- Neon — which has the app's main schema
+
+The SOPs migration 0006 succeeded only when we put it through the Drizzle migrations folder so the production server would run it on startup against its DATABASE_URL.
+
+Please do these checks before any data is written or any further deployment claims are made:
+
+1. Confirm without guessing: when the deployed app at olympikdesign.com handles a request and queries the moodboards table, what database host does it connect to? Use logs, environment inspection, or any other concrete signal — do not infer from code.
+
+2. Connect to that exact database (the one the live app reads from) and run:
+   SELECT COUNT(*) FROM moodboards WHERE asset_type = 'working_drawing';
+   The answer must be 34. If it's not 34, you are not on the right database.
+
+3. On that same database, run:
+   SELECT COUNT(*) FROM information_schema.tables WHERE table_name IN ('rooms', 'drawings', 'drawing_revisions', 'drawing_approvals', 'revision_events', 'drawing_comments');
+   The answer should be 6 if the migration deployed successfully. If it's less than 6, the migration did not actually reach production despite the "deployment successful" message.
+
+4. On that same database, run:
+   SELECT idx, tag FROM drizzle.__drizzle_migrations ORDER BY idx DESC LIMIT 5;
+   Show me the most recent 5 migration entries. Migration 0009 should be there if it ran in production.
+
+Report the answers to all four questions. Do not make any data changes. Do not write or run any migration scripts. Do not delete or modify anything. Just SELECT queries and a clear report of what database you're hitting and what's there.
+
+If you find that the schema migration only ran against dev and not against the actual production database the live app uses, tell me — we
