@@ -1,0 +1,53 @@
+Additional requirement that affects the migration design:
+
+The new system should organise drawings by room as the primary filing axis. We already have the rooms table and drawings.room_id field. Before the data migration runs, we need a room inference step.
+
+Please do this in two phases, both BEFORE writing any data:
+
+Phase 1 — Infer rooms from drawing names
+
+Look at all 44 source rows (33 moodboards + 11 floor_plans). For each, try to extract a room from the name. Examples I can see from the data you already pulled:
+- "Master Bedroom" / "Master Bathroom"
+- "Music Bathroom" / "Music Room"
+- "Chitra's Bathroom" / "Chitra's Room"
+- "Powder Bathroom"
+- "Foyer"
+- "Sanjiv's Room"
+- "Living" or "Living Bar"
+- "Kitchen"
+- "Study"
+
+For each row, output:
+- The drawing name
+- The inferred room (or "(project-level)" if no room can be identified)
+- The confidence (high if the room name is explicit, low if it's a guess)
+
+Show me this table BEFORE creating any room records.
+
+Phase 2 — Propose room records to create
+
+Based on Phase 1, propose the set of unique rooms that should exist in the rooms table for Maker Tower. For each, propose:
+- name (e.g., "Master Bedroom")
+- room_type (one of the types per spec Section 4.7: bedroom, bathroom, kitchen, living, dining, family_room, foyer, study, utility, pooja, staff, balcony, other)
+
+Likely output something like:
+- "Master Bedroom" → bedroom
+- "Master Bathroom" → bathroom
+- "Music Room" → bedroom (probably — your daughter can confirm)
+- "Music Bathroom" → bathroom
+- "Chitra's Room" → bedroom
+- "Chitra's Bathroom" → bathroom
+- "Powder Bathroom" → bathroom
+- "Sanjiv's Room" → bedroom
+- "Living" → living
+- "Kitchen" → kitchen
+- "Study" → study
+- "Foyer" → foyer
+
+Show me this list BEFORE creating any rooms.
+
+I'll review both the room inferences (Phase 1) and the proposed rooms list (Phase 2). Then we approve and run.
+
+Do not write data, do not create rooms, do not run the migration until both phases are reviewed and approved by me.
+
+Continue with the duplicate-handling investigation and the deployment status check in parallel. Those still need to be resolved before any data writes.
