@@ -153,7 +153,14 @@ export default function GanttChartPage() {
   useEffect(() => {
     if (!currentUserId || !selectedProjectId) { setLastReviewedAt(null); return; }
     const stored = localStorage.getItem(`gantt_reviewed_${currentUserId}_${selectedProjectId}`);
-    setLastReviewedAt(stored ? new Date(stored) : null);
+    if (stored) {
+      setLastReviewedAt(new Date(stored));
+    } else {
+      // Default to 7 days ago so recent changes are shown immediately on first visit
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      setLastReviewedAt(sevenDaysAgo);
+    }
   }, [currentUserId, selectedProjectId]);
 
   const markAsReviewed = () => {
@@ -1140,101 +1147,93 @@ export default function GanttChartPage() {
       </Card>
 
       {/* Schedule Changes Summary */}
-      {selectedProjectId && !isLoadingTasks && (
-        <div>
-          {!lastReviewedAt ? (
-            <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+      {selectedProjectId && !isLoadingTasks && lastReviewedAt && (
+        <Card>
+          <CardHeader className="p-4 pb-0">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BellRing className="h-4 w-4" />
+                Schedule Changes
+                {changeSummary && changeSummary.total > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {changeSummary.total} change{changeSummary.total !== 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </CardTitle>
               <div className="flex items-center gap-2">
-                <ClipboardCheck className="h-4 w-4 flex-shrink-0" />
-                <span>Mark the schedule as reviewed to start tracking changes.</span>
-              </div>
-              <Button size="sm" variant="outline" onClick={markAsReviewed}>
-                Mark as reviewed
-              </Button>
-            </div>
-          ) : changeSummary && changeSummary.total > 0 ? (
-            <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40">
-              <div className="flex items-center justify-between gap-2 px-4 py-3 flex-wrap">
-                <button
-                  className="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-300"
-                  onClick={() => setShowChangeDetails(v => !v)}
-                >
-                  <BellRing className="h-4 w-4 flex-shrink-0" />
-                  <span>{changeSummary.total} change{changeSummary.total !== 1 ? 's' : ''} since last review</span>
-                  <span className="text-xs text-amber-600 dark:text-amber-400">
-                    ({format(lastReviewedAt, 'dd MMM yyyy, HH:mm')})
-                  </span>
-                  {showChangeDetails ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                </button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={markAsReviewed}
-                  className="border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300"
-                >
+                <span className="text-xs text-muted-foreground">
+                  Showing changes since {format(lastReviewedAt, 'dd MMM yyyy, HH:mm')}
+                </span>
+                <Button size="sm" variant="outline" onClick={markAsReviewed}>
+                  <ClipboardCheck className="h-3 w-3 mr-1" />
                   Mark as reviewed
                 </Button>
               </div>
-              {showChangeDetails && (
-                <div className="border-t border-amber-200 dark:border-amber-800 px-4 py-3 space-y-3">
-                  {changeSummary.newTasks.length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
-                        New tasks added ({changeSummary.newTasks.length})
-                      </p>
-                      {changeSummary.newTasks.map(task => (
-                        <div key={task.id} className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300">
-                          <Plus className="h-3 w-3 flex-shrink-0" />
-                          <span className="font-medium">{task.name}</span>
-                          <span className="text-xs text-amber-600 dark:text-amber-500">
-                            {task.startDate} → {task.endDate}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {changeSummary.updatedTasks.length > 0 && (
-                    <div className="space-y-1.5">
-                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
-                        Updated tasks ({changeSummary.updatedTasks.length})
-                      </p>
-                      {changeSummary.updatedTasks.map(({ task, dateChanges }) => (
-                        <div key={task.id} className="space-y-0.5">
-                          <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300 flex-wrap">
-                            <Edit className="h-3 w-3 flex-shrink-0" />
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 pt-3">
+            {changeSummary && changeSummary.total > 0 ? (
+              <div className="space-y-3">
+                <button
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowChangeDetails(v => !v)}
+                >
+                  {showChangeDetails ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                  {showChangeDetails ? 'Hide' : 'Show'} details
+                </button>
+                {showChangeDetails && (
+                  <div className="space-y-4">
+                    {changeSummary.newTasks.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          New tasks added ({changeSummary.newTasks.length})
+                        </p>
+                        {changeSummary.newTasks.map(task => (
+                          <div key={task.id} className="flex items-center gap-2 text-sm rounded-md bg-muted/50 px-3 py-2">
+                            <Plus className="h-3 w-3 flex-shrink-0 text-green-600 dark:text-green-400" />
                             <span className="font-medium">{task.name}</span>
-                            <Badge variant="secondary" className="text-xs">
-                              {task.status.replace(/_/g, ' ')}
-                            </Badge>
+                            <span className="text-xs text-muted-foreground ml-auto">
+                              {task.startDate} → {task.endDate}
+                            </span>
                           </div>
-                          {dateChanges.map((dc, i) => (
-                            <div key={i} className="ml-5 text-xs text-amber-700 dark:text-amber-400">
-                              Deadline moved: {dc.previousDeadline} → {dc.newDeadline}
-                              {dc.reason && (
-                                <span className="text-amber-600 dark:text-amber-500"> — {dc.reason}</span>
-                              )}
+                        ))}
+                      </div>
+                    )}
+                    {changeSummary.updatedTasks.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          Updated tasks ({changeSummary.updatedTasks.length})
+                        </p>
+                        {changeSummary.updatedTasks.map(({ task, dateChanges }) => (
+                          <div key={task.id} className="rounded-md bg-muted/50 px-3 py-2 space-y-1">
+                            <div className="flex items-center gap-2 text-sm flex-wrap">
+                              <Edit className="h-3 w-3 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                              <span className="font-medium">{task.name}</span>
+                              <Badge variant="secondary" className="text-xs">
+                                {task.status.replace(/_/g, ' ')}
+                              </Badge>
                             </div>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-green-500" />
-                <span>No changes since last review</span>
-                <span className="text-xs">({format(lastReviewedAt, 'dd MMM yyyy, HH:mm')})</span>
+                            {dateChanges.map((dc, i) => (
+                              <div key={i} className="ml-5 text-xs text-muted-foreground">
+                                Deadline moved: <span className="font-medium">{dc.previousDeadline}</span> → <span className="font-medium">{dc.newDeadline}</span>
+                                {dc.reason && <span className="text-muted-foreground"> — {dc.reason}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <Button size="sm" variant="ghost" onClick={markAsReviewed} className="text-xs">
-                Update review date
-              </Button>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                <span>No changes to the schedule since your last review.</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Schedule Files */}
