@@ -37,6 +37,7 @@ export async function runMigrations() {
     }
 
     console.log("Running database migrations...");
+    console.log("[migrate] Files in migrations folder:", fs.readdirSync(migrationsFolder).filter(f => f.endsWith('.sql')).sort());
 
     const db = drizzle(pool);
 
