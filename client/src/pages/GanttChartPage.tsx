@@ -153,14 +153,7 @@ export default function GanttChartPage() {
   useEffect(() => {
     if (!currentUserId || !selectedProjectId) { setLastReviewedAt(null); return; }
     const stored = localStorage.getItem(`gantt_reviewed_${currentUserId}_${selectedProjectId}`);
-    if (stored) {
-      setLastReviewedAt(new Date(stored));
-    } else {
-      // Default to 7 days ago so recent changes are shown immediately on first visit
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      setLastReviewedAt(sevenDaysAgo);
-    }
+    setLastReviewedAt(stored ? new Date(stored) : null);
   }, [currentUserId, selectedProjectId]);
 
   const markAsReviewed = () => {
@@ -1147,32 +1140,44 @@ export default function GanttChartPage() {
       </Card>
 
       {/* Schedule Changes Summary */}
-      {selectedProjectId && !isLoadingTasks && lastReviewedAt && (
+      {selectedProjectId && !isLoadingTasks && (
         <Card>
           <CardHeader className="p-4 pb-0">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <CardTitle className="text-base flex items-center gap-2">
                 <BellRing className="h-4 w-4" />
                 Schedule Changes
-                {changeSummary && changeSummary.total > 0 && (
+                {lastReviewedAt && changeSummary && changeSummary.total > 0 && (
                   <Badge variant="secondary" className="text-xs">
                     {changeSummary.total} change{changeSummary.total !== 1 ? 's' : ''}
                   </Badge>
                 )}
               </CardTitle>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  Showing changes since {format(lastReviewedAt, 'dd MMM yyyy, HH:mm')}
-                </span>
-                <Button size="sm" variant="outline" onClick={markAsReviewed}>
-                  <ClipboardCheck className="h-3 w-3 mr-1" />
-                  Mark as reviewed
-                </Button>
-              </div>
+              {lastReviewedAt && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    Since {format(lastReviewedAt, 'dd MMM yyyy, HH:mm')}
+                  </span>
+                  <Button size="sm" variant="outline" onClick={markAsReviewed}>
+                    <ClipboardCheck className="h-3 w-3 mr-1" />
+                    Mark as reviewed
+                  </Button>
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent className="p-4 pt-3">
-            {changeSummary && changeSummary.total > 0 ? (
+            {!lastReviewedAt ? (
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <ClipboardCheck className="h-4 w-4 flex-shrink-0" />
+                  <span>Click <strong>Start tracking</strong> to set a checkpoint. Any tasks added or modified after this point will be listed here when you return.</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={markAsReviewed}>
+                  Start tracking changes
+                </Button>
+              </div>
+            ) : changeSummary && changeSummary.total > 0 ? (
               <div className="space-y-3">
                 <button
                   className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
