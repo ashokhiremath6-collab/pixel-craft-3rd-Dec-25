@@ -1,0 +1,33 @@
+The production deployment failed at the Promote stage. The migration 0009 was correctly included in the deployment artifact (the [migrate] log line shows it was present), but it failed with this error:
+
+"Migration failed: error: constraint 'drawing_comments_parent_fk' for relation 'drawing_comments'..."
+
+The server then crashed at startup. The previous version of production is still serving traffic (visible because olympikdesign.com still works for users).
+
+Do NOT make any code changes yet. I need to know production state first.
+
+Please answer these, in order, no changes:
+
+1. Look at the full error message from the production startup logs. I can see it's truncated in the screenshot. What is the COMPLETE error message including any constraint definition or row that caused it?
+
+2. Connect to the production Neon database (same way you did before, via the database skill in production environment) and check the current state:
+
+   a) SELECT idx, hash FROM drizzle.__drizzle_migrations ORDER BY idx DESC LIMIT 5;
+      — Has 0009 been recorded as applied?
+   
+   b) SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('rooms', 'drawings', 'drawing_revisions', 'drawing_approvals', 'revision_events', 'drawing_comments');
+      — Which of the 6 tables exist? All? Some? None?
+   
+   c) If drawing_comments exists, SELECT constraint_name, constraint_type FROM information_schema.table_constraints WHERE table_name = 'drawing_comments';
+      — What constraints does it have? Show me the actual constraint names in production.
+
+3. Once I see the answers, look at our migration file 0009_working_drawings.sql at the section that creates the drawing_comments self-referential FK. Show me those exact lines. Compare them to how other migrations in this project handled self-referential FKs (if any).
+
+4. Based on the complete error message AND the existing production state, propose:
+   a) What change to migration 0009 fixes the constraint error
+   b) Whether we need any cleanup of partial state in production before re-running
+   c) The safest path to retry the deployment
+
+Do NOT modify migration 0009 yet. Do NOT modify production data. Do NOT change any code. Just report findings.
+
+Important context: We have spent considerable time getting to this point. The old production version is still live serving traffic, so there's no urgency. We have time to diagnose properly and fix this once, correctly.
