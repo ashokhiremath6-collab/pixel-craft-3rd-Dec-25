@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette, ArrowUpDown, MessageSquare, History, X } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette, ArrowUpDown, MessageSquare, History, X, BellRing, ClipboardCheck } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useForm } from "react-hook-form";
@@ -144,6 +144,45 @@ export default function GanttChartPage() {
   // Excel sync indicator: counts task edits made since last download
   const [pendingExcelChanges, setPendingExcelChanges] = useState(0);
   useEffect(() => { setPendingExcelChanges(0); }, [selectedProjectId]);
+
+  // Schedule change tracking — per user+project, stored in localStorage
+  const currentUserId = (currentUser as any)?.id as string | undefined;
+  const [lastReviewedAt, setLastReviewedAt] = useState<Date | null>(null);
+  const [showChangeDetails, setShowChangeDetails] = useState(true);
+
+  useEffect(() => {
+    if (!currentUserId || !selectedProjectId) { setLastReviewedAt(null); return; }
+    const stored = localStorage.getItem(`gantt_reviewed_${currentUserId}_${selectedProjectId}`);
+    setLastReviewedAt(stored ? new Date(stored) : null);
+  }, [currentUserId, selectedProjectId]);
+
+  const markAsReviewed = () => {
+    if (!currentUserId || !selectedProjectId) return;
+    const now = new Date();
+    localStorage.setItem(`gantt_reviewed_${currentUserId}_${selectedProjectId}`, now.toISOString());
+    setLastReviewedAt(now);
+  };
+
+  const changeSummary = useMemo(() => {
+    if (!lastReviewedAt || !tasks.length || !selectedProjectId) return null;
+    const newTasks: Task[] = [];
+    const updatedTasks: { task: Task; dateChanges: Array<{ previousDeadline: string; newDeadline: string; reason: string; extendedByName: string; extendedAt: string }> }[] = [];
+
+    tasks.forEach(task => {
+      const createdAt = task.createdAt ? new Date(task.createdAt) : null;
+      const updatedAt = task.updatedAt ? new Date(task.updatedAt) : null;
+      if (createdAt && createdAt > lastReviewedAt) {
+        newTasks.push(task);
+      } else if (updatedAt && updatedAt > lastReviewedAt) {
+        const dateChanges = (task.deadlineHistory || []).filter(
+          h => new Date(h.extendedAt) > lastReviewedAt!
+        );
+        updatedTasks.push({ task, dateChanges });
+      }
+    });
+
+    return { newTasks, updatedTasks, total: newTasks.length + updatedTasks.length };
+  }, [tasks, lastReviewedAt, selectedProjectId]);
 
   // Keep a stable ref to selectedProjectId so the persist effect can read it
   // without re-running when the project changes (avoids write-before-restore race).
@@ -1098,6 +1137,104 @@ export default function GanttChartPage() {
           </div>
         </CardHeader>
       </Card>
+
+      {/* Schedule Changes Summary */}
+      {selectedProjectId && !isLoadingTasks && (
+        <div>
+          {!lastReviewedAt ? (
+            <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck className="h-4 w-4 flex-shrink-0" />
+                <span>Mark the schedule as reviewed to start tracking changes.</span>
+              </div>
+              <Button size="sm" variant="outline" onClick={markAsReviewed}>
+                Mark as reviewed
+              </Button>
+            </div>
+          ) : changeSummary && changeSummary.total > 0 ? (
+            <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40">
+              <div className="flex items-center justify-between gap-2 px-4 py-3 flex-wrap">
+                <button
+                  className="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-300"
+                  onClick={() => setShowChangeDetails(v => !v)}
+                >
+                  <BellRing className="h-4 w-4 flex-shrink-0" />
+                  <span>{changeSummary.total} change{changeSummary.total !== 1 ? 's' : ''} since last review</span>
+                  <span className="text-xs text-amber-600 dark:text-amber-400">
+                    ({format(lastReviewedAt, 'dd MMM yyyy, HH:mm')})
+                  </span>
+                  {showChangeDetails ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                </button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={markAsReviewed}
+                  className="border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300"
+                >
+                  Mark as reviewed
+                </Button>
+              </div>
+              {showChangeDetails && (
+                <div className="border-t border-amber-200 dark:border-amber-800 px-4 py-3 space-y-3">
+                  {changeSummary.newTasks.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                        New tasks added ({changeSummary.newTasks.length})
+                      </p>
+                      {changeSummary.newTasks.map(task => (
+                        <div key={task.id} className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300">
+                          <Plus className="h-3 w-3 flex-shrink-0" />
+                          <span className="font-medium">{task.name}</span>
+                          <span className="text-xs text-amber-600 dark:text-amber-500">
+                            {task.startDate} → {task.endDate}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {changeSummary.updatedTasks.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                        Updated tasks ({changeSummary.updatedTasks.length})
+                      </p>
+                      {changeSummary.updatedTasks.map(({ task, dateChanges }) => (
+                        <div key={task.id} className="space-y-0.5">
+                          <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300 flex-wrap">
+                            <Edit className="h-3 w-3 flex-shrink-0" />
+                            <span className="font-medium">{task.name}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {task.status.replace(/_/g, ' ')}
+                            </Badge>
+                          </div>
+                          {dateChanges.map((dc, i) => (
+                            <div key={i} className="ml-5 text-xs text-amber-700 dark:text-amber-400">
+                              Deadline moved: {dc.previousDeadline} → {dc.newDeadline}
+                              {dc.reason && (
+                                <span className="text-amber-600 dark:text-amber-500"> — {dc.reason}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-green-500" />
+                <span>No changes since last review</span>
+                <span className="text-xs">({format(lastReviewedAt, 'dd MMM yyyy, HH:mm')})</span>
+              </div>
+              <Button size="sm" variant="ghost" onClick={markAsReviewed} className="text-xs">
+                Update review date
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Schedule Files */}
       {selectedProjectId && schedules.length > 0 && (
