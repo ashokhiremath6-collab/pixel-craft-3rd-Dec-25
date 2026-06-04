@@ -64,6 +64,13 @@
       "when": 1779824200000,
       "tag": "0008_floor_plan_is_latest_version",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780580500000,
+      "tag": "0009_working_drawings",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, decimal, numeric, date, boolean, jsonb, index, uniqueIndex, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, decimal, numeric, date, boolean, jsonb, index, uniqueIndex, integer, bigint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -1070,3 +1070,134 @@ export type ProjectCostItem = typeof projectCostItems.$inferSelect;
 
 // Roles that can read billing status (used by both server and client to stay in sync)
 export const BILLING_VISIBLE_ROLES = ['admin', 'designer', 'project_manager'] as const;
+
+// ─── Working Drawings Rebuild ─────────────────────────────────────────────────
+
+// Rooms — spaces within a project that drawings can be associated with
+export const rooms = pgTable("rooms", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id").notNull(),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  roomType: text("room_type").notNull(), // bedroom | bathroom | kitchen | living | dining | family_room | foyer | study | utility | pooja | staff | balcony | other
+  displayOrder: integer("display_order"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("rooms_org_id_idx").on(table.orgId),
+  index("rooms_project_id_idx").on(table.projectId),
+  uniqueIndex("rooms_project_name_unique").on(table.projectId, table.name),
+]);
+
+export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertRoom = z.infer<typeof insertRoomSchema>;
+export type Room = typeof rooms.$inferSelect;
+
+// Drawings — persistent drawing identities (each can have many revisions)
+export const drawings = pgTable("drawings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id").notNull(),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  roomId: varchar("room_id").references(() => rooms.id, { onDelete: 'set null' }),
+  title: text("title").notNull(),
+  category: text("category").notNull(), // Floor Plan | Reflected Ceiling Plan | Elevation | Section | Joinery Detail | Electrical Layout | Plumbing Layout | HVAC Layout | Furniture Layout | Finishes Schedule | Hardware Schedule | Door & Window Schedule | BOQ | Specification | Site Plan | Other
+  discipline: text("discipline").notNull().default('Interior'),
+  drawingNumber: text("drawing_number"),
+  description: text("description"),
+  status: text("status").notNull().default('planned'), // planned | drafting | for_review | approved | superseded
+  isTemplatePlaceholder: boolean("is_template_placeholder").notNull().default(false),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("drawings_org_id_idx").on(table.orgId),
+  index("drawings_project_id_idx").on(table.projectId),
+  // Two partial unique indexes (room-scoped and project-level) — see migration for SQL
+]);
+
+export const insertDrawingSchema = createInsertSchema(drawings).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertDrawing = z.infer<typeof insertDrawingSchema>;
+export type Drawing = typeof drawings.$inferSelect;
+
+// Drawing Revisions — versioned files attached to a drawing (A, B, C…)
+export const drawingRevisions = pgTable("drawing_revisions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id").notNull(),
+  drawingId: varchar("drawing_id").notNull().references(() => drawings.id, { onDelete: 'cascade' }),
+  revisionLetter: text("revision_letter").notNull(),
+  filePath: text("file_path").notNull(),
+  fileName: text("file_name").notNull(),
+  fileSize: bigint("file_size", { mode: 'number' }).notNull(),
+  fileMimeType: text("file_mime_type").notNull(),
+  state: text("state").notNull(), // draft | for_review | approved | returned_with_comments | superseded
+  revisionNote: text("revision_note"),
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+  issuedAt: timestamp("issued_at"),
+  approvedAt: timestamp("approved_at"),
+  supersededAt: timestamp("superseded_at"),
+}, (table) => [
+  index("drawing_revisions_org_id_idx").on(table.orgId),
+  index("drawing_revisions_drawing_id_idx").on(table.drawingId),
+  uniqueIndex("drawing_revisions_drawing_letter_unique").on(table.drawingId, table.revisionLetter),
+]);
+
+export const insertDrawingRevisionSchema = createInsertSchema(drawingRevisions).omit({ id: true, uploadedAt: true });
+export type InsertDrawingRevision = z.infer<typeof insertDrawingRevisionSchema>;
+export type DrawingRevision = typeof drawingRevisions.$inferSelect;
+
+// Drawing Approvals — immutable audit log; one row per client approval event
+export const drawingApprovals = pgTable("drawing_approvals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id").notNull(),
+  revisionId: varchar("revision_id").notNull().references(() => drawingRevisions.id, { onDelete: 'restrict' }),
+  approvedBy: varchar("approved_by").notNull().references(() => users.id),
+  approvedAt: timestamp("approved_at").notNull().default(sql`now()`),
+  approverIp: text("approver_ip"),
+  approverUserAgent: text("approver_user_agent"),
+  approvalComment: text("approval_comment"),
+}, (table) => [
+  index("drawing_approvals_org_id_idx").on(table.orgId),
+  index("drawing_approvals_revision_id_idx").on(table.revisionId),
+]);
+
+export type DrawingApproval = typeof drawingApprovals.$inferSelect;
+export type InsertDrawingApproval = typeof drawingApprovals.$inferInsert;
+
+// Revision Events — activity stream; every meaningful action creates a row
+export const revisionEvents = pgTable("revision_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id").notNull(),
+  revisionId: varchar("revision_id").notNull().references(() => drawingRevisions.id, { onDelete: 'cascade' }),
+  eventType: text("event_type").notNull(), // uploaded | issued_for_review | approved | returned_with_comments | superseded | comment_added
+  actorId: varchar("actor_id").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  payload: jsonb("payload"),
+}, (table) => [
+  index("revision_events_org_id_idx").on(table.orgId),
+  index("revision_events_revision_id_idx").on(table.revisionId),
+]);
+
+export type RevisionEvent = typeof revisionEvents.$inferSelect;
+export type InsertRevisionEvent = typeof revisionEvents.$inferInsert;
+
+// Drawing Comments — threaded comments on revisions
+export const drawingComments = pgTable("drawing_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id").notNull(),
+  revisionId: varchar("revision_id").notNull().references(() => drawingRevisions.id, { onDelete: 'cascade' }),
+  parentCommentId: varchar("parent_comment_id"), // self-referential FK added via ALTER TABLE in migration
+  authorId: varchar("author_id").notNull().references(() => users.id),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  editedAt: timestamp("edited_at"),
+}, (table) => [
+  index("drawing_comments_org_id_idx").on(table.orgId),
+  index("drawing_comments_revision_id_idx").on(table.revisionId),
+]);
+
+export const insertDrawingCommentSchema = createInsertSchema(drawingComments).omit({ id: true, createdAt: true, editedAt: true });
+export type InsertDrawingComment = z.infer<typeof insertDrawingCommentSchema>;
+export type DrawingComment = typeof drawingComments.$inferSelect;
