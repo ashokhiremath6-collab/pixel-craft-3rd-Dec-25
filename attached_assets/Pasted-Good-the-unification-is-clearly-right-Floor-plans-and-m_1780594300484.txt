@@ -1,0 +1,32 @@
+Good — the unification is clearly right. Floor plans and moodboard working_drawings are the same conceptual entity; merging them improves the data model.
+
+Before designing the data migration, three things to handle:
+
+1. Deployment first. The [migrate] log line is still not appearing. Until production has migration 0009 applied, no data migration can run. Wait for the build to actually trigger. If it doesn't trigger within a few more minutes after the next Publish click, investigate why — show me what's blocking. Don't go further until production has the 6 new tables.
+
+2. File path handling. The samples showed two file_path conventions:
+   - /objects/uploads/... (Object Storage)
+   - uploads/floor-plans/... (legacy local filesystem)
+   
+   When we migrate, the file_path column on drawing_revisions should receive whatever the source row had — verbatim. We do NOT try to migrate local-path files to object storage as part of this work. Instead, document this as known technical debt: some rows will have legacy local paths that may break if the local filesystem is gone in production. We'll handle that as a separate cleanup later.
+
+3. Category mapping for the 44 rows. Once production schema is verified, please prepare and SHOW ME (do not commit yet) the proposed category mapping for all 44 rows:
+
+   For the 33 moodboards working_drawing rows: use the existing folder field as the primary signal. If folder = "Electrical", category = "Electrical Layout". If folder = "Living Room", category = "Elevation" (or whatever makes sense). Show me a mapping rule like:
+     folder = "Electrical" → category = "Electrical Layout"
+     folder = "Living Room" → category = "Elevation"
+     folder = NULL → category = "Other"
+     ...
+   And then apply that rule and show me the 33 resulting category assignments.
+
+   For the 11 floor_plans rows: default category = "Floor Plan" for all 11. Show me the 11 rows with their names so I can sanity-check this default is reasonable for all of them.
+
+   Output the full mapping as a table I can review row-by-row. Do not write any data yet.
+
+Order of operations:
+1. Get production schema migration to actually deploy (priority)
+2. Show me the proposed 44-row category mapping (preparation, no writes)
+3. I approve the mapping
+4. Run the data migration
+
+Do not skip step 2.
