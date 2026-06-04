@@ -1,0 +1,19 @@
+Resuming the Working Drawings rebuild. Before the data load, we fix the org_id model. You proposed dropping NOT NULL on the 6 new tables — we are NOT doing that. Spec v1.2 Section 1A mandates org_id enforcement on new tables from day one. Instead we backfill the real org onto the users and project that currently have NULL.
+Confirmed facts: all 8 users with org_id = NULL are Hiremath Interiors studio staff working on Maker Tower. The Maker Tower project is Hiremath Interiors. Varun Interiors (2fe17037-21ec-4ec7-9d27-ff215141d01c) and its user are a separate org and must not be touched.
+Rewrite migration 0010 to do ONLY the backfill — no data inserts, no DROP NOT NULL. Specifically:
+
+Revert any DROP NOT NULL / ALTER … DROP NOT NULL statements on the 6 new tables (rooms, drawings, drawing_revisions, drawing_approvals, revision_events, drawing_comments). org_id stays NOT NULL on all six.
+Backfill the 8 users by explicit id, not by WHERE org_id IS NULL:
+UPDATE users SET org_id = 'cc05b280-74c7-4e9a-ae92-3d5a50207b07' WHERE id IN (
+'23621870', '46833846', '47510089', '48590680',
+'48598553', '48688631', '49660215', '49796924'
+);
+(Listing ids makes the intent auditable and guarantees we never sweep in an account that shouldn't move. Confirm these are the exact 8 ids you reported as NULL before running — if any id differs, stop and show me.)
+Backfill the project:
+UPDATE projects SET org_id = 'cc05b280-74c7-4e9a-ae92-3d5a50207b07' WHERE id = '2de39e0d-ec50-4426-9b9e-69b6868409b0';
+Do NOT touch Varun Interiors or its user. No statement should reference 2fe17037.
+Keep the inserts (rooms, drawings, revisions, events) OUT of 0010. They move to migration 0011 in the next step.
+
+Idempotency: these UPDATEs are naturally safe to re-run. Do not over-engineer guards around them.
+Before applying: run the dev/prod sentinel discipline — confirm which database the live app reads from, and show me the current org_id state of those 8 users and the project (so we verify the 8 ids match) BEFORE applying anything. Then apply 0010, show me the same query after to confirm all 8 users and the project now read cc05b280 and Varun is unchanged.
+Then stop and wait for next instruction. Do not proceed to the data load.
