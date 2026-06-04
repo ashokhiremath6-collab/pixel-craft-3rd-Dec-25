@@ -163,27 +163,6 @@ export default function GanttChartPage() {
     setLastReviewedAt(now);
   };
 
-  const changeSummary = useMemo(() => {
-    if (!lastReviewedAt || !tasks.length || !selectedProjectId) return null;
-    const newTasks: Task[] = [];
-    const updatedTasks: { task: Task; dateChanges: Array<{ previousDeadline: string; newDeadline: string; reason: string; extendedByName: string; extendedAt: string }> }[] = [];
-
-    tasks.forEach(task => {
-      const createdAt = task.createdAt ? new Date(task.createdAt) : null;
-      const updatedAt = task.updatedAt ? new Date(task.updatedAt) : null;
-      if (createdAt && createdAt > lastReviewedAt) {
-        newTasks.push(task);
-      } else if (updatedAt && updatedAt > lastReviewedAt) {
-        const dateChanges = (task.deadlineHistory || []).filter(
-          h => new Date(h.extendedAt) > lastReviewedAt!
-        );
-        updatedTasks.push({ task, dateChanges });
-      }
-    });
-
-    return { newTasks, updatedTasks, total: newTasks.length + updatedTasks.length };
-  }, [tasks, lastReviewedAt, selectedProjectId]);
-
   // Keep a stable ref to selectedProjectId so the persist effect can read it
   // without re-running when the project changes (avoids write-before-restore race).
   const selectedProjectIdRef = useRef(selectedProjectId);
@@ -257,6 +236,28 @@ export default function GanttChartPage() {
     staleTime: 0,
     refetchOnMount: 'always',
   });
+
+  // Change summary: compares task timestamps against lastReviewedAt
+  const changeSummary = useMemo(() => {
+    if (!lastReviewedAt || !tasks.length || !selectedProjectId) return null;
+    const newTasks: Task[] = [];
+    const updatedTasks: { task: Task; dateChanges: Array<{ previousDeadline: string; newDeadline: string; reason: string; extendedByName: string; extendedAt: string }> }[] = [];
+
+    tasks.forEach(task => {
+      const createdAt = task.createdAt ? new Date(task.createdAt) : null;
+      const updatedAt = task.updatedAt ? new Date(task.updatedAt) : null;
+      if (createdAt && createdAt > lastReviewedAt) {
+        newTasks.push(task);
+      } else if (updatedAt && updatedAt > lastReviewedAt) {
+        const dateChanges = (task.deadlineHistory || []).filter(
+          h => new Date(h.extendedAt) > lastReviewedAt!
+        );
+        updatedTasks.push({ task, dateChanges });
+      }
+    });
+
+    return { newTasks, updatedTasks, total: newTasks.length + updatedTasks.length };
+  }, [tasks, lastReviewedAt, selectedProjectId]);
 
   // Auto-expand all phase groups when tasks first load for a project.
   // Must be declared AFTER `tasks` to avoid a Temporal Dead Zone crash.
