@@ -85,6 +85,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
     mutationFn: async (formData: FormData) => {
       const response = await fetch('/api/quotes/import', {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       });
       
@@ -97,8 +98,12 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
       }
       
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.details || error.error || 'Import failed');
+        const ct = response.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const error = await response.json();
+          throw new Error(error.details || error.error || 'Import failed');
+        }
+        throw new Error(`Upload failed (${response.status} ${response.statusText}). Please try again.`);
       }
       
       return response.json() as Promise<ImportResult>;
@@ -145,6 +150,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
     }) => {
       const response = await fetch('/api/quotes/import/resolve', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -152,8 +158,12 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
       });
       
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.details || error.error || 'Resolution failed');
+        const ct = response.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const error = await response.json();
+          throw new Error(error.details || error.error || 'Resolution failed');
+        }
+        throw new Error(`Upload failed (${response.status} ${response.statusText}). Please try again.`);
       }
       
       return response.json() as Promise<ImportResult>;
