@@ -109,7 +109,11 @@ CREATE TABLE IF NOT EXISTS "drawing_comments" (
   "edited_at" timestamp
 );
 --> statement-breakpoint
-ALTER TABLE "drawing_comments" ADD CONSTRAINT "drawing_comments_parent_fk" FOREIGN KEY ("parent_comment_id") REFERENCES "drawing_comments"("id") ON DELETE SET NULL;
+DO $$ BEGIN
+  ALTER TABLE "drawing_comments" ADD CONSTRAINT "drawing_comments_parent_fk" FOREIGN KEY ("parent_comment_id") REFERENCES "drawing_comments"("id") ON DELETE SET NULL;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "drawing_comments_org_id_idx" ON "drawing_comments" ("org_id");
 --> statement-breakpoint

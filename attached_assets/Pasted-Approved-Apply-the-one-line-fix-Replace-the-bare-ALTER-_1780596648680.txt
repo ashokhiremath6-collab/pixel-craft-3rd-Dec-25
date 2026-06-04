@@ -1,0 +1,25 @@
+Approved. Apply the one-line fix:
+
+Replace the bare ALTER TABLE statement on line 112 of migrations/0009_working_drawings.sql with the DO $$ BEGIN ... EXCEPTION WHEN duplicate_object THEN NULL; END $$; wrapper as you proposed.
+
+Two additional asks before deploying:
+
+1. Re-read the entire 0009_working_drawings.sql file and check for ANY other non-idempotent statement that could fail on re-run. The list to check:
+   - All ALTER TABLE statements (not just the FK one)
+   - Any CREATE INDEX without IF NOT EXISTS
+   - Any constraint, trigger, sequence, or function creation
+   - Any DROP statement (drops generally are idempotent with IF EXISTS but worth checking)
+   
+   If you find any other statement that lacks IF NOT EXISTS or equivalent guarding, wrap it in the same DO $$ EXCEPTION pattern.
+
+2. After deploy completes and the [migrate] log shows success this time, run these post-deploy checks against production:
+   - SELECT idx, hash FROM drizzle.__drizzle_migrations ORDER BY idx DESC LIMIT 3; (expect 0009 as most recent)
+   - SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('rooms','drawings','drawing_revisions','drawing_approvals','revision_events','drawing_comments'); (expect 6)
+   - SELECT constraint_name FROM information_schema.table_constraints WHERE table_name = 'drawing_comments' AND constraint_name = 'drawing_comments_parent_fk'; (expect 1 row — confirms constraint still present)
+   - SELECT COUNT(*) FROM rooms, drawings, drawing_revisions, drawing_approvals, revision_events, drawing_comments; (expect all 0 — no data migration has run yet)
+
+If everything passes, STOP and confirm production schema is now in a clean, fully-recorded state. Do NOT run the data migration in the same deploy cycle. We'll do that as a separate step once we've confirmed the schema is properly tracked.
+
+Important context: olympikdesign.com is still serving the old version because Promote failed. After this fix lands, production will switch to the new build that has the schema. Your daughter's app should continue to work identically (the existing Working Drawings page reads from moodboards, which we haven't touched).
+
+Once schema is confirmed in a good state, the 17-room creation and the data migration become the next step.
