@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useSearch } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,22 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -35,14 +51,19 @@ import {
   ChevronRight,
   FileText,
   Eye,
-  Download,
-  LayoutGrid,
-  List,
   Layers,
   Home,
+  Settings2,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  Plus,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Project } from "@shared/schema";
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 type DrawingRevision = {
   id: string;
@@ -65,6 +86,8 @@ type Room = {
   displayOrder: number | null;
 };
 
+type RoomWithCount = Room & { drawingCount: number };
+
 type DrawingRow = {
   id: string;
   title: string;
@@ -77,25 +100,28 @@ type DrawingRow = {
   latestRevision: DrawingRevision | null;
 };
 
-type RoomWithCount = Room & { drawingCount: number };
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const ROOM_TYPES = [
+  { value: "bedroom", label: "Bedroom" },
+  { value: "bathroom", label: "Bathroom" },
+  { value: "kitchen", label: "Kitchen" },
+  { value: "living", label: "Living" },
+  { value: "dining", label: "Dining" },
+  { value: "study", label: "Study" },
+  { value: "corridor", label: "Corridor" },
+  { value: "lobby", label: "Lobby" },
+  { value: "storage", label: "Storage" },
+  { value: "utility", label: "Utility" },
+  { value: "closet", label: "Closet" },
+  { value: "other", label: "Other" },
+];
 
 const CATEGORY_ORDER = [
-  "Floor Plan",
-  "Reflected Ceiling Plan",
-  "Elevation",
-  "Section",
-  "Joinery Detail",
-  "Electrical Layout",
-  "HVAC Layout",
-  "Plumbing Layout",
-  "Finishes Schedule",
-  "Furniture Layout",
-  "Specification",
-  "Hardware Schedule",
-  "Door & Window Schedule",
-  "BOQ",
-  "Site Plan",
-  "Other",
+  "Floor Plan", "Reflected Ceiling Plan", "Elevation", "Section",
+  "Joinery Detail", "Electrical Layout", "HVAC Layout", "Plumbing Layout",
+  "Finishes Schedule", "Furniture Layout", "Specification",
+  "Hardware Schedule", "Door & Window Schedule", "BOQ", "Site Plan", "Other",
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -122,22 +148,15 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function DrawingTableRow({
-  drawing,
-  onView,
-}: {
-  drawing: DrawingRow;
-  onView: (drawing: DrawingRow) => void;
-}) {
+// ── Drawing table row ────────────────────────────────────────────────────────
+
+function DrawingTableRow({ drawing, onView }: { drawing: DrawingRow; onView: (d: DrawingRow) => void }) {
   const rev = drawing.latestRevision;
   const catColor = CATEGORY_COLORS[drawing.category] || "bg-muted text-muted-foreground";
   const stateColor = rev ? (STATE_BADGE[rev.state] || "bg-muted text-muted-foreground") : "";
 
   return (
-    <TableRow
-      className="hover-elevate cursor-pointer group"
-      onClick={() => onView(drawing)}
-    >
+    <TableRow className="hover-elevate cursor-pointer group" onClick={() => onView(drawing)}>
       <TableCell className="font-medium">
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -149,9 +168,7 @@ function DrawingTableRow({
           {drawing.category}
         </span>
       </TableCell>
-      <TableCell className="text-muted-foreground text-sm">
-        {rev ? `Rev ${rev.revisionLetter}` : "—"}
-      </TableCell>
+      <TableCell className="text-muted-foreground text-sm">{rev ? `Rev ${rev.revisionLetter}` : "—"}</TableCell>
       <TableCell>
         {rev && (
           <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${stateColor}`}>
@@ -162,17 +179,10 @@ function DrawingTableRow({
       <TableCell className="text-muted-foreground text-sm">
         {rev?.uploadedAt ? format(new Date(rev.uploadedAt), "dd MMM yyyy") : "—"}
       </TableCell>
-      <TableCell className="text-muted-foreground text-sm">
-        {rev ? formatBytes(rev.fileSize) : "—"}
-      </TableCell>
+      <TableCell className="text-muted-foreground text-sm">{rev ? formatBytes(rev.fileSize) : "—"}</TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={(e) => { e.stopPropagation(); onView(drawing); }}
-            title="View PDF"
-          >
+          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); onView(drawing); }} title="View PDF">
             <Eye className="h-4 w-4" />
           </Button>
         </div>
@@ -181,21 +191,12 @@ function DrawingTableRow({
   );
 }
 
-function GroupSection({
-  label,
-  count,
-  drawings,
-  defaultOpen,
-  onView,
-}: {
-  label: string;
-  count: number;
-  drawings: DrawingRow[];
-  defaultOpen: boolean;
-  onView: (d: DrawingRow) => void;
+// ── Collapsible group ────────────────────────────────────────────────────────
+
+function GroupSection({ label, count, drawings, defaultOpen, onView }: {
+  label: string; count: number; drawings: DrawingRow[]; defaultOpen: boolean; onView: (d: DrawingRow) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger asChild>
@@ -222,9 +223,7 @@ function GroupSection({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {drawings.map((d) => (
-                <DrawingTableRow key={d.id} drawing={d} onView={onView} />
-              ))}
+              {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} />)}
             </TableBody>
           </Table>
         </div>
@@ -233,8 +232,137 @@ function GroupSection({
   );
 }
 
+// ── Room row (inside manage panel) ───────────────────────────────────────────
+
+function RoomRow({ room, onSave, onDelete }: {
+  room: RoomWithCount;
+  onSave: (id: string, name: string, roomType: string) => Promise<void>;
+  onDelete: (room: RoomWithCount) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(room.name);
+  const [roomType, setRoomType] = useState(room.roomType);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      await onSave(room.id, name.trim(), roomType);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleCancel() {
+    setName(room.name);
+    setRoomType(room.roomType);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2 py-2 px-1">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="flex-1 h-8 text-sm"
+          autoFocus
+          onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") handleCancel(); }}
+        />
+        <Select value={roomType} onValueChange={setRoomType}>
+          <SelectTrigger className="w-32 h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ROOM_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button size="icon" variant="ghost" onClick={handleSave} disabled={saving || !name.trim()} title="Save">
+          <Check className="h-4 w-4 text-green-600" />
+        </Button>
+        <Button size="icon" variant="ghost" onClick={handleCancel} title="Cancel">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 py-2 px-1 group rounded-md hover-elevate">
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium truncate">{room.name}</span>
+        <span className="ml-2 text-xs text-muted-foreground">{ROOM_TYPES.find(t => t.value === room.roomType)?.label ?? room.roomType}</span>
+      </div>
+      <Badge variant="secondary" className="no-default-active-elevate shrink-0 text-xs">
+        {room.drawingCount} {room.drawingCount === 1 ? "drawing" : "drawings"}
+      </Badge>
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button size="icon" variant="ghost" onClick={() => setEditing(true)} title="Edit">
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        <Button size="icon" variant="ghost" onClick={() => onDelete(room)} title="Delete">
+          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Add Room form ────────────────────────────────────────────────────────────
+
+function AddRoomForm({ onAdd }: { onAdd: (name: string, roomType: string) => Promise<void> }) {
+  const [name, setName] = useState("");
+  const [roomType, setRoomType] = useState("other");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      await onAdd(name.trim(), roomType);
+      setName("");
+      setRoomType("other");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex items-center gap-2 pt-3 border-t">
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="New room name"
+        className="flex-1 h-8 text-sm"
+        disabled={saving}
+      />
+      <Select value={roomType} onValueChange={setRoomType}>
+        <SelectTrigger className="w-32 h-8 text-sm">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {ROOM_TYPES.map((t) => (
+            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button type="submit" size="icon" variant="default" disabled={saving || !name.trim()} title="Add room">
+        <Plus className="h-4 w-4" />
+      </Button>
+    </form>
+  );
+}
+
+// ── Main page ────────────────────────────────────────────────────────────────
+
 export default function WorkingDrawingsPage() {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const search = useSearch();
   const params = new URLSearchParams(search);
   const filterProjectId = params.get("projectId") || "";
@@ -243,16 +371,17 @@ export default function WorkingDrawingsPage() {
   const [viewMode, setViewMode] = useState<"room" | "category">("room");
   const [viewingDrawing, setViewingDrawing] = useState<DrawingRow | null>(null);
   const [viewerUrl, setViewerUrl] = useState<{ url: string; name: string } | null>(null);
-  const [loadingViewId, setLoadingViewId] = useState<string | null>(null);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [deletingRoom, setDeletingRoom] = useState<RoomWithCount | null>(null);
 
-  const { data: projects = [] } = useQuery<Project[]>({
-    queryKey: ["/api/projects"],
-  });
-
+  const { data: projects = [] } = useQuery<Project[]>({ queryKey: ["/api/projects"] });
   const activeProjectId = filterProjectId || (projects[0]?.id ?? "");
 
+  const roomsKey = ["/api/working-drawings/rooms", activeProjectId];
+  const drawingsKey = ["/api/working-drawings", activeProjectId, searchText];
+
   const { data: rooms = [], isLoading: roomsLoading } = useQuery<RoomWithCount[]>({
-    queryKey: ["/api/working-drawings/rooms", activeProjectId],
+    queryKey: roomsKey,
     queryFn: async () => {
       if (!activeProjectId) return [];
       const res = await fetch(`/api/working-drawings/rooms?projectId=${encodeURIComponent(activeProjectId)}`, { credentials: "include" });
@@ -263,7 +392,7 @@ export default function WorkingDrawingsPage() {
   });
 
   const { data: allDrawings = [], isLoading: drawingsLoading } = useQuery<DrawingRow[]>({
-    queryKey: ["/api/working-drawings", activeProjectId, searchText],
+    queryKey: drawingsKey,
     queryFn: async () => {
       if (!activeProjectId) return [];
       const sp = new URLSearchParams({ projectId: activeProjectId });
@@ -277,36 +406,95 @@ export default function WorkingDrawingsPage() {
 
   const isLoading = roomsLoading || drawingsLoading;
 
+  // ── Room CRUD mutations ────────────────────────────────────────────────────
+
+  const createRoomMut = useMutation({
+    mutationFn: async ({ name, roomType }: { name: string; roomType: string }) => {
+      const res = await apiRequest("POST", "/api/working-drawings/rooms", { projectId: activeProjectId, name, roomType });
+      if (!res.ok) throw new Error("Failed to create room");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roomsKey });
+      toast({ title: "Room added" });
+    },
+    onError: () => toast({ title: "Could not add room", variant: "destructive" }),
+  });
+
+  const updateRoomMut = useMutation({
+    mutationFn: async ({ id, name, roomType }: { id: string; name: string; roomType: string }) => {
+      const res = await apiRequest("PATCH", `/api/working-drawings/rooms/${id}`, { name, roomType });
+      if (!res.ok) throw new Error("Failed to update room");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roomsKey });
+      qc.invalidateQueries({ queryKey: ["/api/working-drawings", activeProjectId] });
+      toast({ title: "Room updated" });
+    },
+    onError: () => toast({ title: "Could not update room", variant: "destructive" }),
+  });
+
+  const deleteRoomMut = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("DELETE", `/api/working-drawings/rooms/${id}?projectId=${encodeURIComponent(activeProjectId)}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to delete room");
+      return body;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roomsKey });
+      toast({ title: "Room deleted" });
+      setDeletingRoom(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Cannot delete room", description: err.message, variant: "destructive" });
+      setDeletingRoom(null);
+    },
+  });
+
+  async function handleAddRoom(name: string, roomType: string) {
+    await createRoomMut.mutateAsync({ name, roomType });
+  }
+
+  async function handleSaveRoom(id: string, name: string, roomType: string) {
+    await updateRoomMut.mutateAsync({ id, name, roomType });
+  }
+
+  function handleDeleteRoom(room: RoomWithCount) {
+    if (room.drawingCount > 0) {
+      // show blocked alert immediately
+      setDeletingRoom(room);
+    } else {
+      setDeletingRoom(room);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deletingRoom) return;
+    await deleteRoomMut.mutateAsync(deletingRoom.id);
+  }
+
+  // ── Grouping ───────────────────────────────────────────────────────────────
+
   const groupedByRoom = useMemo(() => {
     const roomMap = new Map<string, { label: string; drawings: DrawingRow[] }>();
     const noRoom: DrawingRow[] = [];
-
     for (const d of allDrawings) {
       if (d.room) {
-        if (!roomMap.has(d.room.id)) {
-          roomMap.set(d.room.id, { label: d.room.name, drawings: [] });
-        }
+        if (!roomMap.has(d.room.id)) roomMap.set(d.room.id, { label: d.room.name, drawings: [] });
         roomMap.get(d.room.id)!.drawings.push(d);
       } else {
         noRoom.push(d);
       }
     }
-
     const roomOrder = rooms.map((r) => r.id);
     const sorted = Array.from(roomMap.entries()).sort(([a], [b]) => {
-      const ia = roomOrder.indexOf(a);
-      const ib = roomOrder.indexOf(b);
+      const ia = roomOrder.indexOf(a), ib = roomOrder.indexOf(b);
       return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
     });
-
-    const result: { key: string; label: string; drawings: DrawingRow[] }[] = sorted.map(([k, v]) => ({
-      key: k,
-      label: v.label,
-      drawings: v.drawings,
-    }));
-    if (noRoom.length > 0) {
-      result.push({ key: "__none__", label: "Project-Wide", drawings: noRoom });
-    }
+    const result: { key: string; label: string; drawings: DrawingRow[] }[] = sorted.map(([k, v]) => ({ key: k, label: v.label, drawings: v.drawings }));
+    if (noRoom.length > 0) result.push({ key: "__none__", label: "Project-Wide", drawings: noRoom });
     return result;
   }, [allDrawings, rooms]);
 
@@ -317,21 +505,22 @@ export default function WorkingDrawingsPage() {
       catMap.get(d.category)!.push(d);
     }
     const sorted = Array.from(catMap.entries()).sort(([a], [b]) => {
-      const ia = CATEGORY_ORDER.indexOf(a);
-      const ib = CATEGORY_ORDER.indexOf(b);
+      const ia = CATEGORY_ORDER.indexOf(a), ib = CATEGORY_ORDER.indexOf(b);
       return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
     });
-    return sorted.map(([cat, drawings]) => ({ key: cat, label: cat, drawings }));
+    return sorted.map(([cat, drws]) => ({ key: cat, label: cat, drawings: drws }));
   }, [allDrawings]);
 
   const activeProject = projects.find((p) => p.id === activeProjectId);
+  const groups = viewMode === "room" ? groupedByRoom : groupedByCategory;
+
+  // ── View handler ───────────────────────────────────────────────────────────
 
   async function handleView(drawing: DrawingRow) {
     if (!drawing.latestRevision) {
       toast({ title: "No file available", description: "This drawing has no uploaded revision yet.", variant: "destructive" });
       return;
     }
-    setLoadingViewId(drawing.id);
     try {
       const res = await apiRequest("GET", `/api/working-drawings/${drawing.id}/view-url/${drawing.latestRevision.id}`);
       const data = await res.json();
@@ -339,12 +528,10 @@ export default function WorkingDrawingsPage() {
       setViewerUrl({ url: data.url, name: data.fileName });
     } catch {
       toast({ title: "Could not open file", description: "Try again in a moment.", variant: "destructive" });
-    } finally {
-      setLoadingViewId(null);
     }
   }
 
-  const groups = viewMode === "room" ? groupedByRoom : groupedByCategory;
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-full">
@@ -353,9 +540,7 @@ export default function WorkingDrawingsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold">Working Drawings</h1>
-            {activeProject && (
-              <p className="text-sm text-muted-foreground mt-0.5">{activeProject.projectName}</p>
-            )}
+            {activeProject && <p className="text-sm text-muted-foreground mt-0.5">{activeProject.projectName}</p>}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Project selector */}
@@ -365,15 +550,19 @@ export default function WorkingDrawingsPage() {
                 p.set("projectId", v);
                 window.history.replaceState(null, "", `?${p}`);
               }}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Select project" />
-                </SelectTrigger>
+                <SelectTrigger className="w-48"><SelectValue placeholder="Select project" /></SelectTrigger>
                 <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>
-                  ))}
+                  {projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>)}
                 </SelectContent>
               </Select>
+            )}
+
+            {/* Manage rooms */}
+            {activeProjectId && (
+              <Button variant="outline" onClick={() => setManageOpen(true)} className="gap-1.5">
+                <Settings2 className="h-4 w-4" />
+                Manage Rooms
+              </Button>
             )}
 
             {/* View mode toggle */}
@@ -394,12 +583,12 @@ export default function WorkingDrawingsPage() {
               </button>
             </div>
 
-            {/* Search */}
+            {/* Search — title · room name · category */}
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
                 className="pl-8 w-56"
-                placeholder="Search drawings…"
+                placeholder="Title, room or category…"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
               />
@@ -431,37 +620,88 @@ export default function WorkingDrawingsPage() {
           </div>
         ) : isLoading ? (
           <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-12 w-full rounded-md" />
-            ))}
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full rounded-md" />)}
           </div>
         ) : allDrawings.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
               <FileText className="h-10 w-10 opacity-30" />
               <p className="font-medium">No drawings found</p>
-              {searchText && (
-                <p className="text-sm">Try a different search term.</p>
-              )}
+              {searchText && <p className="text-sm">Try a different search term.</p>}
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-1">
             {groups.map((group, idx) => (
-              <GroupSection
-                key={group.key}
-                label={group.label}
-                count={group.drawings.length}
-                drawings={group.drawings}
-                defaultOpen={idx === 0}
-                onView={handleView}
-              />
+              <GroupSection key={group.key} label={group.label} count={group.drawings.length}
+                drawings={group.drawings} defaultOpen={idx === 0} onView={handleView} />
             ))}
           </div>
         )}
       </div>
 
-      {/* PDF Viewer Modal */}
+      {/* Manage Rooms Sheet */}
+      <Sheet open={manageOpen} onOpenChange={setManageOpen}>
+        <SheetContent side="right" className="w-[420px] flex flex-col gap-0 p-0">
+          <SheetHeader className="px-6 py-4 border-b">
+            <SheetTitle>Manage Rooms</SheetTitle>
+            {activeProject && <p className="text-sm text-muted-foreground">{activeProject.projectName}</p>}
+          </SheetHeader>
+          <div className="flex-1 overflow-auto px-6 py-4">
+            {rooms.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No rooms yet.</p>
+            ) : (
+              <div className="divide-y">
+                {rooms.map((room) => (
+                  <RoomRow
+                    key={room.id}
+                    room={room}
+                    onSave={handleSaveRoom}
+                    onDelete={handleDeleteRoom}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="px-6 pb-6">
+            <AddRoomForm onAdd={handleAddRoom} />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deletingRoom} onOpenChange={(o) => { if (!o) setDeletingRoom(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deletingRoom && deletingRoom.drawingCount > 0
+                ? "Cannot delete room"
+                : `Delete "${deletingRoom?.name}"?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingRoom && deletingRoom.drawingCount > 0
+                ? `This room has ${deletingRoom.drawingCount} drawing${deletingRoom.drawingCount === 1 ? "" : "s"} — move or remove them first.`
+                : "This room has no drawings. It will be permanently deleted."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {deletingRoom && deletingRoom.drawingCount > 0 ? "Close" : "Cancel"}
+            </AlertDialogCancel>
+            {deletingRoom && deletingRoom.drawingCount === 0 && (
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground"
+                onClick={confirmDelete}
+                disabled={deleteRoomMut.isPending}
+              >
+                Delete room
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* PDF Viewer */}
       {viewingDrawing && viewerUrl && (
         <FileViewerModal
           isOpen

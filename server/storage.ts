@@ -496,6 +496,9 @@ export interface IStorage {
   // Working Drawings
   getRoomsForProject(orgId: string, projectId: string): Promise<Array<Room & { drawingCount: number }>>;
   getDrawingsForProject(orgId: string, projectId: string, search?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>>;
+  createRoom(orgId: string, projectId: string, data: { name: string; roomType: string }): Promise<Room>;
+  updateRoom(id: string, orgId: string, data: { name: string; roomType: string }): Promise<Room | undefined>;
+  deleteRoom(id: string, orgId: string, projectId: string): Promise<{ success: boolean; drawingCount: number }>;
 }
 
 export class MemStorage implements IStorage {
@@ -1545,6 +1548,9 @@ export class MemStorage implements IStorage {
   // Working Drawings — MemStorage stubs
   async getRoomsForProject(_orgId: string, _projectId: string): Promise<Array<Room & { drawingCount: number }>> { return []; }
   async getDrawingsForProject(_orgId: string, _projectId: string, _search?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>> { return []; }
+  async createRoom(_orgId: string, _projectId: string, _data: { name: string; roomType: string }): Promise<Room> { throw new Error("Not implemented"); }
+  async updateRoom(_id: string, _orgId: string, _data: { name: string; roomType: string }): Promise<Room | undefined> { return undefined; }
+  async deleteRoom(_id: string, _orgId: string, _projectId: string): Promise<{ success: boolean; drawingCount: number }> { return { success: false, drawingCount: 0 }; }
 }
 
 export class DBStorage implements IStorage {
@@ -3863,6 +3869,7 @@ export class DBStorage implements IStorage {
 
   async getDrawingsForProject(orgId: string, projectId: string, search?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>> {
     const dr = drawingRevisions;
+    const term = search ? '%' + search.toLowerCase() + '%' : null;
     const allDrawings = await db
       .select({
         drawing: getTableColumns(drawings),
@@ -3874,7 +3881,11 @@ export class DBStorage implements IStorage {
         and(
           eq(drawings.orgId, orgId),
           eq(drawings.projectId, projectId),
-          search ? sql`lower(${drawings.title}) like ${'%' + search.toLowerCase() + '%'}` : undefined,
+          term ? or(
+            sql`lower(${drawings.title}) like ${term}`,
+            sql`lower(${drawings.category}) like ${term}`,
+            sql`lower(coalesce(${rooms.name},'')) like ${term}`,
+          ) : undefined,
         )
       )
       .orderBy(asc(drawings.category), asc(drawings.title));
@@ -3898,6 +3909,43 @@ export class DBStorage implements IStorage {
       latestRevision: latestRevMap.get(r.drawing.id) ?? null,
       room: r.room ?? null,
     }));
+  }
+
+  async createRoom(orgId: string, projectId: string, data: { name: string; roomType: string }): Promise<Room> {
+    const [maxRow] = await db
+      .select({ maxOrder: sql<number>`coalesce(max(${rooms.displayOrder}), 0)` })
+      .from(rooms)
+      .where(and(eq(rooms.orgId, orgId), eq(rooms.projectId, projectId)));
+    const nextOrder = (maxRow?.maxOrder ?? 0) + 1;
+    const [result] = await db.insert(rooms).values({
+      id: randomUUID(),
+      orgId,
+      projectId,
+      name: data.name,
+      roomType: data.roomType,
+      displayOrder: nextOrder,
+    }).returning();
+    return result;
+  }
+
+  async updateRoom(id: string, orgId: string, data: { name: string; roomType: string }): Promise<Room | undefined> {
+    const [result] = await db
+      .update(rooms)
+      .set({ name: data.name, roomType: data.roomType, updatedAt: new Date() })
+      .where(and(eq(rooms.id, id), eq(rooms.orgId, orgId)))
+      .returning();
+    return result;
+  }
+
+  async deleteRoom(id: string, orgId: string, projectId: string): Promise<{ success: boolean; drawingCount: number }> {
+    const [countRow] = await db
+      .select({ count: sql<number>`cast(count(*) as int)` })
+      .from(drawings)
+      .where(and(eq(drawings.roomId, id), eq(drawings.orgId, orgId), eq(drawings.projectId, projectId)));
+    const drawingCount = countRow?.count ?? 0;
+    if (drawingCount > 0) return { success: false, drawingCount };
+    await db.delete(rooms).where(and(eq(rooms.id, id), eq(rooms.orgId, orgId)));
+    return { success: true, drawingCount: 0 };
   }
 }
 

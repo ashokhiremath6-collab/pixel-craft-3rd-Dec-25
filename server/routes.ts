@@ -11608,6 +11608,58 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // POST /api/working-drawings/rooms — create room
+  app.post("/api/working-drawings/rooms", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { projectId, name, roomType } = req.body as { projectId?: string; name?: string; roomType?: string };
+      if (!orgId || !projectId || !name?.trim() || !roomType?.trim()) {
+        return res.status(400).json({ error: "projectId, name and roomType are required" });
+      }
+      const result = await storage.createRoom(orgId, projectId, { name: name.trim(), roomType: roomType.trim() });
+      res.status(201).json(result);
+    } catch (err) {
+      console.error("POST /api/working-drawings/rooms error:", err);
+      res.status(500).json({ error: "Failed to create room" });
+    }
+  });
+
+  // PATCH /api/working-drawings/rooms/:id — rename / retype room
+  app.patch("/api/working-drawings/rooms/:id", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { id } = req.params;
+      const { name, roomType } = req.body as { name?: string; roomType?: string };
+      if (!orgId || !name?.trim() || !roomType?.trim()) {
+        return res.status(400).json({ error: "name and roomType are required" });
+      }
+      const result = await storage.updateRoom(id, orgId, { name: name.trim(), roomType: roomType.trim() });
+      if (!result) return res.status(404).json({ error: "Room not found" });
+      res.json(result);
+    } catch (err) {
+      console.error("PATCH /api/working-drawings/rooms/:id error:", err);
+      res.status(500).json({ error: "Failed to update room" });
+    }
+  });
+
+  // DELETE /api/working-drawings/rooms/:id — safe delete (blocked if drawings exist)
+  app.delete("/api/working-drawings/rooms/:id", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { id } = req.params;
+      const { projectId } = req.query as { projectId?: string };
+      if (!orgId || !projectId) return res.status(400).json({ error: "projectId required" });
+      const result = await storage.deleteRoom(id, orgId, projectId);
+      if (!result.success) {
+        return res.status(409).json({ error: `This room has ${result.drawingCount} drawing${result.drawingCount === 1 ? "" : "s"} — move or remove them first.`, drawingCount: result.drawingCount });
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error("DELETE /api/working-drawings/rooms/:id error:", err);
+      res.status(500).json({ error: "Failed to delete room" });
+    }
+  });
+
   // GET /api/working-drawings/:id/view-url — signed download URL for a drawing's file
   app.get("/api/working-drawings/:drawingId/view-url/:revisionId", requireAuth, async (req: any, res) => {
     try {
