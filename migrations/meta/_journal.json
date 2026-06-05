@@ -85,6 +85,41 @@
       "when": 1780620000000,
       "tag": "0011_add_not_null_org_id_drawing_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1780640000000,
+      "tag": "0012_seed_maker_tower_working_drawings",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1780660000000,
+      "tag": "0013_add_missing_rooms_maker_tower",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1780680000000,
+      "tag": "0014_add_onboarding_completed_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1780700000000,
+      "tag": "0015_add_onboarding_completed_at_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1780720000000,
+      "tag": "0016_backfill_onboarding_all_users",
+      "breakpoints": true
     }
   ]
 }
