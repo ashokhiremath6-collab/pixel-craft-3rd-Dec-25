@@ -181,11 +181,10 @@ function DrawingTableRow({ drawing, onView }: { drawing: DrawingRow; onView: (d:
       </TableCell>
       <TableCell className="text-muted-foreground text-sm">{rev ? formatBytes(rev.fileSize) : "—"}</TableCell>
       <TableCell className="text-right">
-        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); onView(drawing); }} title="View PDF">
-            <Eye className="h-4 w-4" />
-          </Button>
-        </div>
+        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onView(drawing); }}>
+          <Eye className="h-3.5 w-3.5 mr-1.5" />
+          Open
+        </Button>
       </TableCell>
     </TableRow>
   );
