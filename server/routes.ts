@@ -11618,7 +11618,10 @@ Return your response in the following JSON format only (no markdown, no code blo
       }
       const result = await storage.createRoom(orgId, projectId, { name: name.trim(), roomType: roomType.trim() });
       res.status(201).json(result);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.code === "23505") {
+        return res.status(409).json({ error: "A room with that name already exists in this project." });
+      }
       console.error("POST /api/working-drawings/rooms error:", err);
       res.status(500).json({ error: "Failed to create room" });
     }
@@ -11636,7 +11639,10 @@ Return your response in the following JSON format only (no markdown, no code blo
       const result = await storage.updateRoom(id, orgId, { name: name.trim(), roomType: roomType.trim() });
       if (!result) return res.status(404).json({ error: "Room not found" });
       res.json(result);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.code === "23505") {
+        return res.status(409).json({ error: "A room with that name already exists in this project." });
+      }
       console.error("PATCH /api/working-drawings/rooms/:id error:", err);
       res.status(500).json({ error: "Failed to update room" });
     }

@@ -410,29 +410,41 @@ export default function WorkingDrawingsPage() {
 
   const createRoomMut = useMutation({
     mutationFn: async ({ name, roomType }: { name: string; roomType: string }) => {
-      const res = await apiRequest("POST", "/api/working-drawings/rooms", { projectId: activeProjectId, name, roomType });
-      if (!res.ok) throw new Error("Failed to create room");
-      return res.json();
+      const res = await fetch("/api/working-drawings/rooms", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: activeProjectId, name, roomType }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to create room");
+      return body;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: roomsKey });
       toast({ title: "Room added" });
     },
-    onError: () => toast({ title: "Could not add room", variant: "destructive" }),
+    onError: (err: Error) => toast({ title: "Could not add room", description: err.message, variant: "destructive" }),
   });
 
   const updateRoomMut = useMutation({
     mutationFn: async ({ id, name, roomType }: { id: string; name: string; roomType: string }) => {
-      const res = await apiRequest("PATCH", `/api/working-drawings/rooms/${id}`, { name, roomType });
-      if (!res.ok) throw new Error("Failed to update room");
-      return res.json();
+      const res = await fetch(`/api/working-drawings/rooms/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, roomType }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to update room");
+      return body;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: roomsKey });
       qc.invalidateQueries({ queryKey: ["/api/working-drawings", activeProjectId] });
       toast({ title: "Room updated" });
     },
-    onError: () => toast({ title: "Could not update room", variant: "destructive" }),
+    onError: (err: Error) => toast({ title: "Could not update room", description: err.message, variant: "destructive" }),
   });
 
   const deleteRoomMut = useMutation({
