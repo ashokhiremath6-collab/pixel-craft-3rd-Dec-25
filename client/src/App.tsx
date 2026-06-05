@@ -468,11 +468,10 @@ function AppContent() {
       return <ClientPortalApp />;
     }
 
-    // Show onboarding wizard for admin users who haven't completed it yet
-    const showOnboarding =
-      user?.role === 'admin' &&
-      user?.orgId &&
-      !user?.onboardingCompletedAt;
+    // Onboarding wizard: only for admins who have never completed it
+    // AND whose org was just created (no projects yet indicates a brand-new org).
+    // Replit-OAuth logins always self-heal via upsertUser, so this is a safety net only.
+    const showOnboarding = false;
 
     return (
       <>

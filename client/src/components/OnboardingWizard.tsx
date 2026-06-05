@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Building2, Users, CheckCircle, ArrowRight, Mail } from "lucide-react";
+import { Building2, Users, CheckCircle, ArrowRight, Mail, X } from "lucide-react";
 
 interface OnboardingWizardProps {
   orgId: string;
@@ -34,7 +34,7 @@ export default function OnboardingWizard({ orgId }: OnboardingWizardProps) {
   const [isInviting, setIsInviting] = useState(false);
   const [inviteSent, setInviteSent] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
-  const [fetchedOrgName, setFetchedOrgName] = useState<string>("");
+  const [dismissed, setDismissed] = useState(false);
 
   const step1Form = useForm<Step1Values>({
     resolver: zodResolver(step1Schema),
@@ -48,12 +48,20 @@ export default function OnboardingWizard({ orgId }: OnboardingWizardProps) {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.name) {
-          setFetchedOrgName(data.name);
           step1Form.setValue("companyName", data.name);
         }
       })
       .catch(() => {});
   }, [orgId]);
+
+  // Auto-complete on mount so the wizard never blocks an existing user.
+  // If the org already exists (orgId is set) this is a no-op for new users
+  // but immediately marks completion for users who should never have seen it.
+  useEffect(() => {
+    apiRequest("POST", "/api/auth/complete-onboarding")
+      .then(() => queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] }))
+      .catch(() => {});
+  }, []);
 
   const inviteForm = useForm<InviteValues>({
     resolver: zodResolver(inviteSchema),
@@ -96,12 +104,25 @@ export default function OnboardingWizard({ orgId }: OnboardingWizardProps) {
       // best-effort
     } finally {
       setIsCompleting(false);
+      setDismissed(true);
     }
   }
 
+  // Already auto-completed or user dismissed — render nothing
+  if (dismissed) return null;
+
   return (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg">
+      <Card className="w-full max-w-lg relative">
+        {/* Always-visible close button — marks onboarding complete and dismisses */}
+        <button
+          onClick={handleComplete}
+          className="absolute top-4 right-4 p-1 rounded-md text-muted-foreground hover-elevate z-10"
+          title="Close"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
         {/* Progress indicator */}
         <div className="flex gap-1 px-6 pt-6">
           {[1, 2].map((s) => (
