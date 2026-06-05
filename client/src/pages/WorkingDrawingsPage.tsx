@@ -59,6 +59,7 @@ import {
   Check,
   X,
   Plus,
+  AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Project } from "@shared/schema";
@@ -196,6 +197,7 @@ function GroupSection({ label, count, drawings, defaultOpen, onView }: {
   label: string; count: number; drawings: DrawingRow[]; defaultOpen: boolean; onView: (d: DrawingRow) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const isEmpty = drawings.length === 0;
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger asChild>
@@ -203,28 +205,47 @@ function GroupSection({ label, count, drawings, defaultOpen, onView }: {
           <div className="flex items-center gap-2">
             {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
             <span className="font-medium text-sm">{label}</span>
-            <Badge variant="secondary" className="no-default-active-elevate">{count}</Badge>
+            {isEmpty ? (
+              <Badge variant="outline" className="no-default-active-elevate text-muted-foreground border-dashed">
+                0 drawings
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="no-default-active-elevate">{count}</Badge>
+            )}
           </div>
+          {isEmpty && (
+            <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+              <AlertCircle className="h-3.5 w-3.5" />
+              No drawings yet
+            </span>
+          )}
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="mb-4">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Rev</TableHead>
-                <TableHead>State</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} />)}
-            </TableBody>
-          </Table>
+          {isEmpty ? (
+            <div className="flex items-center gap-2 px-6 py-5 text-sm text-muted-foreground border border-dashed rounded-md mx-1 mb-1">
+              <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
+              No drawings have been added for this area yet. Upload a drawing to fill this in.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Rev</TableHead>
+                  <TableHead>State</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Size</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} />)}
+              </TableBody>
+            </Table>
+          )}
         </div>
       </CollapsibleContent>
     </Collapsible>
@@ -489,7 +510,10 @@ export default function WorkingDrawingsPage() {
   // ── Grouping ───────────────────────────────────────────────────────────────
 
   const groupedByRoom = useMemo(() => {
-    const roomMap = new Map<string, { label: string; drawings: DrawingRow[] }>();
+    // Seed every room first so empty rooms always appear
+    const roomMap = new Map<string, { label: string; drawings: DrawingRow[] }>(
+      rooms.map((r) => [r.id, { label: r.name, drawings: [] }])
+    );
     const noRoom: DrawingRow[] = [];
     for (const d of allDrawings) {
       if (d.room) {
@@ -633,7 +657,7 @@ export default function WorkingDrawingsPage() {
           <div className="space-y-3">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full rounded-md" />)}
           </div>
-        ) : allDrawings.length === 0 ? (
+        ) : groups.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
               <FileText className="h-10 w-10 opacity-30" />
@@ -645,7 +669,7 @@ export default function WorkingDrawingsPage() {
           <div className="space-y-1">
             {groups.map((group, idx) => (
               <GroupSection key={group.key} label={group.label} count={group.drawings.length}
-                drawings={group.drawings} defaultOpen={idx === 0} onView={handleView} />
+                drawings={group.drawings} defaultOpen={idx === 0 && group.drawings.length > 0} onView={handleView} />
             ))}
           </div>
         )}
