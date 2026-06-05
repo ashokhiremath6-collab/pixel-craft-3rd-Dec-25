@@ -11678,8 +11678,9 @@ Return your response in the following JSON format only (no markdown, no code blo
       const rows = await reqDb.select().from(dr).where(and(eq(dr.id, revisionId), eq(dr.orgId, orgId)));
       if (!rows[0]) return res.status(404).json({ error: "Revision not found" });
       const filePath = rows[0].filePath;
-      const { bucketName, objectName } = parseObjectPath(filePath);
-      const signedUrl = await signObjectURL({ bucketName, objectName, method: "GET", ttlSec: 3600 });
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(filePath);
+      const signedUrl = await signObjectURL({ bucketName: objectFile.bucket.name, objectName: objectFile.name, method: "GET", ttlSec: 3600 });
       res.json({ url: signedUrl, fileName: rows[0].fileName, fileSize: rows[0].fileSize, mimeType: rows[0].fileMimeType });
     } catch (err) {
       console.error("GET /api/working-drawings view-url error:", err);
