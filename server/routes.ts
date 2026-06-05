@@ -11578,6 +11578,56 @@ Return your response in the following JSON format only (no markdown, no code blo
 </html>`;
   }
 
+  // ── Working Drawings ─────────────────────────────────────────────────────────
+
+  // GET /api/working-drawings/rooms?projectId=xxx
+  app.get("/api/working-drawings/rooms", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { projectId } = req.query as { projectId?: string };
+      if (!orgId || !projectId) return res.status(400).json({ error: "orgId and projectId required" });
+      const result = await storage.getRoomsForProject(orgId, projectId);
+      res.json(result);
+    } catch (err) {
+      console.error("GET /api/working-drawings/rooms error:", err);
+      res.status(500).json({ error: "Failed to fetch rooms" });
+    }
+  });
+
+  // GET /api/working-drawings?projectId=xxx&search=yyy
+  app.get("/api/working-drawings", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { projectId, search } = req.query as { projectId?: string; search?: string };
+      if (!orgId || !projectId) return res.status(400).json({ error: "orgId and projectId required" });
+      const result = await storage.getDrawingsForProject(orgId, projectId, search || undefined);
+      res.json(result);
+    } catch (err) {
+      console.error("GET /api/working-drawings error:", err);
+      res.status(500).json({ error: "Failed to fetch drawings" });
+    }
+  });
+
+  // GET /api/working-drawings/:id/view-url — signed download URL for a drawing's file
+  app.get("/api/working-drawings/:drawingId/view-url/:revisionId", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { revisionId } = req.params;
+      if (!orgId) return res.status(403).json({ error: "Forbidden" });
+      const { db: reqDb } = await import("./db");
+      const { drawingRevisions: dr } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const rows = await reqDb.select().from(dr).where(and(eq(dr.id, revisionId), eq(dr.orgId, orgId)));
+      if (!rows[0]) return res.status(404).json({ error: "Revision not found" });
+      const filePath = rows[0].filePath;
+      const signedUrl = await signObjectURL(filePath, 3600);
+      res.json({ url: signedUrl, fileName: rows[0].fileName, fileSize: rows[0].fileSize, mimeType: rows[0].fileMimeType });
+    } catch (err) {
+      console.error("GET /api/working-drawings view-url error:", err);
+      res.status(500).json({ error: "Failed to generate URL" });
+    }
+  });
+
   // Run immediately on startup, then every 24 hours
   runTrialExpiryWarnings();
   setInterval(runTrialExpiryWarnings, 24 * 60 * 60 * 1000);

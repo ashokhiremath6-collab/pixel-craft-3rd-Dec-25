@@ -1,0 +1,18 @@
+New task: stand up the Working Drawings page properly — load the existing drawings into the new schema, then build the browse/search UI on top. This is your codebase; own the implementation and run your own checks. Goal and rules below, not step-by-step.
+
+PART 1 — Load the 44 existing drawings into the new tables.
+Sources: 33 rows from moodboards WHERE asset_type='working_drawing', plus 11 rows from floor_plans. Transform them into the new schema (rooms, drawings, drawing_revisions, revision_events), org_id = cc05b280 (Hiremath Interiors), project = Maker Tower (2de39e0d-ec50-4426-9b9e-69b6868409b0). Each source row → 1 drawing + 1 revision (Revision A, state=approved) + 1 revision_event (uploaded), EXCEPT the "Maker MakeOver Main door & foyer panelling" pair (May 25 + May 27) which is ONE drawing with TWO revisions → 43 drawings, 44 revisions, 44 revision_events total.
+
+Map category from the label/folder:
+  moodboards folders: Acoustics→Specification, Automation→Electrical Layout, Bathroom Details→Joinery Detail, Carpentry→Joinery Detail, Ceiling Layouts→Reflected Ceiling Plan, Electrical Layouts→Electrical Layout, Elevations→Elevation, Floor Plans→Floor Plan, Flooring→Finishes Schedule, Kitchen Details→Joinery Detail, Wardrobe Details→Joinery Detail, NULL folder→Other
+  floor_plans: HVAC LAYOUT→HVAC Layout, RCP LAYOUT→Reflected Ceiling Plan, SWITCHBOARD LAYOUT→Electrical Layout, LIGHTING LAYOUT→Electrical Layout, FLOORING LAYOUT→Finishes Schedule, others→Floor Plan
+  Corrections: Sanket acoustic doc→room Music Room + category Specification; Music Basin Unit→room Music Bathroom; the 4 foyer drawings→Internal Foyer.
+
+Assign room from the label where you can infer it against the 17 rooms already in the rooms table. Where you cannot infer a room, leave it room-less (project-wide) — do not guess. This doesn't need to be perfect: designers will relabel and reupload anything misfiled, so map as best you can and move on.
+
+PART 2 — Build the page.
+Two ways to find a drawing: room-wise (primary filing tree, grouped by room) and category-wise (grouped by category). Drawings with no room appear under general category buckets in the room-wise view (Floor Plan, HVAC, RCP, Electrical Layout, etc.), not hidden. Plus a search box filtering by title across both views. Use the new tables, keep everything org-scoped to the current user's org, and match the existing app's UI conventions.
+
+Run your own internal checks: queries org-scoped, page reads from the new tables (not the old moodboards/floor_plans path), counts reconcile (43 drawings loaded), groupings render. Don't disturb the live page until I can review it.
+
+When done, give me a short summary: how many drawings landed in each category, how many ended up room-less, the default view, and anything you decided I should know. Then stop and wait — I'll review the result, not the steps.

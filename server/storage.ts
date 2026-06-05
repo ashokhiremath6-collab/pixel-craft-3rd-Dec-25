@@ -117,6 +117,12 @@ import {
   projectCostItems,
   type InsertProjectCostItem,
   type ProjectCostItem,
+  rooms,
+  drawings,
+  drawingRevisions,
+  type Room,
+  type Drawing,
+  type DrawingRevision,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -486,6 +492,10 @@ export interface IStorage {
   }): Promise<ObjectAsset | undefined>;
   deleteObjectAsset(id: string): Promise<boolean>;
   linkAssetToCatalogue(assetId: string, catalogueItemId: string): Promise<ObjectAsset | undefined>;
+
+  // Working Drawings
+  getRoomsForProject(orgId: string, projectId: string): Promise<Array<Room & { drawingCount: number }>>;
+  getDrawingsForProject(orgId: string, projectId: string, search?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>>;
 }
 
 export class MemStorage implements IStorage {
@@ -1531,6 +1541,10 @@ export class MemStorage implements IStorage {
   }
   async getSuperAdminAuditLogs(_limit?: number): Promise<SuperadminAuditLog[]> { return []; }
   async setUserSuperAdmin(_userId: string, _isSuperAdmin: boolean): Promise<void> {}
+
+  // Working Drawings — MemStorage stubs
+  async getRoomsForProject(_orgId: string, _projectId: string): Promise<Array<Room & { drawingCount: number }>> { return []; }
+  async getDrawingsForProject(_orgId: string, _projectId: string, _search?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>> { return []; }
 }
 
 export class DBStorage implements IStorage {
@@ -3830,6 +3844,60 @@ export class DBStorage implements IStorage {
     if (!result[0]) throw new Error("User not found");
     if (!result[0].unsubscribeToken) throw new Error("Failed to assign unsubscribe token");
     return result[0].unsubscribeToken;
+  }
+
+  // Working Drawings
+  async getRoomsForProject(orgId: string, projectId: string): Promise<Array<Room & { drawingCount: number }>> {
+    const result = await db
+      .select({
+        ...getTableColumns(rooms),
+        drawingCount: sql<number>`cast(count(${drawings.id}) as int)`,
+      })
+      .from(rooms)
+      .leftJoin(drawings, eq(drawings.roomId, rooms.id))
+      .where(and(eq(rooms.orgId, orgId), eq(rooms.projectId, projectId)))
+      .groupBy(rooms.id)
+      .orderBy(asc(rooms.displayOrder), asc(rooms.name));
+    return result;
+  }
+
+  async getDrawingsForProject(orgId: string, projectId: string, search?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>> {
+    const dr = drawingRevisions;
+    const allDrawings = await db
+      .select({
+        drawing: getTableColumns(drawings),
+        room: getTableColumns(rooms),
+      })
+      .from(drawings)
+      .leftJoin(rooms, eq(drawings.roomId, rooms.id))
+      .where(
+        and(
+          eq(drawings.orgId, orgId),
+          eq(drawings.projectId, projectId),
+          search ? sql`lower(${drawings.title}) like ${'%' + search.toLowerCase() + '%'}` : undefined,
+        )
+      )
+      .orderBy(asc(drawings.category), asc(drawings.title));
+
+    if (allDrawings.length === 0) return [];
+
+    const drawingIds = allDrawings.map(r => r.drawing.id);
+    const revisions = await db
+      .select()
+      .from(dr)
+      .where(inArray(dr.drawingId, drawingIds))
+      .orderBy(asc(dr.drawingId), desc(dr.revisionLetter));
+
+    const latestRevMap = new Map<string, DrawingRevision>();
+    for (const rev of revisions) {
+      if (!latestRevMap.has(rev.drawingId)) latestRevMap.set(rev.drawingId, rev);
+    }
+
+    return allDrawings.map(r => ({
+      ...r.drawing,
+      latestRevision: latestRevMap.get(r.drawing.id) ?? null,
+      room: r.room ?? null,
+    }));
   }
 }
 

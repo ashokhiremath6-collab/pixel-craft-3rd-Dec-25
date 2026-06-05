@@ -23,6 +23,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import AccountPage from "@/pages/AccountPage";
 import ClientAccessPage from "@/pages/ClientAccessPage";
 import MoodboardsPage from "@/pages/MoodboardsPage";
+import WorkingDrawingsPage from "@/pages/WorkingDrawingsPage";
 import AccountsPage from "@/pages/AccountsPage";
 import CataloguePage from "@/pages/CataloguePage";
 import SpecificationsPage from "@/pages/SpecificationsPage";
@@ -82,7 +83,7 @@ function Router() {
       <Route path="/meeting-minutes" component={MeetingMinutesPage} />
       <Route path="/works-orders" component={WorksOrdersPage} />
       <Route path="/moodboards" component={MoodboardsPage} />
-      <Route path="/working-drawings" component={MoodboardsPage} />
+      <Route path="/working-drawings" component={WorkingDrawingsPage} />
       <Route path="/renders" component={MoodboardsPage} />
       <Route path="/ai-renders" component={AIRendersPage} />
       <Route path="/asset-ingestion" component={AssetIngestionPage} />
