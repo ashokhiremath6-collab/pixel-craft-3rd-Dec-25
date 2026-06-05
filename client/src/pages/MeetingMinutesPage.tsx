@@ -206,8 +206,14 @@ export default function MeetingMinutesPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to save meeting minutes");
+        let errorMessage = "Failed to save meeting minutes";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          errorMessage = `Upload failed (server error ${response.status}). Please try again.`;
+        }
+        throw new Error(errorMessage);
       }
 
       return response.json();

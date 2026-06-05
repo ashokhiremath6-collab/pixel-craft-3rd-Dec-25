@@ -3699,7 +3699,8 @@ export class DBStorage implements IStorage {
           WHERE pv.project_id IN (${orgProjectIds})
           UNION ALL
           -- Works-order files: works_orders → project_vendors → projects
-          SELECT COALESCE(wof.file_size, 0)
+          -- file_size is stored as text in works_order_files; cast to numeric for UNION ALL compatibility
+          SELECT COALESCE(wof.file_size::numeric, 0)
           FROM works_order_files wof
           INNER JOIN works_orders wo ON wof.works_order_id = wo.id
           INNER JOIN project_vendors pv2 ON wo.project_vendor_id = pv2.id
