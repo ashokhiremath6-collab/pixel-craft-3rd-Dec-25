@@ -1580,6 +1580,10 @@ export class DBStorage implements IStorage {
           firstName: userData.firstName,
           lastName: userData.lastName,
           profileImageUrl: userData.profileImageUrl,
+          // Auto-complete onboarding for any existing user that never finished it.
+          // COALESCE keeps an already-set timestamp; sets NOW() if still null.
+          // This means every Replit OAuth login self-heals without needing migrations.
+          onboardingCompletedAt: sql`COALESCE(${users.onboardingCompletedAt}, NOW())`,
           updatedAt: new Date(),
         },
       })
