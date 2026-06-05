@@ -11666,6 +11666,99 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // Configure multer for drawing batch uploads (up to 30 files, 100 MB each)
+  const drawingBatchUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 100 * 1024 * 1024, files: 30 },
+  });
+
+  // POST /api/working-drawings/upload-batch — upload multiple drawings at once
+  app.post("/api/working-drawings/upload-batch", requireAuth, drawingBatchUpload.array("files", 30), async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const userId = req.user?.id;
+      if (!orgId) return res.status(403).json({ error: "Forbidden" });
+
+      const { projectId, roomId, category, state, titles } = req.body;
+      if (!projectId || !category) {
+        return res.status(400).json({ error: "projectId and category are required" });
+      }
+
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) return res.status(400).json({ error: "No files provided" });
+
+      let titlesArray: string[];
+      try {
+        titlesArray = titles ? JSON.parse(titles) : files.map((f: Express.Multer.File) => f.originalname.replace(/\.[^/.]+$/, ""));
+      } catch {
+        titlesArray = files.map((f: Express.Multer.File) => f.originalname.replace(/\.[^/.]+$/, ""));
+      }
+
+      const revisionState = ["draft", "for_review", "approved"].includes(state) ? state : "draft";
+      const { db: reqDb } = await import("./db");
+      const { drawings: drawingsTable, drawingRevisions, revisionEvents } = await import("@shared/schema");
+
+      const results: Array<{ success: boolean; drawingId?: string; title?: string; fileName?: string; error?: string }> = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const title = (titlesArray[i] || file.originalname.replace(/\.[^/.]+$/, "")).trim() || file.originalname;
+        try {
+          const objectPath = await uploadToObjectStorage(file.buffer, file.originalname, userId, file.mimetype, orgId);
+
+          const drawingId = randomUUID();
+          await reqDb.insert(drawingsTable).values({
+            id: drawingId,
+            orgId,
+            projectId,
+            roomId: roomId && roomId !== "" && roomId !== "__none__" ? roomId : null,
+            title,
+            category,
+            discipline: "Interior",
+            status: revisionState === "approved" ? "approved" : "planned",
+            isTemplatePlaceholder: false,
+            createdBy: userId,
+          });
+
+          const revisionId = randomUUID();
+          await reqDb.insert(drawingRevisions).values({
+            id: revisionId,
+            orgId,
+            drawingId,
+            revisionLetter: "A",
+            filePath: objectPath,
+            fileName: file.originalname,
+            fileSize: file.size,
+            fileMimeType: file.mimetype,
+            state: revisionState,
+            uploadedBy: userId,
+            uploadedAt: new Date(),
+            ...(revisionState === "approved" ? { approvedAt: new Date() } : {}),
+          });
+
+          await reqDb.insert(revisionEvents).values({
+            id: randomUUID(),
+            orgId,
+            revisionId,
+            eventType: "uploaded",
+            actorId: userId,
+            createdAt: new Date(),
+          });
+
+          results.push({ success: true, drawingId, title });
+        } catch (fileErr: any) {
+          console.error(`[drawing-batch-upload] failed for ${file.originalname}:`, fileErr);
+          results.push({ success: false, fileName: file.originalname, error: fileErr?.message ?? "Upload failed" });
+        }
+      }
+
+      res.json({ results });
+    } catch (err) {
+      console.error("POST /api/working-drawings/upload-batch error:", err);
+      res.status(500).json({ error: "Failed to process batch upload" });
+    }
+  });
+
   // GET /api/working-drawings/:id/view-url — signed download URL for a drawing's file
   app.get("/api/working-drawings/:drawingId/view-url/:revisionId", requireAuth, async (req: any, res) => {
     try {

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -6,6 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -60,6 +68,9 @@ import {
   X,
   Plus,
   AlertCircle,
+  Upload,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Project } from "@shared/schema";
@@ -378,6 +389,242 @@ function AddRoomForm({ onAdd }: { onAdd: (name: string, roomType: string) => Pro
   );
 }
 
+// ── Batch upload dialog ───────────────────────────────────────────────────────
+
+type FileEntry = {
+  id: string;
+  file: File;
+  title: string;
+  status: "queued" | "uploading" | "done" | "error";
+  errorMsg?: string;
+};
+
+function UploadBatchDialog({ open, onOpenChange, rooms, projectId, onComplete }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  rooms: RoomWithCount[];
+  projectId: string;
+  onComplete: () => void;
+}) {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [files, setFiles] = useState<FileEntry[]>([]);
+  const [roomId, setRoomId] = useState("__none__");
+  const [category, setCategory] = useState("");
+  const [revState, setRevState] = useState("draft");
+  const [uploading, setUploading] = useState(false);
+
+  function reset() {
+    setFiles([]);
+    setCategory("");
+    setRoomId("__none__");
+    setRevState("draft");
+  }
+
+  function addFiles(chosen: FileList | null) {
+    if (!chosen) return;
+    const entries: FileEntry[] = Array.from(chosen).map((f) => ({
+      id: Math.random().toString(36).slice(2),
+      file: f,
+      title: f.name.replace(/\.[^/.]+$/, ""),
+      status: "queued",
+    }));
+    setFiles((prev) => [...prev, ...entries]);
+  }
+
+  function removeFile(id: string) {
+    setFiles((prev) => prev.filter((f) => f.id !== id));
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    addFiles(e.dataTransfer.files);
+  }
+
+  async function handleUpload() {
+    if (!projectId || !category || files.length === 0) return;
+    setUploading(true);
+    setFiles((prev) => prev.map((f) => ({ ...f, status: "uploading" as const })));
+
+    const formData = new FormData();
+    formData.append("projectId", projectId);
+    formData.append("roomId", roomId === "__none__" ? "" : roomId);
+    formData.append("category", category);
+    formData.append("state", revState);
+    formData.append("titles", JSON.stringify(files.map((f) => f.title)));
+    files.forEach((entry) => formData.append("files", entry.file));
+
+    try {
+      const res = await fetch("/api/working-drawings/upload-batch", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setFiles((prev) => prev.map((f) => ({ ...f, status: "error" as const, errorMsg: data.error })));
+        toast({ title: "Upload failed", description: data.error, variant: "destructive" });
+      } else {
+        setFiles((prev) =>
+          prev.map((f, i) => ({
+            ...f,
+            status: data.results[i]?.success ? ("done" as const) : ("error" as const),
+            errorMsg: data.results[i]?.error,
+          }))
+        );
+        const succeeded: number = data.results.filter((r: { success: boolean }) => r.success).length;
+        const failed: number = data.results.filter((r: { success: boolean }) => !r.success).length;
+        toast({
+          title: `${succeeded} drawing${succeeded !== 1 ? "s" : ""} uploaded`,
+          description: failed > 0 ? `${failed} file${failed !== 1 ? "s" : ""} failed — see list for details` : undefined,
+        });
+        onComplete();
+        if (failed === 0) {
+          onOpenChange(false);
+          reset();
+        }
+      }
+    } catch {
+      setFiles((prev) => prev.map((f) => ({ ...f, status: "error" as const, errorMsg: "Network error" })));
+      toast({ title: "Upload failed", description: "Network error — please try again", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const canUpload = !uploading && files.length > 0 && !!category;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => {
+      if (!uploading) { onOpenChange(v); if (!v) reset(); }
+    }}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Upload Drawings</DialogTitle>
+          <DialogDescription>
+            Each file becomes a new drawing with Revision A. Titles are pre-filled from filenames — edit them before uploading.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Settings */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Room / Area</label>
+            <Select value={roomId} onValueChange={setRoomId}>
+              <SelectTrigger><SelectValue placeholder="Project-Wide" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Project-Wide</SelectItem>
+                {rooms.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">
+              Category <span className="text-destructive">*</span>
+            </label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+              <SelectContent>
+                {CATEGORY_ORDER.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">State</label>
+            <Select value={revState} onValueChange={setRevState}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="for_review">For Review</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Drop zone */}
+        {!uploading && (
+          <div
+            className="border-2 border-dashed rounded-md px-6 py-8 text-center cursor-pointer hover-elevate"
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDrop}
+          >
+            <Upload className="h-7 w-7 mx-auto mb-2 text-muted-foreground/60" />
+            <p className="text-sm font-medium">Click to choose files or drag &amp; drop</p>
+            <p className="text-xs text-muted-foreground mt-1">PDF, DWG, DXF, PNG, JPG — up to 30 files, 100 MB each</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg"
+              className="hidden"
+              onChange={(e) => addFiles(e.target.files)}
+            />
+          </div>
+        )}
+
+        {/* File list */}
+        {files.length > 0 && (
+          <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+            {files.map((entry, i) => (
+              <div key={entry.id} className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground w-5 shrink-0 text-right">{i + 1}.</span>
+                <div className="flex-1 min-w-0">
+                  {entry.status === "queued" ? (
+                    <Input
+                      value={entry.title}
+                      onChange={(e) =>
+                        setFiles((prev) =>
+                          prev.map((f) => f.id === entry.id ? { ...f, title: e.target.value } : f)
+                        )
+                      }
+                      className="h-8 text-sm"
+                      placeholder="Drawing title"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50 text-sm">
+                      {entry.status === "uploading" && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-muted-foreground" />}
+                      {entry.status === "done" && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />}
+                      {entry.status === "error" && <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />}
+                      <span className="truncate">{entry.title || entry.file.name}</span>
+                      {entry.errorMsg && (
+                        <span className="text-xs text-destructive ml-auto shrink-0">{entry.errorMsg}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground shrink-0 w-14 text-right">
+                  {formatBytes(entry.file.size)}
+                </span>
+                {entry.status === "queued" && (
+                  <Button size="icon" variant="ghost" onClick={() => removeFile(entry.id)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { onOpenChange(false); reset(); }} disabled={uploading}>
+            Cancel
+          </Button>
+          <Button onClick={handleUpload} disabled={!canUpload}>
+            {uploading ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading…</>
+            ) : (
+              <><Upload className="h-4 w-4 mr-2" />Upload {files.length > 0 ? `${files.length} file${files.length !== 1 ? "s" : ""}` : "Drawings"}</>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function WorkingDrawingsPage() {
@@ -392,6 +639,7 @@ export default function WorkingDrawingsPage() {
   const [viewingDrawing, setViewingDrawing] = useState<DrawingRow | null>(null);
   const [viewerUrl, setViewerUrl] = useState<{ url: string; name: string } | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [deletingRoom, setDeletingRoom] = useState<RoomWithCount | null>(null);
 
   const { data: projects = [] } = useQuery<Project[]>({ queryKey: ["/api/projects"] });
@@ -592,6 +840,14 @@ export default function WorkingDrawingsPage() {
               </Select>
             )}
 
+            {/* Upload drawings */}
+            {activeProjectId && (
+              <Button onClick={() => setUploadOpen(true)} className="gap-1.5">
+                <Upload className="h-4 w-4" />
+                Upload Drawings
+              </Button>
+            )}
+
             {/* Manage rooms */}
             {activeProjectId && (
               <Button variant="outline" onClick={() => setManageOpen(true)} className="gap-1.5">
@@ -735,6 +991,18 @@ export default function WorkingDrawingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Batch upload */}
+      <UploadBatchDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        rooms={rooms}
+        projectId={activeProjectId}
+        onComplete={() => {
+          qc.invalidateQueries({ queryKey: drawingsKey });
+          qc.invalidateQueries({ queryKey: roomsKey });
+        }}
+      />
 
       {/* PDF Viewer */}
       {viewingDrawing && viewerUrl && (
