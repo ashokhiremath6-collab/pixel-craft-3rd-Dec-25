@@ -499,6 +499,7 @@ export interface IStorage {
   createRoom(orgId: string, projectId: string, data: { name: string; roomType: string }): Promise<Room>;
   updateRoom(id: string, orgId: string, data: { name: string; roomType: string }): Promise<Room | undefined>;
   deleteRoom(id: string, orgId: string, projectId: string): Promise<{ success: boolean; drawingCount: number }>;
+  updateDrawing(id: string, orgId: string, data: { title?: string; roomId?: string | null; category?: string }): Promise<Drawing | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -1551,6 +1552,7 @@ export class MemStorage implements IStorage {
   async createRoom(_orgId: string, _projectId: string, _data: { name: string; roomType: string }): Promise<Room> { throw new Error("Not implemented"); }
   async updateRoom(_id: string, _orgId: string, _data: { name: string; roomType: string }): Promise<Room | undefined> { return undefined; }
   async deleteRoom(_id: string, _orgId: string, _projectId: string): Promise<{ success: boolean; drawingCount: number }> { return { success: false, drawingCount: 0 }; }
+  async updateDrawing(_id: string, _orgId: string, _data: { title?: string; roomId?: string | null; category?: string }): Promise<Drawing | undefined> { return undefined; }
 }
 
 export class DBStorage implements IStorage {
@@ -3950,6 +3952,15 @@ export class DBStorage implements IStorage {
     if (drawingCount > 0) return { success: false, drawingCount };
     await db.delete(rooms).where(and(eq(rooms.id, id), eq(rooms.orgId, orgId)));
     return { success: true, drawingCount: 0 };
+  }
+
+  async updateDrawing(id: string, orgId: string, data: { title?: string; roomId?: string | null; category?: string }): Promise<Drawing | undefined> {
+    const [result] = await db
+      .update(drawings)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(drawings.id, id), eq(drawings.orgId, orgId)))
+      .returning();
+    return result;
   }
 }
 
