@@ -8064,6 +8064,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ["1312f2b2-b98d-4af6-8309-70bdc4865f94", "Décor", "Mirrors", null, null, "Framed/frameless, bevel, LED"],
         ["8b4e95ce-bec9-4f28-bdc7-75150691c673", "Décor", "Vases & Accessories", null, null, "Material, size, finish"],
         ["031499d8-20ec-4dd7-979e-71a63ca98ddb", "Electricals", "Audio/Video & Networking", null, null, "In-wall speakers, racks, Wi‑Fi, cabling"],
+        ["2e0af0ad-4a41-4170-9fbe-22a3a6b21c80", "Electricals", "Automation", null, null, "Controllers, panels, scenes, protocols"],
         ["d06f92ee-9178-4632-be38-ad7a31816c2f", "Electricals", "Distribution Boards & MCBs", null, null, "Load, poles, brands"],
         ["eebecc82-f215-4e3d-9aef-0e61f571929d", "Electricals", "Home Automation", null, null, "Hubs, sensors, relays, scenes"],
         ["311bb5f5-0011-4a78-860b-7915b6f078e3", "Electricals", "Smart Shades/Blinds", null, null, "Motor type, control, fabric"],
