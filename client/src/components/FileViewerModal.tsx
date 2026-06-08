@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X, ExternalLink, Download, ZoomIn, ZoomOut, RotateCcw, Maximize2, Loader2 } from "lucide-react";
@@ -39,12 +39,26 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const [zoom, setZoom] = useState(100);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [fileType, setFileType] = useState<FileType>("detecting");
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [blobLoading, setBlobLoading] = useState(false);
+  const [blobError, setBlobError] = useState(false);
+  const prevBlobUrl = useRef<string | null>(null);
+
+  const revokePrev = () => {
+    if (prevBlobUrl.current) {
+      URL.revokeObjectURL(prevBlobUrl.current);
+      prevBlobUrl.current = null;
+    }
+  };
 
   useEffect(() => {
     if (!isOpen || !fileUrl) return;
     setFileType("detecting");
     setTextContent(null);
     setZoom(100);
+    setBlobUrl(null);
+    setBlobError(false);
+    revokePrev();
 
     const guessed = guessTypeFromName(fileName, fileUrl);
     if (guessed) {
@@ -60,6 +74,35 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
       .catch(() => setFileType("pdf"));
   }, [isOpen, fileUrl, fileName]);
 
+  // Fetch blob for PDF and image types so X-Frame-Options / CORS from
+  // signed GCS URLs can't block the inline iframe / <img>.
+  useEffect(() => {
+    if (!isOpen || !fileUrl) return;
+    if (fileType !== "pdf" && fileType !== "image") return;
+
+    revokePrev();
+    setBlobUrl(null);
+    setBlobLoading(true);
+    setBlobError(false);
+
+    fetch(fileUrl)
+      .then(res => {
+        if (!res.ok) throw new Error("fetch failed");
+        return res.blob();
+      })
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        prevBlobUrl.current = url;
+        setBlobUrl(url);
+        setBlobLoading(false);
+      })
+      .catch(() => {
+        setBlobError(true);
+        setBlobLoading(false);
+      });
+  }, [isOpen, fileUrl, fileType]);
+
+  // Text content fetch
   useEffect(() => {
     if (fileType === "text" && isOpen && fileUrl) {
       fetch(fileUrl)
@@ -68,6 +111,14 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
         .catch(() => setTextContent("Unable to load file content"));
     }
   }, [fileType, isOpen, fileUrl]);
+
+  // Cleanup blob URL when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      revokePrev();
+      setBlobUrl(null);
+    }
+  }, [isOpen]);
 
   const handleDownload = () => {
     const link = document.createElement("a");
@@ -91,6 +142,121 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
 
   const canZoom = fileType === "pdf" || fileType === "image" || fileType === "word";
   const isCad = fileType === "cad-dxf" || fileType === "cad-dwg";
+
+  const renderBody = () => {
+    if (fileType === "cad-dxf") {
+      return <DxfViewer fileUrl={fileUrl} fileName={fileName} onDownload={handleDownload} />;
+    }
+    if (fileType === "cad-dwg") {
+      return <DwgWarning fileName={fileName} onDownload={handleDownload} />;
+    }
+    if (fileType === "detecting") {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
+    if (fileType === "pdf") {
+      if (blobLoading) {
+        return (
+          <div className="flex flex-col items-center justify-center h-full gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading document…</p>
+          </div>
+        );
+      }
+      if (blobError || !blobUrl) {
+        return (
+          <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
+            <p className="text-sm text-muted-foreground">Could not display inline. Open in a new tab instead.</p>
+            <Button onClick={handleOpenExternal}>
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Open PDF
+            </Button>
+          </div>
+        );
+      }
+      return (
+        <iframe
+          key={`${blobUrl}-${zoom}`}
+          src={`${blobUrl}#toolbar=0&navpanes=0&scrollbar=1&zoom=${zoom}`}
+          style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+          title={fileName || "PDF viewer"}
+          data-testid="file-viewer-pdf"
+        />
+      );
+    }
+    if (fileType === "image") {
+      const src = blobUrl || fileUrl;
+      return (
+        <div style={{
+          width: "100%",
+          height: "100%",
+          overflow: "auto",
+          display: "flex",
+          alignItems: zoom <= 100 ? "center" : "flex-start",
+          justifyContent: zoom <= 100 ? "center" : "flex-start",
+        }}>
+          <div style={{
+            width: zoom > 100 ? `${zoom}%` : "100%",
+            height: zoom > 100 ? `${zoom}%` : "100%",
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <img
+              src={src}
+              alt={fileName || "Image viewer"}
+              style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+              data-testid="file-viewer-image"
+            />
+          </div>
+        </div>
+      );
+    }
+    if (fileType === "text") {
+      return (
+        <div className="p-4 h-full overflow-auto">
+          {textContent === null ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <pre className="whitespace-pre-wrap break-words text-sm font-mono bg-background p-4 rounded-md" data-testid="file-viewer-text">
+              {textContent}
+            </pre>
+          )}
+        </div>
+      );
+    }
+    if (fileType === "word" || fileType === "excel") {
+      return (
+        <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+            <Download className="w-8 h-8 text-primary" />
+          </div>
+          <div className="text-center">
+            <p className="font-medium mb-1">{fileName}</p>
+            <p className="text-sm text-muted-foreground">Click below to download and view this file</p>
+          </div>
+          <Button onClick={handleDownload} data-testid="button-download-office">
+            <Download className="w-4 h-4 mr-2" />
+            Download File
+          </Button>
+        </div>
+      );
+    }
+    return (
+      <iframe
+        src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+        className="w-full h-full border-0"
+        title={fileName || "File viewer"}
+        data-testid="file-viewer-pdf"
+      />
+    );
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
@@ -134,81 +300,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
         </DialogHeader>
 
         <div className="flex-1 bg-muted/30" style={{ height: "calc(95vh - 56px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          {fileType === "cad-dxf" ? (
-            <DxfViewer fileUrl={fileUrl} fileName={fileName} onDownload={handleDownload} />
-          ) : fileType === "cad-dwg" ? (
-            <DwgWarning fileName={fileName} onDownload={handleDownload} />
-          ) : fileType === "detecting" ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : fileType === "pdf" ? (
-            <iframe
-              key={zoom}
-              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&zoom=${zoom}`}
-              style={{ width: "100%", height: "100%", border: "none", display: "block" }}
-              title={fileName || "PDF viewer"}
-              data-testid="file-viewer-pdf"
-            />
-          ) : fileType === "image" ? (
-            <div style={{
-              width: "100%",
-              height: "100%",
-              overflow: "auto",
-              display: "flex",
-              alignItems: zoom <= 100 ? "center" : "flex-start",
-              justifyContent: zoom <= 100 ? "center" : "flex-start",
-            }}>
-              <div style={{
-                width: zoom > 100 ? `${zoom}%` : "100%",
-                height: zoom > 100 ? `${zoom}%` : "100%",
-                flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}>
-                <img
-                  src={fileUrl}
-                  alt={fileName || "Image viewer"}
-                  style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
-                  data-testid="file-viewer-image"
-                />
-              </div>
-            </div>
-          ) : fileType === "text" ? (
-            <div className="p-4 h-full overflow-auto">
-              {textContent === null ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <pre className="whitespace-pre-wrap break-words text-sm font-mono bg-background p-4 rounded-md" data-testid="file-viewer-text">
-                  {textContent}
-                </pre>
-              )}
-            </div>
-          ) : fileType === "word" || fileType === "excel" ? (
-            <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-                <Download className="w-8 h-8 text-primary" />
-              </div>
-              <div className="text-center">
-                <p className="font-medium mb-1">{fileName}</p>
-                <p className="text-sm text-muted-foreground">Click below to download and view this file</p>
-              </div>
-              <Button onClick={handleDownload} data-testid="button-download-office">
-                <Download className="w-4 h-4 mr-2" />
-                Download File
-              </Button>
-            </div>
-          ) : (
-            <iframe
-              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
-              className="w-full h-full border-0"
-              title={fileName || "File viewer"}
-              data-testid="file-viewer-pdf"
-            />
-          )}
+          {renderBody()}
         </div>
       </DialogContent>
     </Dialog>
