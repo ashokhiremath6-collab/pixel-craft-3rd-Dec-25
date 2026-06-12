@@ -10510,14 +10510,14 @@ Return your response in the following JSON format only (no markdown, no code blo
       const serial = (serialResult.rows[0] as any).serial;
       const orderNumber = `WO-${serial}${day}${month}${year}`;
 
-      // Create draft works order with file count info
+      // Create works order for an already-issued document (file already exists)
       const firstFile = files[0];
       const sanitizedFileName = firstFile.originalname.replace(/\.[^/.]+$/, "");
       const worksOrder = await storage.createWorksOrder({
         serialCounter: Number(serial),
         orderNumber,
         title: `${sanitizedFileName} - ${categoryName}`,
-        status: 'draft',
+        status: 'sent',
         templateId: null,
         projectVendorId,
         scope: `Imported works order with ${files.length} file(s)`,
