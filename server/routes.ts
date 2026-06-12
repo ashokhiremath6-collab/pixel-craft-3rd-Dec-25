@@ -11667,6 +11667,42 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // DELETE /api/working-drawings/:drawingId — permanently delete a drawing + its files
+  app.delete("/api/working-drawings/:drawingId", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { drawingId } = req.params;
+      if (!orgId) return res.status(403).json({ error: "Forbidden" });
+
+      const { db: reqDb } = await import("./db");
+      const { drawings: drawingsTable, drawingRevisions: dr } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      const [drawing] = await reqDb.select().from(drawingsTable)
+        .where(and(eq(drawingsTable.id, drawingId), eq(drawingsTable.orgId, orgId)));
+      if (!drawing) return res.status(404).json({ error: "Drawing not found" });
+
+      const revisions = await reqDb.select({ filePath: dr.filePath })
+        .from(dr).where(eq(dr.drawingId, drawingId));
+
+      const objectStorageService = new ObjectStorageService();
+      for (const rev of revisions) {
+        try {
+          const file = await objectStorageService.getObjectEntityFile(rev.filePath);
+          await file.delete();
+        } catch {
+          // Ignore missing / already-deleted files
+        }
+      }
+
+      await reqDb.delete(drawingsTable).where(eq(drawingsTable.id, drawingId));
+      res.json({ success: true });
+    } catch (err) {
+      console.error("DELETE /api/working-drawings/:drawingId error:", err);
+      res.status(500).json({ error: "Failed to delete drawing" });
+    }
+  });
+
   // Configure multer for drawing batch uploads (up to 30 files, 100 MB each)
   const drawingBatchUpload = multer({
     storage: multer.memoryStorage(),

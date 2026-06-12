@@ -162,7 +162,11 @@ function formatBytes(bytes: number): string {
 
 // ── Drawing table row ────────────────────────────────────────────────────────
 
-function DrawingTableRow({ drawing, onView }: { drawing: DrawingRow; onView: (d: DrawingRow) => void }) {
+function DrawingTableRow({ drawing, onView, onDelete }: {
+  drawing: DrawingRow;
+  onView: (d: DrawingRow) => void;
+  onDelete: (d: DrawingRow) => void;
+}) {
   const rev = drawing.latestRevision;
   const catColor = CATEGORY_COLORS[drawing.category] || "bg-muted text-muted-foreground";
   const stateColor = rev ? (STATE_BADGE[rev.state] || "bg-muted text-muted-foreground") : "";
@@ -193,10 +197,21 @@ function DrawingTableRow({ drawing, onView }: { drawing: DrawingRow; onView: (d:
       </TableCell>
       <TableCell className="text-muted-foreground text-sm">{rev ? formatBytes(rev.fileSize) : "—"}</TableCell>
       <TableCell className="text-right">
-        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onView(drawing); }}>
-          <Eye className="h-3.5 w-3.5 mr-1.5" />
-          Open
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onView(drawing); }}>
+            <Eye className="h-3.5 w-3.5 mr-1.5" />
+            Open
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="text-muted-foreground hover:text-destructive invisible group-hover:visible"
+            title="Delete drawing"
+            onClick={(e) => { e.stopPropagation(); onDelete(drawing); }}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -204,8 +219,9 @@ function DrawingTableRow({ drawing, onView }: { drawing: DrawingRow; onView: (d:
 
 // ── Collapsible group ────────────────────────────────────────────────────────
 
-function GroupSection({ label, count, drawings, defaultOpen, onView }: {
-  label: string; count: number; drawings: DrawingRow[]; defaultOpen: boolean; onView: (d: DrawingRow) => void;
+function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete }: {
+  label: string; count: number; drawings: DrawingRow[]; defaultOpen: boolean;
+  onView: (d: DrawingRow) => void; onDelete: (d: DrawingRow) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const isEmpty = drawings.length === 0;
@@ -253,7 +269,7 @@ function GroupSection({ label, count, drawings, defaultOpen, onView }: {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} />)}
+                {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} onDelete={onDelete} />)}
               </TableBody>
             </Table>
           )}
@@ -523,12 +539,15 @@ function UploadBatchDialog({ open, onOpenChange, rooms, projectId, onComplete }:
             <label className="text-sm font-medium">
               Category <span className="text-destructive">*</span>
             </label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-              <SelectContent>
-                {CATEGORY_ORDER.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Input
+              list="drawing-categories"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="Select or type a category…"
+            />
+            <datalist id="drawing-categories">
+              {CATEGORY_ORDER.map((c) => <option key={c} value={c} />)}
+            </datalist>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">State</label>
@@ -641,6 +660,7 @@ export default function WorkingDrawingsPage() {
   const [manageOpen, setManageOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [deletingRoom, setDeletingRoom] = useState<RoomWithCount | null>(null);
+  const [deletingDrawing, setDeletingDrawing] = useState<DrawingRow | null>(null);
 
   const { data: projects = [] } = useQuery<Project[]>({ queryKey: ["/api/projects"] });
   const activeProjectId = filterProjectId || (projects[0]?.id ?? "");
@@ -733,6 +753,25 @@ export default function WorkingDrawingsPage() {
     },
   });
 
+  const deleteDrawingMut = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("DELETE", `/api/working-drawings/${id}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to delete drawing");
+      return body;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: drawingsKey });
+      qc.invalidateQueries({ queryKey: roomsKey });
+      toast({ title: "Drawing deleted" });
+      setDeletingDrawing(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Could not delete drawing", description: err.message, variant: "destructive" });
+      setDeletingDrawing(null);
+    },
+  });
+
   async function handleAddRoom(name: string, roomType: string) {
     await createRoomMut.mutateAsync({ name, roomType });
   }
@@ -742,12 +781,7 @@ export default function WorkingDrawingsPage() {
   }
 
   function handleDeleteRoom(room: RoomWithCount) {
-    if (room.drawingCount > 0) {
-      // show blocked alert immediately
-      setDeletingRoom(room);
-    } else {
-      setDeletingRoom(room);
-    }
+    setDeletingRoom(room);
   }
 
   async function confirmDelete() {
@@ -925,7 +959,8 @@ export default function WorkingDrawingsPage() {
           <div className="space-y-1">
             {groups.map((group, idx) => (
               <GroupSection key={group.key} label={group.label} count={group.drawings.length}
-                drawings={group.drawings} defaultOpen={idx === 0 && group.drawings.length > 0} onView={handleView} />
+                drawings={group.drawings} defaultOpen={idx === 0 && group.drawings.length > 0}
+                onView={handleView} onDelete={(d) => setDeletingDrawing(d)} />
             ))}
           </div>
         )}
@@ -988,6 +1023,28 @@ export default function WorkingDrawingsPage() {
                 Delete room
               </AlertDialogAction>
             )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Drawing delete confirmation */}
+      <AlertDialog open={!!deletingDrawing} onOpenChange={(o) => { if (!o) setDeletingDrawing(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deletingDrawing?.title}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the drawing and all its revisions. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground"
+              onClick={() => { if (deletingDrawing) deleteDrawingMut.mutate(deletingDrawing.id); }}
+              disabled={deleteDrawingMut.isPending}
+            >
+              Delete drawing
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
