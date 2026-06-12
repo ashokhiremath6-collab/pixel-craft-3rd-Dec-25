@@ -215,6 +215,30 @@ export default function WorksOrdersPage() {
       });
   }, [projectVendors, orders, vendors, projects]);
   const unissuedCount = unissuedItems.length;
+
+  // Category groups (project + category) where NO quote has been selected yet
+  const unselectedGroups = useMemo(() => {
+    const groups = new Map<string, { projectId: string; projectName: string; category: string; hasSelected: boolean }>();
+    projectVendors.forEach((pv) => {
+      if (!pv.category) return;
+      const key = `${pv.projectId}__${pv.category}`;
+      const project = projects.find((p) => p.id === pv.projectId);
+      if (!groups.has(key)) {
+        groups.set(key, {
+          projectId: pv.projectId,
+          projectName: project?.projectName ?? "Unknown Project",
+          category: pv.category,
+          hasSelected: false,
+        });
+      }
+      if (pv.status === "Selected") {
+        groups.get(key)!.hasSelected = true;
+      }
+    });
+    return Array.from(groups.values()).filter((g) => !g.hasSelected);
+  }, [projectVendors, projects]);
+
+  const totalAlertCount = unissuedCount + unselectedGroups.length;
   const [draftAlertDismissed, setDraftAlertDismissed] = useState(false);
   const [draftAlertOpen, setDraftAlertOpen] = useState(false);
 
@@ -825,8 +849,8 @@ export default function WorksOrdersPage() {
               </div>
             </div>
 
-            {/* Unissued works order alert */}
-            {!draftAlertDismissed && unissuedCount > 0 && (
+            {/* Pending actions alert */}
+            {!draftAlertDismissed && totalAlertCount > 0 && (
               <div className="px-6 pt-4">
                 <Collapsible open={draftAlertOpen} onOpenChange={setDraftAlertOpen}>
                   <div className="rounded-md border border-amber-500/50 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200">
@@ -834,43 +858,68 @@ export default function WorksOrdersPage() {
                     <div className="flex items-center gap-3 px-4 py-3">
                       <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                       <span className="flex-1 text-sm">
-                        <strong>{unissuedCount}</strong> selected {unissuedCount === 1 ? "quotation has" : "quotations have"} no works order issued yet.
+                        <strong>{totalAlertCount}</strong> {totalAlertCount === 1 ? "item requires" : "items require"} attention —
+                        {unselectedGroups.length > 0 && (
+                          <> <strong>{unselectedGroups.length}</strong> {unselectedGroups.length === 1 ? "category has" : "categories have"} no quote selected</>
+                        )}
+                        {unselectedGroups.length > 0 && unissuedCount > 0 && <>, </>}
+                        {unissuedCount > 0 && (
+                          <> <strong>{unissuedCount}</strong> selected {unissuedCount === 1 ? "quote has" : "quotes have"} no works order issued</>
+                        )}
+                        .
                       </span>
                       <CollapsibleTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 shrink-0 text-amber-700 dark:text-amber-300"
-                        >
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-amber-700 dark:text-amber-300">
                           <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${draftAlertOpen ? "rotate-180" : ""}`} />
                         </Button>
                       </CollapsibleTrigger>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 shrink-0 text-amber-700 dark:text-amber-300"
-                        onClick={() => setDraftAlertDismissed(true)}
-                      >
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-amber-700 dark:text-amber-300" onClick={() => setDraftAlertDismissed(true)}>
                         <X className="h-3 w-3" />
                       </Button>
                     </div>
 
                     {/* Expandable list */}
                     <CollapsibleContent>
-                      <div className="border-t border-amber-500/30 px-4 py-3 space-y-2">
-                        {unissuedItems.map((item) => (
-                          <div key={item.id} className="flex items-center gap-2 flex-wrap text-sm">
-                            <span className="font-medium">{item.vendorName}</span>
-                            <span className="text-amber-600/60 dark:text-amber-400/60">•</span>
-                            <span className="text-amber-800/70 dark:text-amber-300/70">{item.projectName}</span>
-                            {item.category && (
-                              <>
+                      <div className="border-t border-amber-500/30 divide-y divide-amber-500/20">
+
+                        {/* No quote selected */}
+                        {unselectedGroups.length > 0 && (
+                          <div className="px-4 py-3 space-y-1.5">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 mb-2">
+                              No quote selected
+                            </p>
+                            {unselectedGroups.map((g) => (
+                              <div key={`${g.projectId}__${g.category}`} className="flex items-center gap-2 text-sm">
+                                <span className="font-medium">{g.category}</span>
                                 <span className="text-amber-600/60 dark:text-amber-400/60">•</span>
-                                <span className="text-amber-800/70 dark:text-amber-300/70">{item.category}</span>
-                              </>
-                            )}
+                                <span className="text-amber-800/70 dark:text-amber-300/70">{g.projectName}</span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
+
+                        {/* Works order not issued */}
+                        {unissuedItems.length > 0 && (
+                          <div className="px-4 py-3 space-y-1.5">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 mb-2">
+                              Works order not issued
+                            </p>
+                            {unissuedItems.map((item) => (
+                              <div key={item.id} className="flex items-center gap-2 flex-wrap text-sm">
+                                <span className="font-medium">{item.vendorName}</span>
+                                <span className="text-amber-600/60 dark:text-amber-400/60">•</span>
+                                <span className="text-amber-800/70 dark:text-amber-300/70">{item.projectName}</span>
+                                {item.category && (
+                                  <>
+                                    <span className="text-amber-600/60 dark:text-amber-400/60">•</span>
+                                    <span className="text-amber-800/70 dark:text-amber-300/70">{item.category}</span>
+                                  </>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
                       </div>
                     </CollapsibleContent>
                   </div>
