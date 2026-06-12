@@ -11855,6 +11855,159 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // ── Revision control endpoints ────────────────────────────────────────────
+
+  // GET /api/working-drawings/:drawingId/revisions — all revisions, newest first
+  app.get("/api/working-drawings/:drawingId/revisions", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { drawingId } = req.params;
+      if (!orgId) return res.status(403).json({ error: "Forbidden" });
+      const { db: reqDb } = await import("./db");
+      const { drawingRevisions: dr, drawings: drawingsTable, users } = await import("@shared/schema");
+      const { eq, and, desc } = await import("drizzle-orm");
+      const [drawing] = await reqDb.select().from(drawingsTable)
+        .where(and(eq(drawingsTable.id, drawingId), eq(drawingsTable.orgId, orgId)));
+      if (!drawing) return res.status(404).json({ error: "Drawing not found" });
+      const rows = await reqDb
+        .select({ rev: dr, uploaderName: users.name, uploaderFirst: users.firstName, uploaderLast: users.lastName })
+        .from(dr)
+        .leftJoin(users, eq(dr.uploadedBy, users.id))
+        .where(and(eq(dr.drawingId, drawingId), eq(dr.orgId, orgId)))
+        .orderBy(desc(dr.revisionLetter));
+      res.json(rows.map(r => ({
+        ...r.rev,
+        uploaderName: r.uploaderName || [r.uploaderFirst, r.uploaderLast].filter(Boolean).join(" ") || null,
+      })));
+    } catch (err) {
+      console.error("GET /api/working-drawings/:id/revisions error:", err);
+      res.status(500).json({ error: "Failed to fetch revisions" });
+    }
+  });
+
+  // POST /api/working-drawings/:drawingId/revisions — upload a new revision file
+  app.post("/api/working-drawings/:drawingId/revisions", requireAuth, drawingBatchUpload.single("file"), async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const userId = req.user?.id;
+      const { drawingId } = req.params;
+      if (!orgId) return res.status(403).json({ error: "Forbidden" });
+      const file = req.file as Express.Multer.File | undefined;
+      if (!file) return res.status(400).json({ error: "No file provided" });
+
+      const { db: reqDb } = await import("./db");
+      const { drawingRevisions: dr, drawings: drawingsTable, revisionEvents } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      const [drawing] = await reqDb.select().from(drawingsTable)
+        .where(and(eq(drawingsTable.id, drawingId), eq(drawingsTable.orgId, orgId)));
+      if (!drawing) return res.status(404).json({ error: "Drawing not found" });
+
+      // Determine next revision letter
+      const existing = await reqDb.select({ letter: dr.revisionLetter }).from(dr)
+        .where(and(eq(dr.drawingId, drawingId), eq(dr.orgId, orgId)));
+      const letters = existing.map(r => r.letter);
+      function nextLetter(ls: string[]): string {
+        if (ls.length === 0) return 'A';
+        const last = [...ls].sort().at(-1)!;
+        if (last === 'Z') return 'AA';
+        if (last.length === 1) return String.fromCharCode(last.charCodeAt(0) + 1);
+        const chars = last.split('');
+        let i = chars.length - 1;
+        while (i >= 0) {
+          if (chars[i] < 'Z') { chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1); break; }
+          chars[i] = 'A'; i--;
+        }
+        if (i < 0) chars.unshift('A');
+        return chars.join('');
+      }
+      const newLetter = nextLetter(letters);
+
+      // Mark all existing revisions as superseded
+      if (existing.length > 0) {
+        await reqDb.update(dr).set({ state: "superseded", supersededAt: new Date() })
+          .where(and(eq(dr.drawingId, drawingId), eq(dr.orgId, orgId)));
+      }
+
+      // Upload file
+      const objectPath = await uploadToObjectStorage(file.buffer, file.originalname, userId, file.mimetype, orgId);
+
+      // Insert new revision
+      const revisionId = randomUUID();
+      const revisionNote = typeof req.body.revisionNote === "string" ? req.body.revisionNote.trim() || null : null;
+      const [newRev] = await reqDb.insert(dr).values({
+        id: revisionId,
+        orgId,
+        drawingId,
+        revisionLetter: newLetter,
+        filePath: objectPath,
+        fileName: file.originalname,
+        fileSize: file.size,
+        fileMimeType: file.mimetype,
+        state: "draft",
+        revisionNote,
+        uploadedBy: userId,
+        uploadedAt: new Date(),
+      }).returning();
+
+      // Update drawing status
+      await reqDb.update(drawingsTable).set({ status: "drafting", updatedAt: new Date() })
+        .where(and(eq(drawingsTable.id, drawingId), eq(drawingsTable.orgId, orgId)));
+
+      await reqDb.insert(revisionEvents).values({
+        id: randomUUID(), orgId, revisionId, eventType: "uploaded", actorId: userId, createdAt: new Date(),
+      });
+
+      res.json(newRev);
+    } catch (err) {
+      console.error("POST /api/working-drawings/:id/revisions error:", err);
+      res.status(500).json({ error: "Failed to upload revision" });
+    }
+  });
+
+  // PATCH /api/working-drawings/:drawingId/revisions/:revisionId/state — change revision state
+  app.patch("/api/working-drawings/:drawingId/revisions/:revisionId/state", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const userId = req.user?.id;
+      const { drawingId, revisionId } = req.params;
+      const { state } = req.body;
+      if (!orgId) return res.status(403).json({ error: "Forbidden" });
+      const allowed = ["draft", "for_review", "approved"];
+      if (!allowed.includes(state)) return res.status(400).json({ error: "Invalid state" });
+
+      const { db: reqDb } = await import("./db");
+      const { drawingRevisions: dr, drawings: drawingsTable, revisionEvents } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      const [rev] = await reqDb.select().from(dr)
+        .where(and(eq(dr.id, revisionId), eq(dr.drawingId, drawingId), eq(dr.orgId, orgId)));
+      if (!rev) return res.status(404).json({ error: "Revision not found" });
+
+      const updates: Record<string, unknown> = { state };
+      if (state === "approved") updates.approvedAt = new Date();
+      if (state === "for_review") updates.issuedAt = new Date();
+
+      const [updated] = await reqDb.update(dr).set(updates)
+        .where(and(eq(dr.id, revisionId), eq(dr.orgId, orgId))).returning();
+
+      // Sync drawing.status
+      const drawingStatus = state === "approved" ? "approved" : state === "for_review" ? "for_review" : "drafting";
+      await reqDb.update(drawingsTable).set({ status: drawingStatus, updatedAt: new Date() })
+        .where(and(eq(drawingsTable.id, drawingId), eq(drawingsTable.orgId, orgId)));
+
+      const eventMap: Record<string, string> = { for_review: "issued_for_review", approved: "approved", draft: "returned_with_comments" };
+      await reqDb.insert(revisionEvents).values({
+        id: randomUUID(), orgId, revisionId, eventType: eventMap[state] ?? state, actorId: userId, createdAt: new Date(),
+      });
+
+      res.json(updated);
+    } catch (err) {
+      console.error("PATCH /api/working-drawings/:id/revisions/:revId/state error:", err);
+      res.status(500).json({ error: "Failed to update state" });
+    }
+  });
+
   // Run immediately on startup, then every 24 hours
   runTrialExpiryWarnings();
   setInterval(runTrialExpiryWarnings, 24 * 60 * 60 * 1000);

@@ -73,6 +73,8 @@ import {
   Upload,
   Loader2,
   CheckCircle2,
+  Clock,
+  RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Project } from "@shared/schema";
@@ -112,6 +114,13 @@ type DrawingRow = {
   roomId: string | null;
   room: Room | null;
   latestRevision: DrawingRevision | null;
+};
+
+type FullRevision = DrawingRevision & {
+  revisionNote: string | null;
+  supersededAt: string | null;
+  issuedAt: string | null;
+  uploaderName: string | null;
 };
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -162,13 +171,247 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function nextRevLetter(letters: string[]): string {
+  if (letters.length === 0) return 'A';
+  const last = [...letters].sort().at(-1)!;
+  if (last === 'Z') return 'AA';
+  if (last.length === 1) return String.fromCharCode(last.charCodeAt(0) + 1);
+  const chars = last.split('');
+  let i = chars.length - 1;
+  while (i >= 0) {
+    if (chars[i] < 'Z') { chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1); break; }
+    chars[i] = 'A'; i--;
+  }
+  if (i < 0) chars.unshift('A');
+  return chars.join('');
+}
+
+const REV_STATE_BADGE: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground",
+  for_review: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+  approved: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  superseded: "bg-muted/50 text-muted-foreground",
+  returned_with_comments: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+};
+const REV_STATE_LABEL: Record<string, string> = {
+  draft: "Draft",
+  for_review: "For Review",
+  approved: "Approved",
+  superseded: "Superseded",
+  returned_with_comments: "Returned",
+};
+
+// ── Revision History Sheet ────────────────────────────────────────────────────
+
+function RevisionSheet({ drawing, onClose, onViewRevision }: {
+  drawing: DrawingRow | null;
+  onClose: () => void;
+  onViewRevision: (revId: string, drawingId: string) => void;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [revNote, setRevNote] = useState("");
+
+  const revisionsKey = ["/api/working-drawings", drawing?.id ?? "_none", "revisions"];
+
+  const { data: revisions = [], isLoading } = useQuery<FullRevision[]>({
+    queryKey: revisionsKey,
+    queryFn: async () => {
+      const res = await fetch(`/api/working-drawings/${drawing!.id}/revisions`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load revisions");
+      return res.json();
+    },
+    enabled: !!drawing,
+  });
+
+  const stateChangeMut = useMutation({
+    mutationFn: async ({ revId, state }: { revId: string; state: string }) => {
+      const res = await apiRequest("PATCH", `/api/working-drawings/${drawing!.id}/revisions/${revId}/state`, { state });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to update state");
+      return body;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: revisionsKey! });
+      qc.invalidateQueries({ queryKey: ["/api/working-drawings"] });
+      toast({ title: "Status updated" });
+    },
+    onError: (err: Error) => toast({ title: "Failed to update", description: err.message, variant: "destructive" }),
+  });
+
+  const uploadRevMut = useMutation({
+    mutationFn: async () => {
+      if (!pendingFile || !drawing) throw new Error("No file selected");
+      const fd = new FormData();
+      fd.append("file", pendingFile);
+      if (revNote.trim()) fd.append("revisionNote", revNote.trim());
+      const res = await fetch(`/api/working-drawings/${drawing.id}/revisions`, {
+        method: "POST",
+        credentials: "include",
+        body: fd,
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Upload failed");
+      return body;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: revisionsKey! });
+      qc.invalidateQueries({ queryKey: ["/api/working-drawings"] });
+      setPendingFile(null);
+      setRevNote("");
+      toast({ title: "New revision uploaded" });
+    },
+    onError: (err: Error) => toast({ title: "Upload failed", description: err.message, variant: "destructive" }),
+  });
+
+  const nextLetter = nextRevLetter(revisions.map(r => r.revisionLetter));
+
+  return (
+    <Sheet open={!!drawing} onOpenChange={(o) => { if (!o) { onClose(); setPendingFile(null); setRevNote(""); } }}>
+      <SheetContent side="right" className="w-[500px] flex flex-col gap-0 p-0">
+        <SheetHeader className="px-6 py-4 border-b">
+          <SheetTitle className="truncate">{drawing?.title}</SheetTitle>
+          <p className="text-sm text-muted-foreground">
+            {drawing?.category}{drawing?.room ? ` · ${drawing.room.name}` : ""}
+          </p>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-auto px-6 py-4 space-y-3">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : revisions.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-12">No revisions yet.</p>
+          ) : revisions.map((rev, idx) => {
+            const isLatest = idx === 0 && rev.state !== "superseded";
+            const badgeClass = REV_STATE_BADGE[rev.state] || "bg-muted text-muted-foreground";
+            return (
+              <div key={rev.id} className={`rounded-md border p-4 space-y-3 ${rev.state === "superseded" ? "opacity-55" : ""}`}>
+                <div className="flex items-start justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-base">Rev {rev.revisionLetter}</span>
+                    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${badgeClass}`}>
+                      {REV_STATE_LABEL[rev.state] ?? rev.state.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => onViewRevision(rev.id, drawing!.id)}>
+                    <Eye className="h-3.5 w-3.5 mr-1.5" />
+                    View
+                  </Button>
+                </div>
+
+                <div className="text-sm text-muted-foreground space-y-0.5">
+                  <p className="truncate">{rev.fileName}</p>
+                  <p>{formatBytes(rev.fileSize)} · {format(new Date(rev.uploadedAt), "dd MMM yyyy, HH:mm")}</p>
+                  {rev.uploaderName && <p>Uploaded by {rev.uploaderName}</p>}
+                  {rev.revisionNote && <p className="italic text-foreground/70">"{rev.revisionNote}"</p>}
+                  {rev.approvedAt && (
+                    <p className="text-green-700 dark:text-green-400">
+                      Approved {format(new Date(rev.approvedAt), "dd MMM yyyy")}
+                    </p>
+                  )}
+                </div>
+
+                {isLatest && (
+                  <div className="flex items-center gap-2 pt-1 flex-wrap">
+                    {rev.state === "draft" && (
+                      <Button size="sm" variant="outline"
+                        onClick={() => stateChangeMut.mutate({ revId: rev.id, state: "for_review" })}
+                        disabled={stateChangeMut.isPending}
+                      >
+                        Submit for Review
+                      </Button>
+                    )}
+                    {rev.state === "for_review" && (
+                      <>
+                        <Button size="sm"
+                          className="bg-green-600 text-white"
+                          onClick={() => stateChangeMut.mutate({ revId: rev.id, state: "approved" })}
+                          disabled={stateChangeMut.isPending}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                          Approve
+                        </Button>
+                        <Button size="sm" variant="outline"
+                          onClick={() => stateChangeMut.mutate({ revId: rev.id, state: "draft" })}
+                          disabled={stateChangeMut.isPending}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                          Return to Draft
+                        </Button>
+                      </>
+                    )}
+                    {rev.state === "approved" && (
+                      <p className="text-xs text-muted-foreground">Approved — no further changes allowed.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Upload new revision footer */}
+        <div className="border-t px-6 py-4 space-y-3">
+          {pendingFile ? (
+            <>
+              <div className="flex items-center gap-2 text-sm">
+                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="truncate flex-1">{pendingFile.name}</span>
+                <Button size="icon" variant="ghost" onClick={() => { setPendingFile(null); setRevNote(""); }}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <Input
+                placeholder="Revision note (optional)"
+                value={revNote}
+                onChange={(e) => setRevNote(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <Button className="flex-1" onClick={() => uploadRevMut.mutate()} disabled={uploadRevMut.isPending}>
+                  {uploadRevMut.isPending
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                    : <Upload className="h-3.5 w-3.5 mr-1.5" />}
+                  Upload Rev {nextLetter}
+                </Button>
+                <Button variant="outline" onClick={() => { setPendingFile(null); setRevNote(""); }}>
+                  Cancel
+                </Button>
+              </div>
+            </>
+          ) : (
+            <Button variant="outline" className="w-full" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="h-4 w-4 mr-2" />
+              Upload New Revision
+            </Button>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.svg,.xlsx,.docx"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) { setPendingFile(f); e.target.value = ""; }
+            }}
+          />
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 // ── Drawing table row ────────────────────────────────────────────────────────
 
-function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory }: {
+function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory, onHistory }: {
   drawing: DrawingRow;
   onView: (d: DrawingRow) => void;
   onDelete: (d: DrawingRow) => void;
   onMoveCategory: (d: DrawingRow) => void;
+  onHistory: (d: DrawingRow) => void;
 }) {
   const rev = drawing.latestRevision;
   const catColor = CATEGORY_COLORS[drawing.category] || "bg-muted text-muted-foreground";
@@ -209,6 +452,15 @@ function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory }: {
             size="icon"
             variant="ghost"
             className="text-muted-foreground"
+            title="Revision history"
+            onClick={(e) => { e.stopPropagation(); onHistory(drawing); }}
+          >
+            <Clock className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="text-muted-foreground"
             title="Change category"
             onClick={(e) => { e.stopPropagation(); onMoveCategory(drawing); }}
           >
@@ -231,9 +483,10 @@ function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory }: {
 
 // ── Collapsible group ────────────────────────────────────────────────────────
 
-function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete, onMoveCategory }: {
+function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete, onMoveCategory, onHistory }: {
   label: string; count: number; drawings: DrawingRow[]; defaultOpen: boolean;
   onView: (d: DrawingRow) => void; onDelete: (d: DrawingRow) => void; onMoveCategory: (d: DrawingRow) => void;
+  onHistory: (d: DrawingRow) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const isEmpty = drawings.length === 0;
@@ -281,7 +534,7 @@ function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete, o
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} onDelete={onDelete} onMoveCategory={onMoveCategory} />)}
+                {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} onDelete={onDelete} onMoveCategory={onMoveCategory} onHistory={onHistory} />)}
               </TableBody>
             </Table>
           )}
@@ -674,6 +927,7 @@ export default function WorkingDrawingsPage() {
   const [deletingRoom, setDeletingRoom] = useState<RoomWithCount | null>(null);
   const [deletingDrawing, setDeletingDrawing] = useState<DrawingRow | null>(null);
   const [movingDrawing, setMovingDrawing] = useState<DrawingRow | null>(null);
+  const [historyDrawing, setHistoryDrawing] = useState<DrawingRow | null>(null);
   const [newCategory, setNewCategory] = useState("");
   const [customCategoryInput, setCustomCategoryInput] = useState("");
 
@@ -894,6 +1148,17 @@ export default function WorkingDrawingsPage() {
     }
   }
 
+  async function handleViewRevision(revId: string, drawingId: string) {
+    try {
+      const res = await apiRequest("GET", `/api/working-drawings/${drawingId}/view-url/${revId}`);
+      const data = await res.json();
+      const drawing = historyDrawing;
+      if (drawing) { setViewingDrawing(drawing); setViewerUrl({ url: data.url, name: data.fileName }); }
+    } catch {
+      toast({ title: "Could not open file", description: "Try again in a moment.", variant: "destructive" });
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -1008,7 +1273,8 @@ export default function WorkingDrawingsPage() {
                 drawings={group.drawings} defaultOpen={idx === 0 && group.drawings.length > 0}
                 onView={handleView}
                 onDelete={(d) => setDeletingDrawing(d)}
-                onMoveCategory={(d) => { setMovingDrawing(d); setNewCategory(d.category); }} />
+                onMoveCategory={(d) => { setMovingDrawing(d); setNewCategory(d.category); }}
+                onHistory={(d) => setHistoryDrawing(d)} />
             ))}
           </div>
         )}
@@ -1168,6 +1434,13 @@ export default function WorkingDrawingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Revision History Sheet */}
+      <RevisionSheet
+        drawing={historyDrawing}
+        onClose={() => setHistoryDrawing(null)}
+        onViewRevision={handleViewRevision}
+      />
 
       {/* Batch upload */}
       <UploadBatchDialog
