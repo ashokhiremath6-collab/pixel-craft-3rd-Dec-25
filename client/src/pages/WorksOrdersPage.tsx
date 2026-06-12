@@ -34,8 +34,10 @@ import {
   Download,
   Eye,
   X,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -183,6 +185,12 @@ export default function WorksOrdersPage() {
     queryKey: [`/api/works-orders/${selectedOrder?.id}/files`],
     enabled: !!selectedOrder?.id,
   });
+
+  const draftOrderCount = useMemo(
+    () => orders.filter((o) => o.status === "draft").length,
+    [orders]
+  );
+  const [draftAlertDismissed, setDraftAlertDismissed] = useState(false);
 
   // Flatten categories for dropdown
   const flatCategories = useMemo(() => {
@@ -790,6 +798,28 @@ export default function WorksOrdersPage() {
                 />
               </div>
             </div>
+
+            {/* Draft alert */}
+            {!draftAlertDismissed && draftOrderCount > 0 && (
+              <div className="px-6 pt-4">
+                <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <AlertDescription className="flex items-center justify-between gap-4">
+                    <span>
+                      <strong>{draftOrderCount}</strong> works {draftOrderCount === 1 ? "order has" : "orders have"} not been issued yet. Issue them to notify your vendors.
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0 text-amber-700 dark:text-amber-300"
+                      onClick={() => setDraftAlertDismissed(true)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
 
             {/* Orders List */}
             <div className="p-6">
