@@ -1088,7 +1088,8 @@ export default function WorkingDrawingsPage() {
     );
     const noRoom: DrawingRow[] = [];
     for (const d of allDrawings) {
-      if (d.room) {
+      // Guard against Drizzle returning { id: null, ... } for unmatched LEFT JOINs
+      if (d.room && d.room.id) {
         if (!roomMap.has(d.room.id)) roomMap.set(d.room.id, { label: d.room.name, drawings: [] });
         roomMap.get(d.room.id)!.drawings.push(d);
       } else {
