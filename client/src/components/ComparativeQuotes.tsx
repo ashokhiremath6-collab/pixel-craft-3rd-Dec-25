@@ -13,7 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import StatusBadge from "./StatusBadge";
 import QuoteDetailModal from "./QuoteDetailModal";
-import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2, Paperclip } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2, Paperclip } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -57,6 +58,28 @@ interface ComparativeQuotesProps {
   initialProject?: string;
   initialCategory?: string;
   initialQuoteId?: string; // projectVendorId — auto-opens the file viewer for this quote
+}
+
+function QuoteGroupSection({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button type="button" className="w-full flex items-center gap-2 px-4 py-3 bg-muted/50 hover-elevate rounded-md text-left">
+          {open
+            ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+            : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+          <span className="font-medium">{label}</span>
+          <Badge variant="secondary" className="no-default-active-elevate">
+            {count} vendor{count !== 1 ? 's' : ''}
+          </Badge>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="mt-1 mb-4">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 export default function ComparativeQuotes({ projects, categories, quotations, onStatusChange, hideValueColumns = false, initialProject, initialCategory, initialQuoteId }: ComparativeQuotesProps) {
@@ -704,12 +727,8 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
         );
 
         return (
-          <Card key={key} className="" data-testid={`comparison-group-${key}`}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">
-                {group.category} - {group.projectName}
-              </CardTitle>
-            </CardHeader>
+          <QuoteGroupSection key={key} label={`${group.category} — ${group.projectName}`} count={group.quotations.length}>
+          <Card>
             <CardContent className="pt-0 overflow-x-auto">
               <Table className="table-fixed min-w-[900px]">
                 <colgroup>
@@ -1063,6 +1082,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
               </Table>
             </CardContent>
           </Card>
+          </QuoteGroupSection>
         );
       })}
 
@@ -1083,12 +1103,8 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
             );
 
             return (
-              <Card key={key} className="mb-4" data-testid={`comparison-group-comparative-${key}`}>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">
-                    {group.category} - {group.projectName}
-                  </CardTitle>
-                </CardHeader>
+              <QuoteGroupSection key={key} label={`${group.category} — ${group.projectName}`} count={group.quotations.length}>
+              <Card>
                 <CardContent className="pt-0 overflow-x-auto">
                   <Table className="table-fixed min-w-[900px]">
                     <colgroup>
@@ -1437,6 +1453,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                   </Table>
                 </CardContent>
               </Card>
+              </QuoteGroupSection>
             );
           })}
         </div>

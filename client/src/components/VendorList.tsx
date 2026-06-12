@@ -66,7 +66,7 @@ interface VendorListProps {
 }
 
 function CategorySection({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger asChild>
