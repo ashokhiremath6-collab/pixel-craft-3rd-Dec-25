@@ -65,6 +65,31 @@ interface VendorListProps {
   onDeleteVendor?: (vendorId: string) => void;
 }
 
+function CategorySection({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="w-full flex items-center gap-2 px-4 py-3 bg-muted/50 hover-elevate rounded-md text-left"
+        >
+          {open
+            ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+            : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+          <span className="font-medium">{label}</span>
+          <Badge variant="secondary" className="no-default-active-elevate">
+            {count} vendor{count !== 1 ? 's' : ''}
+          </Badge>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="mt-1 mb-3">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export default function VendorList({ vendors, categories, onAddVendor, onEditVendor, onUpdateVendor, onDeleteVendor }: VendorListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -77,15 +102,6 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   const [selectedVendorForContacts, setSelectedVendorForContacts] = useState<Vendor | null>(null);
   const [editingContact, setEditingContact] = useState<VendorContact | null>(null);
   const [additionalContacts, setAdditionalContacts] = useState<Array<Omit<ContactFormData, 'isPrimary'>>>([]);
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
-
-  const toggleCategory = (cat: string) =>
-    setCollapsedCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat); else next.add(cat);
-      return next;
-    });
-  
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -1207,25 +1223,9 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       {/* Vendors by Category */}
       {Object.entries(vendorsByCategory)
         .sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }))
-        .map(([category, categoryVendors]) => {
-          const isOpen = !collapsedCategories.has(category);
-          return (
-        <Collapsible key={category} open={isOpen} onOpenChange={() => toggleCategory(category)}>
-          <CollapsibleTrigger asChild>
-            <button className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover-elevate rounded-md text-left">
-              <div className="flex items-center gap-2">
-                {isOpen
-                  ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                <span className="font-medium" data-testid={`heading-category-${category}`}>{category}</span>
-                <Badge variant="secondary" className="no-default-active-elevate" data-testid={`badge-category-count-${category}`}>
-                  {categoryVendors.length} vendor{categoryVendors.length !== 1 ? 's' : ''}
-                </Badge>
-              </div>
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-          <Card className="mt-1 mb-3">
+        .map(([category, categoryVendors]) => (
+        <CategorySection key={category} label={category} count={categoryVendors.length}>
+          <Card>
             <CardContent className="p-0 overflow-x-auto">
               <Table className="w-full">
                 <TableHeader>
@@ -1337,10 +1337,8 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
               </Table>
             </CardContent>
           </Card>
-          </CollapsibleContent>
-        </Collapsible>
-          );
-        })}
+        </CategorySection>
+        ))}
 
       {filteredVendors.length === 0 && (
         <Card className="text-center py-12">
