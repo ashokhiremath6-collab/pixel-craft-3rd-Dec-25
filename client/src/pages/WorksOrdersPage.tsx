@@ -35,9 +35,11 @@ import {
   Eye,
   X,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  ChevronDown
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -186,11 +188,13 @@ export default function WorksOrdersPage() {
     enabled: !!selectedOrder?.id,
   });
 
-  const draftOrderCount = useMemo(
-    () => orders.filter((o) => o.status === "draft").length,
+  const draftOrders = useMemo(
+    () => orders.filter((o) => o.status === "draft"),
     [orders]
   );
+  const draftOrderCount = draftOrders.length;
   const [draftAlertDismissed, setDraftAlertDismissed] = useState(false);
+  const [draftAlertOpen, setDraftAlertOpen] = useState(false);
 
   // Flatten categories for dropdown
   const flatCategories = useMemo(() => {
@@ -802,22 +806,60 @@ export default function WorksOrdersPage() {
             {/* Draft alert */}
             {!draftAlertDismissed && draftOrderCount > 0 && (
               <div className="px-6 pt-4">
-                <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200">
-                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                  <AlertDescription className="flex items-center justify-between gap-4">
-                    <span>
-                      <strong>{draftOrderCount}</strong> works {draftOrderCount === 1 ? "order has" : "orders have"} not been issued yet. Issue them to notify your vendors.
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 shrink-0 text-amber-700 dark:text-amber-300"
-                      onClick={() => setDraftAlertDismissed(true)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </AlertDescription>
-                </Alert>
+                <Collapsible open={draftAlertOpen} onOpenChange={setDraftAlertOpen}>
+                  <div className="rounded-md border border-amber-500/50 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200">
+                    {/* Header row */}
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <span className="flex-1 text-sm">
+                        <strong>{draftOrderCount}</strong> works {draftOrderCount === 1 ? "order has" : "orders have"} not been issued yet.
+                      </span>
+                      <CollapsibleTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0 text-amber-700 dark:text-amber-300"
+                        >
+                          <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${draftAlertOpen ? "rotate-180" : ""}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0 text-amber-700 dark:text-amber-300"
+                        onClick={() => setDraftAlertDismissed(true)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+
+                    {/* Expandable list */}
+                    <CollapsibleContent>
+                      <div className="border-t border-amber-500/30 px-4 py-3 space-y-2">
+                        {draftOrders.map((order: any) => (
+                          <div key={order.id} className="flex items-center justify-between gap-4 text-sm">
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                              <span className="font-medium truncate">{order.vendorName || "Unknown Vendor"}</span>
+                              {order.projectName && (
+                                <>
+                                  <span className="text-amber-600/60 dark:text-amber-400/60">•</span>
+                                  <span className="text-amber-800/70 dark:text-amber-300/70 truncate">{order.projectName}</span>
+                                </>
+                              )}
+                              {order.category && (
+                                <>
+                                  <span className="text-amber-600/60 dark:text-amber-400/60">•</span>
+                                  <span className="text-amber-800/70 dark:text-amber-300/70 truncate">{order.category}</span>
+                                </>
+                              )}
+                            </div>
+                            <span className="shrink-0 font-mono text-xs text-amber-700 dark:text-amber-300">{order.orderNumber}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
               </div>
             )}
 
