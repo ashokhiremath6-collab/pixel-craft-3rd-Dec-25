@@ -1101,7 +1101,21 @@ export default function WorkingDrawingsPage() {
       return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
     });
     const result: { key: string; label: string; drawings: DrawingRow[] }[] = sorted.map(([k, v]) => ({ key: k, label: v.label, drawings: v.drawings }));
-    if (noRoom.length > 0) result.push({ key: "__none__", label: "Project-Wide", drawings: noRoom });
+    // Group roomless drawings by category so each gets its own labelled section
+    if (noRoom.length > 0) {
+      const noRoomByCategory = new Map<string, DrawingRow[]>();
+      for (const d of noRoom) {
+        if (!noRoomByCategory.has(d.category)) noRoomByCategory.set(d.category, []);
+        noRoomByCategory.get(d.category)!.push(d);
+      }
+      const sortedCats = Array.from(noRoomByCategory.entries()).sort(([a], [b]) => {
+        const ia = CATEGORY_ORDER.indexOf(a), ib = CATEGORY_ORDER.indexOf(b);
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+      });
+      for (const [cat, drws] of sortedCats) {
+        result.push({ key: `__cat__${cat}`, label: cat, drawings: drws });
+      }
+    }
     return result;
   }, [allDrawings, rooms]);
 
