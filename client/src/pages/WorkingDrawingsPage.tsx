@@ -1042,19 +1042,23 @@ export default function WorkingDrawingsPage() {
   });
 
   const moveCategoryMut = useMutation({
-    mutationFn: async ({ id, category }: { id: string; category: string }) => {
-      const res = await apiRequest("PATCH", `/api/working-drawings/${id}`, { category });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Failed to update category");
-      return body;
+    mutationFn: async ({ id, category, roomId }: { id: string; category?: string; roomId?: string | null }) => {
+      const body: Record<string, unknown> = {};
+      if (category !== undefined) body.category = category;
+      if (roomId !== undefined) body.roomId = roomId;
+      const res = await apiRequest("PATCH", `/api/working-drawings/${id}`, body);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to update");
+      return json;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: drawingsKey });
-      toast({ title: "Category updated" });
+      qc.invalidateQueries({ queryKey: roomsKey });
+      toast({ title: "Drawing moved" });
       setMovingDrawing(null);
     },
     onError: (err: Error) => {
-      toast({ title: "Could not update category", description: err.message, variant: "destructive" });
+      toast({ title: "Could not move drawing", description: err.message, variant: "destructive" });
     },
   });
 
@@ -1342,35 +1346,50 @@ export default function WorkingDrawingsPage() {
       </AlertDialog>
 
       {/* Change category dialog */}
-      <Dialog open={!!movingDrawing} onOpenChange={(o) => { if (!o) { setMovingDrawing(null); setCustomCategoryInput(""); } }}>
+      <Dialog open={!!movingDrawing} onOpenChange={(o) => { if (!o) { setMovingDrawing(null); setNewCategory(""); setCustomCategoryInput(""); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Change category</DialogTitle>
+            <DialogTitle>Move drawing</DialogTitle>
             <DialogDescription>
-              Move <span className="font-medium text-foreground">"{movingDrawing?.title}"</span> to a different category.
+              Move <span className="font-medium text-foreground">"{movingDrawing?.title}"</span> to a different category or room.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Category</label>
+              <label className="text-sm font-medium">Destination</label>
               <Select
                 value={newCategory}
                 onValueChange={(v) => { setNewCategory(v); if (v !== "__new__") setCustomCategoryInput(""); }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a category…" />
+                  <SelectValue placeholder="Select a category or room…" />
                 </SelectTrigger>
                 <SelectContent>
+                  {/* Categories section */}
+                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Categories
+                  </div>
                   {projectCategories.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                    <SelectItem key={`cat:${c}`} value={`cat:${c}`}>{c}</SelectItem>
                   ))}
-                  <SelectSeparator />
                   <SelectItem value="__new__">
                     <span className="flex items-center gap-1.5">
                       <Plus className="h-3.5 w-3.5" />
                       Create new category
                     </span>
                   </SelectItem>
+                  {/* Rooms section */}
+                  {rooms.length > 0 && (
+                    <>
+                      <SelectSeparator />
+                      <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Rooms
+                      </div>
+                      {rooms.map((r) => (
+                        <SelectItem key={`room:${r.id}`} value={`room:${r.id}`}>{r.name}</SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -1392,18 +1411,24 @@ export default function WorkingDrawingsPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setMovingDrawing(null); setCustomCategoryInput(""); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setMovingDrawing(null); setNewCategory(""); setCustomCategoryInput(""); }}>Cancel</Button>
             <Button
               onClick={() => {
                 if (!movingDrawing) return;
-                const cat = newCategory === "__new__" ? customCategoryInput.trim() : newCategory.trim();
-                if (cat) moveCategoryMut.mutate({ id: movingDrawing.id, category: cat });
+                if (newCategory === "__new__") {
+                  if (customCategoryInput.trim()) moveCategoryMut.mutate({ id: movingDrawing.id, category: customCategoryInput.trim() });
+                } else if (newCategory.startsWith("room:")) {
+                  const roomId = newCategory.slice(5);
+                  moveCategoryMut.mutate({ id: movingDrawing.id, roomId });
+                } else if (newCategory.startsWith("cat:")) {
+                  const category = newCategory.slice(4);
+                  moveCategoryMut.mutate({ id: movingDrawing.id, category });
+                }
               }}
               disabled={
                 moveCategoryMut.isPending ||
-                (newCategory === "__new__"
-                  ? !customCategoryInput.trim()
-                  : !newCategory.trim() || newCategory === movingDrawing?.category)
+                !newCategory ||
+                (newCategory === "__new__" ? !customCategoryInput.trim() : false)
               }
             >
               {moveCategoryMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}

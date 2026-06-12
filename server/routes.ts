@@ -11689,6 +11689,10 @@ Return your response in the following JSON format only (no markdown, no code blo
       if (typeof req.body.title === "string" && req.body.title.trim()) {
         updates.title = req.body.title.trim();
       }
+      if ("roomId" in req.body) {
+        // Allow null (unassign) or a non-empty string (assign to room)
+        updates.roomId = req.body.roomId === null || req.body.roomId === "" ? null : req.body.roomId;
+      }
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ error: "Nothing to update" });
       }
