@@ -1277,7 +1277,7 @@ export default function WorkingDrawingsPage() {
                 drawings={group.drawings} defaultOpen={idx === 0 && group.drawings.length > 0}
                 onView={handleView}
                 onDelete={(d) => setDeletingDrawing(d)}
-                onMoveCategory={(d) => { setMovingDrawing(d); setNewCategory(d.category); }}
+                onMoveCategory={(d) => { setMovingDrawing(d); setNewCategory(`cat:${d.category}`); }}
                 onHistory={(d) => setHistoryDrawing(d)} />
             ))}
           </div>
