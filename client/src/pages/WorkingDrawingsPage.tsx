@@ -858,6 +858,20 @@ export default function WorkingDrawingsPage() {
     return sorted.map(([cat, drws]) => ({ key: cat, label: cat, drawings: drws }));
   }, [allDrawings]);
 
+  // All unique categories actually in use in this project, standard ones first then custom alphabetically
+  const projectCategories = useMemo(() => {
+    const used = new Set(allDrawings.map((d) => d.category));
+    const standard = CATEGORY_ORDER.filter((c) => used.has(c));
+    const custom = [...used].filter((c) => !CATEGORY_ORDER.includes(c)).sort();
+    // Also include all CATEGORY_ORDER items so the user can pick any standard category even if not yet used
+    const allStandard = CATEGORY_ORDER;
+    const merged = new Set([...standard, ...allStandard, ...custom]);
+    const result: string[] = [];
+    for (const c of allStandard) if (merged.has(c)) result.push(c);
+    for (const c of custom) result.push(c);
+    return result;
+  }, [allDrawings]);
+
   const activeProject = projects.find((p) => p.id === activeProjectId);
   const groups = viewMode === "room" ? groupedByRoom : groupedByCategory;
 
@@ -1070,21 +1084,16 @@ export default function WorkingDrawingsPage() {
           </DialogHeader>
           <div className="space-y-1.5 py-2">
             <label className="text-sm font-medium">New category</label>
-            <Input
-              list="move-drawing-categories"
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-              placeholder="Select or type a category…"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && newCategory.trim() && movingDrawing) {
-                  moveCategoryMut.mutate({ id: movingDrawing.id, category: newCategory.trim() });
-                }
-              }}
-            />
-            <datalist id="move-drawing-categories">
-              {CATEGORY_ORDER.map((c) => <option key={c} value={c} />)}
-            </datalist>
+            <Select value={newCategory} onValueChange={setNewCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a category…" />
+              </SelectTrigger>
+              <SelectContent>
+                {projectCategories.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setMovingDrawing(null)}>Cancel</Button>
