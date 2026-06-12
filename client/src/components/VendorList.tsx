@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
-import { Search, Plus, Filter, ChevronRight, FolderPlus, Edit, Trash2, Phone, Mail, User, Building2, Users, FileText, AlertTriangle } from "lucide-react";
+import { Search, Plus, Filter, ChevronRight, ChevronDown, FolderPlus, Edit, Trash2, Phone, Mail, User, Building2, Users, FileText, AlertTriangle } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -76,6 +77,14 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   const [selectedVendorForContacts, setSelectedVendorForContacts] = useState<Vendor | null>(null);
   const [editingContact, setEditingContact] = useState<VendorContact | null>(null);
   const [additionalContacts, setAdditionalContacts] = useState<Array<Omit<ContactFormData, 'isPrimary'>>>([]);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+
+  const toggleCategory = (cat: string) =>
+    setCollapsedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat); else next.add(cat);
+      return next;
+    });
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -1198,18 +1207,25 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       {/* Vendors by Category */}
       {Object.entries(vendorsByCategory)
         .sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }))
-        .map(([category, categoryVendors]) => (
-        <div key={category} className="space-y-4">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold" data-testid={`heading-category-${category}`}>
-              {category}
-            </h2>
-            <Badge variant="outline" data-testid={`badge-category-count-${category}`}>
-              {categoryVendors.length} vendor{categoryVendors.length !== 1 ? 's' : ''}
-            </Badge>
-          </div>
-          
-          <Card>
+        .map(([category, categoryVendors]) => {
+          const isOpen = !collapsedCategories.has(category);
+          return (
+        <Collapsible key={category} open={isOpen} onOpenChange={() => toggleCategory(category)}>
+          <CollapsibleTrigger asChild>
+            <button className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover-elevate rounded-md text-left">
+              <div className="flex items-center gap-2">
+                {isOpen
+                  ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                <span className="font-medium" data-testid={`heading-category-${category}`}>{category}</span>
+                <Badge variant="secondary" className="no-default-active-elevate" data-testid={`badge-category-count-${category}`}>
+                  {categoryVendors.length} vendor{categoryVendors.length !== 1 ? 's' : ''}
+                </Badge>
+              </div>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+          <Card className="mt-1 mb-3">
             <CardContent className="p-0 overflow-x-auto">
               <Table className="w-full">
                 <TableHeader>
@@ -1321,8 +1337,10 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
               </Table>
             </CardContent>
           </Card>
-        </div>
-      ))}
+          </CollapsibleContent>
+        </Collapsible>
+          );
+        })}
 
       {filteredVendors.length === 0 && (
         <Card className="text-center py-12">
