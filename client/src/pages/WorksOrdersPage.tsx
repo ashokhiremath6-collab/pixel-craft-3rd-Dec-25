@@ -194,7 +194,55 @@ export default function WorksOrdersPage() {
     enabled: !!selectedOrder?.id,
   });
 
-  // Selected quotations that have no active (non-void) works order = not yet issued
+  // Flatten categories for dropdown — must be before alert computations
+  const flatCategories = useMemo(() => {
+    const flatten = (categories: any[], level = 0): any[] => {
+      return categories.flatMap(cat => [
+        { ...cat, level },
+        ...flatten(cat.children || [], level + 1)
+      ]);
+    };
+    return flatten(vendorCategories);
+  }, [vendorCategories]);
+
+  // Helper: resolve a PV's category name the same way /api/quotations does —
+  // via vendor.categoryId → flatCategories, NOT pv.category (which is null for most rows).
+  const pvCategoryName = (pv: ProjectVendor): string | null => {
+    if (!pv.vendorId) return null; // comparative statement rows — skip
+    const vendor = vendors.find((v) => v.id === pv.vendorId);
+    if (!vendor?.categoryId) return null;
+    const cat = flatCategories.find((c) => c.id === vendor.categoryId);
+    return cat?.name ?? null;
+  };
+
+  // Category groups (project + category) where NO quote has been selected yet.
+  // Only consider "item" quotations (skip options/subitems to avoid double-counting).
+  const unselectedGroups = useMemo(() => {
+    const groups = new Map<string, { projectId: string; projectName: string; category: string; hasSelected: boolean }>();
+    projectVendors.forEach((pv) => {
+      if (pv.quotationType === "option") return; // sub-options — skip
+      const categoryName = pvCategoryName(pv);
+      if (!categoryName) return;
+      const key = `${pv.projectId}__${categoryName}`;
+      const project = projects.find((p) => p.id === pv.projectId);
+      if (!groups.has(key)) {
+        groups.set(key, {
+          projectId: pv.projectId,
+          projectName: project?.projectName ?? "Unknown Project",
+          category: categoryName,
+          hasSelected: false,
+        });
+      }
+      if (pv.status === "Selected") {
+        groups.get(key)!.hasSelected = true;
+      }
+    });
+    return Array.from(groups.values())
+      .filter((g) => !g.hasSelected)
+      .sort((a, b) => a.category.localeCompare(b.category));
+  }, [projectVendors, vendors, flatCategories, projects]);
+
+  // Selected quotations that have no active (sent/signed) works order issued yet.
   const unissuedItems = useMemo(() => {
     const issuedPVIds = new Set(
       orders
@@ -206,52 +254,20 @@ export default function WorksOrdersPage() {
       .map((pv) => {
         const vendor = vendors.find((v) => v.id === pv.vendorId);
         const project = projects.find((p) => p.id === pv.projectId);
+        const categoryName = pvCategoryName(pv);
         return {
           id: pv.id,
           vendorName: vendor?.name ?? "Unknown Vendor",
           projectName: project?.projectName ?? "Unknown Project",
-          category: pv.category ?? pv.quotationName ?? "",
+          category: categoryName ?? "",
         };
       });
-  }, [projectVendors, orders, vendors, projects]);
+  }, [projectVendors, orders, vendors, flatCategories, projects]);
   const unissuedCount = unissuedItems.length;
-
-  // Category groups (project + category) where NO quote has been selected yet
-  const unselectedGroups = useMemo(() => {
-    const groups = new Map<string, { projectId: string; projectName: string; category: string; hasSelected: boolean }>();
-    projectVendors.forEach((pv) => {
-      if (!pv.category) return;
-      const key = `${pv.projectId}__${pv.category}`;
-      const project = projects.find((p) => p.id === pv.projectId);
-      if (!groups.has(key)) {
-        groups.set(key, {
-          projectId: pv.projectId,
-          projectName: project?.projectName ?? "Unknown Project",
-          category: pv.category,
-          hasSelected: false,
-        });
-      }
-      if (pv.status === "Selected") {
-        groups.get(key)!.hasSelected = true;
-      }
-    });
-    return Array.from(groups.values()).filter((g) => !g.hasSelected);
-  }, [projectVendors, projects]);
 
   const totalAlertCount = unissuedCount + unselectedGroups.length;
   const [draftAlertDismissed, setDraftAlertDismissed] = useState(false);
   const [draftAlertOpen, setDraftAlertOpen] = useState(false);
-
-  // Flatten categories for dropdown
-  const flatCategories = useMemo(() => {
-    const flatten = (categories: any[], level = 0): any[] => {
-      return categories.flatMap(cat => [
-        { ...cat, level },
-        ...flatten(cat.children || [], level + 1)
-      ]);
-    };
-    return flatten(vendorCategories);
-  }, [vendorCategories]);
 
   // Group templates by category
   const templatesByCategory = useMemo(() => {
