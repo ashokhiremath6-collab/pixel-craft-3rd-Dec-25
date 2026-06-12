@@ -207,7 +207,7 @@ function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory }: {
           <Button
             size="icon"
             variant="ghost"
-            className="text-muted-foreground invisible group-hover:visible"
+            className="text-muted-foreground"
             title="Change category"
             onClick={(e) => { e.stopPropagation(); onMoveCategory(drawing); }}
           >
@@ -216,7 +216,7 @@ function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory }: {
           <Button
             size="icon"
             variant="ghost"
-            className="text-muted-foreground hover:text-destructive invisible group-hover:visible"
+            className="text-muted-foreground hover:text-destructive"
             title="Delete drawing"
             onClick={(e) => { e.stopPropagation(); onDelete(drawing); }}
           >
