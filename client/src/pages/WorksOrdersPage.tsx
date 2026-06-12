@@ -69,7 +69,8 @@ import type {
   WorksOrderTemplate, 
   WorksOrder, 
   Project, 
-  ProjectVendor 
+  ProjectVendor,
+  Vendor,
 } from "@shared/schema";
 import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -171,6 +172,11 @@ export default function WorksOrdersPage() {
     queryKey: ['/api/project-vendors'],
   });
 
+  // Fetch all vendors for name lookup
+  const { data: vendors = [] } = useQuery<Vendor[]>({
+    queryKey: ['/api/vendors'],
+  });
+
   // Fetch vendor categories for dropdown
   const { data: vendorCategories = [] } = useQuery<any[]>({
     queryKey: ['/api/vendor-categories/tree'],
@@ -188,11 +194,27 @@ export default function WorksOrdersPage() {
     enabled: !!selectedOrder?.id,
   });
 
-  const draftOrders = useMemo(
-    () => orders.filter((o) => o.status === "draft"),
-    [orders]
-  );
-  const draftOrderCount = draftOrders.length;
+  // Selected quotations that have no active (non-void) works order = not yet issued
+  const unissuedItems = useMemo(() => {
+    const issuedPVIds = new Set(
+      orders
+        .filter((o) => o.status === "sent" || o.status === "signed")
+        .map((o) => o.projectVendorId)
+    );
+    return projectVendors
+      .filter((pv) => pv.status === "Selected" && !issuedPVIds.has(pv.id))
+      .map((pv) => {
+        const vendor = vendors.find((v) => v.id === pv.vendorId);
+        const project = projects.find((p) => p.id === pv.projectId);
+        return {
+          id: pv.id,
+          vendorName: vendor?.name ?? "Unknown Vendor",
+          projectName: project?.projectName ?? "Unknown Project",
+          category: pv.category ?? pv.quotationName ?? "",
+        };
+      });
+  }, [projectVendors, orders, vendors, projects]);
+  const unissuedCount = unissuedItems.length;
   const [draftAlertDismissed, setDraftAlertDismissed] = useState(false);
   const [draftAlertOpen, setDraftAlertOpen] = useState(false);
 
@@ -803,8 +825,8 @@ export default function WorksOrdersPage() {
               </div>
             </div>
 
-            {/* Draft alert */}
-            {!draftAlertDismissed && draftOrderCount > 0 && (
+            {/* Unissued works order alert */}
+            {!draftAlertDismissed && unissuedCount > 0 && (
               <div className="px-6 pt-4">
                 <Collapsible open={draftAlertOpen} onOpenChange={setDraftAlertOpen}>
                   <div className="rounded-md border border-amber-500/50 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200">
@@ -812,7 +834,7 @@ export default function WorksOrdersPage() {
                     <div className="flex items-center gap-3 px-4 py-3">
                       <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                       <span className="flex-1 text-sm">
-                        <strong>{draftOrderCount}</strong> works {draftOrderCount === 1 ? "order has" : "orders have"} not been issued yet.
+                        <strong>{unissuedCount}</strong> selected {unissuedCount === 1 ? "quotation has" : "quotations have"} no works order issued yet.
                       </span>
                       <CollapsibleTrigger asChild>
                         <Button
@@ -836,24 +858,17 @@ export default function WorksOrdersPage() {
                     {/* Expandable list */}
                     <CollapsibleContent>
                       <div className="border-t border-amber-500/30 px-4 py-3 space-y-2">
-                        {draftOrders.map((order: any) => (
-                          <div key={order.id} className="flex items-center justify-between gap-4 text-sm">
-                            <div className="flex items-center gap-2 flex-wrap min-w-0">
-                              <span className="font-medium truncate">{order.vendorName || "Unknown Vendor"}</span>
-                              {order.projectName && (
-                                <>
-                                  <span className="text-amber-600/60 dark:text-amber-400/60">•</span>
-                                  <span className="text-amber-800/70 dark:text-amber-300/70 truncate">{order.projectName}</span>
-                                </>
-                              )}
-                              {order.category && (
-                                <>
-                                  <span className="text-amber-600/60 dark:text-amber-400/60">•</span>
-                                  <span className="text-amber-800/70 dark:text-amber-300/70 truncate">{order.category}</span>
-                                </>
-                              )}
-                            </div>
-                            <span className="shrink-0 font-mono text-xs text-amber-700 dark:text-amber-300">{order.orderNumber}</span>
+                        {unissuedItems.map((item) => (
+                          <div key={item.id} className="flex items-center gap-2 flex-wrap text-sm">
+                            <span className="font-medium">{item.vendorName}</span>
+                            <span className="text-amber-600/60 dark:text-amber-400/60">•</span>
+                            <span className="text-amber-800/70 dark:text-amber-300/70">{item.projectName}</span>
+                            {item.category && (
+                              <>
+                                <span className="text-amber-600/60 dark:text-amber-400/60">•</span>
+                                <span className="text-amber-800/70 dark:text-amber-300/70">{item.category}</span>
+                              </>
+                            )}
                           </div>
                         ))}
                       </div>
