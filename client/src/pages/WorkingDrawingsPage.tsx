@@ -19,6 +19,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -674,6 +675,7 @@ export default function WorkingDrawingsPage() {
   const [deletingDrawing, setDeletingDrawing] = useState<DrawingRow | null>(null);
   const [movingDrawing, setMovingDrawing] = useState<DrawingRow | null>(null);
   const [newCategory, setNewCategory] = useState("");
+  const [customCategoryInput, setCustomCategoryInput] = useState("");
 
   const { data: projects = [] } = useQuery<Project[]>({ queryKey: ["/api/projects"] });
   const activeProjectId = filterProjectId || (projects[0]?.id ?? "");
@@ -1074,7 +1076,7 @@ export default function WorkingDrawingsPage() {
       </AlertDialog>
 
       {/* Change category dialog */}
-      <Dialog open={!!movingDrawing} onOpenChange={(o) => { if (!o) setMovingDrawing(null); }}>
+      <Dialog open={!!movingDrawing} onOpenChange={(o) => { if (!o) { setMovingDrawing(null); setCustomCategoryInput(""); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Change category</DialogTitle>
@@ -1082,28 +1084,61 @@ export default function WorkingDrawingsPage() {
               Move <span className="font-medium text-foreground">"{movingDrawing?.title}"</span> to a different category.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-1.5 py-2">
-            <label className="text-sm font-medium">New category</label>
-            <Select value={newCategory} onValueChange={setNewCategory}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a category…" />
-              </SelectTrigger>
-              <SelectContent>
-                {projectCategories.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Category</label>
+              <Select
+                value={newCategory}
+                onValueChange={(v) => { setNewCategory(v); if (v !== "__new__") setCustomCategoryInput(""); }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projectCategories.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                  <SelectSeparator />
+                  <SelectItem value="__new__">
+                    <span className="flex items-center gap-1.5">
+                      <Plus className="h-3.5 w-3.5" />
+                      Create new category
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {newCategory === "__new__" && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">New category name</label>
+                <Input
+                  value={customCategoryInput}
+                  onChange={(e) => setCustomCategoryInput(e.target.value)}
+                  placeholder="e.g. External Lobby"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && customCategoryInput.trim() && movingDrawing) {
+                      moveCategoryMut.mutate({ id: movingDrawing.id, category: customCategoryInput.trim() });
+                    }
+                  }}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMovingDrawing(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setMovingDrawing(null); setCustomCategoryInput(""); }}>Cancel</Button>
             <Button
               onClick={() => {
-                if (movingDrawing && newCategory.trim()) {
-                  moveCategoryMut.mutate({ id: movingDrawing.id, category: newCategory.trim() });
-                }
+                if (!movingDrawing) return;
+                const cat = newCategory === "__new__" ? customCategoryInput.trim() : newCategory.trim();
+                if (cat) moveCategoryMut.mutate({ id: movingDrawing.id, category: cat });
               }}
-              disabled={!newCategory.trim() || newCategory === movingDrawing?.category || moveCategoryMut.isPending}
+              disabled={
+                moveCategoryMut.isPending ||
+                (newCategory === "__new__"
+                  ? !customCategoryInput.trim()
+                  : !newCategory.trim() || newCategory === movingDrawing?.category)
+              }
             >
               {moveCategoryMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
               Move
