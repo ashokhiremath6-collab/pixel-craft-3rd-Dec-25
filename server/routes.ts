@@ -11667,6 +11667,43 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // PATCH /api/working-drawings/:drawingId — update mutable fields (category, title)
+  app.patch("/api/working-drawings/:drawingId", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { drawingId } = req.params;
+      if (!orgId) return res.status(403).json({ error: "Forbidden" });
+
+      const { db: reqDb } = await import("./db");
+      const { drawings: drawingsTable } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      const [drawing] = await reqDb.select().from(drawingsTable)
+        .where(and(eq(drawingsTable.id, drawingId), eq(drawingsTable.orgId, orgId)));
+      if (!drawing) return res.status(404).json({ error: "Drawing not found" });
+
+      const updates: Record<string, unknown> = {};
+      if (typeof req.body.category === "string" && req.body.category.trim()) {
+        updates.category = req.body.category.trim();
+      }
+      if (typeof req.body.title === "string" && req.body.title.trim()) {
+        updates.title = req.body.title.trim();
+      }
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "Nothing to update" });
+      }
+
+      const [updated] = await reqDb.update(drawingsTable)
+        .set(updates)
+        .where(and(eq(drawingsTable.id, drawingId), eq(drawingsTable.orgId, orgId)))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      console.error("PATCH /api/working-drawings/:drawingId error:", err);
+      res.status(500).json({ error: "Failed to update drawing" });
+    }
+  });
+
   // DELETE /api/working-drawings/:drawingId — permanently delete a drawing + its files
   app.delete("/api/working-drawings/:drawingId", requireAuth, async (req: any, res) => {
     try {

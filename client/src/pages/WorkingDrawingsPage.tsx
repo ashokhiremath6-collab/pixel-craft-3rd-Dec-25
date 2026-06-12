@@ -64,6 +64,7 @@ import {
   Settings2,
   Pencil,
   Trash2,
+  Tag,
   Check,
   X,
   Plus,
@@ -162,10 +163,11 @@ function formatBytes(bytes: number): string {
 
 // ── Drawing table row ────────────────────────────────────────────────────────
 
-function DrawingTableRow({ drawing, onView, onDelete }: {
+function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory }: {
   drawing: DrawingRow;
   onView: (d: DrawingRow) => void;
   onDelete: (d: DrawingRow) => void;
+  onMoveCategory: (d: DrawingRow) => void;
 }) {
   const rev = drawing.latestRevision;
   const catColor = CATEGORY_COLORS[drawing.category] || "bg-muted text-muted-foreground";
@@ -205,6 +207,15 @@ function DrawingTableRow({ drawing, onView, onDelete }: {
           <Button
             size="icon"
             variant="ghost"
+            className="text-muted-foreground invisible group-hover:visible"
+            title="Change category"
+            onClick={(e) => { e.stopPropagation(); onMoveCategory(drawing); }}
+          >
+            <Tag className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
             className="text-muted-foreground hover:text-destructive invisible group-hover:visible"
             title="Delete drawing"
             onClick={(e) => { e.stopPropagation(); onDelete(drawing); }}
@@ -219,9 +230,9 @@ function DrawingTableRow({ drawing, onView, onDelete }: {
 
 // ── Collapsible group ────────────────────────────────────────────────────────
 
-function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete }: {
+function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete, onMoveCategory }: {
   label: string; count: number; drawings: DrawingRow[]; defaultOpen: boolean;
-  onView: (d: DrawingRow) => void; onDelete: (d: DrawingRow) => void;
+  onView: (d: DrawingRow) => void; onDelete: (d: DrawingRow) => void; onMoveCategory: (d: DrawingRow) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const isEmpty = drawings.length === 0;
@@ -269,7 +280,7 @@ function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete }:
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} onDelete={onDelete} />)}
+                {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} onDelete={onDelete} onMoveCategory={onMoveCategory} />)}
               </TableBody>
             </Table>
           )}
@@ -661,6 +672,8 @@ export default function WorkingDrawingsPage() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [deletingRoom, setDeletingRoom] = useState<RoomWithCount | null>(null);
   const [deletingDrawing, setDeletingDrawing] = useState<DrawingRow | null>(null);
+  const [movingDrawing, setMovingDrawing] = useState<DrawingRow | null>(null);
+  const [newCategory, setNewCategory] = useState("");
 
   const { data: projects = [] } = useQuery<Project[]>({ queryKey: ["/api/projects"] });
   const activeProjectId = filterProjectId || (projects[0]?.id ?? "");
@@ -769,6 +782,23 @@ export default function WorkingDrawingsPage() {
     onError: (err: Error) => {
       toast({ title: "Could not delete drawing", description: err.message, variant: "destructive" });
       setDeletingDrawing(null);
+    },
+  });
+
+  const moveCategoryMut = useMutation({
+    mutationFn: async ({ id, category }: { id: string; category: string }) => {
+      const res = await apiRequest("PATCH", `/api/working-drawings/${id}`, { category });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to update category");
+      return body;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: drawingsKey });
+      toast({ title: "Category updated" });
+      setMovingDrawing(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Could not update category", description: err.message, variant: "destructive" });
     },
   });
 
@@ -960,7 +990,9 @@ export default function WorkingDrawingsPage() {
             {groups.map((group, idx) => (
               <GroupSection key={group.key} label={group.label} count={group.drawings.length}
                 drawings={group.drawings} defaultOpen={idx === 0 && group.drawings.length > 0}
-                onView={handleView} onDelete={(d) => setDeletingDrawing(d)} />
+                onView={handleView}
+                onDelete={(d) => setDeletingDrawing(d)}
+                onMoveCategory={(d) => { setMovingDrawing(d); setNewCategory(d.category); }} />
             ))}
           </div>
         )}
@@ -1026,6 +1058,50 @@ export default function WorkingDrawingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Change category dialog */}
+      <Dialog open={!!movingDrawing} onOpenChange={(o) => { if (!o) setMovingDrawing(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Change category</DialogTitle>
+            <DialogDescription>
+              Move <span className="font-medium text-foreground">"{movingDrawing?.title}"</span> to a different category.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <label className="text-sm font-medium">New category</label>
+            <Input
+              list="move-drawing-categories"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              placeholder="Select or type a category…"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newCategory.trim() && movingDrawing) {
+                  moveCategoryMut.mutate({ id: movingDrawing.id, category: newCategory.trim() });
+                }
+              }}
+            />
+            <datalist id="move-drawing-categories">
+              {CATEGORY_ORDER.map((c) => <option key={c} value={c} />)}
+            </datalist>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMovingDrawing(null)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (movingDrawing && newCategory.trim()) {
+                  moveCategoryMut.mutate({ id: movingDrawing.id, category: newCategory.trim() });
+                }
+              }}
+              disabled={!newCategory.trim() || newCategory === movingDrawing?.category || moveCategoryMut.isPending}
+            >
+              {moveCategoryMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+              Move
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Drawing delete confirmation */}
       <AlertDialog open={!!deletingDrawing} onOpenChange={(o) => { if (!o) setDeletingDrawing(null); }}>
