@@ -243,14 +243,29 @@ export default function WorksOrdersPage() {
   }, [projectVendors, vendors, flatCategories, projects]);
 
   // Selected quotations that have no works order (draft, sent, or signed) yet.
+  // A Selected quote is considered "covered" if ANY non-void works order exists for the
+  // same project + category — regardless of which specific PV the order was linked to.
+  // This handles imported orders that may be linked to a 'Quoted' PV in the same category
+  // rather than the exact 'Selected' PV.
   const unissuedItems = useMemo(() => {
-    const issuedPVIds = new Set(
-      orders
-        .filter((o) => o.status !== "void")
-        .map((o) => o.projectVendorId)
+    // Build a lookup: pvId → { projectId, categoryId }
+    const pvLookup = new Map(
+      projectVendors.map((pv) => [pv.id, { projectId: pv.projectId, categoryId: pv.categoryId }])
     );
+    // Collect all project+category pairs that have at least one non-void works order
+    const coveredKeys = new Set<string>();
+    orders
+      .filter((o) => o.status !== "void")
+      .forEach((o) => {
+        const pv = pvLookup.get(o.projectVendorId);
+        if (pv) coveredKeys.add(`${pv.projectId}:${pv.categoryId}`);
+      });
     return projectVendors
-      .filter((pv) => pv.status === "Selected" && !issuedPVIds.has(pv.id))
+      .filter((pv) => {
+        if (pv.status !== "Selected") return false;
+        // Covered if any non-void order exists for the same project + category
+        return !coveredKeys.has(`${pv.projectId}:${pv.categoryId}`);
+      })
       .map((pv) => {
         const vendor = vendors.find((v) => v.id === pv.vendorId);
         const project = projects.find((p) => p.id === pv.projectId);
