@@ -242,11 +242,11 @@ export default function WorksOrdersPage() {
       .sort((a, b) => a.category.localeCompare(b.category));
   }, [projectVendors, vendors, flatCategories, projects]);
 
-  // Selected quotations that have no active (sent/signed) works order issued yet.
+  // Selected quotations that have no works order (draft, sent, or signed) yet.
   const unissuedItems = useMemo(() => {
     const issuedPVIds = new Set(
       orders
-        .filter((o) => o.status === "sent" || o.status === "signed")
+        .filter((o) => o.status !== "void")
         .map((o) => o.projectVendorId)
     );
     return projectVendors
@@ -880,7 +880,7 @@ export default function WorksOrdersPage() {
                         )}
                         {unselectedGroups.length > 0 && unissuedCount > 0 && <>, </>}
                         {unissuedCount > 0 && (
-                          <> <strong>{unissuedCount}</strong> selected {unissuedCount === 1 ? "quote has" : "quotes have"} no works order issued</>
+                          <> <strong>{unissuedCount}</strong> selected {unissuedCount === 1 ? "quote has" : "quotes have"} no works order created</>
                         )}
                         .
                       </span>
@@ -914,11 +914,11 @@ export default function WorksOrdersPage() {
                           </div>
                         )}
 
-                        {/* Works order not issued */}
+                        {/* Works order not created */}
                         {unissuedItems.length > 0 && (
                           <div className="px-4 py-3 space-y-1.5">
                             <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 mb-2">
-                              Works order not issued
+                              Works order not created
                             </p>
                             {unissuedItems.map((item) => (
                               <div key={item.id} className="flex items-center gap-2 flex-wrap text-sm">
