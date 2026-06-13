@@ -1554,10 +1554,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const MEGHNA_AJAY_PLUMBING_VENDOR_ID = '12107a5d-5068-45e6-9872-933caa90a49d';
       // Delete child records first to satisfy FK constraints
       await db.execute(sql`DELETE FROM quote_files WHERE project_vendor_id = ${MEGHNA_AJAY_PLUMBING_PV_ID}`);
-      await db.execute(sql`DELETE FROM works_order_files WHERE project_vendor_id = ${MEGHNA_AJAY_PLUMBING_PV_ID}`);
+      // works_order_files cascade from works_orders; delete any works_orders for this project_vendor first
+      await db.execute(sql`DELETE FROM works_orders WHERE project_vendor_id = ${MEGHNA_AJAY_PLUMBING_PV_ID}`);
       await db.execute(sql`DELETE FROM project_vendors WHERE id = ${MEGHNA_AJAY_PLUMBING_PV_ID}`);
       await db.execute(sql`DELETE FROM vendors WHERE id = ${MEGHNA_AJAY_PLUMBING_VENDOR_ID}`);
-      return res.json({ success: true, message: 'Deleted Meghna Ajay (Plumbing) quote_files, works_order_files, project_vendor and vendor.' });
+      return res.json({ success: true, message: 'Deleted Meghna Ajay (Plumbing) quote_files, works_orders, project_vendor and vendor.' });
     } catch (error) {
       console.error('fix-meghna-plumbing error:', error);
       return res.status(500).json({ error: String(error) });
