@@ -1201,3 +1201,16 @@ export const drawingComments = pgTable("drawing_comments", {
 export const insertDrawingCommentSchema = createInsertSchema(drawingComments).omit({ id: true, createdAt: true, editedAt: true });
 export type InsertDrawingComment = z.infer<typeof insertDrawingCommentSchema>;
 export type DrawingComment = typeof drawingComments.$inferSelect;
+
+// Drawing Categories — org-level custom category names for working drawings
+export const drawingCategories = pgTable("drawing_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("drawing_categories_org_id_idx").on(table.orgId),
+  uniqueIndex("drawing_categories_org_name_unique").on(table.orgId, table.name),
+]);
+
+export type DrawingCategory = typeof drawingCategories.$inferSelect;

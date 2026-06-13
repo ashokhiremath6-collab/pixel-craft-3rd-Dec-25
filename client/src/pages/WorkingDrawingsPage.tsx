@@ -123,6 +123,8 @@ type FullRevision = DrawingRevision & {
   uploaderName: string | null;
 };
 
+type DrawingCategory = { id: string; name: string };
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const ROOM_TYPES = [
@@ -680,12 +682,13 @@ type FileEntry = {
   errorMsg?: string;
 };
 
-function UploadBatchDialog({ open, onOpenChange, rooms, projectId, onComplete }: {
+function UploadBatchDialog({ open, onOpenChange, rooms, projectId, onComplete, customCategories }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   rooms: RoomWithCount[];
   projectId: string;
   onComplete: () => void;
+  customCategories: DrawingCategory[];
 }) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -812,6 +815,7 @@ function UploadBatchDialog({ open, onOpenChange, rooms, projectId, onComplete }:
             />
             <datalist id="drawing-categories">
               {CATEGORY_ORDER.map((c) => <option key={c} value={c} />)}
+              {customCategories.filter(c => !CATEGORY_ORDER.includes(c.name)).map(c => <option key={c.id} value={c.name} />)}
             </datalist>
           </div>
           <div className="space-y-1.5">
@@ -923,6 +927,8 @@ export default function WorkingDrawingsPage() {
   const [viewingDrawing, setViewingDrawing] = useState<DrawingRow | null>(null);
   const [viewerUrl, setViewerUrl] = useState<{ url: string; name: string } | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
+  const [manageCatsOpen, setManageCatsOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [deletingRoom, setDeletingRoom] = useState<RoomWithCount | null>(null);
   const [deletingDrawing, setDeletingDrawing] = useState<DrawingRow | null>(null);
@@ -936,6 +942,7 @@ export default function WorkingDrawingsPage() {
 
   const roomsKey = ["/api/working-drawings/rooms", activeProjectId];
   const drawingsKey = ["/api/working-drawings", activeProjectId, searchText];
+  const catsKey = ["/api/working-drawings/categories"];
 
   const { data: rooms = [], isLoading: roomsLoading } = useQuery<RoomWithCount[]>({
     queryKey: roomsKey,
@@ -959,6 +966,15 @@ export default function WorkingDrawingsPage() {
       return res.json();
     },
     enabled: !!activeProjectId,
+  });
+
+  const { data: customCategories = [] } = useQuery<DrawingCategory[]>({
+    queryKey: catsKey,
+    queryFn: async () => {
+      const res = await fetch("/api/working-drawings/categories", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch categories");
+      return res.json();
+    },
   });
 
   const isLoading = roomsLoading || drawingsLoading;
@@ -1062,6 +1078,40 @@ export default function WorkingDrawingsPage() {
     },
   });
 
+  // ── Category CRUD mutations ────────────────────────────────────────────────
+
+  const addCatMut = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await fetch("/api/working-drawings/categories", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to create category");
+      return body;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: catsKey });
+      setNewCatName("");
+      toast({ title: "Category added" });
+    },
+    onError: (err: Error) => toast({ title: "Could not add category", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteCatMut = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("DELETE", `/api/working-drawings/categories/${id}`);
+      if (!res.ok) throw new Error("Failed to delete");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: catsKey });
+      toast({ title: "Category removed" });
+    },
+    onError: (err: Error) => toast({ title: "Could not remove category", description: err.message, variant: "destructive" }),
+  });
+
   async function handleAddRoom(name: string, roomType: string) {
     await createRoomMut.mutateAsync({ name, roomType });
   }
@@ -1133,19 +1183,16 @@ export default function WorkingDrawingsPage() {
     return sorted.map(([cat, drws]) => ({ key: cat, label: cat, drawings: drws }));
   }, [allDrawings]);
 
-  // All unique categories actually in use in this project, standard ones first then custom alphabetically
+  // All unique categories: standard (CATEGORY_ORDER) + custom from DB + custom typed in ad-hoc
   const projectCategories = useMemo(() => {
     const used = new Set(allDrawings.map((d) => d.category));
-    const standard = CATEGORY_ORDER.filter((c) => used.has(c));
-    const custom = [...used].filter((c) => !CATEGORY_ORDER.includes(c)).sort();
-    // Also include all CATEGORY_ORDER items so the user can pick any standard category even if not yet used
+    const dbCustomNames = customCategories.map(c => c.name);
     const allStandard = CATEGORY_ORDER;
-    const merged = new Set([...standard, ...allStandard, ...custom]);
-    const result: string[] = [];
-    for (const c of allStandard) if (merged.has(c)) result.push(c);
-    for (const c of custom) result.push(c);
+    // Any category in use or in DB that isn't a standard category
+    const extraCustom = [...new Set([...used, ...dbCustomNames])].filter(c => !CATEGORY_ORDER.includes(c)).sort();
+    const result: string[] = [...allStandard, ...extraCustom];
     return result;
-  }, [allDrawings]);
+  }, [allDrawings, customCategories]);
 
   const activeProject = projects.find((p) => p.id === activeProjectId);
   const groups = viewMode === "room" ? groupedByRoom : groupedByCategory;
@@ -1217,6 +1264,14 @@ export default function WorkingDrawingsPage() {
               <Button variant="outline" onClick={() => setManageOpen(true)} className="gap-1.5">
                 <Settings2 className="h-4 w-4" />
                 Manage Rooms
+              </Button>
+            )}
+
+            {/* Manage categories */}
+            {activeProjectId && (
+              <Button variant="outline" onClick={() => setManageCatsOpen(true)} className="gap-1.5">
+                <Tag className="h-4 w-4" />
+                Manage Categories
               </Button>
             )}
 
@@ -1344,6 +1399,70 @@ export default function WorkingDrawingsPage() {
           </div>
           <div className="px-6 pb-6">
             <AddRoomForm onAdd={handleAddRoom} />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Manage Categories Sheet */}
+      <Sheet open={manageCatsOpen} onOpenChange={setManageCatsOpen}>
+        <SheetContent side="right" className="w-[420px] flex flex-col gap-0 p-0">
+          <SheetHeader className="px-6 py-4 border-b">
+            <SheetTitle>Manage Categories</SheetTitle>
+            <p className="text-sm text-muted-foreground">Custom categories for this organisation</p>
+          </SheetHeader>
+          <div className="flex-1 overflow-auto px-6 py-4 space-y-5">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Standard (built-in)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {CATEGORY_ORDER.map(c => (
+                  <Badge key={c} variant="secondary" className="no-default-active-elevate text-xs">{c}</Badge>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Custom</p>
+              {customCategories.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No custom categories yet. Add one below.</p>
+              ) : (
+                <div className="divide-y">
+                  {customCategories.map(cat => (
+                    <div key={cat.id} className="flex items-center justify-between py-2 group">
+                      <span className="text-sm">{cat.name}</span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => deleteCatMut.mutate(cat.id)}
+                        disabled={deleteCatMut.isPending}
+                        title="Remove"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="px-6 pb-6 border-t pt-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (newCatName.trim()) addCatMut.mutate(newCatName.trim());
+              }}
+              className="flex items-center gap-2"
+            >
+              <Input
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                placeholder="New category name"
+                className="flex-1 h-8 text-sm"
+                disabled={addCatMut.isPending}
+              />
+              <Button type="submit" size="sm" disabled={!newCatName.trim() || addCatMut.isPending}>
+                {addCatMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Add"}
+              </Button>
+            </form>
           </div>
         </SheetContent>
       </Sheet>
@@ -1508,6 +1627,7 @@ export default function WorkingDrawingsPage() {
         onOpenChange={setUploadOpen}
         rooms={rooms}
         projectId={activeProjectId}
+        customCategories={customCategories}
         onComplete={() => {
           qc.invalidateQueries({ queryKey: drawingsKey });
           qc.invalidateQueries({ queryKey: roomsKey });

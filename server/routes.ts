@@ -12012,6 +12012,54 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // ── Drawing Categories ────────────────────────────────────────────────────
+
+  // GET /api/working-drawings/categories — list org-level custom drawing categories
+  app.get("/api/working-drawings/categories", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      if (!orgId) return res.status(400).json({ error: "orgId required" });
+      const { eq } = await import("drizzle-orm");
+      const { drawingCategories } = await import("@shared/schema");
+      const result = await db.select().from(drawingCategories).where(eq(drawingCategories.orgId, orgId)).orderBy(drawingCategories.name);
+      res.json(result);
+    } catch (err) {
+      console.error("GET /api/working-drawings/categories error:", err);
+      res.status(500).json({ error: "Failed to fetch drawing categories" });
+    }
+  });
+
+  // POST /api/working-drawings/categories — create a custom drawing category
+  app.post("/api/working-drawings/categories", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { name } = req.body as { name?: string };
+      if (!orgId || !name?.trim()) return res.status(400).json({ error: "name is required" });
+      const { drawingCategories } = await import("@shared/schema");
+      const [result] = await db.insert(drawingCategories).values({ orgId, name: name.trim() }).returning();
+      res.status(201).json(result);
+    } catch (err: any) {
+      if (err?.code === "23505") return res.status(409).json({ error: "A category with that name already exists." });
+      console.error("POST /api/working-drawings/categories error:", err);
+      res.status(500).json({ error: "Failed to create drawing category" });
+    }
+  });
+
+  // DELETE /api/working-drawings/categories/:id — delete a custom drawing category
+  app.delete("/api/working-drawings/categories/:id", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { id } = req.params;
+      const { eq, and } = await import("drizzle-orm");
+      const { drawingCategories } = await import("@shared/schema");
+      await db.delete(drawingCategories).where(and(eq(drawingCategories.id, id), eq(drawingCategories.orgId, orgId)));
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("DELETE /api/working-drawings/categories/:id error:", err);
+      res.status(500).json({ error: "Failed to delete drawing category" });
+    }
+  });
+
   // Run immediately on startup, then every 24 hours
   runTrialExpiryWarnings();
   setInterval(runTrialExpiryWarnings, 24 * 60 * 60 * 1000);
