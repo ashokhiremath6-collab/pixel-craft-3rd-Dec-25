@@ -120,6 +120,20 @@
       "when": 1780720000000,
       "tag": "0016_backfill_onboarding_all_users",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1780740000000,
+      "tag": "0017_drawing_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1780760000000,
+      "tag": "0018_concept_drawing_type",
+      "breakpoints": true
     }
   ]
 }

@@ -1106,6 +1106,7 @@ export const drawings = pgTable("drawings", {
   discipline: text("discipline").notNull().default('Interior'),
   drawingNumber: text("drawing_number"),
   description: text("description"),
+  drawingType: text("drawing_type").notNull().default('working'), // working | concept
   status: text("status").notNull().default('planned'), // planned | drafting | for_review | approved | superseded
   isTemplatePlaceholder: boolean("is_template_placeholder").notNull().default(false),
   createdBy: varchar("created_by").references(() => users.id),

@@ -11595,13 +11595,15 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  // GET /api/working-drawings?projectId=xxx&search=yyy
+  // GET /api/working-drawings?projectId=xxx&search=yyy&drawingType=working|concept
   app.get("/api/working-drawings", requireAuth, async (req: any, res) => {
     try {
       const orgId = req.user?.orgId;
-      const { projectId, search } = req.query as { projectId?: string; search?: string };
+      const role = req.user?.role;
+      const { projectId, search, drawingType } = req.query as { projectId?: string; search?: string; drawingType?: string };
       if (!orgId || !projectId) return res.status(400).json({ error: "orgId and projectId required" });
-      const result = await storage.getDrawingsForProject(orgId, projectId, search || undefined);
+      if (drawingType === 'concept' && role === 'project_manager') return res.status(403).json({ error: "Forbidden" });
+      const result = await storage.getDrawingsForProject(orgId, projectId, search || undefined, drawingType || 'working');
       res.json(result);
     } catch (err) {
       console.error("GET /api/working-drawings error:", err);
@@ -11757,9 +11759,13 @@ Return your response in the following JSON format only (no markdown, no code blo
       const userId = req.user?.id;
       if (!orgId) return res.status(403).json({ error: "Forbidden" });
 
-      const { projectId, roomId, category, state, titles } = req.body;
+      const role = req.user?.role;
+      const { projectId, roomId, category, state, titles, drawingType } = req.body;
       if (!projectId || !category) {
         return res.status(400).json({ error: "projectId and category are required" });
+      }
+      if (drawingType === 'concept' && role === 'project_manager') {
+        return res.status(403).json({ error: "Forbidden" });
       }
 
       const files = req.files as Express.Multer.File[];
@@ -11793,6 +11799,7 @@ Return your response in the following JSON format only (no markdown, no code blo
             title,
             category,
             discipline: "Interior",
+            drawingType: drawingType === 'concept' ? 'concept' : 'working',
             status: revisionState === "approved" ? "approved" : "planned",
             isTemplatePlaceholder: false,
             createdBy: userId,

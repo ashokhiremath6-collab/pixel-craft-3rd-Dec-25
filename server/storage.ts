@@ -495,7 +495,7 @@ export interface IStorage {
 
   // Working Drawings
   getRoomsForProject(orgId: string, projectId: string): Promise<Array<Room & { drawingCount: number }>>;
-  getDrawingsForProject(orgId: string, projectId: string, search?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>>;
+  getDrawingsForProject(orgId: string, projectId: string, search?: string, drawingType?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>>;
   createRoom(orgId: string, projectId: string, data: { name: string; roomType: string }): Promise<Room>;
   updateRoom(id: string, orgId: string, data: { name: string; roomType: string }): Promise<Room | undefined>;
   deleteRoom(id: string, orgId: string, projectId: string): Promise<{ success: boolean; drawingCount: number }>;
@@ -1548,7 +1548,7 @@ export class MemStorage implements IStorage {
 
   // Working Drawings — MemStorage stubs
   async getRoomsForProject(_orgId: string, _projectId: string): Promise<Array<Room & { drawingCount: number }>> { return []; }
-  async getDrawingsForProject(_orgId: string, _projectId: string, _search?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>> { return []; }
+  async getDrawingsForProject(_orgId: string, _projectId: string, _search?: string, _drawingType?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>> { return []; }
   async createRoom(_orgId: string, _projectId: string, _data: { name: string; roomType: string }): Promise<Room> { throw new Error("Not implemented"); }
   async updateRoom(_id: string, _orgId: string, _data: { name: string; roomType: string }): Promise<Room | undefined> { return undefined; }
   async deleteRoom(_id: string, _orgId: string, _projectId: string): Promise<{ success: boolean; drawingCount: number }> { return { success: false, drawingCount: 0 }; }
@@ -3873,9 +3873,10 @@ export class DBStorage implements IStorage {
     return result;
   }
 
-  async getDrawingsForProject(orgId: string, projectId: string, search?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>> {
+  async getDrawingsForProject(orgId: string, projectId: string, search?: string, drawingType?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>> {
     const dr = drawingRevisions;
     const term = search ? '%' + search.toLowerCase() + '%' : null;
+    const typeFilter = drawingType || 'working';
     const allDrawings = await db
       .select({
         drawing: getTableColumns(drawings),
@@ -3887,6 +3888,7 @@ export class DBStorage implements IStorage {
         and(
           eq(drawings.orgId, orgId),
           eq(drawings.projectId, projectId),
+          eq(drawings.drawingType, typeFilter),
           term ? or(
             sql`lower(${drawings.title}) like ${term}`,
             sql`lower(${drawings.category}) like ${term}`,

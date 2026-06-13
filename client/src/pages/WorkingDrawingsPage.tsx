@@ -737,13 +737,14 @@ type FileEntry = {
   errorMsg?: string;
 };
 
-function UploadBatchDialog({ open, onOpenChange, rooms, projectId, onComplete, customCategories }: {
+function UploadBatchDialog({ open, onOpenChange, rooms, projectId, onComplete, customCategories, drawingType = "working" }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   rooms: RoomWithCount[];
   projectId: string;
   onComplete: () => void;
   customCategories: DrawingCategory[];
+  drawingType?: "working" | "concept";
 }) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -790,6 +791,7 @@ function UploadBatchDialog({ open, onOpenChange, rooms, projectId, onComplete, c
     formData.append("roomId", roomId === "__none__" ? "" : roomId);
     formData.append("category", category);
     formData.append("state", revState);
+    formData.append("drawingType", drawingType);
     formData.append("titles", JSON.stringify(files.map((f) => f.title)));
     files.forEach((entry) => formData.append("files", entry.file));
 
@@ -970,7 +972,7 @@ function UploadBatchDialog({ open, onOpenChange, rooms, projectId, onComplete, c
 
 // ── Main page ────────────────────────────────────────────────────────────────
 
-export default function WorkingDrawingsPage() {
+export default function WorkingDrawingsPage({ drawingType = "working" }: { drawingType?: "working" | "concept" }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const search = useSearch();
@@ -996,7 +998,7 @@ export default function WorkingDrawingsPage() {
   const activeProjectId = filterProjectId || (projects[0]?.id ?? "");
 
   const roomsKey = ["/api/working-drawings/rooms", activeProjectId];
-  const drawingsKey = ["/api/working-drawings", activeProjectId, searchText];
+  const drawingsKey = ["/api/working-drawings", activeProjectId, searchText, drawingType];
   const catsKey = ["/api/working-drawings/categories"];
 
   const { data: rooms = [], isLoading: roomsLoading } = useQuery<RoomWithCount[]>({
@@ -1014,7 +1016,7 @@ export default function WorkingDrawingsPage() {
     queryKey: drawingsKey,
     queryFn: async () => {
       if (!activeProjectId) return [];
-      const sp = new URLSearchParams({ projectId: activeProjectId });
+      const sp = new URLSearchParams({ projectId: activeProjectId, drawingType });
       if (searchText) sp.set("search", searchText);
       const res = await fetch(`/api/working-drawings?${sp}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch drawings");
@@ -1288,7 +1290,7 @@ export default function WorkingDrawingsPage() {
       <div className="border-b bg-background px-6 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-lg font-semibold">Working Drawings</h1>
+            <h1 className="text-lg font-semibold">{drawingType === "concept" ? "Concept Drawings" : "Working Drawings"}</h1>
             {activeProject && <p className="text-sm text-muted-foreground mt-0.5">{activeProject.projectName}</p>}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -1684,6 +1686,7 @@ export default function WorkingDrawingsPage() {
         rooms={rooms}
         projectId={activeProjectId}
         customCategories={customCategories}
+        drawingType={drawingType}
         onComplete={() => {
           qc.invalidateQueries({ queryKey: drawingsKey });
           qc.invalidateQueries({ queryKey: roomsKey });

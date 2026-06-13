@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList, Lightbulb } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -28,6 +28,7 @@ const mainItems: NavigationItem[] = [
   { title: "Project scheduling", url: "/gantt-chart", icon: GanttChart },
   { title: "Moodboards", url: "/moodboards", icon: ImageIcon },
   { title: "Renders", url: "/renders", icon: Sparkles },
+  { title: "Concept Drawings", url: "/concept-drawings", icon: Lightbulb },
   { title: "Working Drawings", url: "/working-drawings", icon: PenTool },
   { title: "Vendors by Category", url: "/vendors", icon: Users },
   { title: "Comparative Quotes", url: "/quotes", icon: BarChart3 },
