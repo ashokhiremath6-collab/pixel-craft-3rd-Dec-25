@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download, FolderInput, MoreVertical, FileCode2, Layers, ChevronDown, ChevronUp, Pencil, BookmarkCheck, Bookmark } from "lucide-react";
+import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download, FolderInput, MoreVertical, FileCode2, Layers, ChevronDown, ChevronUp, ChevronRight, Pencil, BookmarkCheck, Bookmark } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +29,67 @@ import { User as UserIcon } from "lucide-react";
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+
+function ProjectSection({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <Card>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer select-none">
+            <CardTitle className="flex items-center gap-2 font-bold">
+              {open ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+              <FolderOpen className="h-5 w-5 text-primary" />
+              {title}
+              <Badge variant="secondary" className="ml-auto no-default-active-elevate">{count}</Badge>
+            </CardTitle>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent>{children}</CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
+  );
+}
+
+function RoomSection({ roomType, count, children }: { roomType: string; count: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button type="button" className="w-full flex items-center gap-2 pb-2 border-b text-left hover-elevate rounded">
+          {open ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+          <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">{roomType}</h4>
+          <Badge variant="outline" className="text-xs no-default-active-elevate">{count}</Badge>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="space-y-3 pl-2 pt-3">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function FolderSection({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button type="button" className="w-full flex items-center gap-2 pb-2 border-b text-left hover-elevate rounded">
+          {open ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+          <FolderOpen className="h-4 w-4 text-muted-foreground" />
+          <h4 className="font-bold text-sm uppercase tracking-wide">{label}</h4>
+          <Badge variant="outline" className="text-xs no-default-active-elevate">{count}</Badge>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="space-y-3 pl-2 pt-3">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
 
 export default function MoodboardsPage() {
   const { toast } = useToast();
@@ -1080,31 +1141,12 @@ export default function MoodboardsPage() {
       {!isLoading && !(isFetching && moodboards.length === 0) && moodboards.length > 0 && (
         <div className="space-y-6">
           {Object.entries(groupedMoodboards).map(([projectId, group]) => (
-            <Card key={projectId}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 font-bold">
-                  <FolderOpen className="h-5 w-5 text-primary" />
-                  {group.projectName}
-                  <Badge variant="secondary" className="ml-auto">
-                    {group.items.length}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+            <ProjectSection key={projectId} title={group.projectName} count={group.items.length}>
                 {/* For renders, show grouped by room type */}
                 {assetType === "render" && group.roomGroups ? (
                   <div className="space-y-6">
                     {Object.entries(group.roomGroups).map(([roomType, roomItems]) => (
-                      <div key={roomType} className="space-y-3">
-                        <div className="flex items-center gap-2 pb-2 border-b">
-                          <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-                            {roomType}
-                          </h4>
-                          <Badge variant="outline" className="text-xs">
-                            {roomItems.length}
-                          </Badge>
-                        </div>
-                        <div className="space-y-3 pl-2">
+                      <RoomSection key={roomType} roomType={roomType} count={roomItems.length}>
                           {roomItems.map((moodboard: Moodboard) => (
                             <div key={moodboard.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg hover-elevate" data-testid={`render-item-${moodboard.id}`}>
                               <div className="flex-1 min-w-0">
@@ -1182,8 +1224,7 @@ export default function MoodboardsPage() {
                               </div>
                             </div>
                           ))}
-                        </div>
-                      </div>
+                      </RoomSection>
                     ))}
                   </div>
                 ) : assetType === "working_drawing" && group.folderGroups ? (
@@ -1481,17 +1522,7 @@ export default function MoodboardsPage() {
                         candidates.forEach((c: Moodboard) => { if (c.id !== latest.id) olderVersionIds.add(c.id); });
                       });
                       return (
-                      <div key={folderName} className="space-y-3">
-                        <div className="flex items-center gap-2 pb-2 border-b">
-                          <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                          <h4 className="font-bold text-sm uppercase tracking-wide">
-                            {folderName}
-                          </h4>
-                          <Badge variant="outline" className="text-xs">
-                            {folderItems.length}
-                          </Badge>
-                        </div>
-                        <div className="space-y-3 pl-2">
+                      <FolderSection key={folderName} label={folderName} count={folderItems.length}>
                           {folderItems.map((moodboard: Moodboard) => {
                             const cadMeta = parseCadMeta(moodboard.description);
                             const isCAD = isCadFile(moodboard);
@@ -1660,8 +1691,7 @@ export default function MoodboardsPage() {
                             </div>
                           );
                           })}
-                        </div>
-                      </div>
+                      </FolderSection>
                       );
                     })}
 
@@ -1744,8 +1774,7 @@ export default function MoodboardsPage() {
                     ))}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+            </ProjectSection>
           ))}
         </div>
       )}
