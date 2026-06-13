@@ -1547,6 +1547,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // TEMPORARY: one-time admin fix to reassign AJAY (Plumbing) project_vendors to Meghna Ajay (Plumbing) and delete AJAY
+  app.post("/api/admin/fix-ajay-vendor", requireAdmin, async (req, res) => {
+    try {
+      const AJAY_ID = 'bb2670ff-7288-4ec2-b6c1-6282e859ca89';
+      const MEGHNA_AJAY_PLUMBING_ID = '12107a5d-5068-45e6-9872-933caa90a49d';
+
+      // Reassign all project_vendors from AJAY to Meghna Ajay (Plumbing)
+      const reassigned = await db.update(projectVendors)
+        .set({ vendorId: MEGHNA_AJAY_PLUMBING_ID })
+        .where(eq(projectVendors.vendorId, AJAY_ID))
+        .returning();
+
+      // Delete AJAY vendor
+      await db.delete(vendors).where(eq(vendors.id, AJAY_ID));
+
+      return res.json({ success: true, reassigned: reassigned.length, message: `Reassigned ${reassigned.length} project_vendor(s) from AJAY to Meghna Ajay (Plumbing), then deleted AJAY.` });
+    } catch (error) {
+      console.error('fix-ajay-vendor error:', error);
+      return res.status(500).json({ error: String(error) });
+    }
+  });
+
   app.delete("/api/vendors/:id", requireAdmin, async (req, res) => {
     try {
       // Get vendor details before deleting for activity log
