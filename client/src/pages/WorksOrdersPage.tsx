@@ -248,9 +248,16 @@ export default function WorksOrdersPage() {
   // This handles imported orders that may be linked to a 'Quoted' PV in the same category
   // rather than the exact 'Selected' PV.
   const unissuedItems = useMemo(() => {
-    // Build a lookup: pvId → { projectId, categoryId }
+    // Resolve the effective categoryId for a PV: prefer vendor.categoryId (always set)
+    // over pv.categoryId (nullable on most rows).
+    const pvEffectiveCategoryId = (pv: ProjectVendor): string | null => {
+      if (!pv.vendorId) return null;
+      const vendor = vendors.find((v) => v.id === pv.vendorId);
+      return vendor?.categoryId ?? pv.categoryId ?? null;
+    };
+    // Build a lookup: pvId → { projectId, effectiveCategoryId }
     const pvLookup = new Map(
-      projectVendors.map((pv) => [pv.id, { projectId: pv.projectId, categoryId: pv.categoryId }])
+      projectVendors.map((pv) => [pv.id, { projectId: pv.projectId, categoryId: pvEffectiveCategoryId(pv) }])
     );
     // Collect all project+category pairs that have at least one non-void works order
     const coveredKeys = new Set<string>();
@@ -258,13 +265,15 @@ export default function WorksOrdersPage() {
       .filter((o) => o.status !== "void")
       .forEach((o) => {
         const pv = pvLookup.get(o.projectVendorId);
-        if (pv) coveredKeys.add(`${pv.projectId}:${pv.categoryId}`);
+        if (pv?.categoryId) coveredKeys.add(`${pv.projectId}:${pv.categoryId}`);
       });
     return projectVendors
       .filter((pv) => {
         if (pv.status !== "Selected") return false;
+        const catId = pvEffectiveCategoryId(pv);
+        if (!catId) return false; // comparative rows — skip
         // Covered if any non-void order exists for the same project + category
-        return !coveredKeys.has(`${pv.projectId}:${pv.categoryId}`);
+        return !coveredKeys.has(`${pv.projectId}:${catId}`);
       })
       .map((pv) => {
         const vendor = vendors.find((v) => v.id === pv.vendorId);
