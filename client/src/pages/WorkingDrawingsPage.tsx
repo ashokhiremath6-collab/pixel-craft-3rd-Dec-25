@@ -146,7 +146,7 @@ const CATEGORY_ORDER = [
   "Floor Plan", "Reflected Ceiling Plan", "Elevation", "Section",
   "Joinery Detail", "Electrical Layout", "HVAC Layout", "Plumbing Layout",
   "Finishes Schedule", "Furniture Layout", "Specification",
-  "Hardware Schedule", "Door & Window Schedule", "BOQ", "Site Plan", "Other",
+  "Hardware Schedule", "Door & Window Schedule", "BOQ", "Site Plan", "References", "Other",
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {
