@@ -1278,13 +1278,24 @@ export default function WorkingDrawingsPage() {
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full rounded-md" />)}
           </div>
         ) : groups.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-              <FileText className="h-10 w-10 opacity-30" />
-              <p className="font-medium">No drawings found</p>
-              {searchText && <p className="text-sm">Try a different search term.</p>}
-            </CardContent>
-          </Card>
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+            <FileText className="h-10 w-10 opacity-30" />
+            <p className="font-medium">No drawings found</p>
+            {searchText
+              ? <p className="text-sm">Try a different search term.</p>
+              : viewMode === "room"
+                ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <p className="text-sm">Add rooms first, then upload drawings into them.</p>
+                    <Button variant="outline" onClick={() => setManageOpen(true)} className="gap-1.5 mt-1">
+                      <Plus className="h-4 w-4" />
+                      Add a room
+                    </Button>
+                  </div>
+                )
+                : <p className="text-sm">Upload drawings to get started.</p>
+            }
+          </div>
         ) : (
           <div className="space-y-1">
             {groups.map((group, idx) => (
@@ -1295,6 +1306,15 @@ export default function WorkingDrawingsPage() {
                 onMoveCategory={(d) => { setMovingDrawing(d); setNewCategory(`cat:${d.category}`); }}
                 onHistory={(d) => setHistoryDrawing(d)} />
             ))}
+            {viewMode === "room" && (
+              <button
+                onClick={() => setManageOpen(true)}
+                className="w-full flex items-center gap-2 px-4 py-3 mt-2 border-2 border-dashed border-muted-foreground/20 rounded-md text-muted-foreground hover-elevate text-sm transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Add another room
+              </button>
+            )}
           </div>
         )}
       </div>

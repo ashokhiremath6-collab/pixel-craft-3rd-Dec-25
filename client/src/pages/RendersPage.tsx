@@ -505,7 +505,10 @@ export default function RendersPage() {
             {/* Room type */}
             <div className="space-y-1.5">
               <Label>Room</Label>
-              <Select value={uploadRoomType} onValueChange={setUploadRoomType}>
+              <Select
+                value={ROOM_ORDER.includes(uploadRoomType) ? uploadRoomType : ""}
+                onValueChange={setUploadRoomType}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select room (optional)" />
                 </SelectTrigger>
@@ -515,6 +518,11 @@ export default function RendersPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Input
+                placeholder="Or type a custom room name..."
+                value={ROOM_ORDER.includes(uploadRoomType) ? "" : uploadRoomType}
+                onChange={(e) => setUploadRoomType(e.target.value)}
+              />
             </div>
           </div>
 
@@ -545,9 +553,12 @@ export default function RendersPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Room</Label>
-              <Select value={editRoomType} onValueChange={setEditRoomType}>
+              <Select
+                value={ROOM_ORDER.includes(editRoomType) ? editRoomType : ""}
+                onValueChange={setEditRoomType}
+              >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select room" />
                 </SelectTrigger>
                 <SelectContent>
                   {ROOM_ORDER.map((r) => (
@@ -555,6 +566,11 @@ export default function RendersPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Input
+                placeholder="Or type a custom room name..."
+                value={ROOM_ORDER.includes(editRoomType) ? "" : editRoomType}
+                onChange={(e) => setEditRoomType(e.target.value)}
+              />
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">

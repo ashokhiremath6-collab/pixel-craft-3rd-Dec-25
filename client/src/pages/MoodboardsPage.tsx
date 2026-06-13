@@ -118,6 +118,7 @@ export default function MoodboardsPage() {
   const [canvaLink, setCanvaLink] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
   const [selectedFolder, setSelectedFolder] = useState<string>(""); // For working drawings folder
+  const [selectedRoomType, setSelectedRoomType] = useState<string>(""); // For renders room type
   const [previewImage, setPreviewImage] = useState<Moodboard | null>(null);
   const [floorPlanViewer, setFloorPlanViewer] = useState<{url: string, name: string} | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -612,6 +613,7 @@ export default function MoodboardsPage() {
       setCanvaLink("");
       setSelectedProjectId("");
       setSelectedFolder("");
+      setSelectedRoomType("");
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -853,6 +855,10 @@ export default function MoodboardsPage() {
     // Include folder for working drawings
     if (assetType === "working_drawing" && selectedFolder) {
       formData.append("folder", selectedFolder);
+    }
+    // Include room type for renders
+    if (assetType === "render" && selectedRoomType) {
+      formData.append("roomType", selectedRoomType);
     }
     
     uploadMutation.mutate(formData);
@@ -1978,6 +1984,31 @@ export default function MoodboardsPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {/* Room Type - Only for Renders */}
+              {assetType === "render" && (
+                <div className="space-y-2">
+                  <Label htmlFor="upload-room-type">Room (Optional)</Label>
+                  <Select
+                    value={roomTypeOrder.includes(selectedRoomType) ? selectedRoomType : ""}
+                    onValueChange={setSelectedRoomType}
+                  >
+                    <SelectTrigger id="upload-room-type">
+                      <SelectValue placeholder="Select a room..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roomTypeOrder.map((room) => (
+                        <SelectItem key={room} value={room}>{room}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="Or type a custom room name..."
+                    value={roomTypeOrder.includes(selectedRoomType) ? "" : selectedRoomType}
+                    onChange={(e) => setSelectedRoomType(e.target.value)}
+                  />
                 </div>
               )}
 
