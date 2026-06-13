@@ -1554,13 +1554,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const MEGHNA_AJAY_PLUMBING_ID = '12107a5d-5068-45e6-9872-933caa90a49d';
 
       // Reassign all project_vendors from AJAY to Meghna Ajay (Plumbing)
-      const reassigned = await db.update(projectVendors)
-        .set({ vendorId: MEGHNA_AJAY_PLUMBING_ID })
-        .where(eq(projectVendors.vendorId, AJAY_ID))
-        .returning();
+      const reassigned = await db.execute(sql`UPDATE project_vendors SET vendor_id = ${MEGHNA_AJAY_PLUMBING_ID} WHERE vendor_id = ${AJAY_ID} RETURNING id`);
 
       // Delete AJAY vendor
-      await db.delete(vendors).where(eq(vendors.id, AJAY_ID));
+      await db.execute(sql`DELETE FROM vendors WHERE id = ${AJAY_ID}`);
 
       return res.json({ success: true, reassigned: reassigned.length, message: `Reassigned ${reassigned.length} project_vendor(s) from AJAY to Meghna Ajay (Plumbing), then deleted AJAY.` });
     } catch (error) {
