@@ -1552,13 +1552,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const MEGHNA_AJAY_PLUMBING_PV_ID = '0acc7a43-628c-4a3b-b67b-372c5c529d54';
       const MEGHNA_AJAY_PLUMBING_VENDOR_ID = '12107a5d-5068-45e6-9872-933caa90a49d';
-      // Delete child records first to satisfy FK constraints
-      await db.execute(sql`DELETE FROM quote_files WHERE project_vendor_id = ${MEGHNA_AJAY_PLUMBING_PV_ID}`);
-      // works_order_files cascade from works_orders; delete any works_orders for this project_vendor first
+      // Delete in dependency order to satisfy all FK constraints
+      // 1. works_order_items (references works_orders and source_project_vendor_id)
+      await db.execute(sql`
+        DELETE FROM works_order_items WHERE works_order_id IN (
+          SELECT id FROM works_orders WHERE project_vendor_id = ${MEGHNA_AJAY_PLUMBING_PV_ID}
+        )
+      `);
+      await db.execute(sql`DELETE FROM works_order_items WHERE source_project_vendor_id = ${MEGHNA_AJAY_PLUMBING_PV_ID}`);
+      // 2. works_order_signatures and works_order_files (cascade children of works_orders)
+      await db.execute(sql`
+        DELETE FROM works_order_signatures WHERE works_order_id IN (
+          SELECT id FROM works_orders WHERE project_vendor_id = ${MEGHNA_AJAY_PLUMBING_PV_ID}
+        )
+      `);
+      await db.execute(sql`
+        DELETE FROM works_order_files WHERE works_order_id IN (
+          SELECT id FROM works_orders WHERE project_vendor_id = ${MEGHNA_AJAY_PLUMBING_PV_ID}
+        )
+      `);
+      // 3. works_orders
       await db.execute(sql`DELETE FROM works_orders WHERE project_vendor_id = ${MEGHNA_AJAY_PLUMBING_PV_ID}`);
+      // 4. boq and quote_files
+      await db.execute(sql`DELETE FROM boq WHERE project_vendor_id = ${MEGHNA_AJAY_PLUMBING_PV_ID}`);
+      await db.execute(sql`DELETE FROM quote_files WHERE project_vendor_id = ${MEGHNA_AJAY_PLUMBING_PV_ID}`);
+      // 5. project_vendor and vendor
       await db.execute(sql`DELETE FROM project_vendors WHERE id = ${MEGHNA_AJAY_PLUMBING_PV_ID}`);
       await db.execute(sql`DELETE FROM vendors WHERE id = ${MEGHNA_AJAY_PLUMBING_VENDOR_ID}`);
-      return res.json({ success: true, message: 'Deleted Meghna Ajay (Plumbing) quote_files, works_orders, project_vendor and vendor.' });
+      return res.json({ success: true, message: 'Deleted Meghna Ajay (Plumbing) and all related records.' });
     } catch (error) {
       console.error('fix-meghna-plumbing error:', error);
       return res.status(500).json({ error: String(error) });
