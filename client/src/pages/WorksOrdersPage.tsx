@@ -104,6 +104,16 @@ export default function WorksOrdersPage() {
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+
+  const toggleCategory = (category: string) => {
+    setCollapsedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  };
   
   // Template state
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
@@ -990,13 +1000,19 @@ export default function WorksOrdersPage() {
                 <div className="space-y-8">
                   {ordersByCategory.map(([category, categoryOrders]) => (
                     <div key={category}>
-                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <span>{category}</span>
+                      <button
+                        className="w-full flex items-center gap-2 mb-4 hover-elevate rounded-md px-1 -mx-1 py-0.5 text-left"
+                        onClick={() => toggleCategory(category)}
+                      >
+                        <ChevronDown
+                          className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200 ${collapsedCategories.has(category) ? '-rotate-90' : ''}`}
+                        />
+                        <span className="text-lg font-semibold">{category}</span>
                         <Badge variant="secondary" className="text-xs">
                           {categoryOrders.length} {categoryOrders.length === 1 ? 'order' : 'orders'}
                         </Badge>
-                      </h3>
-                      <div className="grid gap-4">
+                      </button>
+                      {!collapsedCategories.has(category) && <div className="grid gap-4">
                         {categoryOrders.map((order: any) => {
                     const pv = projectVendors.find(v => v.id === order.projectVendorId);
                     const project = projects.find(p => p.id === pv?.projectId);
@@ -1136,7 +1152,7 @@ export default function WorksOrdersPage() {
                           </Card>
                         );
                       })}
-                      </div>
+                      </div>}
                     </div>
                   ))}
                 </div>
