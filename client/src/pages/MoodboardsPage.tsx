@@ -1764,6 +1764,20 @@ export default function MoodboardsPage() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-8 w-8"
+                            onClick={() => {
+                              setEditingRender(moodboard);
+                              setEditName(moodboard.name || "");
+                              const stored = (moodboard as any).roomType;
+                              setEditRoomType((stored && stored !== "General") ? stored : "");
+                            }}
+                            data-testid={`button-edit-${moodboard.id}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8 text-red-600 hover:text-red-700"
                             onClick={() => deleteMoodboard(moodboard.id)}
                             disabled={deleteMutation.isPending}
@@ -1987,8 +2001,8 @@ export default function MoodboardsPage() {
                 </div>
               )}
 
-              {/* Room Type - Only for Renders */}
-              {assetType === "render" && (
+              {/* Room Type - For Moodboards and Renders */}
+              {assetType !== "working_drawing" && (
                 <div className="space-y-2">
                   <Label htmlFor="upload-room-type">Room (Optional)</Label>
                   <Select
@@ -2246,12 +2260,12 @@ export default function MoodboardsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Render — name + room type */}
+      {/* Edit item — name + room type */}
       <Dialog open={!!editingRender} onOpenChange={(open) => { if (!open) setEditingRender(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Render</DialogTitle>
-            <DialogDescription>Update the name and room type for this render.</DialogDescription>
+            <DialogTitle>{assetType === "moodboard" ? "Edit Moodboard" : "Edit Render"}</DialogTitle>
+            <DialogDescription>Update the name and room type.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-1.5">
