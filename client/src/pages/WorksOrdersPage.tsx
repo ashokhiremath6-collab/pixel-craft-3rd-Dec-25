@@ -216,24 +216,29 @@ export default function WorksOrdersPage() {
   };
 
   // Category groups (project + category) where NO quote has been selected yet.
-  // Only consider "item" quotations (skip options/subitems to avoid double-counting).
+  // Non-option items create the group entries (avoid double-counting categories).
+  // Options are skipped for group creation but still mark hasSelected if they are Selected,
+  // because in practice the selected item is often an "option" sub-quote.
   const unselectedGroups = useMemo(() => {
     const groups = new Map<string, { projectId: string; projectName: string; category: string; hasSelected: boolean }>();
     projectVendors.forEach((pv) => {
-      if (pv.quotationType === "option") return; // sub-options — skip
       const categoryName = pvCategoryName(pv);
       if (!categoryName) return;
       const key = `${pv.projectId}__${categoryName}`;
-      const project = projects.find((p) => p.id === pv.projectId);
-      if (!groups.has(key)) {
-        groups.set(key, {
-          projectId: pv.projectId,
-          projectName: project?.projectName ?? "Unknown Project",
-          category: categoryName,
-          hasSelected: false,
-        });
+      // Only non-option PVs create the group entry (prevents double-counting)
+      if (pv.quotationType !== "option") {
+        const project = projects.find((p) => p.id === pv.projectId);
+        if (!groups.has(key)) {
+          groups.set(key, {
+            projectId: pv.projectId,
+            projectName: project?.projectName ?? "Unknown Project",
+            category: categoryName,
+            hasSelected: false,
+          });
+        }
       }
-      if (pv.status === "Selected") {
+      // All PVs (including options) can mark the group as having a selection
+      if (pv.status === "Selected" && groups.has(key)) {
         groups.get(key)!.hasSelected = true;
       }
     });
