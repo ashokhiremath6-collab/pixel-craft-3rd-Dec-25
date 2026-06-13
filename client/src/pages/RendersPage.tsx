@@ -352,7 +352,7 @@ export default function RendersPage() {
         {activeProjectId && !isLoading && groups.length > 0 && (
           <div className="space-y-1">
             {groups.map((group, idx) => (
-              <GroupSection key={group.room} label={group.room} count={group.items.length} defaultOpen={idx === 0}>
+              <GroupSection key={group.room} label={group.room} count={group.items.length} defaultOpen={false}>
                 {group.items.map((render) => {
                   const previewUrl = getPreviewUrl(render);
                   const savedByName = (render as any).savedBy ? userMap.get((render as any).savedBy) : null;
