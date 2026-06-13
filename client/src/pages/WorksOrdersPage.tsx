@@ -248,12 +248,16 @@ export default function WorksOrdersPage() {
   // This handles imported orders that may be linked to a 'Quoted' PV in the same category
   // rather than the exact 'Selected' PV.
   const unissuedItems = useMemo(() => {
-    // Resolve the effective categoryId for a PV: prefer vendor.categoryId (always set)
-    // over pv.categoryId (nullable on most rows).
+    // Resolve the effective categoryId for a PV.
+    // For regular quotes: vendor.categoryId is always set and is the ground truth.
+    // For comparative rows (no vendorId): fall back to pv.categoryId which IS set on those rows.
+    // pv.categoryId alone is unreliable for regular quotes (it's nullable there).
     const pvEffectiveCategoryId = (pv: ProjectVendor): string | null => {
-      if (!pv.vendorId) return null;
-      const vendor = vendors.find((v) => v.id === pv.vendorId);
-      return vendor?.categoryId ?? pv.categoryId ?? null;
+      if (pv.vendorId) {
+        const vendor = vendors.find((v) => v.id === pv.vendorId);
+        return vendor?.categoryId ?? pv.categoryId ?? null;
+      }
+      return pv.categoryId ?? null; // comparative rows: pv.categoryId is set directly
     };
     // Build a lookup: pvId → { projectId, effectiveCategoryId }
     const pvLookup = new Map(
@@ -271,7 +275,7 @@ export default function WorksOrdersPage() {
       .filter((pv) => {
         if (pv.status !== "Selected") return false;
         const catId = pvEffectiveCategoryId(pv);
-        if (!catId) return false; // comparative rows — skip
+        if (!catId) return false; // no category resolvable — skip
         // Covered if any non-void order exists for the same project + category
         return !coveredKeys.has(`${pv.projectId}:${catId}`);
       })
