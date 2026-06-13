@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from "react";
+import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -1303,7 +1304,7 @@ export default function WorkingDrawingsPage({ drawingType = "working" }: { drawi
               }}>
                 <SelectTrigger className="w-48"><SelectValue placeholder="Select project" /></SelectTrigger>
                 <SelectContent>
-                  {projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>)}
+                  {sortProjectsForDropdown(projects).map((p) => <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>)}
                 </SelectContent>
               </Select>
             )}

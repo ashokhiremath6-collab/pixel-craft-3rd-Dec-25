@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -1883,7 +1884,7 @@ export default function AIRendersPage() {
                       <SelectValue placeholder="Select a project" />
                     </SelectTrigger>
                     <SelectContent>
-                      {projects.map((project) => (
+                      {sortProjectsForDropdown(projects).map((project) => (
                         <SelectItem key={project.id} value={project.id}>
                           {project.projectName}
                         </SelectItem>

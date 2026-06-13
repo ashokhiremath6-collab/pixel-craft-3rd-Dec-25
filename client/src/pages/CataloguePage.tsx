@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PlanLimitBanner } from "@/components/PlanLimitBanner";
@@ -481,7 +482,7 @@ export default function CataloguePage() {
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
                     <SelectItem value="all">All Projects</SelectItem>
-                    {projects.map((project) => (
+                    {sortProjectsForDropdown(projects).map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.projectName}
                       </SelectItem>

@@ -1,3 +1,4 @@
+import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useState, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -539,7 +540,7 @@ export default function FloorPlansPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {projects.map((project) => (
+                          {sortProjectsForDropdown(projects).map((project) => (
                             <SelectItem key={project.id} value={project.id}>
                               {project.projectName} - {project.clientName}
                             </SelectItem>
@@ -685,7 +686,7 @@ export default function FloorPlansPage() {
                 <SelectValue placeholder="Select a project to view floor plans" />
               </SelectTrigger>
               <SelectContent>
-                {projects.map((project) => (
+                {sortProjectsForDropdown(projects).map((project) => (
                   <SelectItem key={project.id} value={project.id}>
                     {project.projectName} - {project.clientName}
                   </SelectItem>
@@ -957,7 +958,7 @@ export default function FloorPlansPage() {
                   <SelectValue placeholder="Select a project" />
                 </SelectTrigger>
                 <SelectContent>
-                  {projects.map((project) => (
+                  {sortProjectsForDropdown(projects).map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.projectName} - {project.clientName}
                     </SelectItem>

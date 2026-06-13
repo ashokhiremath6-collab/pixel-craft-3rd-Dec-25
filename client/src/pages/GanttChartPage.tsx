@@ -1,4 +1,5 @@
 import { useState, useMemo, Fragment, useRef, useEffect } from "react";
+import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -870,7 +871,7 @@ export default function GanttChartPage() {
                   <SelectValue placeholder="Select a project" />
                 </SelectTrigger>
                 <SelectContent>
-                  {projects.map((project) => (
+                  {sortProjectsForDropdown(projects).map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.projectName}
                     </SelectItem>

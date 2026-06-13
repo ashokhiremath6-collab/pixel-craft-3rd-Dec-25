@@ -1,5 +1,6 @@
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { useState, useMemo, useEffect, useRef } from "react";
+import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -886,7 +887,7 @@ export default function WorksOrdersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Projects</SelectItem>
-                    {projects.map((project) => (
+                    {sortProjectsForDropdown(projects).map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.projectName}
                       </SelectItem>
@@ -1701,7 +1702,7 @@ export default function WorksOrdersPage() {
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
-                  {projects.map((project) => (
+                  {sortProjectsForDropdown(projects).map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.projectName}
                     </SelectItem>

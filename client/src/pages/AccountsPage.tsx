@@ -1,5 +1,6 @@
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { useState } from "react";
+import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -650,7 +651,7 @@ export default function AccountsPage() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {projects.map((project) => (
+                              {sortProjectsForDropdown(projects).map((project) => (
                                 <SelectItem key={project.id} value={project.id}>
                                   {project.projectName}
                                 </SelectItem>

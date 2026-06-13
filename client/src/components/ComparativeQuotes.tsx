@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -663,7 +664,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
                 <SelectContent>
-                  {projects.map(project => (
+                  {sortProjectsForDropdown(projects).map(project => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.projectName}
                     </SelectItem>

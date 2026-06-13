@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from "react";
+import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1092,7 +1093,7 @@ export default function MoodboardsPage() {
               <SelectValue placeholder="Select a project" />
             </SelectTrigger>
             <SelectContent>
-              {projects.map((project) => (
+              {sortProjectsForDropdown(projects).map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.projectName} - {project.clientName}
                 </SelectItem>
@@ -1878,7 +1879,7 @@ export default function MoodboardsPage() {
                         <SelectValue placeholder="Select a project..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {projects.map((project) => (
+                        {sortProjectsForDropdown(projects).map((project) => (
                           <SelectItem key={project.id} value={project.id}>
                             {project.projectName} - {project.clientName}
                           </SelectItem>
@@ -1973,7 +1974,7 @@ export default function MoodboardsPage() {
                     <SelectValue placeholder="Select a project..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {projects.map((project) => (
+                    {sortProjectsForDropdown(projects).map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.projectName} - {project.clientName}
                       </SelectItem>
@@ -2124,7 +2125,7 @@ export default function MoodboardsPage() {
               <Select value={cadProjectId} onValueChange={setCadProjectId}>
                 <SelectTrigger><SelectValue placeholder="Select a project" /></SelectTrigger>
                 <SelectContent>
-                  {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.projectName} - {p.clientName}</SelectItem>)}
+                  {sortProjectsForDropdown(projects).map(p => <SelectItem key={p.id} value={p.id}>{p.projectName} - {p.clientName}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

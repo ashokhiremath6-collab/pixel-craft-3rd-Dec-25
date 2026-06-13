@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from "react";
+import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
@@ -702,7 +703,7 @@ export default function MeetingMinutesPage() {
                 <SelectContent>
                   <SelectItem value="all">All Projects</SelectItem>
                   <SelectItem value="general">General/Company Meetings</SelectItem>
-                  {projects.map((project) => (
+                  {sortProjectsForDropdown(projects).map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.projectName}
                     </SelectItem>
@@ -893,7 +894,7 @@ export default function MeetingMinutesPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="general">General/Company Meeting</SelectItem>
-                    {projects.map((project) => (
+                    {sortProjectsForDropdown(projects).map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.projectName}
                       </SelectItem>
@@ -1063,7 +1064,7 @@ export default function MeetingMinutesPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="general">General/Company Meeting</SelectItem>
-                        {projects.map((project) => (
+                        {sortProjectsForDropdown(projects).map((project) => (
                           <SelectItem key={project.id} value={project.id}>
                             {project.projectName}
                           </SelectItem>
