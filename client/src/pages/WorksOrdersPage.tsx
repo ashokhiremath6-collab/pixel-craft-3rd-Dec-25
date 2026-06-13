@@ -116,15 +116,8 @@ export default function WorksOrdersPage() {
     });
   };
 
-  // Collapse all categories by default when data first loads
   const categoriesInitialized = useRef(false);
-  useEffect(() => {
-    if (!categoriesInitialized.current && ordersByCategory.length > 0) {
-      categoriesInitialized.current = true;
-      setCollapsedCategories(new Set(ordersByCategory.map(([cat]) => cat)));
-    }
-  }, [ordersByCategory]);
-  
+
   // Template state
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [templateFormData, setTemplateFormData] = useState({
@@ -581,6 +574,14 @@ export default function WorksOrdersPage() {
     // Sort categories alphabetically
     return Array.from(grouped.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [filteredOrders]);
+
+  // Collapse all categories by default when data first loads (must be after ordersByCategory is defined)
+  useEffect(() => {
+    if (!categoriesInitialized.current && ordersByCategory.length > 0) {
+      categoriesInitialized.current = true;
+      setCollapsedCategories(new Set(ordersByCategory.map(([cat]) => cat)));
+    }
+  }, [ordersByCategory]);
 
   // Helper functions
   const resetTemplateForm = () => {
