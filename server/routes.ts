@@ -1547,6 +1547,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // TEMPORARY: delete Meghna Ajay (Plumbing) project_vendor record and the Plumbing vendor
+  app.post("/api/admin/fix-meghna-plumbing", requireAdmin, async (req, res) => {
+    try {
+      const MEGHNA_AJAY_PLUMBING_PV_ID = '0acc7a43-628c-4a3b-b67b-372c5c529d54';
+      const MEGHNA_AJAY_PLUMBING_VENDOR_ID = '12107a5d-5068-45e6-9872-933caa90a49d';
+      await db.execute(sql`DELETE FROM project_vendors WHERE id = ${MEGHNA_AJAY_PLUMBING_PV_ID}`);
+      await db.execute(sql`DELETE FROM vendors WHERE id = ${MEGHNA_AJAY_PLUMBING_VENDOR_ID}`);
+      return res.json({ success: true, message: 'Deleted Meghna Ajay (Plumbing) project_vendor and vendor.' });
+    } catch (error) {
+      console.error('fix-meghna-plumbing error:', error);
+      return res.status(500).json({ error: String(error) });
+    }
+  });
+
   app.delete("/api/vendors/:id", requireAdmin, async (req, res) => {
     try {
       // Get vendor details before deleting for activity log
