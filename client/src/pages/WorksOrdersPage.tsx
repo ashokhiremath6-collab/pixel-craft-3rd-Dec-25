@@ -1,5 +1,5 @@
 import { FileViewerModal } from "@/components/FileViewerModal";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -114,6 +114,15 @@ export default function WorksOrdersPage() {
       return next;
     });
   };
+
+  // Collapse all categories by default when data first loads
+  const categoriesInitialized = useRef(false);
+  useEffect(() => {
+    if (!categoriesInitialized.current && ordersByCategory.length > 0) {
+      categoriesInitialized.current = true;
+      setCollapsedCategories(new Set(ordersByCategory.map(([cat]) => cat)));
+    }
+  }, [ordersByCategory]);
   
   // Template state
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
