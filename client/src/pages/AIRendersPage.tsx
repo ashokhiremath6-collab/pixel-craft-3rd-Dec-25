@@ -1894,16 +1894,32 @@ export default function AIRendersPage() {
 
                 <div>
                   <Label htmlFor="save-room-type">Room Type</Label>
-                  <Select value={selectedRoomType} onValueChange={setSelectedRoomType}>
-                    <SelectTrigger className="mt-2" data-testid="select-room-type">
-                      <SelectValue placeholder="Select room type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["Living Room", "Bedroom", "Kitchen", "Dining Room", "Bathroom", "Study", "Kids Room", "Guest Room", "Puja Room", "Hallway", "Walk-in Closet", "Balcony", "General"].map((room) => (
-                        <SelectItem key={room} value={room}>{room}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {(() => {
+                    const predefined = ["Living Room", "Bedroom", "Kitchen", "Dining Room", "Bathroom", "Study", "Kids Room", "Guest Room", "Puja Room", "Hallway", "Walk-in Closet", "Balcony", "General"];
+                    const isCustom = selectedRoomType !== "" && !predefined.includes(selectedRoomType);
+                    return (
+                      <div className="mt-2 space-y-2">
+                        <Select
+                          value={isCustom ? "" : selectedRoomType}
+                          onValueChange={(val) => setSelectedRoomType(val)}
+                        >
+                          <SelectTrigger data-testid="select-room-type">
+                            <SelectValue placeholder="Select room type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {predefined.map((room) => (
+                              <SelectItem key={room} value={room}>{room}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          placeholder="Or type a custom room name..."
+                          value={isCustom ? selectedRoomType : ""}
+                          onChange={(e) => setSelectedRoomType(e.target.value)}
+                        />
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div>

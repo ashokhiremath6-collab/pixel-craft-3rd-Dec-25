@@ -2205,16 +2205,32 @@ export default function MoodboardsPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="edit-render-room">Room Type</Label>
-              <Select value={editRoomType} onValueChange={setEditRoomType}>
-                <SelectTrigger id="edit-render-room">
-                  <SelectValue placeholder="Select room type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {["Living Room", "Foyer", "Bedroom", "Kitchen", "Dining Room", "Bathroom", "Study", "Kids Room", "Guest Room", "Puja Room", "Hallway", "Walk-in Closet", "Balcony", "General"].map((room) => (
-                    <SelectItem key={room} value={room}>{room}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {(() => {
+                const predefined = ["Living Room", "Foyer", "Bedroom", "Kitchen", "Dining Room", "Bathroom", "Study", "Kids Room", "Guest Room", "Puja Room", "Hallway", "Walk-in Closet", "Balcony", "General"];
+                const isCustom = editRoomType !== "" && !predefined.includes(editRoomType);
+                return (
+                  <div className="space-y-2">
+                    <Select
+                      value={isCustom ? "" : editRoomType}
+                      onValueChange={(val) => setEditRoomType(val)}
+                    >
+                      <SelectTrigger id="edit-render-room">
+                        <SelectValue placeholder="Select room type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {predefined.map((room) => (
+                          <SelectItem key={room} value={room}>{room}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      placeholder="Or type a custom room name..."
+                      value={isCustom ? editRoomType : ""}
+                      onChange={(e) => setEditRoomType(e.target.value)}
+                    />
+                  </div>
+                );
+              })()}
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setEditingRender(null)} disabled={updateRenderMutation.isPending}>
