@@ -1289,7 +1289,7 @@ export default function WorkingDrawingsPage() {
           <div className="space-y-1">
             {groups.map((group, idx) => (
               <GroupSection key={group.key} label={group.label} count={group.drawings.length}
-                drawings={group.drawings} defaultOpen={idx === 0 && group.drawings.length > 0}
+                drawings={group.drawings} defaultOpen={false}
                 onView={handleView}
                 onDelete={(d) => setDeletingDrawing(d)}
                 onMoveCategory={(d) => { setMovingDrawing(d); setNewCategory(`cat:${d.category}`); }}
