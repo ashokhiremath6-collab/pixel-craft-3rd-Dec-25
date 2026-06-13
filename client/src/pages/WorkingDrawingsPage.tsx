@@ -408,24 +408,79 @@ function RevisionSheet({ drawing, onClose, onViewRevision }: {
 
 // ── Drawing table row ────────────────────────────────────────────────────────
 
-function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory, onHistory }: {
+function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory, onHistory, onRename }: {
   drawing: DrawingRow;
   onView: (d: DrawingRow) => void;
   onDelete: (d: DrawingRow) => void;
   onMoveCategory: (d: DrawingRow) => void;
   onHistory: (d: DrawingRow) => void;
+  onRename: (id: string, title: string) => void;
 }) {
   const rev = drawing.latestRevision;
   const catColor = CATEGORY_COLORS[drawing.category] || "bg-muted text-muted-foreground";
   const stateColor = rev ? (STATE_BADGE[rev.state] || "bg-muted text-muted-foreground") : "";
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleInput, setTitleInput] = useState(drawing.title);
+  const titleRef = useRef<HTMLInputElement>(null);
+
+  function startEdit(e: React.MouseEvent) {
+    e.stopPropagation();
+    setTitleInput(drawing.title);
+    setEditingTitle(true);
+    setTimeout(() => titleRef.current?.select(), 0);
+  }
+
+  function commitEdit(e?: React.MouseEvent) {
+    e?.stopPropagation();
+    const trimmed = titleInput.trim();
+    if (trimmed && trimmed !== drawing.title) onRename(drawing.id, trimmed);
+    setEditingTitle(false);
+  }
+
+  function cancelEdit(e?: React.MouseEvent) {
+    e?.stopPropagation();
+    setTitleInput(drawing.title);
+    setEditingTitle(false);
+  }
 
   return (
-    <TableRow className="hover-elevate cursor-pointer group" onClick={() => onView(drawing)}>
+    <TableRow className={`hover-elevate group ${editingTitle ? "" : "cursor-pointer"}`} onClick={() => { if (!editingTitle) onView(drawing); }}>
       <TableCell className="font-medium">
-        <div className="flex items-center gap-2">
-          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span>{drawing.title}</span>
-        </div>
+        {editingTitle ? (
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <Input
+              ref={titleRef}
+              value={titleInput}
+              onChange={(e) => setTitleInput(e.target.value)}
+              className="h-7 text-sm flex-1"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitEdit();
+                if (e.key === "Escape") cancelEdit();
+              }}
+            />
+            <Button size="icon" variant="ghost" onClick={commitEdit} title="Save" className="h-7 w-7 shrink-0">
+              <Check className="h-3.5 w-3.5 text-green-600" />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={cancelEdit} title="Cancel" className="h-7 w-7 shrink-0">
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span>{drawing.title}</span>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={startEdit}
+              title="Rename"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
       </TableCell>
       <TableCell>
         <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${catColor}`}>
@@ -485,10 +540,10 @@ function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory, onHistory 
 
 // ── Collapsible group ────────────────────────────────────────────────────────
 
-function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete, onMoveCategory, onHistory }: {
+function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete, onMoveCategory, onHistory, onRename }: {
   label: string; count: number; drawings: DrawingRow[]; defaultOpen: boolean;
   onView: (d: DrawingRow) => void; onDelete: (d: DrawingRow) => void; onMoveCategory: (d: DrawingRow) => void;
-  onHistory: (d: DrawingRow) => void;
+  onHistory: (d: DrawingRow) => void; onRename: (id: string, title: string) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const isEmpty = drawings.length === 0;
@@ -536,7 +591,7 @@ function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete, o
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} onDelete={onDelete} onMoveCategory={onMoveCategory} onHistory={onHistory} />)}
+                {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} onDelete={onDelete} onMoveCategory={onMoveCategory} onHistory={onHistory} onRename={onRename} />)}
               </TableBody>
             </Table>
           )}
@@ -1359,7 +1414,8 @@ export default function WorkingDrawingsPage() {
                 onView={handleView}
                 onDelete={(d) => setDeletingDrawing(d)}
                 onMoveCategory={(d) => { setMovingDrawing(d); setNewCategory(`cat:${d.category}`); }}
-                onHistory={(d) => setHistoryDrawing(d)} />
+                onHistory={(d) => setHistoryDrawing(d)}
+                onRename={(id, title) => moveCategoryMut.mutate({ id, title })} />
             ))}
             {viewMode === "room" && (
               <button
