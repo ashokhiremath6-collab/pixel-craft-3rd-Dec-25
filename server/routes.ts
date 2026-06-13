@@ -1587,6 +1587,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reassign all project_vendor links from one vendor to another (admin only)
+  app.post("/api/vendors/:id/reassign", requireAdmin, async (req, res) => {
+    try {
+      const sourceId = req.params.id;
+      const { targetVendorId } = req.body;
+      if (!targetVendorId || typeof targetVendorId !== "string") {
+        return res.status(400).json({ error: "targetVendorId is required" });
+      }
+      if (sourceId === targetVendorId) {
+        return res.status(400).json({ error: "Source and target vendor must be different" });
+      }
+      const sourceVendor = await storage.getVendor(sourceId);
+      if (!sourceVendor) return res.status(404).json({ error: "Source vendor not found" });
+      const targetVendor = await storage.getVendor(targetVendorId);
+      if (!targetVendor) return res.status(404).json({ error: "Target vendor not found" });
+      // Update all project_vendors pointing to sourceId to point to targetVendorId
+      await db.execute(
+        sql`UPDATE project_vendors SET vendor_id = ${targetVendorId} WHERE vendor_id = ${sourceId}`
+      );
+      res.json({ message: `Reassigned all project links from "${sourceVendor.name}" to "${targetVendor.name}"` });
+    } catch (error) {
+      console.error("Error reassigning vendor projects:", error);
+      res.status(500).json({ error: "Failed to reassign vendor projects" });
+    }
+  });
+
   // Vendor Contacts Routes
   app.get("/api/vendors/:vendorId/contacts", requireAuth, async (req, res) => {
     try {

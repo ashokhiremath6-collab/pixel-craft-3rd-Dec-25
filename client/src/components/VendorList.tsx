@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
-import { Search, Plus, Filter, ChevronRight, ChevronDown, FolderPlus, Edit, Trash2, Phone, Mail, User, Building2, Users, FileText, AlertTriangle } from "lucide-react";
+import { Search, Plus, Filter, ChevronRight, ChevronDown, FolderPlus, Edit, Trash2, Phone, Mail, User, Building2, Users, FileText, AlertTriangle, ArrowRightLeft } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useForm } from "react-hook-form";
@@ -102,6 +102,9 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   const [selectedVendorForContacts, setSelectedVendorForContacts] = useState<Vendor | null>(null);
   const [editingContact, setEditingContact] = useState<VendorContact | null>(null);
   const [additionalContacts, setAdditionalContacts] = useState<Array<Omit<ContactFormData, 'isPrimary'>>>([]);
+  const [isReassignDialogOpen, setIsReassignDialogOpen] = useState(false);
+  const [reassignSourceVendor, setReassignSourceVendor] = useState<Vendor | null>(null);
+  const [reassignTargetId, setReassignTargetId] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -434,6 +437,42 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   const handleManageContacts = (vendor: Vendor) => {
     setSelectedVendorForContacts(vendor);
     setIsContactsDialogOpen(true);
+  };
+
+  // Reassign vendor projects mutation
+  const reassignMutation = useMutation({
+    mutationFn: async ({ sourceId, targetVendorId }: { sourceId: string; targetVendorId: string }) => {
+      const res = await apiRequest('POST', `/api/vendors/${sourceId}/reassign`, { targetVendorId });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors-with-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/project-vendors'] });
+      setIsReassignDialogOpen(false);
+      setReassignSourceVendor(null);
+      setReassignTargetId("");
+      toast({ title: "Reassigned", description: data.message });
+    },
+    onError: (error: any) => {
+      let msg = "Failed to reassign vendor projects.";
+      try {
+        const match = error?.message?.match(/\d+:\s*(.+)/);
+        if (match) { const j = JSON.parse(match[1]); msg = j.error || msg; }
+      } catch { /* use default */ }
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    },
+  });
+
+  const handleReassignClick = (vendor: Vendor) => {
+    setReassignSourceVendor(vendor);
+    setReassignTargetId("");
+    setIsReassignDialogOpen(true);
+  };
+
+  const handleReassignConfirm = () => {
+    if (!reassignSourceVendor || !reassignTargetId) return;
+    reassignMutation.mutate({ sourceId: reassignSourceVendor.id, targetVendorId: reassignTargetId });
   };
 
   const handleSaveContact = (data: ContactFormData) => {
@@ -1312,6 +1351,17 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                           >
                             <Users className="h-4 w-4" />
                           </Button>
+                          {vendor.projects && vendor.projects.length > 0 && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleReassignClick(vendor)}
+                              data-testid="button-reassign-vendor"
+                              title="Reassign project links to another vendor"
+                            >
+                              <ArrowRightLeft className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button 
                             size="icon" 
                             variant="ghost" 
@@ -1358,6 +1408,58 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
           </CardContent>
         </Card>
       )}
+
+      {/* Reassign Vendor Dialog */}
+      <Dialog open={isReassignDialogOpen} onOpenChange={(open) => {
+        setIsReassignDialogOpen(open);
+        if (!open) { setReassignSourceVendor(null); setReassignTargetId(""); }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reassign Project Links</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Move all project quotation links from{" "}
+              <span className="font-medium text-foreground">{reassignSourceVendor?.name}</span>{" "}
+              to another vendor. After reassigning, you can safely delete{" "}
+              <span className="font-medium text-foreground">{reassignSourceVendor?.name}</span>.
+            </p>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Transfer links to</label>
+              <Select value={reassignTargetId} onValueChange={setReassignTargetId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select target vendor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vendors
+                    .filter(v => v.id !== reassignSourceVendor?.id)
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(v => (
+                      <SelectItem key={v.id} value={v.id}>
+                        <span>{v.name}</span>
+                        <span className="ml-2 text-muted-foreground text-xs">
+                          ({categoryMap[v.categoryId]?.name ?? "Unknown"})
+                        </span>
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setIsReassignDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleReassignConfirm}
+                disabled={!reassignTargetId || reassignMutation.isPending}
+              >
+                {reassignMutation.isPending ? "Reassigning…" : "Reassign"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Contacts Management Dialog */}
       <Dialog open={isContactsDialogOpen} onOpenChange={(open) => {
