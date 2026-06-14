@@ -657,7 +657,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
         </CardHeader>
         <CardContent className="pt-0">
           <div className="flex flex-col sm:flex-row gap-3">
-            <div className="w-48">
+            <div className="w-36">
               <label className="text-xs font-medium mb-1 block">Project</label>
               <Select value={selectedProject} onValueChange={handleProjectFilter}>
                 <SelectTrigger data-testid="select-project-filter" className="h-8">
