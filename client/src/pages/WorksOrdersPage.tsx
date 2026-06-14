@@ -873,7 +873,7 @@ export default function WorksOrdersPage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Works Orders</h2>
                 <div className="flex gap-2">
-                  <Button onClick={handleImportOrder} variant="outline" data-testid="button-import-order">
+                  <Button onClick={handleImportOrder} data-testid="button-import-order">
                     <Upload className="w-4 h-4 mr-2" />
                     Import Works Order
                   </Button>
