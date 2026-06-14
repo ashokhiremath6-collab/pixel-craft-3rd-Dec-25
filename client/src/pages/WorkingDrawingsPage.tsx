@@ -1204,11 +1204,9 @@ export default function WorkingDrawingsPage({ drawingType = "working" }: { drawi
         noRoom.push(d);
       }
     }
-    const roomOrder = rooms.map((r) => r.id);
-    const sorted = Array.from(roomMap.entries()).sort(([a], [b]) => {
-      const ia = roomOrder.indexOf(a), ib = roomOrder.indexOf(b);
-      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
-    });
+    const sorted = Array.from(roomMap.entries()).sort(([, a], [, b]) =>
+      a.label.localeCompare(b.label)
+    );
     const result: { key: string; label: string; drawings: DrawingRow[] }[] = sorted.map(([k, v]) => ({ key: k, label: v.label, drawings: v.drawings }));
     // Group roomless drawings by category so each gets its own labelled section
     if (noRoom.length > 0) {
