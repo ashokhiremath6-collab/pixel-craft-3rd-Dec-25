@@ -30,6 +30,7 @@ import { User as UserIcon } from "lucide-react";
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 function ProjectSection({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
@@ -124,6 +125,8 @@ export default function MoodboardsPage() {
   const [floorPlanViewer, setFloorPlanViewer] = useState<{url: string, name: string} | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingFpId, setDeletingFpId] = useState<string | null>(null);
+
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   // Edit render state
   const [editingRender, setEditingRender] = useState<Moodboard | null>(null);
@@ -1077,19 +1080,12 @@ export default function MoodboardsPage() {
               {labels.description}
             </p>
           </div>
-          {assetType === "working_drawing" && (
-            <Button variant="outline" onClick={() => setCadImportOpen(true)} className="shrink-0" data-testid="button-import-cad">
-              <FileCode2 className="h-4 w-4 mr-2" />
-              Import AutoCAD Drawing
-            </Button>
-          )}
         </div>
         
-        {/* Project Selector - compact inline */}
-        <div className="flex items-center gap-3">
-          <Label className="shrink-0 text-sm font-medium">Project</Label>
+        {/* Project Selector + Upload button */}
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={filterProjectId} onValueChange={setFilterProjectId}>
-            <SelectTrigger className="max-w-xs" data-testid="select-project-filter">
+            <SelectTrigger className="w-56" data-testid="select-project-filter">
               <SelectValue placeholder="Select a project" />
             </SelectTrigger>
             <SelectContent>
@@ -1100,6 +1096,16 @@ export default function MoodboardsPage() {
               ))}
             </SelectContent>
           </Select>
+          <Button onClick={() => { setSelectedProjectId(filterProjectId); setUploadOpen(true); }} data-testid="button-open-upload">
+            <Upload className="h-4 w-4 mr-2" />
+            {labels.uploadButton}
+          </Button>
+          {assetType === "working_drawing" && (
+            <Button variant="outline" onClick={() => setCadImportOpen(true)} className="shrink-0" data-testid="button-import-cad">
+              <FileCode2 className="h-4 w-4 mr-2" />
+              Import AutoCAD Drawing
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1801,18 +1807,13 @@ export default function MoodboardsPage() {
       )}
       
 
-      {/* Upload Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 font-bold">
-            <Upload className="h-5 w-5" />
-            {labels.uploadButton}
-          </CardTitle>
-          <CardDescription>
-            {labels.uploadDescription}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      {/* Upload Sheet */}
+      <Sheet open={uploadOpen} onOpenChange={(open) => { setUploadOpen(open); if (!open) { setSelectedFile(null); setDescription(""); setTags(""); setCanvaLink(""); } }}>
+        <SheetContent side="right" className="w-[440px] flex flex-col gap-0 p-0">
+          <SheetHeader className="px-6 py-4 border-b">
+            <SheetTitle>{labels.uploadButton}</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {/* File Upload Area */}
           <div
             className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
@@ -2070,8 +2071,9 @@ export default function MoodboardsPage() {
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {previewImage && (
         <FileViewerModal
