@@ -24,6 +24,7 @@ import {
 import type { ClientBrief, Proposal, Project } from "@shared/schema";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "wouter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ProposalDeliverable {
@@ -654,8 +655,15 @@ export default function ProjectBriefPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { user } = useAuth();
+  const [, navigate] = useLocation();
   const role = (user as any)?.role as string | undefined;
   const isAdmin = role === "admin";
+  const isAdminOrDesigner = role === "admin" || role === "designer";
+
+  if (user && !isAdminOrDesigner) {
+    navigate("/");
+    return null;
+  }
 
   const [briefSheetOpen, setBriefSheetOpen] = useState(false);
   const [editBrief, setEditBrief] = useState<ClientBrief | null>(null);

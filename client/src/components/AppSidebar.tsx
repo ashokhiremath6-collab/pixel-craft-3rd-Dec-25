@@ -111,24 +111,26 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent className="pb-4">
-        <SidebarGroup>
-          <SidebarGroupLabel className="flex items-center gap-1.5">
-            <ClipboardList className="h-3.5 w-3.5" />
-            Project Brief
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild data-active={location === "/project-brief"} data-testid="sidebar-link-project-brief">
-                  <Link href="/project-brief" onClick={handleLinkClick}>
-                    <FileText />
-                    <span>Briefs &amp; Proposals</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {isAdminOrDesigner && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="flex items-center gap-1.5">
+              <ClipboardList className="h-3.5 w-3.5" />
+              Project Brief
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild data-active={location === "/project-brief"} data-testid="sidebar-link-project-brief">
+                    <Link href="/project-brief" onClick={handleLinkClick}>
+                      <FileText />
+                      <span>Briefs &amp; Proposals</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
