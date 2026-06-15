@@ -660,11 +660,6 @@ export default function ProjectBriefPage() {
   const isAdmin = role === "admin";
   const isAdminOrDesigner = role === "admin" || role === "designer";
 
-  if (user && !isAdminOrDesigner) {
-    navigate("/");
-    return null;
-  }
-
   const [briefSheetOpen, setBriefSheetOpen] = useState(false);
   const [editBrief, setEditBrief] = useState<ClientBrief | null>(null);
   const [proposalSheetOpen, setProposalSheetOpen] = useState(false);
@@ -689,6 +684,11 @@ export default function ProjectBriefPage() {
     mutationFn: (id: string) => apiRequest("PUT", `/api/proposals/${id}`, { status: "sent", sentAt: new Date().toISOString() }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/proposals"] }); toast({ title: "Marked as sent" }); },
   });
+
+  if (user && !isAdminOrDesigner) {
+    navigate("/");
+    return null;
+  }
 
   function openNewBrief() { setEditBrief(null); setBriefSheetOpen(true); }
   function openEditBrief(b: ClientBrief) { setEditBrief(b); setBriefSheetOpen(true); }
