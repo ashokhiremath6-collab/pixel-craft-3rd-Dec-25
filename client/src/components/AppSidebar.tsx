@@ -117,9 +117,16 @@ export function AppSidebar() {
             Project Brief
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <div className="px-2 py-2 text-xs text-muted-foreground/50 italic">
-              Coming soon
-            </div>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild data-active={location === "/project-brief"} data-testid="sidebar-link-project-brief">
+                  <Link href="/project-brief" onClick={handleLinkClick}>
+                    <FileText />
+                    <span>Briefs &amp; Proposals</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 

@@ -37,6 +37,7 @@ import AIRendersPage from "@/pages/AIRendersPage";
 import ProjectCostPage from "@/pages/ProjectCostPage";
 import AssetIngestionPage from "@/pages/AssetIngestionPage";
 import AIAssistantPage from "@/pages/AIAssistantPage";
+import ProjectBriefPage from "@/pages/ProjectBriefPage";
 import LoginPage from "@/pages/LoginPage";
 import LandingPage from "@/pages/LandingPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
@@ -92,6 +93,7 @@ function Router() {
       <Route path="/asset-ingestion" component={AssetIngestionPage} />
       <Route path="/ai-assistant" component={AIAssistantPage} />
       <Route path="/client-access" component={ClientAccessPage} />
+      <Route path="/project-brief" component={ProjectBriefPage} />
       <Route path="/sops" component={SOPsPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/account" component={AccountPage} />

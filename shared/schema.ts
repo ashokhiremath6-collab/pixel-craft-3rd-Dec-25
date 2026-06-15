@@ -1215,3 +1215,60 @@ export const drawingCategories = pgTable("drawing_categories", {
 ]);
 
 export type DrawingCategory = typeof drawingCategories.$inferSelect;
+
+// ─── Client Briefs ────────────────────────────────────────────────────────────
+export const clientBriefs = pgTable("client_briefs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id").notNull(),
+  projectId: varchar("project_id").references(() => projects.id, { onDelete: 'set null' }),
+  clientName: text("client_name").notNull(),
+  clientEmail: text("client_email"),
+  phone: text("phone"),
+  projectType: text("project_type"), // residential, commercial, hospitality, retail, office, other
+  propertyAddress: text("property_address"),
+  scopeOfWork: text("scope_of_work"),
+  budgetMin: numeric("budget_min"),
+  budgetMax: numeric("budget_max"),
+  currency: text("currency").notNull().default("INR"),
+  timeline: text("timeline"),
+  stylePreferences: text("style_preferences"),
+  mustHaves: text("must_haves"),
+  mustAvoids: text("must_avoids"),
+  inspirationNotes: text("inspiration_notes"),
+  status: text("status").notNull().default("new"), // new, in_progress, proposal_sent, converted
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const insertClientBriefSchema = createInsertSchema(clientBriefs).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertClientBrief = z.infer<typeof insertClientBriefSchema>;
+export type ClientBrief = typeof clientBriefs.$inferSelect;
+
+// ─── Proposals ────────────────────────────────────────────────────────────────
+export const proposals = pgTable("proposals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id").notNull(),
+  briefId: varchar("brief_id").references(() => clientBriefs.id, { onDelete: 'set null' }),
+  projectId: varchar("project_id").references(() => projects.id, { onDelete: 'set null' }),
+  proposalTitle: text("proposal_title").notNull(),
+  clientName: text("client_name").notNull(),
+  clientEmail: text("client_email"),
+  feeStructure: text("fee_structure").notNull().default("flat_fee"), // flat_fee, percentage, hourly
+  percentageRate: numeric("percentage_rate"),
+  hourlyRate: numeric("hourly_rate"),
+  phases: jsonb("phases").notNull().default([]),
+  totalFee: numeric("total_fee").notNull().default("0"),
+  currency: text("currency").notNull().default("INR"),
+  paymentSchedule: text("payment_schedule"),
+  termsAndConditions: text("terms_and_conditions"),
+  validityDays: integer("validity_days").notNull().default(30),
+  status: text("status").notNull().default("draft"), // draft, sent, accepted, rejected
+  sentAt: timestamp("sent_at"),
+  acceptedAt: timestamp("accepted_at"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const insertProposalSchema = createInsertSchema(proposals).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertProposal = z.infer<typeof insertProposalSchema>;
+export type Proposal = typeof proposals.$inferSelect;

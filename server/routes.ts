@@ -12093,6 +12093,162 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // ─── Client Briefs ──────────────────────────────────────────────────────────
+  app.get("/api/client-briefs", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      if (!orgId) return res.status(400).json({ error: "orgId required" });
+      const { eq, desc } = await import("drizzle-orm");
+      const { clientBriefs } = await import("@shared/schema");
+      const result = await db.select().from(clientBriefs).where(eq(clientBriefs.orgId, orgId)).orderBy(desc(clientBriefs.createdAt));
+      res.json(result);
+    } catch (err) {
+      console.error("GET /api/client-briefs error:", err);
+      res.status(500).json({ error: "Failed to fetch client briefs" });
+    }
+  });
+
+  app.post("/api/client-briefs", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      if (!orgId) return res.status(400).json({ error: "orgId required" });
+      const { clientBriefs, insertClientBriefSchema } = await import("@shared/schema");
+      const parsed = insertClientBriefSchema.safeParse({ ...req.body, orgId });
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message });
+      const [result] = await db.insert(clientBriefs).values(parsed.data).returning();
+      res.status(201).json(result);
+    } catch (err) {
+      console.error("POST /api/client-briefs error:", err);
+      res.status(500).json({ error: "Failed to create client brief" });
+    }
+  });
+
+  app.get("/api/client-briefs/:id", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { id } = req.params;
+      const { eq, and } = await import("drizzle-orm");
+      const { clientBriefs } = await import("@shared/schema");
+      const [result] = await db.select().from(clientBriefs).where(and(eq(clientBriefs.id, id), eq(clientBriefs.orgId, orgId)));
+      if (!result) return res.status(404).json({ error: "Not found" });
+      res.json(result);
+    } catch (err) {
+      console.error("GET /api/client-briefs/:id error:", err);
+      res.status(500).json({ error: "Failed to fetch client brief" });
+    }
+  });
+
+  app.put("/api/client-briefs/:id", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { id } = req.params;
+      const { eq, and, sql: sqlFn } = await import("drizzle-orm");
+      const { clientBriefs } = await import("@shared/schema");
+      const { id: _id, orgId: _org, createdAt: _ca, ...updateData } = req.body;
+      const [result] = await db.update(clientBriefs)
+        .set({ ...updateData, updatedAt: new Date() })
+        .where(and(eq(clientBriefs.id, id), eq(clientBriefs.orgId, orgId)))
+        .returning();
+      if (!result) return res.status(404).json({ error: "Not found" });
+      res.json(result);
+    } catch (err) {
+      console.error("PUT /api/client-briefs/:id error:", err);
+      res.status(500).json({ error: "Failed to update client brief" });
+    }
+  });
+
+  app.delete("/api/client-briefs/:id", requireAdmin, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { id } = req.params;
+      const { eq, and } = await import("drizzle-orm");
+      const { clientBriefs } = await import("@shared/schema");
+      await db.delete(clientBriefs).where(and(eq(clientBriefs.id, id), eq(clientBriefs.orgId, orgId)));
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("DELETE /api/client-briefs/:id error:", err);
+      res.status(500).json({ error: "Failed to delete client brief" });
+    }
+  });
+
+  // ─── Proposals ──────────────────────────────────────────────────────────────
+  app.get("/api/proposals", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      if (!orgId) return res.status(400).json({ error: "orgId required" });
+      const { eq, desc } = await import("drizzle-orm");
+      const { proposals } = await import("@shared/schema");
+      const result = await db.select().from(proposals).where(eq(proposals.orgId, orgId)).orderBy(desc(proposals.createdAt));
+      res.json(result);
+    } catch (err) {
+      console.error("GET /api/proposals error:", err);
+      res.status(500).json({ error: "Failed to fetch proposals" });
+    }
+  });
+
+  app.post("/api/proposals", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      if (!orgId) return res.status(400).json({ error: "orgId required" });
+      const { proposals, insertProposalSchema } = await import("@shared/schema");
+      const parsed = insertProposalSchema.safeParse({ ...req.body, orgId });
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message });
+      const [result] = await db.insert(proposals).values(parsed.data).returning();
+      res.status(201).json(result);
+    } catch (err) {
+      console.error("POST /api/proposals error:", err);
+      res.status(500).json({ error: "Failed to create proposal" });
+    }
+  });
+
+  app.get("/api/proposals/:id", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { id } = req.params;
+      const { eq, and } = await import("drizzle-orm");
+      const { proposals } = await import("@shared/schema");
+      const [result] = await db.select().from(proposals).where(and(eq(proposals.id, id), eq(proposals.orgId, orgId)));
+      if (!result) return res.status(404).json({ error: "Not found" });
+      res.json(result);
+    } catch (err) {
+      console.error("GET /api/proposals/:id error:", err);
+      res.status(500).json({ error: "Failed to fetch proposal" });
+    }
+  });
+
+  app.put("/api/proposals/:id", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { id } = req.params;
+      const { eq, and } = await import("drizzle-orm");
+      const { proposals } = await import("@shared/schema");
+      const { id: _id, orgId: _org, createdAt: _ca, ...updateData } = req.body;
+      const [result] = await db.update(proposals)
+        .set({ ...updateData, updatedAt: new Date() })
+        .where(and(eq(proposals.id, id), eq(proposals.orgId, orgId)))
+        .returning();
+      if (!result) return res.status(404).json({ error: "Not found" });
+      res.json(result);
+    } catch (err) {
+      console.error("PUT /api/proposals/:id error:", err);
+      res.status(500).json({ error: "Failed to update proposal" });
+    }
+  });
+
+  app.delete("/api/proposals/:id", requireAdmin, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { id } = req.params;
+      const { eq, and } = await import("drizzle-orm");
+      const { proposals } = await import("@shared/schema");
+      await db.delete(proposals).where(and(eq(proposals.id, id), eq(proposals.orgId, orgId)));
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("DELETE /api/proposals/:id error:", err);
+      res.status(500).json({ error: "Failed to delete proposal" });
+    }
+  });
+
   // Run immediately on startup, then every 24 hours
   runTrialExpiryWarnings();
   setInterval(runTrialExpiryWarnings, 24 * 60 * 60 * 1000);
