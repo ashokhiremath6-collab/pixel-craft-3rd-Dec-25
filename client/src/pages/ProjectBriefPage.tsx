@@ -46,7 +46,6 @@ const PROJECT_TYPES = ["Residential", "Commercial", "Hospitality", "Retail", "Of
 const ROOM_OPTIONS = ["Living room", "Dining area", "Kitchen", "Master bedroom", "Bedroom", "Bathroom / en-suite", "Study / office", "Children's room", "Terrace / balcony", "Entire home"];
 const WORK_TYPES = ["New construction", "Renovation", "Furnishing only", "Partial renovation"];
 const STYLE_OPTIONS = ["Minimalist", "Contemporary", "Transitional", "Modern classic", "Maximalist", "Japandi", "Industrial", "Traditional / ethnic", "Eclectic", "Biophilic"];
-const TIMELINE_OPTIONS = ["Under 3 months", "3–6 months", "6–9 months", "9–12 months", "12–18 months", "18 months+", "Flexible"];
 const BRIEF_STATUSES: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   new: { label: "New", variant: "secondary" },
   in_progress: { label: "In Progress", variant: "default" },
@@ -160,6 +159,10 @@ function BriefSheet({ open, onClose, brief, projects }: {
   const [workType, setWorkType] = useState<string>("");
   const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set());
 
+  // Timeline — two separate inputs composed on save
+  const [clientStart, setClientStart] = useState<string>("");
+  const [designerDuration, setDesignerDuration] = useState<string>("");
+
   const existingRefs = useMemo(
     () => ((brief?.referenceFiles as any[]) || []).filter((f: any) => !removedPaths.has(f.path)),
     [brief?.referenceFiles, removedPaths]
@@ -212,6 +215,8 @@ function BriefSheet({ open, onClose, brief, projects }: {
       setSelectedRooms(new Set());
       setWorkType("");
       setSelectedStyles(new Set());
+      setClientStart(brief?.timeline ?? "");
+      setDesignerDuration("");
     }
   }, [open, brief?.id]);
 
@@ -234,11 +239,16 @@ function BriefSheet({ open, onClose, brief, projects }: {
       if (selectedStyles.size > 0) styleParts.push(`Style direction: ${Array.from(selectedStyles).join(", ")}`);
       if (data.stylePreferences?.trim()) styleParts.push(data.stylePreferences.trim());
 
+      const timelineParts: string[] = [];
+      if (clientStart.trim()) timelineParts.push(`Client preferred start: ${clientStart.trim()}`);
+      if (designerDuration.trim()) timelineParts.push(`Estimated duration: ${designerDuration.trim()}`);
+
       const keepRefs = ((brief?.referenceFiles as any[]) || []).filter((f: any) => !removedPaths.has(f.path));
       const payload = {
         ...data,
         scopeOfWork: scopeParts.join("\n") || null,
         stylePreferences: styleParts.join("\n") || null,
+        timeline: timelineParts.join("\n") || null,
         projectId: data.projectId || null,
         clientEmail: data.clientEmail || null,
         referenceFiles: keepRefs,
@@ -435,18 +445,23 @@ function BriefSheet({ open, onClose, brief, projects }: {
                 </div>
               </div>
 
-              <FormField control={form.control} name="timeline" render={({ field }) => (
-                <FormItem>
-                  <Q number={10} label="Target completion timeline?" />
-                  <Select onValueChange={field.onChange} value={field.value || ""}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Select a range…" /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {TIMELINE_OPTIONS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )} />
+              <div>
+                <Q number={10} label="When does the client want to start?" hint="Capture what the client said — even a rough indication helps." />
+                <Input
+                  value={clientStart}
+                  onChange={e => setClientStart(e.target.value)}
+                  placeholder="e.g. ASAP, March 2026, After flat handover in May"
+                />
+              </div>
+
+              <div>
+                <Q number={11} label="How long do you estimate the project will take?" hint="Your professional estimate based on the scope — helps set expectations early." />
+                <Input
+                  value={designerDuration}
+                  onChange={e => setDesignerDuration(e.target.value)}
+                  placeholder="e.g. 8–10 months, 14 months (design + execution)"
+                />
+              </div>
             </div>
 
             <Separator />
