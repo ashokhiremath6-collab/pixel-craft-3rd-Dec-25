@@ -12058,11 +12058,15 @@ Return your response in the following JSON format only (no markdown, no code blo
     try {
       const orgId = req.user?.orgId;
       const userId = req.user?.id;
+      const userRole = req.user?.role;
       const { drawingId, revisionId } = req.params;
       const { state } = req.body;
       if (!orgId) return res.status(403).json({ error: "Forbidden" });
       const allowed = ["draft", "for_review", "approved"];
       if (!allowed.includes(state)) return res.status(400).json({ error: "Invalid state" });
+      if (state === "approved" && userRole !== "client" && userRole !== "designer") {
+        return res.status(403).json({ error: "Only clients and designers can approve drawings" });
+      }
 
       const { db: reqDb } = await import("./db");
       const { drawingRevisions: dr, drawings: drawingsTable, revisionEvents } = await import("@shared/schema");

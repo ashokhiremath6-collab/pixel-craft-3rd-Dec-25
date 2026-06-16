@@ -3,6 +3,7 @@ import { AIReviewButton } from "@/components/AIReviewPanel";
 import type { AIReviewType } from "@/components/AIReviewPanel";
 import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useSearch } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -214,6 +215,8 @@ function RevisionSheet({ drawing, onClose, onViewRevision }: {
   onViewRevision: (revId: string, drawingId: string) => void;
 }) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const canApprove = user?.role === "client" || user?.role === "designer";
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -332,14 +335,16 @@ function RevisionSheet({ drawing, onClose, onViewRevision }: {
                     )}
                     {rev.state === "for_review" && (
                       <>
-                        <Button size="sm"
-                          className="bg-green-600 text-white"
-                          onClick={() => stateChangeMut.mutate({ revId: rev.id, state: "approved" })}
-                          disabled={stateChangeMut.isPending}
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                          Approve
-                        </Button>
+                        {canApprove && (
+                          <Button size="sm"
+                            className="bg-green-600 text-white"
+                            onClick={() => stateChangeMut.mutate({ revId: rev.id, state: "approved" })}
+                            disabled={stateChangeMut.isPending}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                            Approve
+                          </Button>
+                        )}
                         <Button size="sm" variant="outline"
                           onClick={() => stateChangeMut.mutate({ revId: rev.id, state: "draft" })}
                           disabled={stateChangeMut.isPending}
