@@ -159,9 +159,8 @@ function BriefSheet({ open, onClose, brief, projects }: {
   const [workType, setWorkType] = useState<string>("");
   const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set());
 
-  // Timeline — two separate inputs composed on save
+  // Timeline — client's preferred start date
   const [clientStart, setClientStart] = useState<string>("");
-  const [designerDuration, setDesignerDuration] = useState<string>("");
 
   const existingRefs = useMemo(
     () => ((brief?.referenceFiles as any[]) || []).filter((f: any) => !removedPaths.has(f.path)),
@@ -216,7 +215,6 @@ function BriefSheet({ open, onClose, brief, projects }: {
       setWorkType("");
       setSelectedStyles(new Set());
       setClientStart(brief?.timeline ?? "");
-      setDesignerDuration("");
     }
   }, [open, brief?.id]);
 
@@ -240,8 +238,7 @@ function BriefSheet({ open, onClose, brief, projects }: {
       if (data.stylePreferences?.trim()) styleParts.push(data.stylePreferences.trim());
 
       const timelineParts: string[] = [];
-      if (clientStart.trim()) timelineParts.push(`Client preferred start: ${clientStart.trim()}`);
-      if (designerDuration.trim()) timelineParts.push(`Estimated duration: ${designerDuration.trim()}`);
+      if (clientStart.trim()) timelineParts.push(clientStart.trim());
 
       const keepRefs = ((brief?.referenceFiles as any[]) || []).filter((f: any) => !removedPaths.has(f.path));
       const payload = {
@@ -454,14 +451,6 @@ function BriefSheet({ open, onClose, brief, projects }: {
                 />
               </div>
 
-              <div>
-                <Q number={11} label="How long do you estimate the project will take?" hint="Your professional estimate based on the scope — helps set expectations early." />
-                <Input
-                  value={designerDuration}
-                  onChange={e => setDesignerDuration(e.target.value)}
-                  placeholder="e.g. 8–10 months, 14 months (design + execution)"
-                />
-              </div>
             </div>
 
             <Separator />
