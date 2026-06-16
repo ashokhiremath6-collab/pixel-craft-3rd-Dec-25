@@ -439,8 +439,8 @@ export default function Dashboard({
                         )
                       )}
 
-                      {/* Description — shown for task activities to convey what changed and why */}
-                      {activity.activityType.startsWith('task_') && activity.description && (
+                      {/* Description — shown for task and quote activities to convey what changed and why */}
+                      {(activity.activityType.startsWith('task_') || activity.activityType.startsWith('quote_') || activity.activityType.startsWith('boq_')) && activity.description && (
                         <p className="text-xs mt-1 leading-snug line-clamp-2" style={{ color: "#374151" }}>
                           {activity.description}
                         </p>
