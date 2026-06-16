@@ -459,24 +459,9 @@ function BriefSheet({ open, onClose, brief, projects }: {
 
               <div>
                 <Q number={11} label="What is the approximate budget?" />
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField control={form.control} name="budgetMax" render={({ field }) => (
-                    <FormItem><FormLabel>Budget</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <FormField control={form.control} name="currency" render={({ field }) => (
-                    <FormItem><FormLabel>Currency</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          <SelectItem value="INR">INR</SelectItem>
-                          <SelectItem value="USD">USD</SelectItem>
-                          <SelectItem value="AED">AED</SelectItem>
-                          <SelectItem value="GBP">GBP</SelectItem>
-                        </SelectContent>
-                      </Select><FormMessage />
-                    </FormItem>
-                  )} />
-                </div>
+                <FormField control={form.control} name="budgetMax" render={({ field }) => (
+                  <FormItem><FormLabel>Budget (₹)</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
               </div>
 
               <div>
@@ -754,16 +739,6 @@ function ProposalSheet({ open, onClose, proposal, briefs, projects }: {
                       </SelectContent>
                     </Select><FormMessage /></FormItem>
                 )} />
-                <FormField control={form.control} name="projectId" render={({ field }) => (
-                  <FormItem><FormLabel>Linked Project</FormLabel>
-                    <Select onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)} value={field.value || "__none__"}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="None" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        <SelectItem value="__none__">None</SelectItem>
-                        {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>)}
-                      </SelectContent>
-                    </Select><FormMessage /></FormItem>
-                )} />
               </div>
             </div>
 
@@ -772,7 +747,7 @@ function ProposalSheet({ open, onClose, proposal, briefs, projects }: {
             {/* Fee Structure */}
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Fee Structure</p>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="feeStructure" render={({ field }) => (
                   <FormItem><FormLabel>Fee Type</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
@@ -785,16 +760,9 @@ function ProposalSheet({ open, onClose, proposal, briefs, projects }: {
                     </Select><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="currency" render={({ field }) => (
-                  <FormItem><FormLabel>Currency</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        <SelectItem value="INR">INR</SelectItem>
-                        <SelectItem value="USD">USD</SelectItem>
-                        <SelectItem value="AED">AED</SelectItem>
-                        <SelectItem value="GBP">GBP</SelectItem>
-                      </SelectContent>
-                    </Select><FormMessage /></FormItem>
+                  <FormItem className="hidden">
+                    <FormControl><Input {...field} value="INR" /></FormControl>
+                  </FormItem>
                 )} />
                 {feeStructure === "percentage" && (
                   <FormField control={form.control} name="percentageRate" render={({ field }) => (
