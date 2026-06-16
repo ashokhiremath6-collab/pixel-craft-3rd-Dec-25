@@ -76,6 +76,7 @@ export default function DashboardPage() {
   const { data: allTasksData, isLoading: tasksLoading } = useQuery<Task[]>({
     queryKey: ['/api/tasks'],
     staleTime: 0,
+    gcTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   });
