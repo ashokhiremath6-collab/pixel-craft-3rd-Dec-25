@@ -43,7 +43,7 @@ interface ProposalPhase {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PROJECT_TYPES = ["Residential", "Commercial", "Hospitality", "Retail", "Office", "Healthcare", "Educational", "Other"];
-const ROOM_OPTIONS = ["Living room", "Dining area", "Kitchen", "Master bedroom", "Bedroom", "Bathroom / en-suite", "Study / office", "Children's room", "Terrace / balcony", "Entire home"];
+const ROOM_OPTIONS = ["Living room", "Dining area", "Kitchen", "Master bedroom", "Bedroom", "Bathroom / en-suite", "Powder room", "Study / office", "Children's room", "Terrace / balcony", "Laundry / utility", "Pooja room"];
 const WORK_TYPES = ["New construction", "Renovation", "Furnishing only", "Partial renovation"];
 const STYLE_OPTIONS = ["Minimalist", "Contemporary", "Transitional", "Modern classic", "Maximalist", "Japandi", "Industrial", "Traditional / ethnic", "Eclectic", "Biophilic"];
 const BRIEF_STATUSES: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -155,8 +155,11 @@ function BriefSheet({ open, onClose, brief, projects }: {
   const [removedPaths, setRemovedPaths] = useState<Set<string>>(new Set());
 
   // Questionnaire quick-select state
+  const [isEntireFlat, setIsEntireFlat] = useState<boolean>(true);
   const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set());
   const [workType, setWorkType] = useState<string>("");
+  const [householdSize, setHouseholdSize] = useState<string>("");
+  const [householdAges, setHouseholdAges] = useState<string>("");
   const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set());
 
   // Timeline — client's preferred start date
@@ -211,8 +214,11 @@ function BriefSheet({ open, onClose, brief, projects }: {
       });
       setPendingFiles([]);
       setRemovedPaths(new Set());
+      setIsEntireFlat(true);
       setSelectedRooms(new Set());
       setWorkType("");
+      setHouseholdSize("");
+      setHouseholdAges("");
       setSelectedStyles(new Set());
       setClientStart(brief?.timeline ?? "");
     }
@@ -229,8 +235,11 @@ function BriefSheet({ open, onClose, brief, projects }: {
     mutationFn: async (data: BriefFormValues) => {
       // Compose quick-select choices into the text fields
       const scopeParts: string[] = [];
+      scopeParts.push(isEntireFlat ? "Scope: Entire flat" : "Scope: Specific rooms");
       if (workType) scopeParts.push(`Work type: ${workType}`);
-      if (selectedRooms.size > 0) scopeParts.push(`Rooms in scope: ${Array.from(selectedRooms).join(", ")}`);
+      if (selectedRooms.size > 0) scopeParts.push(`Rooms: ${Array.from(selectedRooms).join(", ")}`);
+      if (householdSize.trim()) scopeParts.push(`Household members: ${householdSize.trim()}`);
+      if (householdAges.trim()) scopeParts.push(`Ages: ${householdAges.trim()}`);
       if (data.scopeOfWork?.trim()) scopeParts.push(data.scopeOfWork.trim());
 
       const styleParts: string[] = [];
@@ -335,8 +344,16 @@ function BriefSheet({ open, onClose, brief, projects }: {
             <div className="space-y-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">B — Scope of work</p>
 
-              <div>
-                <Q number={1} label="Which spaces are in scope?" hint="Select all that apply" />
+              {/* Q1 — scope toggle + room list */}
+              <div className="space-y-3">
+                <Q number={1} label="Is the scope the entire flat?" />
+                <div className="flex flex-wrap gap-2">
+                  <PillToggle label="Entire flat" selected={isEntireFlat} onToggle={() => setIsEntireFlat(true)} />
+                  <PillToggle label="Specific rooms only" selected={!isEntireFlat} onToggle={() => setIsEntireFlat(false)} />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {isEntireFlat ? "Which rooms does the flat include? Select all that apply." : "Which rooms are in scope? Select all that apply."}
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {ROOM_OPTIONS.map(r => (
                     <PillToggle key={r} label={r} selected={selectedRooms.has(r)} onToggle={() => toggleRoom(r)} />
@@ -353,9 +370,30 @@ function BriefSheet({ open, onClose, brief, projects }: {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Q number={3} label="How many members in the household?" />
+                  <Input
+                    type="number"
+                    min={1}
+                    value={householdSize}
+                    onChange={e => setHouseholdSize(e.target.value)}
+                    placeholder="e.g. 4"
+                  />
+                </div>
+                <div>
+                  <Q number={4} label="Ages of household members" hint="Helps tailor the design" />
+                  <Input
+                    value={householdAges}
+                    onChange={e => setHouseholdAges(e.target.value)}
+                    placeholder="e.g. 42, 39, 14, 10"
+                  />
+                </div>
+              </div>
+
               <FormField control={form.control} name="scopeOfWork" render={({ field }) => (
                 <FormItem>
-                  <Q number={3} label="Any additional scope details?" hint="Size of the home, special requirements, specific rooms not listed above, etc." />
+                  <Q number={5} label="Any additional scope details?" hint="Size of the home, special requirements, specific rooms not listed above, etc." />
                   <FormControl><Textarea rows={3} placeholder="e.g. 2,800 sq ft 3-BHK. False ceiling, AV integration, and custom joinery throughout." {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -369,7 +407,7 @@ function BriefSheet({ open, onClose, brief, projects }: {
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">C — Design direction</p>
 
               <div>
-                <Q number={4} label="Which style directions resonate with the client?" hint="Select one or more" />
+                <Q number={6} label="Which style directions resonate with the client?" hint="Select one or more" />
                 <div className="flex flex-wrap gap-2">
                   {STYLE_OPTIONS.map(s => (
                     <PillToggle key={s} label={s} selected={selectedStyles.has(s)} onToggle={() => toggleStyle(s)} />
@@ -379,7 +417,7 @@ function BriefSheet({ open, onClose, brief, projects }: {
 
               <FormField control={form.control} name="stylePreferences" render={({ field }) => (
                 <FormItem>
-                  <Q number={5} label="Describe the feel in your own words" hint="Materials, colours, mood, lighting preferences — anything goes." />
+                  <Q number={7} label="Describe the feel in your own words" hint="Materials, colours, mood, lighting preferences — anything goes." />
                   <FormControl><Textarea rows={3} placeholder="e.g. Warm and earthy — oak veneer, sage green accents, textured plaster. Natural light is a priority. No dark or heavy elements." {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -388,14 +426,14 @@ function BriefSheet({ open, onClose, brief, projects }: {
               <div className="grid grid-cols-2 gap-3">
                 <FormField control={form.control} name="mustHaves" render={({ field }) => (
                   <FormItem>
-                    <Q number={6} label="Must-haves" hint="Non-negotiables" />
+                    <Q number={8} label="Must-haves" hint="Non-negotiables" />
                     <FormControl><Textarea rows={4} placeholder="e.g. Walk-in wardrobe, home office nook, concealed storage throughout, Italian marble in bathrooms." {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="mustAvoids" render={({ field }) => (
                   <FormItem>
-                    <Q number={7} label="Must-avoids" hint="Things to stay away from" />
+                    <Q number={9} label="Must-avoids" hint="Things to stay away from" />
                     <FormControl><Textarea rows={4} placeholder="e.g. No dark walls, no brass, avoid heavy drapes, nothing too formal or hotel-like." {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
@@ -404,7 +442,7 @@ function BriefSheet({ open, onClose, brief, projects }: {
 
               <FormField control={form.control} name="inspirationNotes" render={({ field }) => (
                 <FormItem>
-                  <Q number={8} label="Inspiration sources" hint="Hotels, projects, Instagram handles, Pinterest boards, magazines — links welcome." />
+                  <Q number={10} label="Inspiration sources" hint="Hotels, projects, Instagram handles, Pinterest boards, magazines — links welcome." />
                   <FormControl><Textarea rows={2} placeholder="e.g. Soho House Mumbai, Studio Lotus projects, AD India Jan 2024 cover story." {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -418,7 +456,7 @@ function BriefSheet({ open, onClose, brief, projects }: {
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">D — Budget & timeline</p>
 
               <div>
-                <Q number={9} label="What is the approximate budget?" />
+                <Q number={11} label="What is the approximate budget?" />
                 <div className="grid grid-cols-3 gap-3">
                   <FormField control={form.control} name="budgetMin" render={({ field }) => (
                     <FormItem><FormLabel>Min</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
@@ -443,7 +481,7 @@ function BriefSheet({ open, onClose, brief, projects }: {
               </div>
 
               <div>
-                <Q number={10} label="When does the client want to start?" hint="Capture what the client said — even a rough indication helps." />
+                <Q number={12} label="When does the client want to start?" hint="Capture what the client said — even a rough indication helps." />
                 <Input
                   value={clientStart}
                   onChange={e => setClientStart(e.target.value)}
