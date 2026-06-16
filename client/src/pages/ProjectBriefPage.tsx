@@ -43,6 +43,10 @@ interface ProposalPhase {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PROJECT_TYPES = ["Residential", "Commercial", "Hospitality", "Retail", "Office", "Healthcare", "Educational", "Other"];
+const ROOM_OPTIONS = ["Living room", "Dining area", "Kitchen", "Master bedroom", "Bedroom", "Bathroom / en-suite", "Study / office", "Children's room", "Terrace / balcony", "Entire home"];
+const WORK_TYPES = ["New construction", "Renovation", "Furnishing only", "Partial renovation"];
+const STYLE_OPTIONS = ["Minimalist", "Contemporary", "Transitional", "Modern classic", "Maximalist", "Japandi", "Industrial", "Traditional / ethnic", "Eclectic", "Biophilic"];
+const TIMELINE_OPTIONS = ["Under 3 months", "3–6 months", "6–9 months", "9–12 months", "12–18 months", "18 months+", "Flexible"];
 const BRIEF_STATUSES: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   new: { label: "New", variant: "secondary" },
   in_progress: { label: "In Progress", variant: "default" },
@@ -119,6 +123,23 @@ const proposalFormSchema = z.object({
 type ProposalFormValues = z.infer<typeof proposalFormSchema>;
 
 // ─── Brief Sheet ──────────────────────────────────────────────────────────────
+function PillToggle({ label, selected, onToggle }: { label: string; selected: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={[
+        "px-3 py-1 rounded-full text-sm border transition-colors",
+        selected
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-background text-foreground border-border hover-elevate",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
+}
+
 function BriefSheet({ open, onClose, brief, projects }: {
   open: boolean;
   onClose: () => void;
@@ -129,8 +150,15 @@ function BriefSheet({ open, onClose, brief, projects }: {
   const qc = useQueryClient();
   const isEdit = !!brief;
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // File upload state
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [removedPaths, setRemovedPaths] = useState<Set<string>>(new Set());
+
+  // Questionnaire quick-select state
+  const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set());
+  const [workType, setWorkType] = useState<string>("");
+  const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set());
 
   const existingRefs = useMemo(
     () => ((brief?.referenceFiles as any[]) || []).filter((f: any) => !removedPaths.has(f.path)),
@@ -181,36 +209,53 @@ function BriefSheet({ open, onClose, brief, projects }: {
       });
       setPendingFiles([]);
       setRemovedPaths(new Set());
+      setSelectedRooms(new Set());
+      setWorkType("");
+      setSelectedStyles(new Set());
     }
   }, [open, brief?.id]);
 
+  function toggleRoom(r: string) {
+    setSelectedRooms(prev => { const n = new Set(prev); n.has(r) ? n.delete(r) : n.add(r); return n; });
+  }
+  function toggleStyle(s: string) {
+    setSelectedStyles(prev => { const n = new Set(prev); n.has(s) ? n.delete(s) : n.add(s); return n; });
+  }
+
   const mutation = useMutation({
     mutationFn: async (data: BriefFormValues) => {
+      // Compose quick-select choices into the text fields
+      const scopeParts: string[] = [];
+      if (workType) scopeParts.push(`Work type: ${workType}`);
+      if (selectedRooms.size > 0) scopeParts.push(`Rooms in scope: ${Array.from(selectedRooms).join(", ")}`);
+      if (data.scopeOfWork?.trim()) scopeParts.push(data.scopeOfWork.trim());
+
+      const styleParts: string[] = [];
+      if (selectedStyles.size > 0) styleParts.push(`Style direction: ${Array.from(selectedStyles).join(", ")}`);
+      if (data.stylePreferences?.trim()) styleParts.push(data.stylePreferences.trim());
+
       const keepRefs = ((brief?.referenceFiles as any[]) || []).filter((f: any) => !removedPaths.has(f.path));
       const payload = {
         ...data,
+        scopeOfWork: scopeParts.join("\n") || null,
+        stylePreferences: styleParts.join("\n") || null,
         projectId: data.projectId || null,
         clientEmail: data.clientEmail || null,
         referenceFiles: keepRefs,
       };
+
       let savedId: string;
       if (isEdit) {
         const r = await apiRequest("PUT", `/api/client-briefs/${brief!.id}`, payload);
-        const saved = await r.json();
-        savedId = saved.id;
+        savedId = (await r.json()).id;
       } else {
         const r = await apiRequest("POST", "/api/client-briefs", payload);
-        const saved = await r.json();
-        savedId = saved.id;
+        savedId = (await r.json()).id;
       }
       if (pendingFiles.length > 0) {
         const fd = new FormData();
         pendingFiles.forEach(f => fd.append('files', f));
-        await fetch(`/api/client-briefs/${savedId}/references`, {
-          method: 'POST',
-          body: fd,
-          credentials: 'include',
-        });
+        await fetch(`/api/client-briefs/${savedId}/references`, { method: 'POST', body: fd, credentials: 'include' });
       }
     },
     onSuccess: () => {
@@ -227,64 +272,84 @@ function BriefSheet({ open, onClose, brief, projects }: {
     e.target.value = '';
   }
 
-  function SectionLabel({ children }: { children: React.ReactNode }) {
-    return <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{children}</p>;
+  function Q({ number, label, hint }: { number: number; label: string; hint?: string }) {
+    return (
+      <div className="flex items-baseline gap-2.5 mb-3">
+        <span className="text-xs font-bold text-muted-foreground/60 w-5 shrink-0 text-right">{number}</span>
+        <div>
+          <p className="text-sm font-medium text-foreground">{label}</p>
+          {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
+        </div>
+      </div>
+    );
   }
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-3xl overflow-y-auto">
+      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader className="mb-6">
-          <SheetTitle>{isEdit ? "Edit Brief" : "New Client Brief"}</SheetTitle>
-          <p className="text-sm text-muted-foreground mt-1">The more context you capture, the better the design outcome.</p>
+          <SheetTitle>{isEdit ? "Edit Client Brief" : "New Client Brief"}</SheetTitle>
+          <p className="text-sm text-muted-foreground mt-1">Answer what you can — every answer helps shape the design.</p>
         </SheetHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit((d) => mutation.mutate(d))} className="space-y-8">
+          <form onSubmit={form.handleSubmit((d) => mutation.mutate(d))} className="space-y-7">
 
-            {/* ── 1. Client & Contact ── */}
+            {/* ── Section A: About the client ── */}
             <div className="space-y-4">
-              <SectionLabel>Client & Contact</SectionLabel>
-              <div className="grid grid-cols-2 gap-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">A — About the client</p>
+              <div className="grid grid-cols-2 gap-3">
                 <FormField control={form.control} name="clientName" render={({ field }) => (
-                  <FormItem><FormLabel>Client Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="clientEmail" render={({ field }) => (
-                  <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormLabel>Client name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="phone" render={({ field }) => (
                   <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
+                <FormField control={form.control} name="clientEmail" render={({ field }) => (
+                  <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
                 <FormField control={form.control} name="projectType" render={({ field }) => (
-                  <FormItem><FormLabel>Project Type</FormLabel>
+                  <FormItem><FormLabel>Project type</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger></FormControl>
                       <SelectContent>{PROJECT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                     </Select><FormMessage />
                   </FormItem>
                 )} />
               </div>
               <FormField control={form.control} name="propertyAddress" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Property Address</FormLabel>
-                  <FormControl><Input placeholder="Full address of the project site" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
+                <FormItem><FormLabel>Property address</FormLabel><FormControl><Input placeholder="City / locality is fine if full address is not yet known" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
             </div>
 
             <Separator />
 
-            {/* ── 2. Project Scope ── */}
-            <div className="space-y-4">
-              <SectionLabel>Project Scope</SectionLabel>
+            {/* ── Section B: Scope ── */}
+            <div className="space-y-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">B — Scope of work</p>
+
+              <div>
+                <Q number={1} label="Which spaces are in scope?" hint="Select all that apply" />
+                <div className="flex flex-wrap gap-2">
+                  {ROOM_OPTIONS.map(r => (
+                    <PillToggle key={r} label={r} selected={selectedRooms.has(r)} onToggle={() => toggleRoom(r)} />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <Q number={2} label="What type of work is required?" />
+                <div className="flex flex-wrap gap-2">
+                  {WORK_TYPES.map(w => (
+                    <PillToggle key={w} label={w} selected={workType === w} onToggle={() => setWorkType(prev => prev === w ? "" : w)} />
+                  ))}
+                </div>
+              </div>
+
               <FormField control={form.control} name="scopeOfWork" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Scope of Work</FormLabel>
-                  <p className="text-xs text-muted-foreground">Which rooms or areas are in scope? What work is required — new build, renovation, or furnishing only?</p>
-                  <FormControl>
-                    <Textarea rows={8} placeholder="e.g. 3-BHK apartment — living room, dining area, master bedroom with en-suite, two children's rooms. Full renovation including flooring, custom joinery, lighting design, and furniture procurement. False ceiling and AV integration included." {...field} />
-                  </FormControl>
+                  <Q number={3} label="Any additional scope details?" hint="Size of the home, special requirements, specific rooms not listed above, etc." />
+                  <FormControl><Textarea rows={3} placeholder="e.g. 2,800 sq ft 3-BHK. False ceiling, AV integration, and custom joinery throughout." {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -292,83 +357,48 @@ function BriefSheet({ open, onClose, brief, projects }: {
 
             <Separator />
 
-            {/* ── 3. Design Direction ── */}
-            <div className="space-y-4">
-              <SectionLabel>Design Direction</SectionLabel>
+            {/* ── Section C: Design direction ── */}
+            <div className="space-y-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">C — Design direction</p>
+
+              <div>
+                <Q number={4} label="Which style directions resonate with the client?" hint="Select one or more" />
+                <div className="flex flex-wrap gap-2">
+                  {STYLE_OPTIONS.map(s => (
+                    <PillToggle key={s} label={s} selected={selectedStyles.has(s)} onToggle={() => toggleStyle(s)} />
+                  ))}
+                </div>
+              </div>
+
               <FormField control={form.control} name="stylePreferences" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Style Preferences</FormLabel>
-                  <p className="text-xs text-muted-foreground">What aesthetic resonates? Describe moods, materials, finishes, or colour palettes if you can.</p>
-                  <FormControl>
-                    <Textarea rows={5} placeholder="e.g. Contemporary minimalist with warm tones — oak veneer, muted sage greens, textured plaster walls. Comfortable but refined. Influenced by Japandi aesthetics. Natural light is a priority." {...field} />
-                  </FormControl>
+                  <Q number={5} label="Describe the feel in your own words" hint="Materials, colours, mood, lighting preferences — anything goes." />
+                  <FormControl><Textarea rows={3} placeholder="e.g. Warm and earthy — oak veneer, sage green accents, textured plaster. Natural light is a priority. No dark or heavy elements." {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
-              <FormField control={form.control} name="inspirationNotes" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Inspiration & References</FormLabel>
-                  <p className="text-xs text-muted-foreground">Projects, hotels, Instagram accounts, or magazines the client loves. Links welcome.</p>
-                  <FormControl>
-                    <Textarea rows={4} placeholder="e.g. Loves Soho House Mumbai, The Oberoi Amarvilas. Pinterest board: https://... Admires the work of Studio Lotus. Collected clippings from AD India." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <div className="grid grid-cols-2 gap-4">
+
+              <div className="grid grid-cols-2 gap-3">
                 <FormField control={form.control} name="mustHaves" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Must-Haves</FormLabel>
-                    <p className="text-xs text-muted-foreground">Non-negotiable requirements.</p>
-                    <FormControl>
-                      <Textarea rows={6} placeholder="e.g. Home office nook in the study, walk-in wardrobe in master bedroom, Italian marble in bathrooms, ample concealed storage throughout, smart lighting control." {...field} />
-                    </FormControl>
+                    <Q number={6} label="Must-haves" hint="Non-negotiables" />
+                    <FormControl><Textarea rows={4} placeholder="e.g. Walk-in wardrobe, home office nook, concealed storage throughout, Italian marble in bathrooms." {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="mustAvoids" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Must-Avoids</FormLabel>
-                    <p className="text-xs text-muted-foreground">Things to absolutely stay away from.</p>
-                    <FormControl>
-                      <Textarea rows={6} placeholder="e.g. No dark walls, no brass hardware, avoid heavy drapes, no glossy surfaces, nothing that looks too formal or hotel-like." {...field} />
-                    </FormControl>
+                    <Q number={7} label="Must-avoids" hint="Things to stay away from" />
+                    <FormControl><Textarea rows={4} placeholder="e.g. No dark walls, no brass, avoid heavy drapes, nothing too formal or hotel-like." {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
               </div>
-            </div>
 
-            <Separator />
-
-            {/* ── 4. Budget & Timeline ── */}
-            <div className="space-y-4">
-              <SectionLabel>Budget & Timeline</SectionLabel>
-              <div className="grid grid-cols-3 gap-4">
-                <FormField control={form.control} name="budgetMin" render={({ field }) => (
-                  <FormItem><FormLabel>Budget Min</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="budgetMax" render={({ field }) => (
-                  <FormItem><FormLabel>Budget Max</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="currency" render={({ field }) => (
-                  <FormItem><FormLabel>Currency</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        <SelectItem value="INR">INR</SelectItem>
-                        <SelectItem value="USD">USD</SelectItem>
-                        <SelectItem value="AED">AED</SelectItem>
-                        <SelectItem value="GBP">GBP</SelectItem>
-                      </SelectContent>
-                    </Select><FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-              <FormField control={form.control} name="timeline" render={({ field }) => (
+              <FormField control={form.control} name="inspirationNotes" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Timeline / Target Completion</FormLabel>
-                  <FormControl><Input placeholder="e.g. 8 months from kickoff, client wants to move in by April 2026" {...field} /></FormControl>
+                  <Q number={8} label="Inspiration sources" hint="Hotels, projects, Instagram handles, Pinterest boards, magazines — links welcome." />
+                  <FormControl><Textarea rows={2} placeholder="e.g. Soho House Mumbai, Studio Lotus projects, AD India Jan 2024 cover story." {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -376,42 +406,75 @@ function BriefSheet({ open, onClose, brief, projects }: {
 
             <Separator />
 
-            {/* ── 5. Reference Files ── */}
-            <div className="space-y-3">
+            {/* ── Section D: Budget & timeline ── */}
+            <div className="space-y-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">D — Budget & timeline</p>
+
               <div>
-                <SectionLabel>Reference Files</SectionLabel>
-                <p className="text-sm text-muted-foreground mt-1">Upload mood boards, inspiration images, floor plans, or any supporting documents.</p>
+                <Q number={9} label="What is the approximate budget?" />
+                <div className="grid grid-cols-3 gap-3">
+                  <FormField control={form.control} name="budgetMin" render={({ field }) => (
+                    <FormItem><FormLabel>Min</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="budgetMax" render={({ field }) => (
+                    <FormItem><FormLabel>Max</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="currency" render={({ field }) => (
+                    <FormItem><FormLabel>Currency</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="INR">INR</SelectItem>
+                          <SelectItem value="USD">USD</SelectItem>
+                          <SelectItem value="AED">AED</SelectItem>
+                          <SelectItem value="GBP">GBP</SelectItem>
+                        </SelectContent>
+                      </Select><FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
               </div>
+
+              <FormField control={form.control} name="timeline" render={({ field }) => (
+                <FormItem>
+                  <Q number={10} label="Target completion timeline?" />
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select a range…" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {TIMELINE_OPTIONS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+
+            <Separator />
+
+            {/* ── Section E: Reference files ── */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">E — Reference files</p>
+              <p className="text-sm text-muted-foreground">Upload mood boards, inspiration images, floor plans, or any supporting documents.</p>
 
               {(existingRefs.length > 0 || pendingFiles.length > 0) && (
                 <div className="space-y-1.5">
                   {existingRefs.map((f: any) => (
-                    <div key={f.path} className="flex items-center gap-2 py-2 px-3 rounded-md border text-sm">
+                    <div key={f.path} className="flex items-center gap-2 py-1.5 px-3 rounded-md border text-sm">
                       <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="flex-1 truncate">{f.name}</span>
                       <span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setRemovedPaths(prev => new Set([...prev, f.path]))}
-                      >
+                      <Button type="button" size="icon" variant="ghost" onClick={() => setRemovedPaths(prev => new Set([...prev, f.path]))}>
                         <X className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   ))}
                   {pendingFiles.map((f, i) => (
-                    <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-md border border-dashed text-sm">
+                    <div key={i} className="flex items-center gap-2 py-1.5 px-3 rounded-md border border-dashed text-sm">
                       <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="flex-1 truncate">{f.name}</span>
                       <span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
-                      <Badge variant="secondary" className="text-xs">pending upload</Badge>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setPendingFiles(prev => prev.filter((_, idx) => idx !== i))}
-                      >
+                      <Badge variant="secondary" className="text-xs">pending</Badge>
+                      <Button type="button" size="icon" variant="ghost" onClick={() => setPendingFiles(prev => prev.filter((_, idx) => idx !== i))}>
                         <X className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -419,26 +482,18 @@ function BriefSheet({ open, onClose, brief, projects }: {
                 </div>
               )}
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,.pdf,.doc,.docx,.xlsx,.ppt,.pptx,.dxf,.dwg"
-                className="hidden"
-                onChange={handleFileSelect}
-              />
+              <input ref={fileInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.xlsx,.ppt,.pptx,.dxf,.dwg" className="hidden" onChange={handleFileSelect} />
               <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                <Plus className="h-3.5 w-3.5 mr-1.5" />
-                Add Files
+                <Plus className="h-3.5 w-3.5 mr-1.5" />Add Files
               </Button>
             </div>
 
             <Separator />
 
-            {/* ── 6. Admin ── */}
-            <div className="space-y-4">
-              <SectionLabel>Admin</SectionLabel>
-              <div className="grid grid-cols-2 gap-4">
+            {/* ── Admin ── */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Admin</p>
+              <div className="grid grid-cols-2 gap-3">
                 <FormField control={form.control} name="status" render={({ field }) => (
                   <FormItem><FormLabel>Status</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
@@ -453,7 +508,7 @@ function BriefSheet({ open, onClose, brief, projects }: {
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="projectId" render={({ field }) => (
-                  <FormItem><FormLabel>Link to Project</FormLabel>
+                  <FormItem><FormLabel>Link to project</FormLabel>
                     <Select onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)} value={field.value || "__none__"}>
                       <FormControl><SelectTrigger><SelectValue placeholder="None" /></SelectTrigger></FormControl>
                       <SelectContent>
@@ -469,7 +524,7 @@ function BriefSheet({ open, onClose, brief, projects }: {
             <div className="flex justify-end gap-2 pt-2 pb-6">
               <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
               <Button type="submit" disabled={mutation.isPending}>
-                {mutation.isPending ? "Saving..." : "Save Brief"}
+                {mutation.isPending ? "Saving…" : "Save Brief"}
               </Button>
             </div>
 
