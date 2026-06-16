@@ -12171,6 +12171,55 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  const briefRefUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+  app.post("/api/client-briefs/:id/references", requireAuth, briefRefUpload.array('files', 10), async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const userId = req.user?.id;
+      const { id } = req.params;
+      const { eq, and } = await import("drizzle-orm");
+      const { clientBriefs } = await import("@shared/schema");
+      const [brief] = await db.select().from(clientBriefs).where(and(eq(clientBriefs.id, id), eq(clientBriefs.orgId, orgId)));
+      if (!brief) return res.status(404).json({ error: "Not found" });
+      const files = (req.files || []) as Express.Multer.File[];
+      const newRefs = [...((brief.referenceFiles as any[]) || [])];
+      for (const file of files) {
+        const objectPath = await uploadToObjectStorage(file.buffer, file.originalname, userId, file.mimetype, orgId);
+        newRefs.push({ name: file.originalname, path: objectPath, mimeType: file.mimetype, size: file.size });
+      }
+      const [updated] = await db.update(clientBriefs)
+        .set({ referenceFiles: newRefs, updatedAt: new Date() })
+        .where(and(eq(clientBriefs.id, id), eq(clientBriefs.orgId, orgId)))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      console.error("POST /api/client-briefs/:id/references error:", err);
+      res.status(500).json({ error: "Failed to upload references" });
+    }
+  });
+
+  app.delete("/api/client-briefs/:id/references", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { id } = req.params;
+      const { filePath } = req.body;
+      const { eq, and } = await import("drizzle-orm");
+      const { clientBriefs } = await import("@shared/schema");
+      const [brief] = await db.select().from(clientBriefs).where(and(eq(clientBriefs.id, id), eq(clientBriefs.orgId, orgId)));
+      if (!brief) return res.status(404).json({ error: "Not found" });
+      const refs = ((brief.referenceFiles as any[]) || []).filter((f: any) => f.path !== filePath);
+      const [updated] = await db.update(clientBriefs)
+        .set({ referenceFiles: refs, updatedAt: new Date() })
+        .where(and(eq(clientBriefs.id, id), eq(clientBriefs.orgId, orgId)))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      console.error("DELETE /api/client-briefs/:id/references error:", err);
+      res.status(500).json({ error: "Failed to remove reference" });
+    }
+  });
+
   // ─── Proposals ──────────────────────────────────────────────────────────────
   app.get("/api/proposals", requireAuth, async (req: any, res) => {
     try {

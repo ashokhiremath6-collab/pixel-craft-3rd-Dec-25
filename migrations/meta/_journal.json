@@ -141,6 +141,13 @@
       "when": 1781547000000,
       "tag": "0019_client_briefs_proposals",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781594500000,
+      "tag": "0020_client_briefs_references",
+      "breakpoints": true
     }
   ]
 }

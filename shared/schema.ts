@@ -1236,6 +1236,7 @@ export const clientBriefs = pgTable("client_briefs", {
   mustAvoids: text("must_avoids"),
   inspirationNotes: text("inspiration_notes"),
   status: text("status").notNull().default("new"), // new, in_progress, proposal_sent, converted
+  referenceFiles: jsonb("reference_files").$type<Array<{name: string; path: string; mimeType: string; size: number}>>().notNull().default([]),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });

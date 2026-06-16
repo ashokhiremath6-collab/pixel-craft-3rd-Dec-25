@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -128,6 +128,14 @@ function BriefSheet({ open, onClose, brief, projects }: {
   const { toast } = useToast();
   const qc = useQueryClient();
   const isEdit = !!brief;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [removedPaths, setRemovedPaths] = useState<Set<string>>(new Set());
+
+  const existingRefs = useMemo(
+    () => ((brief?.referenceFiles as any[]) || []).filter((f: any) => !removedPaths.has(f.path)),
+    [brief?.referenceFiles, removedPaths]
+  );
 
   const form = useForm<BriefFormValues>({
     resolver: zodResolver(briefFormSchema),
@@ -151,11 +159,59 @@ function BriefSheet({ open, onClose, brief, projects }: {
     },
   });
 
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        clientName: brief?.clientName ?? "",
+        clientEmail: brief?.clientEmail ?? "",
+        phone: brief?.phone ?? "",
+        projectType: brief?.projectType ?? "",
+        propertyAddress: brief?.propertyAddress ?? "",
+        scopeOfWork: brief?.scopeOfWork ?? "",
+        budgetMin: brief?.budgetMin?.toString() ?? "",
+        budgetMax: brief?.budgetMax?.toString() ?? "",
+        currency: brief?.currency ?? "INR",
+        timeline: brief?.timeline ?? "",
+        stylePreferences: brief?.stylePreferences ?? "",
+        mustHaves: brief?.mustHaves ?? "",
+        mustAvoids: brief?.mustAvoids ?? "",
+        inspirationNotes: brief?.inspirationNotes ?? "",
+        status: brief?.status ?? "new",
+        projectId: brief?.projectId ?? "",
+      });
+      setPendingFiles([]);
+      setRemovedPaths(new Set());
+    }
+  }, [open, brief?.id]);
+
   const mutation = useMutation({
     mutationFn: async (data: BriefFormValues) => {
-      const payload = { ...data, projectId: data.projectId || null, clientEmail: data.clientEmail || null };
-      if (isEdit) return apiRequest("PUT", `/api/client-briefs/${brief.id}`, payload);
-      return apiRequest("POST", "/api/client-briefs", payload);
+      const keepRefs = ((brief?.referenceFiles as any[]) || []).filter((f: any) => !removedPaths.has(f.path));
+      const payload = {
+        ...data,
+        projectId: data.projectId || null,
+        clientEmail: data.clientEmail || null,
+        referenceFiles: keepRefs,
+      };
+      let savedId: string;
+      if (isEdit) {
+        const r = await apiRequest("PUT", `/api/client-briefs/${brief!.id}`, payload);
+        const saved = await r.json();
+        savedId = saved.id;
+      } else {
+        const r = await apiRequest("POST", "/api/client-briefs", payload);
+        const saved = await r.json();
+        savedId = saved.id;
+      }
+      if (pendingFiles.length > 0) {
+        const fd = new FormData();
+        pendingFiles.forEach(f => fd.append('files', f));
+        await fetch(`/api/client-briefs/${savedId}/references`, {
+          method: 'POST',
+          body: fd,
+          credentials: 'include',
+        });
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/client-briefs"] });
@@ -165,103 +221,258 @@ function BriefSheet({ open, onClose, brief, projects }: {
     onError: () => toast({ title: "Error", description: "Could not save brief", variant: "destructive" }),
   });
 
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files) return;
+    setPendingFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+    e.target.value = '';
+  }
+
+  function SectionLabel({ children }: { children: React.ReactNode }) {
+    return <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{children}</p>;
+  }
+
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader className="mb-4">
+      <SheetContent side="right" className="w-full sm:max-w-3xl overflow-y-auto">
+        <SheetHeader className="mb-6">
           <SheetTitle>{isEdit ? "Edit Brief" : "New Client Brief"}</SheetTitle>
+          <p className="text-sm text-muted-foreground mt-1">The more context you capture, the better the design outcome.</p>
         </SheetHeader>
+
         <Form {...form}>
-          <form onSubmit={form.handleSubmit((d) => mutation.mutate(d))} className="space-y-5">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField control={form.control} name="clientName" render={({ field }) => (
-                <FormItem><FormLabel>Client Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="clientEmail" render={({ field }) => (
-                <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="phone" render={({ field }) => (
-                <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="projectType" render={({ field }) => (
-                <FormItem><FormLabel>Project Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
-                    <SelectContent>{PROJECT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                  </Select><FormMessage /></FormItem>
-              )} />
-            </div>
-            <FormField control={form.control} name="propertyAddress" render={({ field }) => (
-              <FormItem><FormLabel>Property Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-            )} />
-            <FormField control={form.control} name="scopeOfWork" render={({ field }) => (
-              <FormItem><FormLabel>Scope of Work</FormLabel><FormControl><Textarea rows={3} placeholder="Describe the rooms and areas in scope..." {...field} /></FormControl><FormMessage /></FormItem>
-            )} />
-            <div className="grid grid-cols-3 gap-4">
-              <FormField control={form.control} name="budgetMin" render={({ field }) => (
-                <FormItem><FormLabel>Budget Min</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="budgetMax" render={({ field }) => (
-                <FormItem><FormLabel>Budget Max</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="currency" render={({ field }) => (
-                <FormItem><FormLabel>Currency</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      <SelectItem value="INR">INR</SelectItem>
-                      <SelectItem value="USD">USD</SelectItem>
-                      <SelectItem value="AED">AED</SelectItem>
-                      <SelectItem value="GBP">GBP</SelectItem>
-                    </SelectContent>
-                  </Select><FormMessage /></FormItem>
+          <form onSubmit={form.handleSubmit((d) => mutation.mutate(d))} className="space-y-8">
+
+            {/* ── 1. Client & Contact ── */}
+            <div className="space-y-4">
+              <SectionLabel>Client & Contact</SectionLabel>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="clientName" render={({ field }) => (
+                  <FormItem><FormLabel>Client Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="clientEmail" render={({ field }) => (
+                  <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="phone" render={({ field }) => (
+                  <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="projectType" render={({ field }) => (
+                  <FormItem><FormLabel>Project Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                      <SelectContent>{PROJECT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                    </Select><FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <FormField control={form.control} name="propertyAddress" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Property Address</FormLabel>
+                  <FormControl><Input placeholder="Full address of the project site" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
               )} />
             </div>
-            <FormField control={form.control} name="timeline" render={({ field }) => (
-              <FormItem><FormLabel>Timeline / Deadline</FormLabel><FormControl><Input placeholder="e.g. 6 months, by Dec 2025" {...field} /></FormControl><FormMessage /></FormItem>
-            )} />
-            <FormField control={form.control} name="stylePreferences" render={({ field }) => (
-              <FormItem><FormLabel>Style Preferences</FormLabel><FormControl><Textarea rows={2} placeholder="e.g. Contemporary, warm tones, no dark walls..." {...field} /></FormControl><FormMessage /></FormItem>
-            )} />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField control={form.control} name="mustHaves" render={({ field }) => (
-                <FormItem><FormLabel>Must Haves</FormLabel><FormControl><Textarea rows={3} placeholder="Non-negotiables..." {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="mustAvoids" render={({ field }) => (
-                <FormItem><FormLabel>Must Avoids</FormLabel><FormControl><Textarea rows={3} placeholder="Things they don't want..." {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-            </div>
-            <FormField control={form.control} name="inspirationNotes" render={({ field }) => (
-              <FormItem><FormLabel>Inspiration Notes</FormLabel><FormControl><Textarea rows={2} placeholder="Reference projects, Pinterest boards, magazines..." {...field} /></FormControl><FormMessage /></FormItem>
-            )} />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField control={form.control} name="status" render={({ field }) => (
-                <FormItem><FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      <SelectItem value="new">New</SelectItem>
-                      <SelectItem value="in_progress">In Progress</SelectItem>
-                      <SelectItem value="proposal_sent">Proposal Sent</SelectItem>
-                      <SelectItem value="converted">Converted</SelectItem>
-                    </SelectContent>
-                  </Select><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="projectId" render={({ field }) => (
-                <FormItem><FormLabel>Link to Project</FormLabel>
-                  <Select onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)} value={field.value || "__none__"}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="None" /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      <SelectItem value="__none__">None</SelectItem>
-                      {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>)}
-                    </SelectContent>
-                  </Select><FormMessage /></FormItem>
+
+            <Separator />
+
+            {/* ── 2. Project Scope ── */}
+            <div className="space-y-4">
+              <SectionLabel>Project Scope</SectionLabel>
+              <FormField control={form.control} name="scopeOfWork" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Scope of Work</FormLabel>
+                  <p className="text-xs text-muted-foreground">Which rooms or areas are in scope? What work is required — new build, renovation, or furnishing only?</p>
+                  <FormControl>
+                    <Textarea rows={8} placeholder="e.g. 3-BHK apartment — living room, dining area, master bedroom with en-suite, two children's rooms. Full renovation including flooring, custom joinery, lighting design, and furniture procurement. False ceiling and AV integration included." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )} />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+
+            <Separator />
+
+            {/* ── 3. Design Direction ── */}
+            <div className="space-y-4">
+              <SectionLabel>Design Direction</SectionLabel>
+              <FormField control={form.control} name="stylePreferences" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Style Preferences</FormLabel>
+                  <p className="text-xs text-muted-foreground">What aesthetic resonates? Describe moods, materials, finishes, or colour palettes if you can.</p>
+                  <FormControl>
+                    <Textarea rows={5} placeholder="e.g. Contemporary minimalist with warm tones — oak veneer, muted sage greens, textured plaster walls. Comfortable but refined. Influenced by Japandi aesthetics. Natural light is a priority." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="inspirationNotes" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Inspiration & References</FormLabel>
+                  <p className="text-xs text-muted-foreground">Projects, hotels, Instagram accounts, or magazines the client loves. Links welcome.</p>
+                  <FormControl>
+                    <Textarea rows={4} placeholder="e.g. Loves Soho House Mumbai, The Oberoi Amarvilas. Pinterest board: https://... Admires the work of Studio Lotus. Collected clippings from AD India." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="mustHaves" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Must-Haves</FormLabel>
+                    <p className="text-xs text-muted-foreground">Non-negotiable requirements.</p>
+                    <FormControl>
+                      <Textarea rows={6} placeholder="e.g. Home office nook in the study, walk-in wardrobe in master bedroom, Italian marble in bathrooms, ample concealed storage throughout, smart lighting control." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="mustAvoids" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Must-Avoids</FormLabel>
+                    <p className="text-xs text-muted-foreground">Things to absolutely stay away from.</p>
+                    <FormControl>
+                      <Textarea rows={6} placeholder="e.g. No dark walls, no brass hardware, avoid heavy drapes, no glossy surfaces, nothing that looks too formal or hotel-like." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* ── 4. Budget & Timeline ── */}
+            <div className="space-y-4">
+              <SectionLabel>Budget & Timeline</SectionLabel>
+              <div className="grid grid-cols-3 gap-4">
+                <FormField control={form.control} name="budgetMin" render={({ field }) => (
+                  <FormItem><FormLabel>Budget Min</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="budgetMax" render={({ field }) => (
+                  <FormItem><FormLabel>Budget Max</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="currency" render={({ field }) => (
+                  <FormItem><FormLabel>Currency</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="INR">INR</SelectItem>
+                        <SelectItem value="USD">USD</SelectItem>
+                        <SelectItem value="AED">AED</SelectItem>
+                        <SelectItem value="GBP">GBP</SelectItem>
+                      </SelectContent>
+                    </Select><FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <FormField control={form.control} name="timeline" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Timeline / Target Completion</FormLabel>
+                  <FormControl><Input placeholder="e.g. 8 months from kickoff, client wants to move in by April 2026" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+
+            <Separator />
+
+            {/* ── 5. Reference Files ── */}
+            <div className="space-y-3">
+              <div>
+                <SectionLabel>Reference Files</SectionLabel>
+                <p className="text-sm text-muted-foreground mt-1">Upload mood boards, inspiration images, floor plans, or any supporting documents.</p>
+              </div>
+
+              {(existingRefs.length > 0 || pendingFiles.length > 0) && (
+                <div className="space-y-1.5">
+                  {existingRefs.map((f: any) => (
+                    <div key={f.path} className="flex items-center gap-2 py-2 px-3 rounded-md border text-sm">
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="flex-1 truncate">{f.name}</span>
+                      <span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setRemovedPaths(prev => new Set([...prev, f.path]))}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                  {pendingFiles.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-md border border-dashed text-sm">
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="flex-1 truncate">{f.name}</span>
+                      <span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
+                      <Badge variant="secondary" className="text-xs">pending upload</Badge>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setPendingFiles(prev => prev.filter((_, idx) => idx !== i))}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,.pdf,.doc,.docx,.xlsx,.ppt,.pptx,.dxf,.dwg"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+              <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Add Files
+              </Button>
+            </div>
+
+            <Separator />
+
+            {/* ── 6. Admin ── */}
+            <div className="space-y-4">
+              <SectionLabel>Admin</SectionLabel>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="status" render={({ field }) => (
+                  <FormItem><FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="proposal_sent">Proposal Sent</SelectItem>
+                        <SelectItem value="converted">Converted</SelectItem>
+                      </SelectContent>
+                    </Select><FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="projectId" render={({ field }) => (
+                  <FormItem><FormLabel>Link to Project</FormLabel>
+                    <Select onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)} value={field.value || "__none__"}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="None" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="__none__">None</SelectItem>
+                        {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>)}
+                      </SelectContent>
+                    </Select><FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 pb-6">
               <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-              <Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Saving..." : "Save Brief"}</Button>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending ? "Saving..." : "Save Brief"}
+              </Button>
             </div>
+
           </form>
         </Form>
       </SheetContent>
