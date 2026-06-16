@@ -25,7 +25,7 @@ import { setupAuth, isAuthenticated, requireAuth, requireAdmin, requireAdminOnly
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL, downloadObjectBuffer } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { RENDER_STYLES, generateInteriorRender, generateConceptRender, generatePhotorealConversion, detectRoomType, extractRoomName, paraphraseBrief, extractQuoteTotalFromImage } from "./ai/gemini";
-import { chatWithDesignAssistant, generateRenderBrief, generateFloorPlanSVG, generateElevationSVG, generateFloorPlanDXFSpec, generateElevationDXFSpec, DesignChatMessage, DesignChatAttachment } from "./ai/claude";
+import { chatWithDesignAssistant, generateRenderBrief, generateFloorPlanSVG, generateElevationSVG, generateFloorPlanDXFSpec, generateElevationDXFSpec, reviewDesignFile, DesignChatMessage, DesignChatAttachment } from "./ai/claude";
 import { generateDXF } from "./utils/dxfGenerator";
 import {
   type NotificationPreferences,
@@ -10724,6 +10724,57 @@ Return your response in the following JSON format only (no markdown, no code blo
       console.error("Elevation DXF error:", error);
       const msg = error instanceof Error ? error.message : "Failed to generate elevation DXF";
       res.status(500).json({ error: msg });
+    }
+  });
+
+  // ---- AI DESIGN REVIEW ----
+  app.post("/api/ai-review", requireAuth, async (req, res) => {
+    try {
+      const { filePath, fileName, reviewType } = req.body as {
+        filePath: string;
+        fileName: string;
+        reviewType: string;
+      };
+
+      if (!filePath || !fileName || !reviewType) {
+        return res.status(400).json({ error: "filePath, fileName and reviewType are required" });
+      }
+
+      // Fetch file buffer from object storage
+      const buffer = await downloadObjectBuffer(filePath);
+      if (!buffer) {
+        return res.status(404).json({ error: "File not found in storage" });
+      }
+
+      // Cap at 10 MB — Anthropic base64 limit is ~5 MB for images, 32 MB for PDFs
+      const MAX_BYTES = 10 * 1024 * 1024;
+      if (buffer.length > MAX_BYTES) {
+        return res.status(413).json({
+          error: `File is too large for AI review (${(buffer.length / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`,
+        });
+      }
+
+      // Derive MIME type from extension
+      const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+      const MIME_MAP: Record<string, string> = {
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        png: "image/png",
+        webp: "image/webp",
+        gif: "image/gif",
+        pdf: "application/pdf",
+        dxf: "text/plain",
+        dwg: "text/plain",
+        obj: "text/plain",
+      };
+      const mimeType = MIME_MAP[ext] ?? "image/jpeg";
+
+      const base64Data = buffer.toString("base64");
+      const result = await reviewDesignFile(base64Data, mimeType, fileName, reviewType);
+      res.json(result);
+    } catch (err: any) {
+      console.error("[ai-review] Error:", err);
+      res.status(500).json({ error: err.message ?? "Review failed" });
     }
   });
 

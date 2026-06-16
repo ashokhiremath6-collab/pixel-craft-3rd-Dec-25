@@ -658,3 +658,164 @@ export async function generateElevationDXFSpec(
     throw new Error("Claude returned invalid JSON for elevation DXF");
   }
 }
+
+// ── AI Design Review ────────────────────────────────────────────────────────
+
+export interface AIReviewItem {
+  severity: "concern" | "suggestion" | "note";
+  category: string;
+  message: string;
+}
+
+export interface AIReviewResult {
+  summary: string;
+  items: AIReviewItem[];
+}
+
+const REVIEW_PROMPTS: Record<string, string> = {
+  moodboard: `You are a senior interior designer reviewing a moodboard submitted by a design team.
+Analyse it for:
+- Colour palette harmony, contrast ratios, and temperature balance (warm/cool)
+- Style coherence — does every element belong to the same aesthetic direction?
+- Mood and atmosphere effectiveness — does it evoke the right feeling?
+- Potential conflicts: clashing textures, mismatched periods, confusing focal points
+- Opportunities: what is working well, and what could be strengthened`,
+
+  render: `You are a senior interior designer reviewing a rendered visualisation.
+Analyse it for:
+- Lighting quality: ambient, task and accent layers; realistic shadows and highlights
+- Material and finish coherence — do surfaces read naturally together?
+- Colour balance and palette harmony across all surfaces
+- Spatial proportions: furniture scale relative to room, ceiling height feel
+- Any visual inconsistencies, clipping artefacts, or areas that break realism`,
+
+  "floor-plan": `You are a senior space planner reviewing a floor plan.
+Analyse it for:
+- Circulation paths and traffic flow — are key routes clear and unobstructed?
+- Room proportions and spatial efficiency
+- Furniture placement clearances (600 mm minimum pathways; 900 mm for primary routes)
+- Door swing conflicts or openings that block usable wall
+- Natural light access and ventilation positioning
+- Missing or unclear dimensions/annotations`,
+
+  concept: `You are reviewing a concept drawing for an interior design project.
+Analyse it for:
+- Spatial logic and layout coherence
+- Style and mood consistency across the sheet
+- Material and finish suggestions that fit the concept direction
+- Proportion and scale of key elements
+- Design opportunities or areas that need development`,
+
+  elevation: `You are a senior interior designer reviewing an elevation drawing.
+Analyse it for:
+- Visual proportion and rhythm of vertical elements
+- Fenestration sizing, spacing, and relationship to wall area
+- Material transitions and finish boundaries — are junctions resolved?
+- Joinery and built-in detail opportunities
+- Dimension completeness and annotation clarity`,
+
+  working: `You are a technical design reviewer checking a working drawing for construction.
+Analyse it for:
+- Dimension completeness: are all critical dimensions shown?
+- Missing annotations or material call-outs
+- Constructability concerns: can a contractor build from this drawing?
+- Coordination issues: structural grid alignment, MEP clearances, fixing substrates
+- Drawing standard compliance: title block, revision marks, scale`,
+};
+
+export async function reviewDesignFile(
+  base64Data: string,
+  mimeType: string,
+  fileName: string,
+  reviewType: string
+): Promise<AIReviewResult> {
+  const client = getClaudeClient();
+
+  const promptContext = REVIEW_PROMPTS[reviewType] ?? REVIEW_PROMPTS.moodboard;
+
+  const contentBlocks: Anthropic.ContentBlockParam[] = [];
+
+  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+  const isCadFile = ext === "dxf" || ext === "obj";
+
+  if (isCadFile) {
+    const rawText = Buffer.from(base64Data, "base64").toString("utf-8");
+    const MAX_CAD_CHARS = 80_000;
+    const cadText =
+      rawText.length > MAX_CAD_CHARS ? rawText.slice(0, MAX_CAD_CHARS) : rawText;
+    contentBlocks.push({
+      type: "text",
+      text: `[CAD file: ${fileName}]\n\`\`\`\n${cadText}\n\`\`\``,
+    });
+  } else if (mimeType.startsWith("image/")) {
+    const safeMimeType =
+      mimeType === "image/heic" ? "image/jpeg" : mimeType;
+    contentBlocks.push({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: safeMimeType as
+          | "image/jpeg"
+          | "image/png"
+          | "image/gif"
+          | "image/webp",
+        data: base64Data,
+      },
+    });
+  } else if (mimeType === "application/pdf") {
+    contentBlocks.push({
+      type: "document",
+      source: {
+        type: "base64",
+        media_type: "application/pdf",
+        data: base64Data,
+      },
+    } as any);
+  }
+
+  contentBlocks.push({
+    type: "text",
+    text: `${promptContext}
+
+Return your analysis as a JSON object with this exact structure (raw JSON only — no markdown fences):
+{
+  "summary": "One or two sentence overall impression.",
+  "items": [
+    { "severity": "concern|suggestion|note", "category": "Short category name", "message": "Specific, actionable observation." }
+  ]
+}
+
+Severity guide:
+- concern: something that should be addressed (layout problem, clash, missing critical info)
+- suggestion: improvement opportunity that would enhance the design
+- note: general observation or context worth knowing
+
+Aim for 4–8 items. Be specific and actionable. Avoid vague praise.`,
+  });
+
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1500,
+    messages: [{ role: "user", content: contentBlocks }],
+  });
+
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    throw new Error("No response from Claude");
+  }
+
+  let jsonText = textBlock.text.trim();
+  if (jsonText.startsWith("```")) {
+    jsonText = jsonText
+      .replace(/^```(?:json)?\n?/, "")
+      .replace(/\n?```$/, "");
+  }
+
+  const jsonStart = jsonText.indexOf("{");
+  const jsonEnd = jsonText.lastIndexOf("}");
+  if (jsonStart !== -1 && jsonEnd !== -1) {
+    jsonText = jsonText.slice(jsonStart, jsonEnd + 1);
+  }
+
+  return JSON.parse(jsonText) as AIReviewResult;
+}

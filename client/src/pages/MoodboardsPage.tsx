@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, ImageIcon, FileText, X, Eye, Trash2, Loader2, FolderOpen, ExternalLink, Download, FolderInput, MoreVertical, FileCode2, Layers, ChevronDown, ChevronUp, ChevronRight, Pencil, BookmarkCheck, Bookmark } from "lucide-react";
+import { AIReviewButton } from "@/components/AIReviewPanel";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1205,6 +1206,13 @@ export default function MoodboardsPage() {
                                   >
                                     <Eye className="h-4 w-4" />
                                   </Button>
+                                )}
+                                {moodboard.filePath && moodboard.filePath.startsWith('/objects/') && (
+                                  <AIReviewButton
+                                    filePath={moodboard.filePath}
+                                    fileName={moodboard.fileName || moodboard.name || 'file'}
+                                    reviewType={assetType === "render" ? "render" : "moodboard"}
+                                  />
                                 )}
                                 <Button
                                   variant="ghost"

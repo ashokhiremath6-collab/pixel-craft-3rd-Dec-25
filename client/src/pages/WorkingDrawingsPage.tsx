@@ -1,4 +1,6 @@
 import { useState, useMemo, useRef } from "react";
+import { AIReviewButton } from "@/components/AIReviewPanel";
+import type { AIReviewType } from "@/components/AIReviewPanel";
 import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -409,13 +411,14 @@ function RevisionSheet({ drawing, onClose, onViewRevision }: {
 
 // ── Drawing table row ────────────────────────────────────────────────────────
 
-function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory, onHistory, onRename }: {
+function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory, onHistory, onRename, drawingType }: {
   drawing: DrawingRow;
   onView: (d: DrawingRow) => void;
   onDelete: (d: DrawingRow) => void;
   onMoveCategory: (d: DrawingRow) => void;
   onHistory: (d: DrawingRow) => void;
   onRename: (id: string, title: string) => void;
+  drawingType?: "working" | "concept";
 }) {
   const rev = drawing.latestRevision;
   const catColor = CATEGORY_COLORS[drawing.category] || "bg-muted text-muted-foreground";
@@ -506,6 +509,13 @@ function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory, onHistory,
             <Eye className="h-3.5 w-3.5 mr-1.5" />
             Open
           </Button>
+          {rev?.filePath && (
+            <AIReviewButton
+              filePath={rev.filePath}
+              fileName={rev.fileName || drawing.title}
+              reviewType={(drawingType === "concept" ? "concept" : "working") as AIReviewType}
+            />
+          )}
           <Button
             size="icon"
             variant="ghost"
@@ -541,10 +551,11 @@ function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory, onHistory,
 
 // ── Collapsible group ────────────────────────────────────────────────────────
 
-function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete, onMoveCategory, onHistory, onRename }: {
+function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete, onMoveCategory, onHistory, onRename, drawingType }: {
   label: string; count: number; drawings: DrawingRow[]; defaultOpen: boolean;
   onView: (d: DrawingRow) => void; onDelete: (d: DrawingRow) => void; onMoveCategory: (d: DrawingRow) => void;
   onHistory: (d: DrawingRow) => void; onRename: (id: string, title: string) => void;
+  drawingType?: "working" | "concept";
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const isEmpty = drawings.length === 0;
@@ -592,7 +603,7 @@ function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete, o
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} onDelete={onDelete} onMoveCategory={onMoveCategory} onHistory={onHistory} onRename={onRename} />)}
+                {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} onDelete={onDelete} onMoveCategory={onMoveCategory} onHistory={onHistory} onRename={onRename} drawingType={drawingType} />)}
               </TableBody>
             </Table>
           )}
@@ -1416,7 +1427,8 @@ export default function WorkingDrawingsPage({ drawingType = "working" }: { drawi
                 onDelete={(d) => setDeletingDrawing(d)}
                 onMoveCategory={(d) => { setMovingDrawing(d); setNewCategory(`cat:${d.category}`); }}
                 onHistory={(d) => setHistoryDrawing(d)}
-                onRename={(id, title) => moveCategoryMut.mutate({ id, title })} />
+                onRename={(id, title) => moveCategoryMut.mutate({ id, title })}
+                drawingType={drawingType} />
             ))}
             {viewMode === "room" && (
               <button
