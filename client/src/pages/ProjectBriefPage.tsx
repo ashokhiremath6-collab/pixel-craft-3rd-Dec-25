@@ -158,8 +158,8 @@ function BriefSheet({ open, onClose, brief, projects }: {
   const [isEntireFlat, setIsEntireFlat] = useState<boolean>(true);
   const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set());
   const [workType, setWorkType] = useState<string>("");
-  const [householdSize, setHouseholdSize] = useState<string>("");
-  const [householdAges, setHouseholdAges] = useState<string>("");
+  const [bedroomCount, setBedroomCount] = useState<string>("");
+  const [childBedroomCount, setChildBedroomCount] = useState<string>("");
   const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set());
 
   // Timeline — client's preferred start date
@@ -217,8 +217,8 @@ function BriefSheet({ open, onClose, brief, projects }: {
       setIsEntireFlat(true);
       setSelectedRooms(new Set());
       setWorkType("");
-      setHouseholdSize("");
-      setHouseholdAges("");
+      setBedroomCount("");
+      setChildBedroomCount("");
       setSelectedStyles(new Set());
       setClientStart(brief?.timeline ?? "");
     }
@@ -238,8 +238,8 @@ function BriefSheet({ open, onClose, brief, projects }: {
       scopeParts.push(isEntireFlat ? "Scope: Entire flat" : "Scope: Specific rooms");
       if (workType) scopeParts.push(`Work type: ${workType}`);
       if (selectedRooms.size > 0) scopeParts.push(`Rooms: ${Array.from(selectedRooms).join(", ")}`);
-      if (householdSize.trim()) scopeParts.push(`Household members: ${householdSize.trim()}`);
-      if (householdAges.trim()) scopeParts.push(`Ages: ${householdAges.trim()}`);
+      if (bedroomCount.trim()) scopeParts.push(`Bedrooms: ${bedroomCount.trim()}`);
+      if (childBedroomCount.trim()) scopeParts.push(`Children's bedrooms: ${childBedroomCount.trim()}`);
       if (data.scopeOfWork?.trim()) scopeParts.push(data.scopeOfWork.trim());
 
       const styleParts: string[] = [];
@@ -372,21 +372,23 @@ function BriefSheet({ open, onClose, brief, projects }: {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Q number={3} label="How many members in the household?" />
+                  <Q number={3} label="How many bedrooms?" />
                   <Input
                     type="number"
                     min={1}
-                    value={householdSize}
-                    onChange={e => setHouseholdSize(e.target.value)}
-                    placeholder="e.g. 4"
+                    value={bedroomCount}
+                    onChange={e => setBedroomCount(e.target.value)}
+                    placeholder="e.g. 5"
                   />
                 </div>
                 <div>
-                  <Q number={4} label="Ages of household members" hint="Helps tailor the design" />
+                  <Q number={4} label="How many children's bedrooms?" />
                   <Input
-                    value={householdAges}
-                    onChange={e => setHouseholdAges(e.target.value)}
-                    placeholder="e.g. 42, 39, 14, 10"
+                    type="number"
+                    min={0}
+                    value={childBedroomCount}
+                    onChange={e => setChildBedroomCount(e.target.value)}
+                    placeholder="e.g. 2"
                   />
                 </div>
               </div>
