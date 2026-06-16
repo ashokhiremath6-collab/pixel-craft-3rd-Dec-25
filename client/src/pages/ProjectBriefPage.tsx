@@ -249,10 +249,10 @@ function BriefSheet({ open, onClose, brief, projects }: {
               )} />
               <FormField control={form.control} name="projectId" render={({ field }) => (
                 <FormItem><FormLabel>Link to Project</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                  <Select onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)} value={field.value || "__none__"}>
                     <FormControl><SelectTrigger><SelectValue placeholder="None" /></SelectTrigger></FormControl>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="__none__">None</SelectItem>
                       {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>)}
                     </SelectContent>
                   </Select><FormMessage /></FormItem>
@@ -450,20 +450,20 @@ function ProposalSheet({ open, onClose, proposal, briefs, projects }: {
                 )} />
                 <FormField control={form.control} name="briefId" render={({ field }) => (
                   <FormItem><FormLabel>Linked Brief</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                    <Select onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)} value={field.value || "__none__"}>
                       <FormControl><SelectTrigger><SelectValue placeholder="None" /></SelectTrigger></FormControl>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="__none__">None</SelectItem>
                         {briefs.map(b => <SelectItem key={b.id} value={b.id}>{b.clientName}</SelectItem>)}
                       </SelectContent>
                     </Select><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="projectId" render={({ field }) => (
                   <FormItem><FormLabel>Linked Project</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                    <Select onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)} value={field.value || "__none__"}>
                       <FormControl><SelectTrigger><SelectValue placeholder="None" /></SelectTrigger></FormControl>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="__none__">None</SelectItem>
                         {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>)}
                       </SelectContent>
                     </Select><FormMessage /></FormItem>

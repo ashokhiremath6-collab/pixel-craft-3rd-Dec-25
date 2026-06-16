@@ -1,3 +1,5 @@
 - [Replit proxy WAF blocks assetType query param](replit-proxy-waf-assettype.md) — /api/moodboards?assetType=... returns 403 HTML from Replit proxy before Express; fix: move assetType to URL path segment.
 - [Production must set NODE_ENV=production](production-node-env.md) — without it, Express defaults to "development", setupVite() runs in production, and any Vite HMR error calls process.exit(1), crashing the server.
 - [getOrgUsage UNION ALL type mismatch](getorgusage-type-mismatch.md) — works_order_files.file_size is TEXT in production; COALESCE(text_col, 0) fails in a UNION ALL; fix: cast to ::numeric. Any new upload table with a non-numeric file_size column needs the same treatment.
+- [Drizzle migration journal must include all SQL files](drizzle-journal-completeness.md) — manually added SQL files in migrations/ are ignored by Drizzle migrator unless listed in migrations/meta/_journal.json; always add an entry when creating a new migration file.
+- [Radix Select value="" crashes in production](radix-select-empty-value.md) — SelectItem with value="" causes Radix UI to throw in production builds; use a sentinel like "__none__" and map back on onChange.
