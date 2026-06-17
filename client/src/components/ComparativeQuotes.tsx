@@ -61,10 +61,9 @@ interface ComparativeQuotesProps {
   initialQuoteId?: string; // projectVendorId — auto-opens the file viewer for this quote
 }
 
-function QuoteGroupSection({ label, count, children, initialOpen = false }: { label: string; count: number; children: React.ReactNode; initialOpen?: boolean }) {
-  const [open, setOpen] = useState(initialOpen);
+function QuoteGroupSection({ label, count, children, open, onOpenChange }: { label: string; count: number; children: React.ReactNode; open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
+    <Collapsible open={open} onOpenChange={onOpenChange}>
       <CollapsibleTrigger asChild>
         <button type="button" className="w-full flex items-center gap-2 px-4 py-3 bg-muted/50 hover-elevate rounded-md text-left">
           {open
@@ -89,6 +88,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const [isExporting, setIsExporting] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [highlightedQuoteId, setHighlightedQuoteId] = useState<string | null>(initialQuoteId ?? null);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalData, setModalData] = useState<{ vendorName: string; projectName: string } | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -124,10 +124,23 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     setIsModalOpen(true);
   };
 
-  // Scroll to and highlight the specific quote row when navigating from the dashboard
+  // Open the group containing the target quote, then scroll to it
   useEffect(() => {
     if (!initialQuoteId || Object.keys(quotations).length === 0) return;
-    // Delay allows the collapsible group animation to finish before scrolling
+    // Find which group key contains this quote
+    const allFlat = Object.entries(quotations).flatMap(([pid, qs]) =>
+      qs.map((q: any) => ({ ...q, projectId: pid }))
+    );
+    const target = allFlat.find((q: any) => q.id === initialQuoteId);
+    if (target) {
+      const groupKey = `${target.category}-${target.projectId}`;
+      setOpenGroups(prev => {
+        const next = new Set(prev);
+        next.add(groupKey);
+        return next;
+      });
+    }
+    // Scroll after the collapsible has had time to open and render
     const timer = setTimeout(() => {
       const row = document.querySelector(`[data-testid="quotation-row-${initialQuoteId}"]`);
       if (row) {
@@ -728,7 +741,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
         );
 
         return (
-          <QuoteGroupSection key={key} label={`${group.category} — ${group.projectName}`} count={group.quotations.length} initialOpen={!!initialQuoteId && group.quotations.some(q => q.id === initialQuoteId)}>
+          <QuoteGroupSection key={key} label={`${group.category} — ${group.projectName}`} count={group.quotations.length} open={openGroups.has(key)} onOpenChange={(isOpen) => setOpenGroups(prev => { const next = new Set(prev); isOpen ? next.add(key) : next.delete(key); return next; })}>
           <Card>
             <CardContent className="pt-0 overflow-x-auto">
               <Table className="table-fixed min-w-[900px]">
@@ -1104,7 +1117,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
             );
 
             return (
-              <QuoteGroupSection key={key} label={`${group.category} — ${group.projectName}`} count={group.quotations.length} initialOpen={!!initialQuoteId && group.quotations.some(q => q.id === initialQuoteId)}>
+              <QuoteGroupSection key={key} label={`${group.category} — ${group.projectName}`} count={group.quotations.length} open={openGroups.has(key)} onOpenChange={(isOpen) => setOpenGroups(prev => { const next = new Set(prev); isOpen ? next.add(key) : next.delete(key); return next; })}>
               <Card>
                 <CardContent className="pt-0 overflow-x-auto">
                   <Table className="table-fixed min-w-[900px]">
