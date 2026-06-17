@@ -1987,33 +1987,44 @@ export class DBStorage implements IStorage {
   }
 
   async getProjectsForUser(userId: string, role: string): Promise<Project[]> {
-    // Admins and designers can access all projects
+    const user = await this.getUser(userId);
+    const orgId = user?.orgId;
+
+    // Admins and designers see all projects within their org
     if (role === 'admin' || role === 'designer') {
+      if (orgId) {
+        return await db.select().from(projects).where(eq(projects.orgId, orgId));
+      }
       return await db.select().from(projects);
     }
     
-    // Project managers can only access assigned projects
+    // Project managers can only access assigned projects within their org
     if (role === 'project_manager') {
       const assignments = await this.getUserProjectAssignments(userId);
       const projectIds = assignments.map(a => a.projectId);
       if (projectIds.length === 0) return [];
-      return await db.select().from(projects).where(inArray(projects.id, projectIds));
+      const conditions = [inArray(projects.id, projectIds)];
+      if (orgId) conditions.push(eq(projects.orgId, orgId));
+      return await db.select().from(projects).where(and(...conditions));
     }
     
     // Clients can only access projects where they're the client
-    const user = await this.getUser(userId);
     if (!user?.email) return [];
     
     // Get projects from both old clientEmail field and new projectClients table
     const clientEmailProjects = await db.select().from(projects).where(eq(projects.clientEmail, user.email));
     const projectClientProjects = await this.getProjectsByClientEmail(user.email);
     
-    // Combine and deduplicate
+    // Combine and deduplicate, scoped to org
     const projectIds = new Set([
       ...clientEmailProjects.map(p => p.id),
       ...projectClientProjects.map(p => p.id)
     ]);
-    return await db.select().from(projects).where(inArray(projects.id, Array.from(projectIds)));
+    const idList = Array.from(projectIds);
+    if (idList.length === 0) return [];
+    const conditions = [inArray(projects.id, idList)];
+    if (orgId) conditions.push(eq(projects.orgId, orgId));
+    return await db.select().from(projects).where(and(...conditions));
   }
 
   async getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]> {

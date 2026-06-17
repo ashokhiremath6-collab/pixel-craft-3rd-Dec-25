@@ -4648,6 +4648,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!floorPlan) {
         return res.status(404).json({ error: "Floor plan not found" });
       }
+
+      // Org ownership check
+      const caller = await storage.getUser(userId);
+      if (caller?.orgId && floorPlan.orgId && caller.orgId !== floorPlan.orgId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
       
       const deleted = await storage.deleteFloorPlan(id);
       if (!deleted) {
@@ -4940,6 +4946,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const moodboard = await storage.getMoodboard(id);
       if (!moodboard) {
         return res.status(404).json({ error: "Moodboard not found" });
+      }
+
+      // Org ownership check
+      const caller = await storage.getUser(userId);
+      if (caller?.orgId && moodboard.orgId && caller.orgId !== moodboard.orgId) {
+        return res.status(403).json({ error: "Access denied" });
       }
       
       const deleted = await storage.deleteMoodboard(id);
@@ -8310,9 +8322,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/catalogue/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      const userId = (req.user as any).id;
       
       // Fetch the item details before deleting for activity logging
       const item = await storage.getCatalogueItem(id);
+      if (!item) {
+        return res.status(404).json({ error: "Catalogue item not found" });
+      }
+
+      // Org ownership check
+      const user = await storage.getUser(userId);
+      if (user?.orgId && item.orgId && user.orgId !== item.orgId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
       
       const deleted = await storage.deleteCatalogueItem(id);
       if (!deleted) {
@@ -8320,8 +8342,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Log the deletion activity
-      const userId = (req.user as any).id;
-      const user = await storage.getUser(userId);
       if (item && user) {
         const userName = user.firstName && user.lastName 
           ? `${user.firstName} ${user.lastName}` 
@@ -9098,11 +9118,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/specifications/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      const userId = (req.user as any).id;
       
       // Get specification details before deleting
       const spec = await storage.getSpecification(id);
       if (!spec) {
         return res.status(404).json({ error: "Specification not found" });
+      }
+
+      // Org ownership check
+      const user = await storage.getUser(userId);
+      if (user?.orgId && spec.orgId && user.orgId !== spec.orgId) {
+        return res.status(403).json({ error: "Access denied" });
       }
       
       const deleted = await storage.deleteSpecification(id);
@@ -9111,8 +9138,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Log deletion activity
-      const userId = (req.user as any).id;
-      const user = await storage.getUser(userId);
       if (user) {
         try {
           const userName = user.firstName && user.lastName 
@@ -9242,6 +9267,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/sops/:id", requireAdmin, async (req, res) => {
     try {
+      const userId = (req.user as any).id;
+
+      const sop = await storage.getSop(req.params.id);
+      if (!sop) return res.status(404).json({ error: "SOP not found" });
+
+      // Org ownership check
+      const caller = await storage.getUser(userId);
+      if (caller?.orgId && sop.orgId && caller.orgId !== sop.orgId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
       const deleted = await storage.deleteSop(req.params.id);
       if (!deleted) return res.status(404).json({ error: "SOP not found" });
       res.json({ success: true });
