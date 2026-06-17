@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,7 +9,7 @@ import {
   Users, Building2, FileText, TrendingUp, ArrowRight, Clock, Download,
   AlertCircle, ImageIcon, LayoutDashboard, FileCheck2, CalendarDays,
   BookOpen, Package, Trash2, Pencil, Plus, Bell, FileUp,
-  ChevronDown, ChevronRight, ExternalLink, ArrowUpDown,
+  ChevronDown, ChevronRight, ExternalLink, ArrowUpDown, CheckCircle2, ClipboardList,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -53,6 +55,22 @@ interface ProjectTaskBreakdownEntry {
   overdueCount?: number;
 }
 
+interface MomActionItemAlert {
+  id: string;
+  meetingMinutesId: string;
+  serialNo: number;
+  issueDiscussed: string;
+  responsibility: string | null;
+  deadline: string | null;
+  remarks: string | null;
+  completed: boolean;
+  createdAt: string;
+  meetingTitle: string;
+  meetingDate: string;
+  projectId: string | null;
+  projectName: string | null;
+}
+
 interface DashboardProps {
   vendors: VendorWithCategory[];
   projects: Project[];
@@ -68,6 +86,7 @@ interface DashboardProps {
   tasksLoading?: boolean;
   projectTaskBreakdown?: ProjectTaskBreakdownEntry[];
   remainingTasksByProject?: Record<string, Array<Task & { projectName: string }>>;
+  momActionItems?: MomActionItemAlert[];
   onNavigate?: (path: string) => void;
 }
 
@@ -212,6 +231,48 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
+function MomAlertRow({ item, onMarkDone, isPending }: {
+  item: MomActionItemAlert;
+  onMarkDone: () => void;
+  isPending: boolean;
+}) {
+  const isOverdue = item.deadline && startOfDay(new Date(item.deadline)) < startOfDay(new Date());
+  const bg = isOverdue ? "#fef2f2" : "#f5f3ff";
+  const textMain = isOverdue ? "#7f1d1d" : "#3b0764";
+  const textSub = isOverdue ? "#ef4444" : "#7c3aed";
+
+  return (
+    <div
+      className="flex items-start justify-between gap-3 px-3 py-2.5 rounded-[10px]"
+      style={{ background: bg }}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-medium leading-snug" style={{ color: textMain }}>
+          {item.issueDiscussed}
+        </div>
+        <div className="text-[10px] mt-0.5 flex flex-wrap gap-x-2" style={{ color: textSub }}>
+          {item.meetingTitle && <span>{item.meetingTitle}</span>}
+          {item.projectName && <span>• {item.projectName}</span>}
+          {item.responsibility && <span>• {item.responsibility}</span>}
+          {item.deadline && (
+            <span>• Due {format(new Date(item.deadline + 'T00:00:00'), 'dd MMM yyyy')}</span>
+          )}
+        </div>
+      </div>
+      <Button
+        size="icon"
+        variant="ghost"
+        disabled={isPending}
+        onClick={onMarkDone}
+        title="Mark as done"
+        className="flex-shrink-0 mt-0.5"
+      >
+        <CheckCircle2 className="h-4 w-4" style={{ color: textSub }} />
+      </Button>
+    </div>
+  );
+}
+
 export default function Dashboard({
   vendors,
   projects,
@@ -223,8 +284,21 @@ export default function Dashboard({
   tasksLoading = false,
   projectTaskBreakdown = [],
   remainingTasksByProject = {},
+  momActionItems = [],
   onNavigate,
 }: DashboardProps) {
+  const queryClient = useQueryClient();
+
+  const markDoneMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiRequest(`/api/meeting-minutes/action-items/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ completed: true }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/meeting-minutes/action-items/pending'] });
+    },
+  });
   const [isQuotationDetailModalOpen, setIsQuotationDetailModalOpen] = useState(false);
   const [showAllProjects, setShowAllProjects] = useState(() => localStorage.getItem('dashboard_show_all_projects') === 'true');
   const [breakdownSortMode, setBreakdownSortMode] = useState<BreakdownSortMode>(() => {
@@ -882,6 +956,55 @@ export default function Dashboard({
                       </div>
                     </div>
                   )}
+                </div>
+              </ContentCard>
+            )}
+
+            {/* MOM Action Items */}
+            {momActionItems.length > 0 && (
+              <ContentCard>
+                <div className="px-6 pt-6 pb-4 flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5 text-violet-500" />
+                  <h2 className="text-[18px] font-semibold" style={{ color: "#111827" }}>
+                    MOM Action Items
+                  </h2>
+                  <span className="ml-auto text-xs font-medium px-2 py-0.5 rounded-full"
+                    style={{ background: "#f5f3ff", color: "#6d28d9" }}>
+                    {momActionItems.length} open
+                  </span>
+                </div>
+                <div className="px-6 pb-6 flex flex-col gap-2">
+                  {(() => {
+                    const today = startOfDay(new Date());
+                    const overdue = momActionItems.filter(i => i.deadline && startOfDay(new Date(i.deadline)) < today);
+                    const pending = momActionItems.filter(i => !i.deadline || startOfDay(new Date(i.deadline)) >= today);
+                    return (
+                      <>
+                        {overdue.length > 0 && (
+                          <div className="mb-1">
+                            <span className="text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                              style={{ background: "#fef2f2", color: "#991b1b" }}>
+                              Overdue
+                            </span>
+                          </div>
+                        )}
+                        {overdue.map(item => (
+                          <MomAlertRow key={item.id} item={item} onMarkDone={() => markDoneMutation.mutate(item.id)} isPending={markDoneMutation.isPending} />
+                        ))}
+                        {pending.length > 0 && (
+                          <div className={`${overdue.length > 0 ? 'mt-2' : ''} mb-1`}>
+                            <span className="text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                              style={{ background: "#f5f3ff", color: "#6d28d9" }}>
+                              Pending
+                            </span>
+                          </div>
+                        )}
+                        {pending.map(item => (
+                          <MomAlertRow key={item.id} item={item} onMarkDone={() => markDoneMutation.mutate(item.id)} isPending={markDoneMutation.isPending} />
+                        ))}
+                      </>
+                    );
+                  })()}
                 </div>
               </ContentCard>
             )}

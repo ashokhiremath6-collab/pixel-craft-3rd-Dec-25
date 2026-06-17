@@ -9699,6 +9699,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all pending (incomplete) action items across all meetings for the org
+  app.get("/api/meeting-minutes/action-items/pending", requireProjectAccess, async (req, res) => {
+    try {
+      const orgId = (req as any).user?.orgId;
+      if (!orgId) return res.status(403).json({ error: "No organisation" });
+      const items = await storage.getAllPendingActionItems(orgId);
+      res.json(items);
+    } catch (error) {
+      console.error('Error fetching pending action items:', error);
+      res.status(500).json({ error: "Failed to fetch pending action items" });
+    }
+  });
+
+  // Mark a meeting action item as completed / not completed
+  app.patch("/api/meeting-minutes/action-items/:id", requireProjectAccess, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { completed } = req.body;
+      if (typeof completed !== 'boolean') {
+        return res.status(400).json({ error: "completed must be a boolean" });
+      }
+      const updated = await storage.updateMeetingActionItemCompleted(id, completed);
+      if (!updated) return res.status(404).json({ error: "Action item not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating action item:', error);
+      res.status(500).json({ error: "Failed to update action item" });
+    }
+  });
+
   // Parse Fireflies transcript using Gemini AI
   app.post("/api/parse-fireflies", requireProjectAccess, async (req, res) => {
     try {
