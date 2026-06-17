@@ -213,7 +213,10 @@ export default function RendersPage() {
   }, [filtered]);
 
   // ── Mutations ────────────────────────────────────────────────────────────
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/moodboards/by-type"] });
+  };
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
