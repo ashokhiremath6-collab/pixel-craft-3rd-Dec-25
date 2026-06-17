@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -63,6 +63,16 @@ export default function CataloguePage() {
   const [location, setLocation] = useLocation();
   const search = useSearch();
   const filterProjectId = new URLSearchParams(search).get("projectId") || "";
+  const initialItemId = new URLSearchParams(search).get("item") || null;
+
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(initialItemId);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxName, setLightboxName] = useState<string>("");
+
+  const isImageFile = (fileName: string) => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff'].includes(ext ?? '');
+  };
 
   const handleProjectChange = (value: string) => {
     const params = new URLSearchParams(search);
@@ -416,6 +426,18 @@ export default function CataloguePage() {
     return sortedGroups;
   }, [allItems]);
 
+  // Scroll to and highlight the specific catalogue item when navigating from the dashboard
+  useEffect(() => {
+    if (!highlightedItemId) return;
+    const timer = setTimeout(() => {
+      const row = document.querySelector(`[data-testid="row-catalogue-item-${highlightedItemId}"]`);
+      if (row) {
+        row.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [highlightedItemId, allItems]);
+
   // Helper to get file type from filename
   const getFileType = (fileName: string): string => {
     const ext = fileName.split('.').pop()?.toLowerCase();
@@ -574,8 +596,9 @@ export default function CataloguePage() {
                     {filteredItems.map((item) => (
                       <tr
                         key={item.id}
-                        className="border-b hover-elevate"
+                        className={`border-b hover-elevate${item.id === highlightedItemId ? " bg-amber-50 dark:bg-amber-900/25" : ""}`}
                         data-testid={`row-catalogue-item-${item.id}`}
+                        onClick={() => item.id === highlightedItemId && setHighlightedItemId(null)}
                       >
                         <td className="py-3 px-4 text-sm">{item.mainCategory}</td>
                         <td className="py-3 px-4 text-sm">{item.subcategory}</td>
@@ -591,16 +614,28 @@ export default function CataloguePage() {
                         <td className="py-3 px-4 text-sm">
                           {item.fileName && item.filePath ? (
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <a
-                                href={item.filePath}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
-                                data-testid={`link-file-${item.id}`}
-                              >
-                                <FileText className="h-4 w-4" />
-                                {item.fileName}
-                              </a>
+                              {isImageFile(item.fileName) ? (
+                                <button
+                                  type="button"
+                                  onClick={() => { setLightboxUrl(item.filePath!); setLightboxName(item.fileName!); }}
+                                  className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
+                                  data-testid={`link-file-${item.id}`}
+                                >
+                                  <FileText className="h-4 w-4" />
+                                  {item.fileName}
+                                </button>
+                              ) : (
+                                <a
+                                  href={item.filePath}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
+                                  data-testid={`link-file-${item.id}`}
+                                >
+                                  <FileText className="h-4 w-4" />
+                                  {item.fileName}
+                                </a>
+                              )}
                               <RecentBadge date={item.createdAt} />
                             </div>
                           ) : item.catalogueUrl ? (
@@ -747,22 +782,35 @@ export default function CataloguePage() {
                                             </td>
                                             <td className="py-2 px-4 text-sm">
                                               {item.filePath ? (
-                                                <Button
-                                                  variant="ghost"
-                                                  size="sm"
-                                                  asChild
-                                                  data-testid={`button-view-${item.id}`}
-                                                  className="whitespace-nowrap"
-                                                >
-                                                  <a
-                                                    href={item.filePath}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
+                                                item.fileName && isImageFile(item.fileName) ? (
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    data-testid={`button-view-${item.id}`}
+                                                    className="whitespace-nowrap"
+                                                    onClick={() => { setLightboxUrl(item.filePath!); setLightboxName(item.fileName!); }}
                                                   >
                                                     <Download className="h-4 w-4 mr-1" />
                                                     View
-                                                  </a>
-                                                </Button>
+                                                  </Button>
+                                                ) : (
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    asChild
+                                                    data-testid={`button-view-${item.id}`}
+                                                    className="whitespace-nowrap"
+                                                  >
+                                                    <a
+                                                      href={item.filePath}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                    >
+                                                      <Download className="h-4 w-4 mr-1" />
+                                                      View
+                                                    </a>
+                                                  </Button>
+                                                )
                                               ) : item.catalogueUrl ? (
                                                 <Button
                                                   variant="ghost"
@@ -1059,6 +1107,22 @@ export default function CataloguePage() {
           isDeleting={deleteMutation.isPending}
         />
       </div>
+
+      {/* Image lightbox */}
+      <Dialog open={!!lightboxUrl} onOpenChange={(open) => { if (!open) { setLightboxUrl(null); setLightboxName(""); } }}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] p-2 flex flex-col items-center">
+          <DialogHeader className="w-full px-2 pt-1">
+            <DialogTitle className="text-sm font-medium truncate">{lightboxName}</DialogTitle>
+          </DialogHeader>
+          {lightboxUrl && (
+            <img
+              src={lightboxUrl}
+              alt={lightboxName}
+              className="max-w-full max-h-[75vh] object-contain rounded"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Upgrade Dialog — shown when catalogue limit is reached */}
       {showUpgradeDialog && (
