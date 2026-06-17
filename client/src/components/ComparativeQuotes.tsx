@@ -61,8 +61,8 @@ interface ComparativeQuotesProps {
   initialQuoteId?: string; // projectVendorId — auto-opens the file viewer for this quote
 }
 
-function QuoteGroupSection({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
+function QuoteGroupSection({ label, count, children, initialOpen = false }: { label: string; count: number; children: React.ReactNode; initialOpen?: boolean }) {
+  const [open, setOpen] = useState(initialOpen);
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger asChild>
@@ -127,13 +127,13 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   // Scroll to and highlight the specific quote row when navigating from the dashboard
   useEffect(() => {
     if (!initialQuoteId || Object.keys(quotations).length === 0) return;
-    // Small delay to allow the table to render after project filter is applied
+    // Delay allows the collapsible group animation to finish before scrolling
     const timer = setTimeout(() => {
       const row = document.querySelector(`[data-testid="quotation-row-${initialQuoteId}"]`);
       if (row) {
         row.scrollIntoView({ behavior: "smooth", block: "center" });
       }
-    }, 300);
+    }, 500);
     return () => clearTimeout(timer);
   }, [initialQuoteId, quotations]);
 
@@ -728,7 +728,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
         );
 
         return (
-          <QuoteGroupSection key={key} label={`${group.category} — ${group.projectName}`} count={group.quotations.length}>
+          <QuoteGroupSection key={key} label={`${group.category} — ${group.projectName}`} count={group.quotations.length} initialOpen={!!initialQuoteId && group.quotations.some(q => q.id === initialQuoteId)}>
           <Card>
             <CardContent className="pt-0 overflow-x-auto">
               <Table className="table-fixed min-w-[900px]">
@@ -1104,7 +1104,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
             );
 
             return (
-              <QuoteGroupSection key={key} label={`${group.category} — ${group.projectName}`} count={group.quotations.length}>
+              <QuoteGroupSection key={key} label={`${group.category} — ${group.projectName}`} count={group.quotations.length} initialOpen={!!initialQuoteId && group.quotations.some(q => q.id === initialQuoteId)}>
               <Card>
                 <CardContent className="pt-0 overflow-x-auto">
                   <Table className="table-fixed min-w-[900px]">
