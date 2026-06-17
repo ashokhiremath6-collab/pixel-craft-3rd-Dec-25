@@ -200,6 +200,11 @@ export interface IStorage {
   // User onboarding
   completeOnboarding(userId: string): Promise<void>;
   setUserOrgId(userId: string, orgId: string): Promise<void>;
+  setUserVendorId(userId: string, vendorId: string): Promise<void>;
+
+  // Vendor portal helpers
+  getVendorByUserId(userId: string): Promise<Vendor | undefined>;
+  getProjectVendorsByVendorId(vendorId: string): Promise<ProjectVendor[]>;
 
   // Designer Allowlist
   getDesignerAllowlist(): Promise<DesignerAllowlist[]>;
@@ -1533,6 +1538,9 @@ export class MemStorage implements IStorage {
   }
   async completeOnboarding(_userId: string): Promise<void> {}
   async setUserOrgId(_userId: string, _orgId: string): Promise<void> {}
+  async setUserVendorId(_userId: string, _vendorId: string): Promise<void> {}
+  async getVendorByUserId(_userId: string): Promise<Vendor | undefined> { return undefined; }
+  async getProjectVendorsByVendorId(_vendorId: string): Promise<ProjectVendor[]> { return []; }
   async getOrgUsage(_orgId: string): Promise<{ projects: number; users: number; catalogueItems: number; storageGb: number }> {
     return { projects: 0, users: 0, catalogueItems: 0, storageGb: 0 };
   }
@@ -3631,6 +3639,23 @@ export class DBStorage implements IStorage {
     await db.update(users)
       .set({ orgId })
       .where(eq(users.id, userId));
+  }
+
+  async setUserVendorId(userId: string, vendorId: string): Promise<void> {
+    await db.update(users)
+      .set({ vendorId })
+      .where(eq(users.id, userId));
+  }
+
+  async getVendorByUserId(userId: string): Promise<Vendor | undefined> {
+    const user = await this.getUser(userId);
+    if (!user?.vendorId) return undefined;
+    const result = await db.select().from(vendors).where(eq(vendors.id, user.vendorId));
+    return result[0];
+  }
+
+  async getProjectVendorsByVendorId(vendorId: string): Promise<ProjectVendor[]> {
+    return await db.select().from(projectVendors).where(eq(projectVendors.vendorId, vendorId));
   }
 
   async registerOrgWithAdmin(params: {

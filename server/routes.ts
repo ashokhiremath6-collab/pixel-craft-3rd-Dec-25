@@ -714,6 +714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...sanitizeUser(user),
         role: userRole?.role || "client",
         orgId: user.orgId || null,
+        vendorId: user.vendorId || null,
         onboardingCompletedAt: user.onboardingCompletedAt || null,
         // Use the same env-fallback logic as requireSuperAdmin so a user listed
         // in SUPER_ADMIN_EMAILS can reach /superadmin even before the DB flag is set.
@@ -736,7 +737,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "User ID and role are required" });
       }
       
-      if (!['client', 'designer', 'project_manager', 'admin'].includes(role)) {
+      if (!['client', 'designer', 'project_manager', 'admin', 'vendor'].includes(role)) {
         return res.status(400).json({ error: "Invalid role" });
       }
       
@@ -915,10 +916,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // POST /api/invitations — send an invitation
   app.post("/api/invitations", requireAdminOnly, async (req, res) => {
     try {
-      const { email, role } = req.body;
+      const { email, role, vendorId } = req.body;
       if (!email || !role) return res.status(400).json({ error: "Email and role are required" });
-      if (!["admin", "designer", "project_manager", "client"].includes(role)) {
+      if (!["admin", "designer", "project_manager", "client", "vendor"].includes(role)) {
         return res.status(400).json({ error: "Invalid role" });
+      }
+      if (role === "vendor" && !vendorId) {
+        return res.status(400).json({ error: "A vendor must be selected when inviting a vendor user." });
       }
 
       const callerUser = await storage.getUser((req.user as any).id);
@@ -956,6 +960,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orgId: callerUser.orgId,
         email: normalizedEmail,
         role,
+        vendorId: vendorId || null,
         token,
         invitedBy: callerUser.id,
         expiresAt,
@@ -1083,6 +1088,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!existing.orgId) {
           await storage.setUserOrgId(existing.id, invite.orgId);
         }
+        // Link vendor user to their vendor record
+        if (invite.vendorId) {
+          await storage.setUserVendorId(existing.id, invite.vendorId);
+        }
         const existingRole = await storage.getUserRole(existing.id);
         if (!existingRole) {
           await storage.createUserRole({ userId: existing.id, role: invite.role, isActive: true, assignedBy: invite.invitedBy });
@@ -1136,6 +1145,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         emailVerifiedAt: new Date(), // already verified via invite link
         orgId: invite.orgId,
       });
+
+      // Link vendor user to their vendor record
+      if (invite.vendorId) {
+        await storage.setUserVendorId(newUser.id, invite.vendorId);
+      }
 
       await storage.createUserRole({ userId: newUser.id, role: invite.role, isActive: true, assignedBy: invite.invitedBy });
       await storage.acceptInvitation(req.params.token);
@@ -12388,6 +12402,122 @@ Return your response in the following JSON format only (no markdown, no code blo
       res.status(500).json({ error: "Failed to delete proposal" });
     }
   });
+
+  // ─── Vendor Portal ───────────────────────────────────────────────────────────
+
+  const requireVendor: RequestHandler = async (req, res, next) => {
+    if (!req.isAuthenticated() || !req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    const userId = (req.user as any).id;
+    const userRole = await storage.getUserRole(userId);
+    if (!userRole || userRole.role !== "vendor") {
+      return res.status(403).json({ error: "Vendor access only" });
+    }
+    next();
+  };
+
+  // GET /api/vendor-portal/me — return the vendor record linked to this user
+  app.get("/api/vendor-portal/me", requireVendor, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const vendor = await storage.getVendorByUserId(userId);
+      if (!vendor) return res.status(404).json({ error: "No vendor linked to this account" });
+
+      // Optionally attach category name
+      const categories = await storage.getVendorCategories();
+      const flat: any[] = [];
+      const flatten = (cats: any[]) => cats.forEach((c: any) => { flat.push(c); if (c.children) flatten(c.children); });
+      flatten(categories);
+      const cat = flat.find((c) => c.id === vendor.categoryId);
+
+      res.json({ id: vendor.id, name: vendor.name, category: cat?.name ?? null });
+    } catch (err) {
+      console.error("GET /api/vendor-portal/me error:", err);
+      res.status(500).json({ error: "Failed to fetch vendor info" });
+    }
+  });
+
+  // GET /api/vendor-portal/projects — projects this vendor is linked to, with their quote files
+  app.get("/api/vendor-portal/projects", requireVendor, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const vendor = await storage.getVendorByUserId(userId);
+      if (!vendor) return res.status(404).json({ error: "No vendor linked to this account" });
+
+      const pvs = await storage.getProjectVendorsByVendorId(vendor.id);
+      const result = await Promise.all(
+        pvs.map(async (pv) => {
+          const project = await storage.getProject(pv.projectId);
+          if (!project) return null;
+
+          // Fetch quote files for this vendor+project
+          const allFiles = await storage.getQuoteFilesByProjectVendor(pv.id);
+          const quoteFiles = allFiles.map((f: any) => ({
+            id: f.id,
+            fileName: f.fileName,
+            objectPath: f.filePath,
+            uploadedAt: f.uploadedAt ?? new Date().toISOString(),
+            uploadedByName: null,
+          }));
+
+          return {
+            projectId: project.id,
+            projectName: project.name,
+            clientName: project.clientName ?? null,
+            quoteFiles,
+          };
+        })
+      );
+
+      res.json(result.filter(Boolean));
+    } catch (err) {
+      console.error("GET /api/vendor-portal/projects error:", err);
+      res.status(500).json({ error: "Failed to fetch projects" });
+    }
+  });
+
+  // POST /api/vendor-portal/:projectId/upload — vendor uploads a quote file for a project
+  const vendorUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+  app.post("/api/vendor-portal/:projectId/upload", requireVendor, vendorUpload.single("quoteFile"), async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+      const userId = req.user.id;
+      const vendor = await storage.getVendorByUserId(userId);
+      if (!vendor) return res.status(404).json({ error: "No vendor linked to this account" });
+
+      // Verify this vendor is on the project
+      const pvs = await storage.getProjectVendorsByVendorId(vendor.id);
+      const pv = pvs.find((p) => p.projectId === projectId);
+      if (!pv) return res.status(403).json({ error: "You are not linked to this project" });
+
+      const objectPath = await uploadToObjectStorage(
+        req.file.buffer,
+        req.file.originalname,
+        userId,
+        req.file.mimetype,
+        undefined
+      );
+
+      const ext = req.file.originalname.split(".").pop()?.toLowerCase() || "bin";
+      await storage.createQuoteFile({
+        projectVendorId: pv.id,
+        fileName: req.file.originalname,
+        filePath: objectPath,
+        fileType: ext,
+        orgId: vendor.orgId ?? null,
+      });
+
+      res.json({ ok: true, fileName: req.file.originalname });
+    } catch (err: any) {
+      console.error("POST /api/vendor-portal/:projectId/upload error:", err);
+      res.status(500).json({ error: err.message || "Upload failed" });
+    }
+  });
+
+  // ─── End Vendor Portal ────────────────────────────────────────────────────────
 
   // Run immediately on startup, then every 24 hours
   runTrialExpiryWarnings();

@@ -16,10 +16,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation } from "wouter";
-import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock, CreditCard, Zap, AlertTriangle, ExternalLink, BarChart3, Bell } from "lucide-react";
+import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock, CreditCard, Zap, AlertTriangle, ExternalLink, BarChart3, Bell, Store } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { PlanLimitBanner } from "@/components/PlanLimitBanner";
-import type { User, Project, UserProjectAssignment } from "@shared/schema";
+import type { User, Project, UserProjectAssignment, Vendor } from "@shared/schema";
 
 const UNLIMITED = 999_999;
 
@@ -54,7 +54,11 @@ interface Invitation {
 
 const inviteSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
-  role: z.enum(["admin", "designer", "project_manager", "client"]),
+  role: z.enum(["admin", "designer", "project_manager", "client", "vendor"]),
+  vendorId: z.string().optional(),
+}).refine((d) => d.role !== "vendor" || !!d.vendorId, {
+  message: "Please select a vendor",
+  path: ["vendorId"],
 });
 type InviteValues = z.infer<typeof inviteSchema>;
 
@@ -69,8 +73,9 @@ export default function SettingsPage() {
 
   const inviteForm = useForm<InviteValues>({
     resolver: zodResolver(inviteSchema),
-    defaultValues: { email: "", role: "designer" },
+    defaultValues: { email: "", role: "designer", vendorId: undefined },
   });
+  const watchedRole = inviteForm.watch("role");
 
   const isAdmin = !authLoading && currentUser?.role === "admin";
 
@@ -97,6 +102,11 @@ export default function SettingsPage() {
   const { data: billingStatus } = useQuery<BillingStatus>({
     queryKey: ["/api/billing/status"],
     enabled: isAdmin && !!currentUser?.orgId,
+  });
+
+  const { data: vendors } = useQuery<Vendor[]>({
+    queryKey: ["/api/vendors"],
+    enabled: isAdmin,
   });
 
   const { data: usageData } = useQuery<{
@@ -576,7 +586,7 @@ export default function SettingsPage() {
                       name="role"
                       render={({ field }) => (
                         <FormItem className="w-full sm:w-48">
-                          <Select onValueChange={field.onChange} value={field.value} disabled={atUserLimit}>
+                          <Select onValueChange={(v) => { field.onChange(v); if (v !== "vendor") inviteForm.setValue("vendorId", undefined); }} value={field.value} disabled={atUserLimit}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select role" />
@@ -587,14 +597,38 @@ export default function SettingsPage() {
                               <SelectItem value="designer">Designer</SelectItem>
                               <SelectItem value="project_manager">Project Manager</SelectItem>
                               <SelectItem value="client">Client</SelectItem>
+                              <SelectItem value="vendor">Vendor</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+                    {watchedRole === "vendor" && (
+                      <FormField
+                        control={inviteForm.control}
+                        name="vendorId"
+                        render={({ field }) => (
+                          <FormItem className="w-full sm:w-56">
+                            <Select onValueChange={field.onChange} value={field.value ?? "__none__"} disabled={atUserLimit}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select vendor" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {(vendors ?? []).map((v) => (
+                                  <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
                     {atUserLimit ? (
-                      <Button type="button" variant="outline" onClick={() => setUpgradeDialog({ open: true, resource: 'users', current: usageData!.usage.users, limit: usageData!.limits.maxUsers })}>
+                      <Button type="button" variant="outline" onClick={() => setShowUserLimitDialog(true)}>
                         Upgrade to invite
                       </Button>
                     ) : (
