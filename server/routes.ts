@@ -2225,6 +2225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: pv.id,
             vendorName: isComparativeStatement ? 'Multiple Vendors' : (vendor?.name || 'Unknown'),
             category: categoryName || 'Uncategorized',
+            categoryId: vendor?.categoryId || pv.categoryId || null,
             quotationName: pv.quotationName,
             quotationType: pv.quotationType,
             quotationValue: quotationValue,
@@ -2237,7 +2238,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             projectName: project.projectName,
             uploaderName: uploaderName,
             uploadedAt: uploadedAt,
-            unitRateSubtype: pv.unitRateSubtype
+            unitRateSubtype: pv.unitRateSubtype,
+            templateId: pv.templateId || null,
           });
         }
       }
@@ -12461,11 +12463,21 @@ Return your response in the following JSON format only (no markdown, no code blo
             uploadedByName: null,
           }));
 
+          // Fetch template info if assigned
+          let templateName: string | null = null;
+          if (pv.templateId) {
+            const tpl = await storage.getQuoteTemplate(pv.templateId);
+            templateName = tpl?.name ?? null;
+          }
+
           return {
+            pvId: pv.id,
             projectId: project.id,
-            projectName: project.name,
-            clientName: project.clientName ?? null,
+            projectName: project.projectName,
+            clientName: (project as any).clientName ?? null,
             quoteFiles,
+            templateId: pv.templateId ?? null,
+            templateName,
           };
         })
       );
@@ -12474,6 +12486,51 @@ Return your response in the following JSON format only (no markdown, no code blo
     } catch (err) {
       console.error("GET /api/vendor-portal/projects error:", err);
       res.status(500).json({ error: "Failed to fetch projects" });
+    }
+  });
+
+  // GET /api/vendor-portal/template/:pvId/download — vendor downloads assigned quote template
+  app.get("/api/vendor-portal/template/:pvId/download", requireVendor, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const vendor = await storage.getVendorByUserId(userId);
+      if (!vendor) return res.status(403).json({ error: "No vendor linked to this account" });
+
+      // Verify this pv belongs to this vendor
+      const allPvs = await storage.getProjectVendorsByVendorId(vendor.id);
+      const pv = allPvs.find((p: any) => p.id === req.params.pvId);
+      if (!pv) return res.status(403).json({ error: "Access denied" });
+      if (!pv.templateId) return res.status(404).json({ error: "No template assigned" });
+
+      const template = await storage.getQuoteTemplateWithFileData(pv.templateId);
+      if (!template) return res.status(404).json({ error: "Template not found" });
+
+      if (template.originalFileData && template.originalFileName) {
+        const excelBuffer = Buffer.from(template.originalFileData, 'base64');
+        const contentType = template.originalMimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${template.originalFileName}"`);
+        res.setHeader('Content-Length', excelBuffer.length);
+        return res.send(excelBuffer);
+      }
+
+      if (template.fields && typeof template.fields === 'object' &&
+          (template.fields as any).type === 'spreadsheet' && (template.fields as any).data) {
+        const spreadsheetData = (template.fields as any).data as any[][];
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.aoa_to_sheet(spreadsheetData);
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${template.name.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx"`);
+        res.setHeader('Content-Length', excelBuffer.length);
+        return res.send(excelBuffer);
+      }
+
+      res.status(400).json({ error: "No file data available for this template" });
+    } catch (err) {
+      console.error("GET /api/vendor-portal/template/:pvId/download error:", err);
+      res.status(500).json({ error: "Failed to download template" });
     }
   });
 

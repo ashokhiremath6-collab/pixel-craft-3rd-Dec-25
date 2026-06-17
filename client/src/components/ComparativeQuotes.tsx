@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import StatusBadge from "./StatusBadge";
 import QuoteDetailModal from "./QuoteDetailModal";
-import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2, Paperclip } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2, Paperclip, FileInput } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -29,6 +29,7 @@ interface QuotationData {
   id: string;
   vendorName: string;
   category: string;
+  categoryId?: string | null;
   quotationName: string; // "Main Quote", "Option A", "Kitchen Cabinets", etc.
   quotationType: "item" | "option"; // Type of quotation
   parentQuotationId?: string | null; // For grouping options under main items
@@ -43,6 +44,7 @@ interface QuotationData {
   unitRateSubtype?: string | null; // "quote" or "comparative" for unit rate quotes
   uploaderName?: string | null; // Who uploaded the file
   uploadedAt?: string | null; // When the file was uploaded
+  templateId?: string | null; // Assigned quote template
 }
 
 interface CategoryWithChildren extends VendorCategory {
@@ -103,7 +105,34 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     notes: "",
     isNegotiated: false
   });
+  const [assignTemplateOpen, setAssignTemplateOpen] = useState(false);
+  const [assignTemplateTarget, setAssignTemplateTarget] = useState<QuotationData | null>(null);
+  const [assignTemplateSelectedId, setAssignTemplateSelectedId] = useState<string>("");
   const { toast } = useToast();
+
+  const { data: allTemplates = [] } = useQuery<any[]>({
+    queryKey: ['/api/quote-templates'],
+  });
+
+  const assignTemplateMutation = useMutation({
+    mutationFn: async ({ pvId, templateId }: { pvId: string; templateId: string | null }) => {
+      return await apiRequest('PUT', `/api/project-vendors/${pvId}`, { templateId: templateId || null });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
+      toast({ title: "Template assigned", description: "The vendor will now see a download link in their portal." });
+      setAssignTemplateOpen(false);
+    },
+    onError: () => {
+      toast({ title: "Failed to assign template", variant: "destructive" });
+    },
+  });
+
+  const handleOpenAssignTemplate = (quotation: QuotationData) => {
+    setAssignTemplateTarget(quotation);
+    setAssignTemplateSelectedId(quotation.templateId || "");
+    setAssignTemplateOpen(true);
+  };
 
   const handleProjectFilter = (projectId: string) => {
     setSelectedProject(projectId);
@@ -1019,6 +1048,16 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                 <Paperclip className="h-3 w-3" />
                               </Button>
                             )}
+                            <Button
+                              size="icon"
+                              className="h-6 w-6"
+                              variant="ghost"
+                              onClick={() => handleOpenAssignTemplate(quotation)}
+                              title={quotation.templateId ? "Change assigned template" : "Assign quote template to vendor"}
+                              data-testid={`button-assign-template-${quotation.id}`}
+                            >
+                              <FileInput className={`h-3 w-3 ${quotation.templateId ? "text-blue-500" : ""}`} />
+                            </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -1390,6 +1429,16 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                     <Paperclip className="h-3 w-3" />
                                   </Button>
                                 )}
+                                <Button
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  variant="ghost"
+                                  onClick={() => handleOpenAssignTemplate(quotation)}
+                                  title={quotation.templateId ? "Change assigned template" : "Assign quote template to vendor"}
+                                  data-testid={`button-assign-template-${quotation.id}`}
+                                >
+                                  <FileInput className={`h-3 w-3 ${quotation.templateId ? "text-blue-500" : ""}`} />
+                                </Button>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button
@@ -1577,6 +1626,68 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
         fileUrl={fileViewerUrl}
         fileName={fileViewerName}
       />
+
+      {/* Assign Template Dialog */}
+      <Dialog open={assignTemplateOpen} onOpenChange={(o) => { if (!o) setAssignTemplateOpen(false); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign Quote Template</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-muted-foreground">
+              Pick a template for <span className="font-medium text-foreground">{assignTemplateTarget?.vendorName}</span>.
+              The vendor will see a download link in their portal so they can fill it in and upload it back.
+            </p>
+            {(() => {
+              const filtered = allTemplates.filter((t: any) =>
+                !assignTemplateTarget?.categoryId || t.categoryId === assignTemplateTarget.categoryId
+              );
+              const options = filtered.length > 0 ? filtered : allTemplates;
+              return (
+                <div className="space-y-2">
+                  <Label>Template</Label>
+                  <Select
+                    value={assignTemplateSelectedId || "__none__"}
+                    onValueChange={(v) => setAssignTemplateSelectedId(v === "__none__" ? "" : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a template…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No template (remove)</SelectItem>
+                      {options.map((t: any) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {filtered.length === 0 && allTemplates.length > 0 && (
+                    <p className="text-xs text-muted-foreground">Showing all templates — none matched this vendor's category.</p>
+                  )}
+                  {allTemplates.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No templates available. Create one in the Templates section first.</p>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" onClick={() => setAssignTemplateOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!assignTemplateTarget) return;
+                assignTemplateMutation.mutate({
+                  pvId: assignTemplateTarget.id,
+                  templateId: assignTemplateSelectedId || null,
+                });
+              }}
+              disabled={assignTemplateMutation.isPending}
+            >
+              {assignTemplateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

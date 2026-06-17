@@ -33,10 +33,13 @@ interface VendorInfo {
 }
 
 interface ProjectSummary {
+  pvId: string;
   projectId: string;
   projectName: string;
   clientName: string | null;
   quoteFiles: QuoteFile[];
+  templateId: string | null;
+  templateName: string | null;
 }
 
 interface QuoteFile {
@@ -91,6 +94,24 @@ export default function VendorPortalApp() {
     } finally {
       setUploading(false);
       e.target.value = "";
+    }
+  };
+
+  const handleTemplateDownload = async (pvId: string, templateName: string) => {
+    try {
+      const res = await fetch(`/api/vendor-portal/template/${encodeURIComponent(pvId)}/download`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = templateName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Download failed", variant: "destructive" });
     }
   };
 
@@ -225,6 +246,30 @@ export default function VendorPortalApp() {
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
+            {/* Quote Template section */}
+            {selectedProject?.templateId && (
+              <div className="rounded-md border p-4 space-y-2">
+                <h3 className="text-sm font-medium">Quote Template</h3>
+                <p className="text-xs text-muted-foreground">
+                  Your project manager has provided a standard format for this quote. Download it, fill it in, and upload it below.
+                </p>
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-medium truncate">{selectedProject.templateName || "Quote Template"}</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleTemplateDownload(selectedProject.pvId, selectedProject.templateName || "template.xlsx")}
+                  >
+                    <Download className="h-4 w-4 mr-1.5" />
+                    Download
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium">Submitted Quote Files</h3>
               <Button
