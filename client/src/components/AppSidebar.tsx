@@ -51,6 +51,7 @@ const projectManagerMainItems: NavigationItem[] = [
   { title: "Dashboard", url: "/", icon: Home },
   { title: "Projects", url: "/projects", icon: Building2 },
   { title: "Project scheduling", url: "/gantt-chart", icon: GanttChart },
+  { title: "Working Drawings", url: "/working-drawings", icon: PenTool },
   { title: "SOPs", url: "/sops", icon: BookOpen },
 ];
 
