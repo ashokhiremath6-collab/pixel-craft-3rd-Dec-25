@@ -430,87 +430,6 @@ export default function SettingsPage() {
                   </div>
                 )}
 
-                <div className="space-y-3">
-                  <p className="text-sm font-medium">
-                    {billingStatus.planStatus === 'active' ? 'Change plan' : 'Choose a plan'}
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {[
-                      {
-                        key: 'starter',
-                        label: 'Starter',
-                        price: '$29 / month',
-                        desc: 'For small teams up to 5 users',
-                        features: ['5 team members', '10 projects', 'Basic support'],
-                      },
-                      {
-                        key: 'pro',
-                        label: 'Pro',
-                        price: '$79 / month',
-                        desc: 'Unlimited users and projects',
-                        features: ['Unlimited members', 'Unlimited projects', 'Priority support'],
-                      },
-                      {
-                        key: 'enterprise',
-                        label: 'Enterprise',
-                        price: 'Contact us',
-                        desc: 'Custom billing and SLA',
-                        features: ['Custom limits', 'Dedicated support', 'SLA guarantee'],
-                        contactSales: true,
-                      },
-                    ].map((tier) => {
-                      const isCurrent =
-                        billingStatus.plan === tier.key && billingStatus.planStatus === 'active';
-                      return (
-                        <div
-                          key={tier.key}
-                          className={`flex flex-col gap-3 rounded-md border p-3 ${isCurrent ? 'border-primary/50 bg-primary/5' : ''}`}
-                        >
-                          <div className="flex-1 space-y-1">
-                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <p className="font-semibold text-sm">{tier.label}</p>
-                              {isCurrent && <Badge variant="secondary" className="text-xs">Current</Badge>}
-                            </div>
-                            <p className="text-sm font-medium">{tier.price}</p>
-                            <p className="text-xs text-muted-foreground">{tier.desc}</p>
-                            <ul className="space-y-0.5 mt-1">
-                              {tier.features.map((f) => (
-                                <li key={f} className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground shrink-0" />
-                                  {f}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                          {'contactSales' in tier && tier.contactSales ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => window.open('mailto:sales@pixelcraftdesigner.com?subject=Enterprise%20Plan%20Enquiry', '_blank')}
-                            >
-                              <ExternalLink className="h-3 w-3 mr-1" />
-                              Contact sales
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant={isCurrent ? 'secondary' : 'default'}
-                              disabled={checkoutMutation.isPending || isCurrent}
-                              onClick={() => checkoutMutation.mutate(tier.key)}
-                            >
-                              <Zap className="h-3 w-3 mr-1" />
-                              {isCurrent
-                                ? 'Current plan'
-                                : billingStatus.planStatus === 'active'
-                                ? `Switch to ${tier.label}`
-                                : `Upgrade to ${tier.label}`}
-                            </Button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
 
                 {billingStatus.hasStripeCustomer && (
                   <Button
@@ -563,6 +482,8 @@ export default function SettingsPage() {
               const atUserLimit = usageData
                 ? usageData.usage.users >= usageData.limits.maxUsers && usageData.limits.maxUsers < 999999
                 : false;
+              const isVendorInvite = watchedRole === "vendor";
+              const effectivelyLimited = atUserLimit && !isVendorInvite;
               return (
                 <Form {...inviteForm}>
                   <form
@@ -575,7 +496,7 @@ export default function SettingsPage() {
                       render={({ field }) => (
                         <FormItem className="flex-1">
                           <FormControl>
-                            <Input type="email" placeholder="colleague@yourcompany.com" {...field} disabled={atUserLimit} />
+                            <Input type="email" placeholder="colleague@yourcompany.com" {...field} disabled={effectivelyLimited} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -586,7 +507,7 @@ export default function SettingsPage() {
                       name="role"
                       render={({ field }) => (
                         <FormItem className="w-full sm:w-48">
-                          <Select onValueChange={(v) => { field.onChange(v); if (v !== "vendor") inviteForm.setValue("vendorId", undefined); }} value={field.value} disabled={atUserLimit}>
+                          <Select onValueChange={(v) => { field.onChange(v); if (v !== "vendor") inviteForm.setValue("vendorId", undefined); }} value={field.value}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select role" />
@@ -610,7 +531,7 @@ export default function SettingsPage() {
                         name="vendorId"
                         render={({ field }) => (
                           <FormItem className="w-full sm:w-56">
-                            <Select onValueChange={field.onChange} value={field.value ?? "__none__"} disabled={atUserLimit}>
+                            <Select onValueChange={field.onChange} value={field.value ?? "__none__"}>
                               <FormControl>
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select vendor" />
@@ -627,7 +548,7 @@ export default function SettingsPage() {
                         )}
                       />
                     )}
-                    {atUserLimit ? (
+                    {effectivelyLimited ? (
                       <Button type="button" variant="outline" onClick={() => setShowUserLimitDialog(true)}>
                         Upgrade to invite
                       </Button>
