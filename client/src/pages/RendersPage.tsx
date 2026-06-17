@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import {
   Upload, Eye, Trash2, Loader2, ChevronDown, ChevronRight,
-  Pencil, ImageIcon, Search, AlertCircle, X, User as UserIcon,
+  Pencil, ImageIcon, Search, AlertCircle, X, User as UserIcon, Sparkles,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -57,13 +57,20 @@ function getRoomType(render: Moodboard): string {
     : inferRoomType(render.name || (render as any).description || "");
 }
 
+function isAiGenerated(render: Moodboard): boolean {
+  const tags = (render as any).tags;
+  if (!tags) return false;
+  if (Array.isArray(tags)) return tags.includes("ai-generated");
+  return false;
+}
+
 function getPreviewUrl(render: Moodboard): string | null {
   if (!render.fileName) return null;
   if (render.filePath?.startsWith("/objects/")) return render.filePath;
   return `/uploads/moodboards/${render.fileName}`;
 }
 
-// ── GroupSection (matches Working Drawings style) ─────────────────────────
+// ── GroupSection (room-level collapsible) ─────────────────────────────────
 function GroupSection({
   label, count, children, defaultOpen,
 }: {
@@ -85,6 +92,32 @@ function GroupSection({
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="space-y-1 mb-3">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+// ── SubGroupSection (subcategory within a room) ────────────────────────────
+function SubGroupSection({
+  label, count, children, icon,
+}: {
+  label: string; count: number; children: React.ReactNode; icon?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="ml-4 mb-2">
+      <CollapsibleTrigger asChild>
+        <button className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover-elevate rounded-md">
+          {open
+            ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+          {icon}
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
+          <Badge variant="outline" className="no-default-active-elevate text-xs px-1.5 py-0 h-4">{count}</Badge>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="space-y-1 mt-1">{children}</div>
       </CollapsibleContent>
     </Collapsible>
   );
@@ -157,17 +190,26 @@ export default function RendersPage() {
   }, [renders, searchText]);
 
   const groups = useMemo(() => {
-    const map = new Map<string, Moodboard[]>();
+    const map = new Map<string, { ai: Moodboard[]; uploaded: Moodboard[] }>();
     for (const r of filtered) {
       const rt = getRoomType(r);
-      if (!map.has(rt)) map.set(rt, []);
-      map.get(rt)!.push(r);
+      if (!map.has(rt)) map.set(rt, { ai: [], uploaded: [] });
+      if (isAiGenerated(r)) {
+        map.get(rt)!.ai.push(r);
+      } else {
+        map.get(rt)!.uploaded.push(r);
+      }
     }
     const sorted = Array.from(map.entries()).sort(([a], [b]) => {
       const ia = ROOM_ORDER.indexOf(a), ib = ROOM_ORDER.indexOf(b);
       return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
     });
-    return sorted.map(([room, items]) => ({ room, items }));
+    return sorted.map(([room, { ai, uploaded }]) => ({
+      room,
+      ai,
+      uploaded,
+      total: ai.length + uploaded.length,
+    }));
   }, [filtered]);
 
   // ── Mutations ────────────────────────────────────────────────────────────
@@ -307,6 +349,12 @@ export default function RendersPage() {
           <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
             <span>{renders.length} renders</span>
             <span>{groups.length} rooms</span>
+            {renders.filter(isAiGenerated).length > 0 && (
+              <span className="flex items-center gap-1">
+                <Sparkles className="h-3.5 w-3.5" />
+                {renders.filter(isAiGenerated).length} AI generated
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -351,81 +399,120 @@ export default function RendersPage() {
         {/* Groups */}
         {activeProjectId && !isLoading && groups.length > 0 && (
           <div className="space-y-1">
-            {groups.map((group, idx) => (
-              <GroupSection key={group.room} label={group.room} count={group.items.length} defaultOpen={false}>
-                {group.items.map((render) => {
-                  const previewUrl = getPreviewUrl(render);
-                  const savedByName = (render as any).savedBy ? userMap.get((render as any).savedBy) : null;
-                  return (
-                    <div
-                      key={render.id}
-                      className="flex items-center justify-between gap-3 px-4 py-3 rounded-md hover-elevate border"
-                    >
-                      {/* Thumbnail */}
-                      <div className="shrink-0 w-12 h-10 rounded overflow-hidden bg-muted flex items-center justify-center">
-                        {previewUrl && render.fileType !== "pdf" ? (
-                          <img
-                            src={previewUrl}
-                            alt={render.name || ""}
-                            className="w-full h-full object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                          />
-                        ) : (
-                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                        )}
-                      </div>
+            {groups.map((group) => {
+              const hasAi = group.ai.length > 0;
+              const hasUploaded = group.uploaded.length > 0;
+              const hasBoth = hasAi && hasUploaded;
 
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
+              const renderRow = (render: Moodboard) => {
+                const previewUrl = getPreviewUrl(render);
+                const savedByName = (render as any).savedBy ? userMap.get((render as any).savedBy) : null;
+                const aiGen = isAiGenerated(render);
+                return (
+                  <div
+                    key={render.id}
+                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-md hover-elevate border"
+                  >
+                    {/* Thumbnail */}
+                    <div className="shrink-0 w-12 h-10 rounded overflow-hidden bg-muted flex items-center justify-center">
+                      {previewUrl && render.fileType !== "pdf" ? (
+                        <img
+                          src={previewUrl}
+                          alt={render.name || ""}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                      ) : (
+                        <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <p className="font-medium text-sm truncate">{render.name || render.fileName || "Untitled"}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
-                          <span>{format(new Date(render.uploadedAt), "dd MMM yyyy, HH:mm")}</span>
-                          {savedByName && (
-                            <>
-                              <span>•</span>
-                              <span className="flex items-center gap-1">
-                                <UserIcon className="h-3 w-3" />
-                                {savedByName}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        {previewUrl && (
-                          <Button variant="ghost" size="icon" onClick={() => handleView(render)} title="View">
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                        {aiGen && !hasBoth && (
+                          <Badge variant="secondary" className="no-default-active-elevate shrink-0 flex items-center gap-1 text-xs">
+                            <Sparkles className="h-3 w-3" />AI
+                          </Badge>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setEditingRender(render);
-                            setEditName(render.name || "");
-                            setEditRoomType(getRoomType(render));
-                          }}
-                          title="Edit"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive"
-                          onClick={() => setDeletingId(render.id)}
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
+                        <span>{format(new Date(render.uploadedAt), "dd MMM yyyy, HH:mm")}</span>
+                        {savedByName && (
+                          <>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <UserIcon className="h-3 w-3" />
+                              {savedByName}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
-              </GroupSection>
-            ))}
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {previewUrl && (
+                        <Button variant="ghost" size="icon" onClick={() => handleView(render)} title="View">
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setEditingRender(render);
+                          setEditName(render.name || "");
+                          setEditRoomType(getRoomType(render));
+                        }}
+                        title="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive"
+                        onClick={() => setDeletingId(render.id)}
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              };
+
+              return (
+                <GroupSection key={group.room} label={group.room} count={group.total} defaultOpen={false}>
+                  {hasBoth ? (
+                    <>
+                      <SubGroupSection
+                        label="AI Generated"
+                        count={group.ai.length}
+                        icon={<Sparkles className="h-3.5 w-3.5 text-muted-foreground" />}
+                      >
+                        {group.ai.map(renderRow)}
+                      </SubGroupSection>
+                      <SubGroupSection label="Uploaded" count={group.uploaded.length}>
+                        {group.uploaded.map(renderRow)}
+                      </SubGroupSection>
+                    </>
+                  ) : hasAi ? (
+                    <>
+                      <div className="flex items-center gap-1.5 px-3 py-1 ml-4">
+                        <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">AI Generated</span>
+                      </div>
+                      {group.ai.map(renderRow)}
+                    </>
+                  ) : (
+                    group.uploaded.map(renderRow)
+                  )}
+                </GroupSection>
+              );
+            })}
           </div>
         )}
       </div>
