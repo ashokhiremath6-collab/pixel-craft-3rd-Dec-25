@@ -230,8 +230,8 @@ export default function RendersPage() {
       toast({ variant: "destructive", title: "Invalid file type", description: "Upload images (JPEG, PNG, WebP, SVG) or PDFs." });
       return;
     }
-    if (file.size > 21 * 1024 * 1024) {
-      toast({ variant: "destructive", title: "File too large", description: "Max 21 MB." });
+    if (file.size > 50 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "File too large", description: "Max 50 MB." });
       return;
     }
     setUploadFile(file);
@@ -480,7 +480,7 @@ export default function RendersPage() {
                 <>
                   <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
                   <p className="text-sm font-medium">Drop your render here, or click to browse</p>
-                  <p className="text-xs text-muted-foreground mt-1">JPEG, PNG, WebP, SVG, PDF up to 21 MB</p>
+                  <p className="text-xs text-muted-foreground mt-1">JPEG, PNG, WebP, SVG, PDF up to 50 MB</p>
                 </>
               )}
               <input
