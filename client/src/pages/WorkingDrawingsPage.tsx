@@ -915,12 +915,12 @@ function UploadBatchDialog({ open, onOpenChange, rooms, projectId, onComplete, c
           >
             <Upload className="h-7 w-7 mx-auto mb-2 text-muted-foreground/60" />
             <p className="text-sm font-medium">Click to choose files or drag &amp; drop</p>
-            <p className="text-xs text-muted-foreground mt-1">PDF, DWG, DXF, PNG, JPG — up to 30 files, 100 MB each</p>
+            <p className="text-xs text-muted-foreground mt-1">PDF, DWG, DXF, PNG, JPG, DOCX, XLSX, SVG — up to 30 files, 100 MB each</p>
             <input
               ref={fileInputRef}
               type="file"
               multiple
-              accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg"
+              accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.svg,.xlsx,.docx,.doc,.xls"
               className="hidden"
               onChange={(e) => addFiles(e.target.files)}
             />
