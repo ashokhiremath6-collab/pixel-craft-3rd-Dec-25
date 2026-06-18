@@ -69,7 +69,6 @@ export default function SettingsPage() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>("");
   const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
-  const [showUserLimitDialog, setShowUserLimitDialog] = useState(false);
 
   const inviteForm = useForm<InviteValues>({
     resolver: zodResolver(inviteSchema),
@@ -232,18 +231,6 @@ export default function SettingsPage() {
       toast({ title: "Invitation sent", description: "An invitation email has been sent." });
     },
     onError: (error: Error) => {
-      // Parse structured 403 limit-exceeded responses and show upgrade dialog
-      const raw = error.message ?? "";
-      const jsonStart = raw.indexOf("{");
-      if (jsonStart !== -1) {
-        try {
-          const parsed = JSON.parse(raw.slice(jsonStart));
-          if (parsed.limitExceeded) {
-            setShowUserLimitDialog(true);
-            return;
-          }
-        } catch { /* fall through to generic toast */ }
-      }
       toast({ title: "Failed to send invitation", description: error.message, variant: "destructive" });
     },
   });
@@ -468,101 +455,77 @@ export default function SettingsPage() {
               Send an email invitation so a colleague can create their account and join your workspace.
             </CardDescription>
           </CardHeader>
-          {usageData && (
-            <div className="px-6 pb-0">
-              <PlanLimitBanner
-                current={usageData.usage.users}
-                limit={usageData.limits.maxUsers}
-                resourceLabel="Team members"
-              />
-            </div>
-          )}
           <CardContent className="space-y-6">
-            {(() => {
-              const atUserLimit = usageData
-                ? usageData.usage.users >= usageData.limits.maxUsers && usageData.limits.maxUsers < 999999
-                : false;
-              const isVendorInvite = watchedRole === "vendor";
-              const effectivelyLimited = atUserLimit && !isVendorInvite;
-              return (
-                <Form {...inviteForm}>
-                  <form
-                    onSubmit={inviteForm.handleSubmit((v) => sendInviteMutation.mutate(v))}
-                    className="flex flex-col sm:flex-row gap-3"
-                  >
-                    <FormField
-                      control={inviteForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem className="flex-1">
+            <Form {...inviteForm}>
+              <form
+                onSubmit={inviteForm.handleSubmit((v) => sendInviteMutation.mutate(v))}
+                className="flex flex-col sm:flex-row gap-3"
+              >
+                <FormField
+                  control={inviteForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormControl>
+                        <Input type="email" placeholder="colleague@yourcompany.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={inviteForm.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem className="w-full sm:w-48">
+                      <Select onValueChange={(v) => { field.onChange(v); if (v !== "vendor") inviteForm.setValue("vendorId", undefined); }} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="designer">Designer</SelectItem>
+                          <SelectItem value="project_manager">Project Manager</SelectItem>
+                          <SelectItem value="client">Client</SelectItem>
+                          <SelectItem value="vendor">Vendor</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {watchedRole === "vendor" && (
+                  <FormField
+                    control={inviteForm.control}
+                    name="vendorId"
+                    render={({ field }) => (
+                      <FormItem className="w-full sm:w-56">
+                        <Select onValueChange={field.onChange} value={field.value ?? "__none__"}>
                           <FormControl>
-                            <Input type="email" placeholder="colleague@yourcompany.com" {...field} disabled={effectivelyLimited} />
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select vendor" />
+                            </SelectTrigger>
                           </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={inviteForm.control}
-                      name="role"
-                      render={({ field }) => (
-                        <FormItem className="w-full sm:w-48">
-                          <Select onValueChange={(v) => { field.onChange(v); if (v !== "vendor") inviteForm.setValue("vendorId", undefined); }} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select role" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="designer">Designer</SelectItem>
-                              <SelectItem value="project_manager">Project Manager</SelectItem>
-                              <SelectItem value="client">Client</SelectItem>
-                              <SelectItem value="vendor">Vendor</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    {watchedRole === "vendor" && (
-                      <FormField
-                        control={inviteForm.control}
-                        name="vendorId"
-                        render={({ field }) => (
-                          <FormItem className="w-full sm:w-56">
-                            <Select onValueChange={field.onChange} value={field.value ?? "__none__"}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select vendor" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {(vendors ?? []).map((v) => (
-                                  <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                          <SelectContent>
+                            {(vendors ?? []).map((v) => (
+                              <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                    {effectivelyLimited ? (
-                      <Button type="button" variant="outline" onClick={() => setShowUserLimitDialog(true)}>
-                        Upgrade to invite
-                      </Button>
-                    ) : (
-                      <Button type="submit" disabled={sendInviteMutation.isPending}>
-                        {sendInviteMutation.isPending ? "Sending…" : (
-                          <><Mail className="h-4 w-4 mr-2" />Send invite</>
-                        )}
-                      </Button>
-                    )}
-                  </form>
-                </Form>
-              );
-            })()}
+                  />
+                )}
+                <Button type="submit" disabled={sendInviteMutation.isPending}>
+                  {sendInviteMutation.isPending ? "Sending…" : (
+                    <><Mail className="h-4 w-4 mr-2" />Send invite</>
+                  )}
+                </Button>
+              </form>
+            </Form>
 
             {/* Pending invitations list */}
             {invitationsLoading ? (
@@ -911,35 +874,6 @@ export default function SettingsPage() {
       </Card>
     </div>
 
-    {/* Upgrade dialog — shown when the user limit is hit on invite */}
-    <Dialog open={showUserLimitDialog} onOpenChange={setShowUserLimitDialog}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-primary" />
-            Team member limit reached
-          </DialogTitle>
-          <DialogDescription>
-            Your current plan has reached its maximum number of team members (including pending invitations). Upgrade to add more seats.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="py-2 space-y-2 text-sm text-muted-foreground">
-          <p>Upgrading your plan gives you:</p>
-          <ul className="list-disc list-inside space-y-1">
-            <li>More team member seats</li>
-            <li>Higher project and catalogue limits</li>
-            <li>Increased storage capacity</li>
-          </ul>
-        </div>
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => setShowUserLimitDialog(false)}>Cancel</Button>
-          <Button onClick={() => { setShowUserLimitDialog(false); navigate("/settings?tab=billing"); }}>
-            <Zap className="h-4 w-4 mr-2" />
-            View plans
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
     </>
   );
 }
