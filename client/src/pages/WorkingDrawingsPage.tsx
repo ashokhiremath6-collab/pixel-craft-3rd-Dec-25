@@ -401,7 +401,7 @@ function RevisionSheet({ drawing, onClose, onViewRevision }: {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.svg,.xlsx,.docx"
+            accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.svg,.xlsx,.xls,.docx,.doc"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];

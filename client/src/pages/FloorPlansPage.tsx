@@ -643,7 +643,7 @@ export default function FloorPlansPage() {
                       type="file"
                       className="hidden"
                       onChange={handleFileSelect}
-                      accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.dwg,.dxf,.xlsx,.docx"
+                      accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.dwg,.dxf,.xlsx,.xls,.docx,.doc"
                     />
                   </div>
                 </div>
