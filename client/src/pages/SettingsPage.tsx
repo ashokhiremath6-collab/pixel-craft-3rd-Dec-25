@@ -509,7 +509,7 @@ export default function SettingsPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {(vendors ?? []).map((v) => (
+                            {[...(vendors ?? [])].sort((a, b) => a.name.localeCompare(b.name)).map((v) => (
                               <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
                             ))}
                           </SelectContent>
