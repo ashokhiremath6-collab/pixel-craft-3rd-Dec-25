@@ -114,6 +114,20 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     queryKey: ['/api/quote-templates'],
   });
 
+  // Auto-select the first project that has quotations when arriving without a pre-selected project.
+  // This ensures designers (and anyone navigating from the sidebar) see content immediately
+  // instead of a blank "Select a project to begin" prompt.
+  useEffect(() => {
+    if (selectedProject || initialProject) return; // already have a selection
+    const sortedProjects = sortProjectsForDropdown(projects);
+    // Prefer a project that actually has quotation data; fall back to the first project
+    const withQuotations = sortedProjects.find(p => Object.prototype.hasOwnProperty.call(quotations, p.id));
+    const target = withQuotations || sortedProjects[0];
+    if (target) {
+      setSelectedProject(target.id);
+    }
+  }, [projects, quotations, selectedProject, initialProject]);
+
   const assignTemplateMutation = useMutation({
     mutationFn: async ({ pvId, templateId }: { pvId: string; templateId: string | null }) => {
       return await apiRequest('PUT', `/api/project-vendors/${pvId}`, { templateId: templateId || null });
