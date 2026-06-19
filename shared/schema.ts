@@ -904,7 +904,6 @@ export const users = pgTable("users", {
   unsubscribeToken: varchar("unsubscribe_token").unique(), // token for one-click email unsubscribe (no login required)
   trialBannerSnoozedUntil: timestamp("trial_banner_snoozed_until"), // server-side snooze preference for trial expiry banner; null = not snoozed
   trialBannerSnoozeDuration: text("trial_banner_snooze_duration"), // "1", "3", or "forever"
-  vendorId: varchar("vendor_id"), // FK to vendors — set when role=vendor, null otherwise
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   imageUrl: varchar("image_url"),
@@ -981,8 +980,7 @@ export const invitations = pgTable("invitations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   orgId: varchar("org_id").notNull(), // references organisations.id
   email: text("email").notNull(),
-  role: text("role").notNull().default("designer"), // admin, designer, project_manager, client, vendor
-  vendorId: varchar("vendor_id"), // required when role=vendor; references vendors.id
+  role: text("role").notNull().default("designer"), // admin, designer, project_manager, client
   token: varchar("token").notNull().unique(),
   invitedBy: varchar("invited_by").notNull(), // references users.id
   acceptedAt: timestamp("accepted_at"), // null = pending

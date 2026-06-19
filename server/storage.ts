@@ -200,11 +200,6 @@ export interface IStorage {
   // User onboarding
   completeOnboarding(userId: string): Promise<void>;
   setUserOrgId(userId: string, orgId: string): Promise<void>;
-  setUserVendorId(userId: string, vendorId: string): Promise<void>;
-
-  // Vendor portal helpers
-  getVendorByUserId(userId: string): Promise<Vendor | undefined>;
-  getProjectVendorsByVendorId(vendorId: string): Promise<ProjectVendor[]>;
 
   // Designer Allowlist
   getDesignerAllowlist(): Promise<DesignerAllowlist[]>;
@@ -1538,9 +1533,6 @@ export class MemStorage implements IStorage {
   }
   async completeOnboarding(_userId: string): Promise<void> {}
   async setUserOrgId(_userId: string, _orgId: string): Promise<void> {}
-  async setUserVendorId(_userId: string, _vendorId: string): Promise<void> {}
-  async getVendorByUserId(_userId: string): Promise<Vendor | undefined> { return undefined; }
-  async getProjectVendorsByVendorId(_vendorId: string): Promise<ProjectVendor[]> { return []; }
   async getOrgUsage(_orgId: string): Promise<{ projects: number; users: number; catalogueItems: number; storageGb: number }> {
     return { projects: 0, users: 0, catalogueItems: 0, storageGb: 0 };
   }
@@ -1995,44 +1987,33 @@ export class DBStorage implements IStorage {
   }
 
   async getProjectsForUser(userId: string, role: string): Promise<Project[]> {
-    const user = await this.getUser(userId);
-    const orgId = user?.orgId;
-
-    // Admins and designers see all projects within their org
+    // Admins and designers can access all projects
     if (role === 'admin' || role === 'designer') {
-      if (orgId) {
-        return await db.select().from(projects).where(eq(projects.orgId, orgId));
-      }
       return await db.select().from(projects);
     }
     
-    // Project managers can only access assigned projects within their org
+    // Project managers can only access assigned projects
     if (role === 'project_manager') {
       const assignments = await this.getUserProjectAssignments(userId);
       const projectIds = assignments.map(a => a.projectId);
       if (projectIds.length === 0) return [];
-      const conditions = [inArray(projects.id, projectIds)];
-      if (orgId) conditions.push(eq(projects.orgId, orgId));
-      return await db.select().from(projects).where(and(...conditions));
+      return await db.select().from(projects).where(inArray(projects.id, projectIds));
     }
     
     // Clients can only access projects where they're the client
+    const user = await this.getUser(userId);
     if (!user?.email) return [];
     
     // Get projects from both old clientEmail field and new projectClients table
     const clientEmailProjects = await db.select().from(projects).where(eq(projects.clientEmail, user.email));
     const projectClientProjects = await this.getProjectsByClientEmail(user.email);
     
-    // Combine and deduplicate, scoped to org
+    // Combine and deduplicate
     const projectIds = new Set([
       ...clientEmailProjects.map(p => p.id),
       ...projectClientProjects.map(p => p.id)
     ]);
-    const idList = Array.from(projectIds);
-    if (idList.length === 0) return [];
-    const conditions = [inArray(projects.id, idList)];
-    if (orgId) conditions.push(eq(projects.orgId, orgId));
-    return await db.select().from(projects).where(and(...conditions));
+    return await db.select().from(projects).where(inArray(projects.id, Array.from(projectIds)));
   }
 
   async getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]> {
@@ -3639,23 +3620,6 @@ export class DBStorage implements IStorage {
     await db.update(users)
       .set({ orgId })
       .where(eq(users.id, userId));
-  }
-
-  async setUserVendorId(userId: string, vendorId: string): Promise<void> {
-    await db.update(users)
-      .set({ vendorId })
-      .where(eq(users.id, userId));
-  }
-
-  async getVendorByUserId(userId: string): Promise<Vendor | undefined> {
-    const user = await this.getUser(userId);
-    if (!user?.vendorId) return undefined;
-    const result = await db.select().from(vendors).where(eq(vendors.id, user.vendorId));
-    return result[0];
-  }
-
-  async getProjectVendorsByVendorId(vendorId: string): Promise<ProjectVendor[]> {
-    return await db.select().from(projectVendors).where(eq(projectVendors.vendorId, vendorId));
   }
 
   async registerOrgWithAdmin(params: {

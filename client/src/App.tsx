@@ -33,7 +33,6 @@ import SOPsPage from "@/pages/SOPsPage";
 import MeetingMinutesPage from "@/pages/MeetingMinutesPage";
 import WorksOrdersPage from "@/pages/WorksOrdersPage";
 import ClientPortalApp from "@/pages/ClientPortalApp";
-import VendorPortalApp from "@/pages/VendorPortalApp";
 import AIRendersPage from "@/pages/AIRendersPage";
 import ProjectCostPage from "@/pages/ProjectCostPage";
 import AssetIngestionPage from "@/pages/AssetIngestionPage";
@@ -472,10 +471,6 @@ function AppContent() {
     // so /superadmin remains accessible even when their role is set to 'client'.
     if (!isImpersonating && !isElevated && user?.role === 'client' && !user?.isSuperAdmin) {
       return <ClientPortalApp />;
-    }
-
-    if (!isImpersonating && user?.role === 'vendor' && !user?.isSuperAdmin) {
-      return <VendorPortalApp />;
     }
 
     // Onboarding wizard: only for admins who have never completed it
