@@ -2174,13 +2174,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const isComparativeStatement = pv.unitRateSubtype === 'comparative';
         const vendor = pv.vendorId ? vendorMap.get(pv.vendorId) : null;
         const categoryFromVendor = vendor ? categoryMap.get(vendor.categoryId) : null;
-        const categoryName = isComparativeStatement ? pv.category : categoryFromVendor?.name;
+        // Fall back gracefully: use stored category name or 'Uncategorized' if lookup fails
+        const categoryName = isComparativeStatement
+          ? pv.category
+          : (categoryFromVendor?.name || pv.category || 'Uncategorized');
         
         // Only include project vendors for projects the user has access to
         // For comparative statements: project and categoryName must exist
-        // For regular quotes: project, vendor, and category must exist
+        // For regular quotes: project and vendor must exist (category uses fallback if lookup fails)
         const isValid = project && projects.some(p => p.id === project.id) &&
-          (isComparativeStatement ? !!categoryName : !!(vendor && categoryFromVendor));
+          (isComparativeStatement ? !!categoryName : !!vendor);
         
         if (isValid) {
           if (!quotationsByProject[pv.projectId]) {
