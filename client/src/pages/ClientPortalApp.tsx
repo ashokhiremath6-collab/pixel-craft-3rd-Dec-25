@@ -34,8 +34,10 @@ import {
   ArrowLeft,
   BrainCircuit,
   Receipt,
+  BarChart3,
 } from "lucide-react";
 import AIAssistantPage from "@/pages/AIAssistantPage";
+import ComparativeQuotes from "@/components/ComparativeQuotes";
 import { format, parseISO } from "date-fns";
 import type { Project, Moodboard, Specification, MeetingMinutes, Task, VendorCategory } from "@shared/schema";
 import { formatCurrencyCompact } from "@/lib/currencyUtils";
@@ -54,6 +56,7 @@ const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "timeline", label: "Timeline", icon: Clock },
   { id: "project-cost", label: "Project Cost", icon: Receipt },
+  { id: "comparative-quotes", label: "Comparative Quotes", icon: BarChart3 },
   { id: "renders", label: "Renders", icon: Sparkles },
   { id: "moodboards", label: "Moodboards", icon: Image },
   { id: "drawings", label: "Working Drawings", icon: PenTool },
@@ -690,17 +693,18 @@ export default function ClientPortalApp({
 
   const { data: costCategories = [] } = useQuery<VendorCategory[]>({
     queryKey: ["/api/vendor-categories/tree"],
-    enabled: activeTab === "project-cost",
+    enabled: activeTab === "project-cost" || activeTab === "comparative-quotes",
   });
 
   const { data: costQuotationsData } = useQuery<{ projects: Project[]; quotations: Record<string, CostQuotation[]> }>({
     queryKey: ["/api/quotations"],
-    enabled: activeTab === "project-cost" && !!effectiveProjectId,
+    enabled: (activeTab === "project-cost" || activeTab === "comparative-quotes") && !!effectiveProjectId,
     staleTime: 0,
     refetchOnMount: "always",
   });
 
   const costQuotations = costQuotationsData?.quotations?.[effectiveProjectId] ?? [];
+  const allQuotations = costQuotationsData?.quotations ?? {};
 
   const selectedProject = portalData?.project || projects.find(p => p.id === effectiveProjectId);
 
@@ -841,6 +845,15 @@ export default function ClientPortalApp({
                 projectId={effectiveProjectId}
                 categories={costCategories}
                 quotations={costQuotations}
+              />
+            )}
+            {activeTab === "comparative-quotes" && (
+              <ComparativeQuotes
+                projects={costQuotationsData?.projects || projects}
+                categories={costCategories as VendorCategory[]}
+                quotations={allQuotations}
+                onStatusChange={() => {}}
+                initialProject={effectiveProjectId}
               />
             )}
             {activeTab === "renders" && (
