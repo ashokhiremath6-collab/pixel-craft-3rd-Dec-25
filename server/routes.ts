@@ -2115,6 +2115,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If no role found, treat as 'client' (users without designer/admin role)
       const userRole = userRoleData?.role || 'client';
+
+      // Vendors only have access to their own quote files via the vendor portal API.
+      // They must not see the full comparative quotes view.
+      if (userRole === 'vendor') {
+        return res.status(403).json({ error: "Access denied. Vendors cannot access comparative quotes." });
+      }
       
       // Get all project vendors
       const projectVendors = await storage.getAllProjectVendors();
