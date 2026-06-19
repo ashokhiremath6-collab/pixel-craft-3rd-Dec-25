@@ -950,6 +950,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(409).json({ error: "An invitation has already been sent to this email. Use resend to send a new link." });
       }
 
+      // Check user limit before creating invitation
+      await checkOrgLimit(callerUser.orgId, 'users');
+
       const token = randomUUID();
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
 
@@ -2115,12 +2118,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If no role found, treat as 'client' (users without designer/admin role)
       const userRole = userRoleData?.role || 'client';
-
-      // Vendors only have access to their own quote files via the vendor portal API.
-      // They must not see the full comparative quotes view.
-      if (userRole === 'vendor') {
-        return res.status(403).json({ error: "Access denied. Vendors cannot access comparative quotes." });
-      }
       
       // Get all project vendors
       const projectVendors = await storage.getAllProjectVendors();
@@ -2180,16 +2177,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const isComparativeStatement = pv.unitRateSubtype === 'comparative';
         const vendor = pv.vendorId ? vendorMap.get(pv.vendorId) : null;
         const categoryFromVendor = vendor ? categoryMap.get(vendor.categoryId) : null;
-        // Fall back gracefully: use stored category name or 'Uncategorized' if lookup fails
-        const categoryName = isComparativeStatement
-          ? pv.category
-          : (categoryFromVendor?.name || pv.category || 'Uncategorized');
+        const categoryName = isComparativeStatement ? pv.category : categoryFromVendor?.name;
         
         // Only include project vendors for projects the user has access to
         // For comparative statements: project and categoryName must exist
-        // For regular quotes: project and vendor must exist (category uses fallback if lookup fails)
+        // For regular quotes: project, vendor, and category must exist
         const isValid = project && projects.some(p => p.id === project.id) &&
-          (isComparativeStatement ? !!categoryName : !!vendor);
+          (isComparativeStatement ? !!categoryName : !!(vendor && categoryFromVendor));
         
         if (isValid) {
           if (!quotationsByProject[pv.projectId]) {
@@ -2231,7 +2225,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: pv.id,
             vendorName: isComparativeStatement ? 'Multiple Vendors' : (vendor?.name || 'Unknown'),
             category: categoryName || 'Uncategorized',
-            categoryId: vendor?.categoryId || pv.categoryId || null,
             quotationName: pv.quotationName,
             quotationType: pv.quotationType,
             quotationValue: quotationValue,
@@ -2244,8 +2237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             projectName: project.projectName,
             uploaderName: uploaderName,
             uploadedAt: uploadedAt,
-            unitRateSubtype: pv.unitRateSubtype,
-            templateId: pv.templateId || null,
+            unitRateSubtype: pv.unitRateSubtype
           });
         }
       }
@@ -9705,36 +9697,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get all pending (incomplete) action items across all meetings for the org
-  app.get("/api/meeting-minutes/action-items/pending", requireProjectAccess, async (req, res) => {
-    try {
-      const orgId = (req as any).user?.orgId;
-      if (!orgId) return res.status(403).json({ error: "No organisation" });
-      const items = await storage.getAllPendingActionItems(orgId);
-      res.json(items);
-    } catch (error) {
-      console.error('Error fetching pending action items:', error);
-      res.status(500).json({ error: "Failed to fetch pending action items" });
-    }
-  });
-
-  // Mark a meeting action item as completed / not completed
-  app.patch("/api/meeting-minutes/action-items/:id", requireProjectAccess, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { completed } = req.body;
-      if (typeof completed !== 'boolean') {
-        return res.status(400).json({ error: "completed must be a boolean" });
-      }
-      const updated = await storage.updateMeetingActionItemCompleted(id, completed);
-      if (!updated) return res.status(404).json({ error: "Action item not found" });
-      res.json(updated);
-    } catch (error) {
-      console.error('Error updating action item:', error);
-      res.status(500).json({ error: "Failed to update action item" });
-    }
-  });
-
   // Parse Fireflies transcript using Gemini AI
   app.post("/api/parse-fireflies", requireProjectAccess, async (req, res) => {
     try {
@@ -12499,21 +12461,11 @@ Return your response in the following JSON format only (no markdown, no code blo
             uploadedByName: null,
           }));
 
-          // Fetch template info if assigned
-          let templateName: string | null = null;
-          if (pv.templateId) {
-            const tpl = await storage.getQuoteTemplate(pv.templateId);
-            templateName = tpl?.name ?? null;
-          }
-
           return {
-            pvId: pv.id,
             projectId: project.id,
-            projectName: project.projectName,
-            clientName: (project as any).clientName ?? null,
+            projectName: project.name,
+            clientName: project.clientName ?? null,
             quoteFiles,
-            templateId: pv.templateId ?? null,
-            templateName,
           };
         })
       );
@@ -12522,51 +12474,6 @@ Return your response in the following JSON format only (no markdown, no code blo
     } catch (err) {
       console.error("GET /api/vendor-portal/projects error:", err);
       res.status(500).json({ error: "Failed to fetch projects" });
-    }
-  });
-
-  // GET /api/vendor-portal/template/:pvId/download — vendor downloads assigned quote template
-  app.get("/api/vendor-portal/template/:pvId/download", requireVendor, async (req: any, res) => {
-    try {
-      const userId = req.user.id;
-      const vendor = await storage.getVendorByUserId(userId);
-      if (!vendor) return res.status(403).json({ error: "No vendor linked to this account" });
-
-      // Verify this pv belongs to this vendor
-      const allPvs = await storage.getProjectVendorsByVendorId(vendor.id);
-      const pv = allPvs.find((p: any) => p.id === req.params.pvId);
-      if (!pv) return res.status(403).json({ error: "Access denied" });
-      if (!pv.templateId) return res.status(404).json({ error: "No template assigned" });
-
-      const template = await storage.getQuoteTemplateWithFileData(pv.templateId);
-      if (!template) return res.status(404).json({ error: "Template not found" });
-
-      if (template.originalFileData && template.originalFileName) {
-        const excelBuffer = Buffer.from(template.originalFileData, 'base64');
-        const contentType = template.originalMimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Disposition', `attachment; filename="${template.originalFileName}"`);
-        res.setHeader('Content-Length', excelBuffer.length);
-        return res.send(excelBuffer);
-      }
-
-      if (template.fields && typeof template.fields === 'object' &&
-          (template.fields as any).type === 'spreadsheet' && (template.fields as any).data) {
-        const spreadsheetData = (template.fields as any).data as any[][];
-        const workbook = XLSX.utils.book_new();
-        const worksheet = XLSX.utils.aoa_to_sheet(spreadsheetData);
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
-        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename="${template.name.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx"`);
-        res.setHeader('Content-Length', excelBuffer.length);
-        return res.send(excelBuffer);
-      }
-
-      res.status(400).json({ error: "No file data available for this template" });
-    } catch (err) {
-      console.error("GET /api/vendor-portal/template/:pvId/download error:", err);
-      res.status(500).json({ error: "Failed to download template" });
     }
   });
 

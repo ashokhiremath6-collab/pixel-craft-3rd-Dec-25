@@ -69,6 +69,7 @@ export default function SettingsPage() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>("");
   const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
+  const [showUserLimitDialog, setShowUserLimitDialog] = useState(false);
 
   const inviteForm = useForm<InviteValues>({
     resolver: zodResolver(inviteSchema),
@@ -231,6 +232,18 @@ export default function SettingsPage() {
       toast({ title: "Invitation sent", description: "An invitation email has been sent." });
     },
     onError: (error: Error) => {
+      // Parse structured 403 limit-exceeded responses and show upgrade dialog
+      const raw = error.message ?? "";
+      const jsonStart = raw.indexOf("{");
+      if (jsonStart !== -1) {
+        try {
+          const parsed = JSON.parse(raw.slice(jsonStart));
+          if (parsed.limitExceeded) {
+            setShowUserLimitDialog(true);
+            return;
+          }
+        } catch { /* fall through to generic toast */ }
+      }
       toast({ title: "Failed to send invitation", description: error.message, variant: "destructive" });
     },
   });
@@ -417,6 +430,87 @@ export default function SettingsPage() {
                   </div>
                 )}
 
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">
+                    {billingStatus.planStatus === 'active' ? 'Change plan' : 'Choose a plan'}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                      {
+                        key: 'starter',
+                        label: 'Starter',
+                        price: '$29 / month',
+                        desc: 'For small teams up to 5 users',
+                        features: ['5 team members', '10 projects', 'Basic support'],
+                      },
+                      {
+                        key: 'pro',
+                        label: 'Pro',
+                        price: '$79 / month',
+                        desc: 'Unlimited users and projects',
+                        features: ['Unlimited members', 'Unlimited projects', 'Priority support'],
+                      },
+                      {
+                        key: 'enterprise',
+                        label: 'Enterprise',
+                        price: 'Contact us',
+                        desc: 'Custom billing and SLA',
+                        features: ['Custom limits', 'Dedicated support', 'SLA guarantee'],
+                        contactSales: true,
+                      },
+                    ].map((tier) => {
+                      const isCurrent =
+                        billingStatus.plan === tier.key && billingStatus.planStatus === 'active';
+                      return (
+                        <div
+                          key={tier.key}
+                          className={`flex flex-col gap-3 rounded-md border p-3 ${isCurrent ? 'border-primary/50 bg-primary/5' : ''}`}
+                        >
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <p className="font-semibold text-sm">{tier.label}</p>
+                              {isCurrent && <Badge variant="secondary" className="text-xs">Current</Badge>}
+                            </div>
+                            <p className="text-sm font-medium">{tier.price}</p>
+                            <p className="text-xs text-muted-foreground">{tier.desc}</p>
+                            <ul className="space-y-0.5 mt-1">
+                              {tier.features.map((f) => (
+                                <li key={f} className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground shrink-0" />
+                                  {f}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          {'contactSales' in tier && tier.contactSales ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => window.open('mailto:sales@pixelcraftdesigner.com?subject=Enterprise%20Plan%20Enquiry', '_blank')}
+                            >
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                              Contact sales
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant={isCurrent ? 'secondary' : 'default'}
+                              disabled={checkoutMutation.isPending || isCurrent}
+                              onClick={() => checkoutMutation.mutate(tier.key)}
+                            >
+                              <Zap className="h-3 w-3 mr-1" />
+                              {isCurrent
+                                ? 'Current plan'
+                                : billingStatus.planStatus === 'active'
+                                ? `Switch to ${tier.label}`
+                                : `Upgrade to ${tier.label}`}
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 {billingStatus.hasStripeCustomer && (
                   <Button
@@ -455,77 +549,99 @@ export default function SettingsPage() {
               Send an email invitation so a colleague can create their account and join your workspace.
             </CardDescription>
           </CardHeader>
+          {usageData && (
+            <div className="px-6 pb-0">
+              <PlanLimitBanner
+                current={usageData.usage.users}
+                limit={usageData.limits.maxUsers}
+                resourceLabel="Team members"
+              />
+            </div>
+          )}
           <CardContent className="space-y-6">
-            <Form {...inviteForm}>
-              <form
-                onSubmit={inviteForm.handleSubmit((v) => sendInviteMutation.mutate(v))}
-                className="flex flex-col sm:flex-row gap-3"
-              >
-                <FormField
-                  control={inviteForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormControl>
-                        <Input type="email" placeholder="colleague@yourcompany.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={inviteForm.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem className="w-full sm:w-48">
-                      <Select onValueChange={(v) => { field.onChange(v); if (v !== "vendor") inviteForm.setValue("vendorId", undefined); }} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select role" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="designer">Designer</SelectItem>
-                          <SelectItem value="project_manager">Project Manager</SelectItem>
-                          <SelectItem value="client">Client</SelectItem>
-                          <SelectItem value="vendor">Vendor</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {watchedRole === "vendor" && (
-                  <FormField
-                    control={inviteForm.control}
-                    name="vendorId"
-                    render={({ field }) => (
-                      <FormItem className="w-full sm:w-56">
-                        <Select onValueChange={field.onChange} value={field.value ?? "__none__"}>
+            {(() => {
+              const atUserLimit = usageData
+                ? usageData.usage.users >= usageData.limits.maxUsers && usageData.limits.maxUsers < 999999
+                : false;
+              return (
+                <Form {...inviteForm}>
+                  <form
+                    onSubmit={inviteForm.handleSubmit((v) => sendInviteMutation.mutate(v))}
+                    className="flex flex-col sm:flex-row gap-3"
+                  >
+                    <FormField
+                      control={inviteForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select vendor" />
-                            </SelectTrigger>
+                            <Input type="email" placeholder="colleague@yourcompany.com" {...field} disabled={atUserLimit} />
                           </FormControl>
-                          <SelectContent>
-                            {[...(vendors ?? [])].sort((a, b) => a.name.localeCompare(b.name)).map((v) => (
-                              <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={inviteForm.control}
+                      name="role"
+                      render={({ field }) => (
+                        <FormItem className="w-full sm:w-48">
+                          <Select onValueChange={(v) => { field.onChange(v); if (v !== "vendor") inviteForm.setValue("vendorId", undefined); }} value={field.value} disabled={atUserLimit}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select role" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="designer">Designer</SelectItem>
+                              <SelectItem value="project_manager">Project Manager</SelectItem>
+                              <SelectItem value="client">Client</SelectItem>
+                              <SelectItem value="vendor">Vendor</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {watchedRole === "vendor" && (
+                      <FormField
+                        control={inviteForm.control}
+                        name="vendorId"
+                        render={({ field }) => (
+                          <FormItem className="w-full sm:w-56">
+                            <Select onValueChange={field.onChange} value={field.value ?? "__none__"} disabled={atUserLimit}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select vendor" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {(vendors ?? []).map((v) => (
+                                  <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     )}
-                  />
-                )}
-                <Button type="submit" disabled={sendInviteMutation.isPending}>
-                  {sendInviteMutation.isPending ? "Sending…" : (
-                    <><Mail className="h-4 w-4 mr-2" />Send invite</>
-                  )}
-                </Button>
-              </form>
-            </Form>
+                    {atUserLimit ? (
+                      <Button type="button" variant="outline" onClick={() => setShowUserLimitDialog(true)}>
+                        Upgrade to invite
+                      </Button>
+                    ) : (
+                      <Button type="submit" disabled={sendInviteMutation.isPending}>
+                        {sendInviteMutation.isPending ? "Sending…" : (
+                          <><Mail className="h-4 w-4 mr-2" />Send invite</>
+                        )}
+                      </Button>
+                    )}
+                  </form>
+                </Form>
+              );
+            })()}
 
             {/* Pending invitations list */}
             {invitationsLoading ? (
@@ -874,6 +990,35 @@ export default function SettingsPage() {
       </Card>
     </div>
 
+    {/* Upgrade dialog — shown when the user limit is hit on invite */}
+    <Dialog open={showUserLimitDialog} onOpenChange={setShowUserLimitDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-primary" />
+            Team member limit reached
+          </DialogTitle>
+          <DialogDescription>
+            Your current plan has reached its maximum number of team members (including pending invitations). Upgrade to add more seats.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-2 space-y-2 text-sm text-muted-foreground">
+          <p>Upgrading your plan gives you:</p>
+          <ul className="list-disc list-inside space-y-1">
+            <li>More team member seats</li>
+            <li>Higher project and catalogue limits</li>
+            <li>Increased storage capacity</li>
+          </ul>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => setShowUserLimitDialog(false)}>Cancel</Button>
+          <Button onClick={() => { setShowUserLimitDialog(false); navigate("/settings?tab=billing"); }}>
+            <Zap className="h-4 w-4 mr-2" />
+            View plans
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }

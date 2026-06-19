@@ -809,7 +809,6 @@ export const meetingActionItems = pgTable("meeting_action_items", {
   responsibility: text("responsibility"),
   deadline: date("deadline"),
   remarks: text("remarks"),
-  completed: boolean("completed").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => [
   index("idx_meeting_action_meeting_id").on(table.meetingMinutesId),
@@ -822,7 +821,6 @@ export const insertMeetingActionItemSchema = createInsertSchema(meetingActionIte
   responsibility: z.string().optional().nullable(),
   deadline: z.string().optional().nullable(),
   remarks: z.string().optional().nullable(),
-  completed: z.boolean().optional(),
 });
 
 export type InsertMeetingActionItem = z.infer<typeof insertMeetingActionItemSchema>;

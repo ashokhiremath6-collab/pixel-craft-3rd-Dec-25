@@ -1032,7 +1032,7 @@ export default function CataloguePage() {
                     <label className="text-sm font-medium">Upload Catalogue File</label>
                     <Input
                       type="file"
-                      accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.xlsx,.xls,.docx,.doc"
+                      accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.xlsx,.docx"
                       onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
                       data-testid="input-file"
                     />

@@ -421,8 +421,6 @@ export interface IStorage {
   
   // Meeting Action Items
   getMeetingActionItems(meetingMinutesId: string): Promise<MeetingActionItem[]>;
-  getAllPendingActionItems(orgId: string): Promise<Array<MeetingActionItem & { meetingTitle: string; meetingDate: string; projectId: string | null; projectName: string | null }>>;
-  updateMeetingActionItemCompleted(id: string, completed: boolean): Promise<MeetingActionItem | undefined>;
   createMeetingActionItem(item: InsertMeetingActionItem): Promise<MeetingActionItem>;
   deleteMeetingActionItems(meetingMinutesId: string): Promise<boolean>;
   
@@ -3085,45 +3083,6 @@ export class DBStorage implements IStorage {
   async deleteMeetingActionItems(meetingMinutesId: string): Promise<boolean> {
     const result = await db.delete(meetingActionItems).where(eq(meetingActionItems.meetingMinutesId, meetingMinutesId));
     return result.rowCount !== null && result.rowCount >= 0;
-  }
-
-  async getAllPendingActionItems(orgId: string): Promise<Array<MeetingActionItem & { meetingTitle: string; meetingDate: string; projectId: string | null; projectName: string | null }>> {
-    const rows = await db
-      .select({
-        id: meetingActionItems.id,
-        meetingMinutesId: meetingActionItems.meetingMinutesId,
-        serialNo: meetingActionItems.serialNo,
-        issueDiscussed: meetingActionItems.issueDiscussed,
-        responsibility: meetingActionItems.responsibility,
-        deadline: meetingActionItems.deadline,
-        remarks: meetingActionItems.remarks,
-        completed: meetingActionItems.completed,
-        createdAt: meetingActionItems.createdAt,
-        meetingTitle: meetingMinutes.meetingTitle,
-        meetingDate: meetingMinutes.meetingDate,
-        projectId: meetingMinutes.projectId,
-        projectName: projects.projectName,
-      })
-      .from(meetingActionItems)
-      .innerJoin(meetingMinutes, eq(meetingActionItems.meetingMinutesId, meetingMinutes.id))
-      .leftJoin(projects, eq(meetingMinutes.projectId, projects.id))
-      .where(
-        and(
-          eq(meetingMinutes.orgId, orgId),
-          eq(meetingActionItems.completed, false)
-        )
-      )
-      .orderBy(meetingActionItems.deadline, meetingActionItems.createdAt);
-    return rows as Array<MeetingActionItem & { meetingTitle: string; meetingDate: string; projectId: string | null; projectName: string | null }>;
-  }
-
-  async updateMeetingActionItemCompleted(id: string, completed: boolean): Promise<MeetingActionItem | undefined> {
-    const result = await db
-      .update(meetingActionItems)
-      .set({ completed })
-      .where(eq(meetingActionItems.id, id))
-      .returning();
-    return result[0];
   }
 
   // Works Order Templates methods

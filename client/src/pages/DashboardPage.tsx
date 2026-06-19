@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import Dashboard from '@/components/Dashboard';
-import type { Vendor, Project, VendorCategory, ActivityLog, Task, MeetingActionItem, MeetingMinutes } from "@shared/schema";
+import type { Vendor, Project, VendorCategory, ActivityLog, Task } from "@shared/schema";
 import { differenceInDays, startOfDay } from "date-fns";
 
 interface VendorWithCategory extends Omit<Vendor, 'categoryName'> {
@@ -79,14 +79,6 @@ export default function DashboardPage() {
     gcTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-  });
-
-  const { data: momActionItemsData } = useQuery<Array<MeetingActionItem & { meetingTitle: string; meetingDate: string; projectId: string | null; projectName: string | null }>>({
-    queryKey: ['/api/meeting-minutes/action-items/pending'],
-    staleTime: 5 * 60 * 1000, // 5 min cache — effectively a daily check per session
-    refetchOnMount: true,
-    refetchOnWindowFocus: false,
-    enabled: isDesignerOrAdmin,
   });
 
   const handleNavigate = (path: string) => {
@@ -311,7 +303,6 @@ export default function DashboardPage() {
         tasksLoading={tasksLoading}
         projectTaskBreakdown={projectTaskBreakdown}
         remainingTasksByProject={remainingTasksByProject}
-        momActionItems={momActionItemsData || []}
         onNavigate={handleNavigate}
       />
     </div>
