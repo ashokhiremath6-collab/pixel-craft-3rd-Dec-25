@@ -8,8 +8,9 @@ interface User {
   firstName: string | null;
   lastName: string | null;
   profileImageUrl: string | null;
-  role: 'admin' | 'designer' | 'project_manager' | 'client';
+  role: 'admin' | 'designer' | 'project_manager' | 'client' | 'vendor';
   orgId: string | null;
+  vendorId?: string | null;
   onboardingCompletedAt: string | null;
   isSuperAdmin?: boolean;
   _impersonating?: boolean;
