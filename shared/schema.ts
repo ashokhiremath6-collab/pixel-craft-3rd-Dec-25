@@ -916,13 +916,14 @@ export const users = pgTable("users", {
 export const userRoles = pgTable("user_roles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
-  role: text("role").notNull().default("client"), // admin, designer, project_manager, client
+  role: text("role").notNull().default("client"), // admin, designer, project_manager, client, vendor
   isActive: boolean("is_active").notNull().default(true),
   assignedBy: varchar("assigned_by").references(() => users.id),
   assignedAt: timestamp("assigned_at").default(sql`now()`),
   createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
   updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
   orgId: varchar("org_id"),
+  linkedVendorId: varchar("linked_vendor_id").references(() => vendors.id), // Only set for vendor-role users
 });
 
 // User Project Assignments - tracks which projects users (especially project managers) can access

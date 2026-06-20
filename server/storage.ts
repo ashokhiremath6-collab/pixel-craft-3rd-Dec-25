@@ -126,7 +126,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, inArray, isNull, and, or, desc, sql, asc, getTableColumns, gt } from "drizzle-orm";
+import { eq, inArray, isNull, and, or, desc, sql, asc, getTableColumns, gt, ne } from "drizzle-orm";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -3674,18 +3674,27 @@ export class DBStorage implements IStorage {
         .from(projects)
         .where(eq(projects.orgId, orgId))
         .then(r => Number(r[0]?.count ?? 0)),
-      // Active users: members already in the org.
-      db.select({ count: sql<number>`count(*)::int` })
-        .from(users)
-        .where(eq(users.orgId, orgId))
-        .then(r => Number(r[0]?.count ?? 0)),
+      // Active users: members already in the org, excluding vendor-role accounts.
+      db.execute(sql`
+        SELECT count(*)::int AS count
+        FROM users u
+        WHERE u.org_id = ${orgId}
+        AND NOT EXISTS (
+          SELECT 1 FROM user_roles ur
+          WHERE ur.user_id = u.id
+          AND ur.is_active = true
+          AND ur.role = 'vendor'
+        )
+      `).then(r => Number((r.rows[0] as any)?.count ?? 0)),
       // Pending invitations: counted toward seat quota to prevent bypass-by-invite.
+      // Vendor invitations are excluded — they don't occupy a seat.
       db.select({ count: sql<number>`count(*)::int` })
         .from(invitations)
         .where(and(
           eq(invitations.orgId, orgId),
           isNull(invitations.acceptedAt),
           gt(invitations.expiresAt, sql`now()`),
+          ne(invitations.role, 'vendor'),
         ))
         .then(r => Number(r[0]?.count ?? 0)),
       // Catalogue items: items tagged to this org.

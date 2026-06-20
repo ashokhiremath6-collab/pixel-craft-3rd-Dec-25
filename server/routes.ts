@@ -917,7 +917,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { email, role } = req.body;
       if (!email || !role) return res.status(400).json({ error: "Email and role are required" });
-      if (!["admin", "designer", "project_manager", "client"].includes(role)) {
+      if (!["admin", "designer", "project_manager", "client", "vendor"].includes(role)) {
         return res.status(400).json({ error: "Invalid role" });
       }
 
@@ -946,8 +946,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(409).json({ error: "An invitation has already been sent to this email. Use resend to send a new link." });
       }
 
-      // Check user limit before creating invitation
-      await checkOrgLimit(callerUser.orgId, 'users');
+      // Vendor invitations are free — they don't occupy a seat in the org plan
+      if (role !== 'vendor') {
+        await checkOrgLimit(callerUser.orgId, 'users');
+      }
 
       const token = randomUUID();
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
