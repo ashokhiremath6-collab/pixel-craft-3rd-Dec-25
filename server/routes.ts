@@ -10964,12 +10964,12 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  // GET /api/dashboard/vendor-alerts — admin/designer sees pending vendor portal submissions
+  // GET /api/dashboard/vendor-alerts — all staff and clients see pending vendor portal submissions
   app.get("/api/dashboard/vendor-alerts", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
-      if (!userRole || !['admin', 'designer', 'project_manager'].includes(userRole.role)) {
+      if (!userRole || !['admin', 'designer', 'project_manager', 'client'].includes(userRole.role)) {
         return res.status(403).json({ error: "Access denied" });
       }
       const user = await storage.getUser(userId);

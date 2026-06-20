@@ -34,7 +34,9 @@ import {
   ArrowLeft,
   BrainCircuit,
   Receipt,
+  SendHorizonal,
 } from "lucide-react";
+import { differenceInHours } from "date-fns";
 import AIAssistantPage from "@/pages/AIAssistantPage";
 import { format, parseISO } from "date-fns";
 import type { Project, Moodboard, Specification, MeetingMinutes, Task, VendorCategory } from "@shared/schema";
@@ -79,7 +81,18 @@ function isImageFile(fileName?: string | null): boolean {
 }
 
 // ── OVERVIEW ────────────────────────────────────────────────────────────────
-function OverviewSection({ project, data }: { project?: Project; data?: PortalData }) {
+interface VendorAlertClient {
+  id: string;
+  vendor_name: string;
+  project_name: string;
+  category_name: string | null;
+  quotation_name: string;
+  quotation_value: string | null;
+  notes: string | null;
+  portal_submitted_at: string;
+}
+
+function OverviewSection({ project, data, vendorAlerts = [] }: { project?: Project; data?: PortalData; vendorAlerts?: VendorAlertClient[] }) {
   if (!project) return null;
 
   const completedTasks = (data?.tasks || []).filter(t => t.status === "Completed").length;
@@ -162,6 +175,46 @@ function OverviewSection({ project, data }: { project?: Project; data?: PortalDa
           </Card>
         ))}
       </div>
+
+      {vendorAlerts.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3 flex flex-row items-center gap-3 flex-wrap">
+            <div className="flex items-center justify-center w-8 h-8 rounded-full shrink-0" style={{ background: "#f59e0b" }}>
+              <SendHorizonal className="h-3.5 w-3.5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Vendor quotes received</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {vendorAlerts.length} vendor{vendorAlerts.length !== 1 ? "s" : ""} submitted {vendorAlerts.length !== 1 ? "quotes" : "a quote"}
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2 pt-0">
+            {vendorAlerts.map(alert => {
+              const amount = alert.quotation_value
+                ? Number(alert.quotation_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                : null;
+              const h = differenceInHours(new Date(), new Date(alert.portal_submitted_at));
+              const when = h < 1 ? "just now" : h < 24 ? `${h}h ago` : format(new Date(alert.portal_submitted_at), "d MMM");
+              return (
+                <div
+                  key={alert.id}
+                  className="rounded-lg p-3 space-y-0.5"
+                  style={{ background: "#fffbeb", border: "1px solid #fde68a" }}
+                >
+                  <p className="text-sm font-semibold" style={{ color: "#92400e" }}>{alert.vendor_name}</p>
+                  <p className="text-xs" style={{ color: "#b45309" }}>
+                    {alert.category_name || alert.quotation_name}
+                  </p>
+                  {amount && <p className="text-sm font-medium" style={{ color: "#111827" }}>Quoted: {amount}</p>}
+                  {alert.notes && <p className="text-xs text-muted-foreground line-clamp-2">{alert.notes}</p>}
+                  <p className="text-xs" style={{ color: "#a8a29e" }}>{when}</p>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -688,6 +741,14 @@ export default function ClientPortalApp({
     staleTime: 2 * 60 * 1000,
   });
 
+  const { data: vendorAlertsData = [] } = useQuery<VendorAlertClient[]>({
+    queryKey: ["/api/dashboard/vendor-alerts"],
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    enabled: activeTab === "overview",
+  });
+
   const { data: costCategories = [] } = useQuery<VendorCategory[]>({
     queryKey: ["/api/vendor-categories/tree"],
     enabled: activeTab === "project-cost",
@@ -831,7 +892,7 @@ export default function ClientPortalApp({
         ) : (
           <>
             {activeTab === "overview" && (
-              <OverviewSection project={selectedProject} data={portalData} />
+              <OverviewSection project={selectedProject} data={portalData} vendorAlerts={vendorAlertsData} />
             )}
             {activeTab === "timeline" && (
               <TimelineSection tasks={portalData?.tasks || []} />

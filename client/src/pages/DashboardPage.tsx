@@ -73,12 +73,14 @@ export default function DashboardPage() {
     refetchOnWindowFocus: true,
   });
 
+  const isStaffOrAdmin = user?.role === 'designer' || user?.role === 'admin' || user?.role === 'project_manager';
+
   const { data: vendorAlertsData } = useQuery<any[]>({
     queryKey: ['/api/dashboard/vendor-alerts'],
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    enabled: isDesignerOrAdmin,
+    enabled: isStaffOrAdmin,
   });
 
   const { data: allTasksData, isLoading: tasksLoading } = useQuery<Task[]>({
