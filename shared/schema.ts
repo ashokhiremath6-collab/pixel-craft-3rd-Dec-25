@@ -981,12 +981,13 @@ export const invitations = pgTable("invitations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   orgId: varchar("org_id").notNull(), // references organisations.id
   email: text("email").notNull(),
-  role: text("role").notNull().default("designer"), // admin, designer, project_manager, client
+  role: text("role").notNull().default("designer"), // admin, designer, project_manager, client, vendor
   token: varchar("token").notNull().unique(),
   invitedBy: varchar("invited_by").notNull(), // references users.id
   acceptedAt: timestamp("accepted_at"), // null = pending
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  linkedVendorId: varchar("linked_vendor_id").references(() => vendors.id), // Only set for vendor-role invitations
 });
 
 export const insertInvitationSchema = createInsertSchema(invitations).omit({

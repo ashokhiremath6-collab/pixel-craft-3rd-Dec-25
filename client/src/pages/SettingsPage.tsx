@@ -16,10 +16,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation } from "wouter";
-import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock, CreditCard, Zap, AlertTriangle, ExternalLink, BarChart3, Bell } from "lucide-react";
+import { Settings, UserCog, Shield, Eye, Briefcase, Link2, Copy, Check, Mail, UserPlus, Trash2, RefreshCw, Clock, CreditCard, Zap, AlertTriangle, ExternalLink, BarChart3, Bell, Building2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { PlanLimitBanner } from "@/components/PlanLimitBanner";
-import type { User, Project, UserProjectAssignment } from "@shared/schema";
+import type { User, Project, UserProjectAssignment, Vendor } from "@shared/schema";
 
 const UNLIMITED = 999_999;
 
@@ -41,6 +41,7 @@ interface BillingStatus {
 type UserWithRole = User & {
   role: string | null;
   roleIsActive: boolean;
+  linkedVendorId: string | null;
 };
 
 interface Invitation {
@@ -54,7 +55,8 @@ interface Invitation {
 
 const inviteSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
-  role: z.enum(["admin", "designer", "project_manager", "client"]),
+  role: z.enum(["admin", "designer", "project_manager", "client", "vendor"]),
+  linkedVendorId: z.string().optional(),
 });
 type InviteValues = z.infer<typeof inviteSchema>;
 
@@ -106,6 +108,11 @@ export default function SettingsPage() {
   }>({
     queryKey: ["/api/billing/usage"],
     enabled: isAdmin && !!currentUser?.orgId,
+  });
+
+  const { data: vendors } = useQuery<Vendor[]>({
+    queryKey: ["/api/vendors"],
+    enabled: isAdmin,
   });
 
   const { data: notificationPrefs } = useQuery<{
@@ -238,6 +245,19 @@ export default function SettingsPage() {
     },
   });
 
+  const linkVendorMutation = useMutation({
+    mutationFn: async ({ userId, linkedVendorId }: { userId: string; linkedVendorId: string | null }) => {
+      return apiRequest("PATCH", `/api/users/${userId}/link-vendor`, { linkedVendorId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({ title: "Vendor linked", description: "The vendor account has been linked." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to link vendor", description: error.message, variant: "destructive" });
+    },
+  });
+
   const revokeInviteMutation = useMutation({
     mutationFn: async (inviteId: string) => {
       return apiRequest("DELETE", `/api/invitations/${inviteId}`);
@@ -279,6 +299,7 @@ export default function SettingsPage() {
       case "designer": return "default" as const;
       case "project_manager": return "default" as const;
       case "client": return "secondary" as const;
+      case "vendor": return "secondary" as const;
       default: return "secondary" as const;
     }
   };
@@ -290,6 +311,7 @@ export default function SettingsPage() {
       case "designer": return <UserCog className="h-3 w-3" />;
       case "project_manager": return <UserCog className="h-3 w-3" />;
       case "client": return <Eye className="h-3 w-3" />;
+      case "vendor": return <Building2 className="h-3 w-3" />;
       default: return <Eye className="h-3 w-3" />;
     }
   };
@@ -587,12 +609,36 @@ export default function SettingsPage() {
                               <SelectItem value="designer">Designer</SelectItem>
                               <SelectItem value="project_manager">Project Manager</SelectItem>
                               <SelectItem value="client">Client</SelectItem>
+                              <SelectItem value="vendor">Vendor</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+                    {inviteForm.watch("role") === "vendor" && (
+                      <FormField
+                        control={inviteForm.control}
+                        name="linkedVendorId"
+                        render={({ field }) => (
+                          <FormItem className="w-full sm:w-56">
+                            <Select onValueChange={field.onChange} value={field.value ?? ""} disabled={atUserLimit}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Link to vendor (optional)" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {vendors?.map((v) => (
+                                  <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
                     {atUserLimit ? (
                       <Button type="button" variant="outline" onClick={() => setUpgradeDialog({ open: true, resource: 'users', current: usageData!.usage.users, limit: usageData!.limits.maxUsers })}>
                         Upgrade to invite
@@ -719,6 +765,23 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {user.role === "vendor" && (
+                        <Select
+                          value={user.linkedVendorId ?? ""}
+                          onValueChange={(val) => linkVendorMutation.mutate({ userId: user.id, linkedVendorId: val || null })}
+                          disabled={linkVendorMutation.isPending}
+                        >
+                          <SelectTrigger className="w-44" title="Link this user to a vendor record">
+                            <Building2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                            <SelectValue placeholder="Link vendor…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {vendors?.map((v) => (
+                              <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
@@ -743,6 +806,7 @@ export default function SettingsPage() {
                               <SelectItem value="designer">Designer</SelectItem>
                               <SelectItem value="project_manager">Project Manager</SelectItem>
                               <SelectItem value="client">Client</SelectItem>
+                              <SelectItem value="vendor">Vendor</SelectItem>
                             </SelectContent>
                           </Select>
                           <Button

@@ -728,6 +728,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Role management endpoint for admins
+  // PATCH /api/users/:userId/link-vendor — admin links/unlinks a vendor account to a vendor record
+  app.patch("/api/users/:userId/link-vendor", requireAdminOnly, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { linkedVendorId } = req.body; // null to unlink
+
+      const caller = await storage.getUser((req.user as any).id);
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) return res.status(404).json({ error: "User not found" });
+      if (caller?.orgId && targetUser.orgId !== caller.orgId) {
+        return res.status(403).json({ error: "You can only manage users within your own workspace." });
+      }
+
+      await storage.setUserRoleLinkedVendor(userId, linkedVendorId ?? null);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("link-vendor error:", err);
+      res.status(500).json({ error: "Failed to link vendor" });
+    }
+  });
+
   app.post("/api/auth/role", requireAdminOnly, async (req, res) => {
     try {
       const { userId, role } = req.body;
@@ -736,7 +757,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "User ID and role are required" });
       }
       
-      if (!['client', 'designer', 'project_manager', 'admin'].includes(role)) {
+      if (!['client', 'designer', 'project_manager', 'admin', 'vendor'].includes(role)) {
         return res.status(400).json({ error: "Invalid role" });
       }
       
@@ -790,6 +811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ...sanitizeUser(user),
             role: role?.role || null,
             roleIsActive: role?.isActive || false,
+            linkedVendorId: role?.linkedVendorId || null,
           };
         })
       );
@@ -954,6 +976,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = randomUUID();
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
 
+      const { linkedVendorId } = req.body;
+
       const invitation = await storage.createInvitation({
         orgId: callerUser.orgId,
         email: normalizedEmail,
@@ -961,6 +985,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         token,
         invitedBy: callerUser.id,
         expiresAt,
+        ...(role === 'vendor' && linkedVendorId ? { linkedVendorId } : {}),
       });
 
       const domains = process.env.REPLIT_DOMAINS;
@@ -1087,9 +1112,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         const existingRole = await storage.getUserRole(existing.id);
         if (!existingRole) {
-          await storage.createUserRole({ userId: existing.id, role: invite.role, isActive: true, assignedBy: invite.invitedBy });
+          await storage.createUserRole({ userId: existing.id, role: invite.role, isActive: true, assignedBy: invite.invitedBy, linkedVendorId: invite.linkedVendorId ?? null });
         } else {
           await storage.updateUserRole(existing.id, invite.role);
+          if (invite.linkedVendorId) {
+            await storage.setUserRoleLinkedVendor(existing.id, invite.linkedVendorId);
+          }
         }
         await storage.acceptInvitation(req.params.token);
 
@@ -1139,7 +1167,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orgId: invite.orgId,
       });
 
-      await storage.createUserRole({ userId: newUser.id, role: invite.role, isActive: true, assignedBy: invite.invitedBy });
+      await storage.createUserRole({ userId: newUser.id, role: invite.role, isActive: true, assignedBy: invite.invitedBy, linkedVendorId: invite.linkedVendorId ?? null });
       await storage.acceptInvitation(req.params.token);
 
       // Notify the inviter (if non-admin and opted in) that their invitation was accepted

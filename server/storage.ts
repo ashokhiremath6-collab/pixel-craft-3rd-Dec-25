@@ -160,6 +160,7 @@ export interface IStorage {
   getUserRole(userId: string): Promise<UserRole | undefined>;
   createUserRole(userRole: InsertUserRole): Promise<UserRole>;
   updateUserRole(userId: string, role: string): Promise<UserRole | undefined>;
+  setUserRoleLinkedVendor(userId: string, linkedVendorId: string | null): Promise<void>;
   
   // User Project Assignments - for project managers
   getUserProjectAssignments(userId: string): Promise<UserProjectAssignment[]>;
@@ -663,6 +664,14 @@ export class MemStorage implements IStorage {
       return existingRole;
     }
     return undefined;
+  }
+
+  async setUserRoleLinkedVendor(userId: string, linkedVendorId: string | null): Promise<void> {
+    const existingRole = await this.getUserRole(userId);
+    if (existingRole) {
+      (existingRole as any).linkedVendorId = linkedVendorId;
+      this.userRoles.set(existingRole.id, existingRole);
+    }
   }
 
   // User Project Assignments - for project manager role (MemStorage stubs)
@@ -1660,6 +1669,12 @@ export class DBStorage implements IStorage {
       .where(and(eq(userRoles.userId, userId), eq(userRoles.isActive, true)))
       .returning();
     return result[0];
+  }
+
+  async setUserRoleLinkedVendor(userId: string, linkedVendorId: string | null): Promise<void> {
+    await db.update(userRoles)
+      .set({ linkedVendorId })
+      .where(and(eq(userRoles.userId, userId), eq(userRoles.isActive, true)));
   }
 
   // User Project Assignments - for project manager role
