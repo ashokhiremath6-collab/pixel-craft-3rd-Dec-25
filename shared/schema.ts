@@ -988,6 +988,7 @@ export const invitations = pgTable("invitations", {
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   linkedVendorId: varchar("linked_vendor_id").references(() => vendors.id), // Only set for vendor-role invitations
+  inviteMessage: text("invite_message"), // Optional quote-request context sent with vendor invitations
 });
 
 export const insertInvitationSchema = createInsertSchema(invitations).omit({

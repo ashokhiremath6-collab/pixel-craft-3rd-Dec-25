@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, Mail, User, FileText, Edit, Trash2, Building2 } from "lucide-react";
+import { Phone, Mail, User, FileText, Edit, Trash2, Building2, Send } from "lucide-react";
 import type { Vendor, VendorCategory } from "@shared/schema";
 import { formatVendorNameWithCategory } from "@/lib/currencyUtils";
+import InviteVendorDialog from "./InviteVendorDialog";
 
 interface VendorCardProps {
   vendor: Vendor & { projects?: Array<{ projectId: string; projectName: string; clientName: string; status: string }> };
@@ -13,20 +15,21 @@ interface VendorCardProps {
 }
 
 export default function VendorCard({ vendor, categoryName, onEdit, onDelete }: VendorCardProps) {
+  const [inviteOpen, setInviteOpen] = useState(false);
+
   const handleEdit = () => {
-    console.log('Edit vendor clicked:', vendor.id);
     onEdit?.(vendor);
   };
 
   const handleDelete = () => {
-    console.log('Delete vendor clicked:', vendor.id);
     onDelete?.(vendor.id);
   };
 
   return (
+    <>
     <Card className="hover-elevate" data-testid={`card-vendor-${vendor.id}`}>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-4">
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <CardTitle className="text-lg font-semibold" data-testid="text-vendor-name">
             {formatVendorNameWithCategory(vendor.name, categoryName)}
           </CardTitle>
@@ -34,7 +37,17 @@ export default function VendorCard({ vendor, categoryName, onEdit, onDelete }: V
             {categoryName || 'Unknown Category'}
           </Badge>
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1 shrink-0">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setInviteOpen(true)}
+            data-testid="button-invite-vendor"
+            title="Invite this vendor to submit a quote via the portal"
+          >
+            <Send className="h-3.5 w-3.5 mr-1.5" />
+            Invite
+          </Button>
           <Button 
             size="icon" 
             variant="ghost" 
@@ -99,5 +112,7 @@ export default function VendorCard({ vendor, categoryName, onEdit, onDelete }: V
         )}
       </CardContent>
     </Card>
+    <InviteVendorDialog vendor={vendor} open={inviteOpen} onOpenChange={setInviteOpen} />
+    </>
   );
 }

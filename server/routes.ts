@@ -976,7 +976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = randomUUID();
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
 
-      const { linkedVendorId } = req.body;
+      const { linkedVendorId, inviteMessage } = req.body;
 
       const invitation = await storage.createInvitation({
         orgId: callerUser.orgId,
@@ -986,6 +986,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         invitedBy: callerUser.id,
         expiresAt,
         ...(role === 'vendor' && linkedVendorId ? { linkedVendorId } : {}),
+        ...(inviteMessage ? { inviteMessage } : {}),
       });
 
       const domains = process.env.REPLIT_DOMAINS;
@@ -994,7 +995,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       try {
         const { sendInvitationEmail } = await import("./email");
-        await sendInvitationEmail(normalizedEmail, inviterName, org.name, role, token, baseUrl);
+        await sendInvitationEmail(normalizedEmail, inviterName, org.name, role, token, baseUrl, inviteMessage ?? undefined);
       } catch (emailErr) {
         console.error("[INVITE] Failed to send invitation email:", emailErr);
       }

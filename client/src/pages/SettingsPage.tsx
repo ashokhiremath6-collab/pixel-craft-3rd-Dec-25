@@ -609,7 +609,6 @@ export default function SettingsPage() {
                               <SelectItem value="designer">Designer</SelectItem>
                               <SelectItem value="project_manager">Project Manager</SelectItem>
                               <SelectItem value="client">Client</SelectItem>
-                              <SelectItem value="vendor">Vendor</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />

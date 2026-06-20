@@ -162,37 +162,57 @@ export async function sendInvitationEmail(
   orgName: string,
   role: string,
   token: string,
-  baseUrl?: string
+  baseUrl?: string,
+  inviteMessage?: string
 ): Promise<void> {
   const inviteUrl = `${baseUrl || getBaseUrl()}/invite/${token}`;
   console.info(`[EMAIL] Invitation link for ${email}: ${inviteUrl}`);
 
+  const isVendor = role === 'vendor';
+  const subjectLine = isVendor
+    ? `Quote request from ${orgName} — Olympik Design`
+    : `You've been invited to join ${orgName} on Olympik Design`;
+
+  const messageBlock = isVendor && inviteMessage
+    ? `<div style="background:#f0f4ff;border-left:4px solid #0071e3;border-radius:0 8px 8px 0;padding:16px 20px;margin:16px 0;">
+        <p style="color:#1d1d1f;font-size:14px;font-weight:600;margin:0 0 6px;">Quote request details</p>
+        <p style="color:#3d3d3d;font-size:14px;line-height:1.6;margin:0;white-space:pre-line;">${inviteMessage}</p>
+      </div>`
+    : '';
+
+  const bodyIntro = isVendor
+    ? `<strong>${invitedBy}</strong> from <strong>${orgName}</strong> has invited you to submit a quote via Olympik Design.`
+    : `<strong>${invitedBy}</strong> has invited you to join <strong>${orgName}</strong> on Olympik Design as a <strong>${role}</strong>.`;
+
+  const ctaLabel = isVendor ? 'Set Up Your Vendor Account' : 'Accept Invitation';
+
   await sendEmail({
     to: email,
-    subject: `You've been invited to join ${orgName} on Olympik Design`,
+    subject: subjectLine,
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
           <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
         </div>
         <div style="background:#fff;border-radius:12px;padding:28px;">
-          <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">You're invited!</h2>
-          <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 8px;">
-            <strong>${invitedBy}</strong> has invited you to join <strong>${orgName}</strong> on Olympik Design as a <strong>${role}</strong>.
-          </p>
+          <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">${isVendor ? 'Quote request' : "You're invited!"}</h2>
+          <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 8px;">${bodyIntro}</p>
+          ${messageBlock}
           <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
-            Click the button below to accept the invitation and set up your account. This link expires in 48 hours.
+            Click the button below to set up your account and ${isVendor ? 'submit your quote' : 'get started'}. This link expires in 48 hours.
           </p>
           <a href="${inviteUrl}" style="display:inline-block;background:#0071e3;color:#fff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
-            Accept Invitation
+            ${ctaLabel}
           </a>
           <p style="color:#6e6e73;font-size:13px;margin:20px 0 0;">
-            If you weren't expecting this invitation, you can safely ignore this email.
+            If you weren't expecting this, you can safely ignore this email.
           </p>
         </div>
       </div>
     `,
-    text: `You've been invited to join ${orgName} on Olympik Design!\n\n${invitedBy} has invited you as a ${role}.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in 48 hours.`,
+    text: isVendor
+      ? `Quote request from ${orgName}\n\n${invitedBy} has invited you to submit a quote via Olympik Design.${inviteMessage ? `\n\nDetails:\n${inviteMessage}` : ''}\n\nSet up your account here:\n${inviteUrl}\n\nThis link expires in 48 hours.`
+      : `You've been invited to join ${orgName} on Olympik Design!\n\n${invitedBy} has invited you as a ${role}.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in 48 hours.`,
   });
 }
 
