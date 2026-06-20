@@ -25,7 +25,14 @@ import {
   Tag,
   Paperclip,
   CheckCircle2,
+  Send,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
@@ -305,48 +312,133 @@ function QuotesTab({ quotes, loading }: { quotes: VendorQuote[]; loading: boolea
 }
 
 function QuoteCard({ quote }: { quote: VendorQuote }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [submitNotes, setSubmitNotes] = useState("");
+
   const statusClass = STATUS_CLASSES[quote.status] ?? STATUS_CLASSES.Quoted;
   const value = quote.quotation_value
     ? Number(quote.quotation_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : null;
 
+  const alreadySubmitted = !!quote.submitted_at;
+
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/vendor-portal/quotes/${quote.id}/submit`, {
+        quotedAmount: amount ? parseFloat(amount) : null,
+        notes: submitNotes || null,
+      });
+      return res;
+    },
+    onSuccess: () => {
+      toast({ title: "Quote submitted", description: "The studio has been notified." });
+      queryClient.invalidateQueries({ queryKey: ["/api/vendor-portal/my-quotes"] });
+      setOpen(false);
+    },
+    onError: () => {
+      toast({ title: "Failed to submit quote", variant: "destructive" });
+    },
+  });
+
   return (
-    <Card>
-      <CardContent className="p-4 space-y-2">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="space-y-0.5 min-w-0">
-            <p className="text-sm font-medium truncate">{quote.project_name}</p>
-            <p className="text-xs text-muted-foreground truncate">
-              {quote.category_name || "—"}{quote.quotation_name !== "Main Quote" ? ` · ${quote.quotation_name}` : ""}
-            </p>
+    <>
+      <Card>
+        <CardContent className="p-4 space-y-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="space-y-0.5 min-w-0">
+              <p className="text-sm font-medium truncate">{quote.project_name}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {quote.category_name || "—"}{quote.quotation_name !== "Main Quote" ? ` · ${quote.quotation_name}` : ""}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              {quote.is_negotiated && (
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+              )}
+              <Badge className={`text-xs ${statusClass}`}>
+                {STATUS_LABELS[quote.status] ?? quote.status}
+              </Badge>
+              <Button
+                size="sm"
+                variant={alreadySubmitted ? "outline" : "default"}
+                onClick={() => { setAmount(quote.quotation_value ? String(quote.quotation_value) : ""); setSubmitNotes(quote.notes || ""); setOpen(true); }}
+              >
+                <Send className="h-3.5 w-3.5 mr-1.5" />
+                {alreadySubmitted ? "Update quote" : "Submit quote"}
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {quote.is_negotiated && (
-              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+            {value && (
+              <span className="font-medium text-foreground">{value}</span>
             )}
-            <Badge className={`text-xs ${statusClass}`}>
-              {STATUS_LABELS[quote.status] ?? quote.status}
-            </Badge>
+            {quote.date_of_quotation && (
+              <span>Dated {formatDate(quote.date_of_quotation)}</span>
+            )}
+            {quote.file_count > 0 && (
+              <span className="flex items-center gap-1">
+                <Paperclip className="h-3 w-3" />
+                {quote.file_count} {quote.file_count === 1 ? "file" : "files"}
+              </span>
+            )}
+            {alreadySubmitted && quote.submitted_at && (
+              <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                <CheckCircle2 className="h-3 w-3" />
+                Submitted {formatDate(quote.submitted_at)}
+              </span>
+            )}
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-          {value && (
-            <span className="font-medium text-foreground">{value}</span>
+          {quote.notes && (
+            <p className="text-xs text-muted-foreground border-t pt-2 line-clamp-2">{quote.notes}</p>
           )}
-          {quote.date_of_quotation && (
-            <span>Dated {formatDate(quote.date_of_quotation)}</span>
-          )}
-          {quote.file_count > 0 && (
-            <span className="flex items-center gap-1">
-              <Paperclip className="h-3 w-3" />
-              {quote.file_count} {quote.file_count === 1 ? "file" : "files"}
-            </span>
-          )}
-        </div>
-        {quote.notes && (
-          <p className="text-xs text-muted-foreground border-t pt-2 line-clamp-2">{quote.notes}</p>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Submit your quote</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{quote.project_name}</span>
+            {" · "}{quote.category_name || "—"}
+          </div>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1">
+              <Label htmlFor="quote-amount">Quoted amount</Label>
+              <Input
+                id="quote-amount"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="e.g. 125000"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="quote-notes">Notes <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Textarea
+                id="quote-notes"
+                placeholder="Scope, materials, lead time, assumptions…"
+                rows={4}
+                value={submitNotes}
+                onChange={(e) => setSubmitNotes(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
+              {submitMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Send to studio
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

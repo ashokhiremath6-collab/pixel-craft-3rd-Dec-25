@@ -7,8 +7,9 @@ import {
   Users, Building2, FileText, TrendingUp, ArrowRight, Clock, Download,
   AlertCircle, ImageIcon, LayoutDashboard, FileCheck2, CalendarDays,
   BookOpen, Package, Trash2, Pencil, Plus, Bell, FileUp,
-  ChevronDown, ChevronRight, ExternalLink, ArrowUpDown,
+  ChevronDown, ChevronRight, ExternalLink, ArrowUpDown, X, SendHorizonal,
 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +54,17 @@ interface ProjectTaskBreakdownEntry {
   overdueCount?: number;
 }
 
+interface VendorAlert {
+  id: string;
+  vendor_name: string;
+  project_name: string;
+  category_name: string | null;
+  quotation_name: string;
+  quotation_value: string | null;
+  notes: string | null;
+  portal_submitted_at: string;
+}
+
 interface DashboardProps {
   vendors: VendorWithCategory[];
   projects: Project[];
@@ -68,6 +80,7 @@ interface DashboardProps {
   tasksLoading?: boolean;
   projectTaskBreakdown?: ProjectTaskBreakdownEntry[];
   remainingTasksByProject?: Record<string, Array<Task & { projectName: string }>>;
+  vendorAlerts?: VendorAlert[];
   onNavigate?: (path: string) => void;
 }
 
@@ -175,6 +188,94 @@ const BREAKDOWN_SORT_LABELS: Record<BreakdownSortMode, string> = {
   least_complete: 'Least complete',
 };
 
+function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
+  const queryClient = useQueryClient();
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
+  const acknowledgeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`/api/dashboard/vendor-alerts/${id}/acknowledge`, { method: "PATCH", credentials: "include" });
+    },
+    onSuccess: (_, id) => {
+      setDismissed(prev => new Set(prev).add(id));
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["/api/dashboard/vendor-alerts"] }), 300);
+    },
+  });
+
+  const visible = alerts.filter(a => !dismissed.has(a.id));
+  if (visible.length === 0) return null;
+
+  return (
+    <ContentCard>
+      <div className="px-5 sm:px-8 pt-6 pb-4 space-y-3">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="flex items-center justify-center w-9 h-9 rounded-full" style={{ background: "#f59e0b" }}>
+            <SendHorizonal className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg sm:text-[22px] font-semibold leading-tight" style={{ color: "#111827" }}>
+              Vendor quotes received
+            </h2>
+            <p className="text-xs" style={{ color: "#86868b" }}>
+              {visible.length} vendor{visible.length !== 1 ? "s" : ""} submitted {visible.length !== 1 ? "quotes" : "a quote"} through the portal
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {visible.map(alert => {
+            const amount = alert.quotation_value
+              ? Number(alert.quotation_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : null;
+            const when = (() => {
+              const h = differenceInHours(new Date(), new Date(alert.portal_submitted_at));
+              if (h < 1) return "just now";
+              if (h < 24) return `${h}h ago`;
+              return format(new Date(alert.portal_submitted_at), "d MMM");
+            })();
+
+            return (
+              <div
+                key={alert.id}
+                className="flex items-start justify-between gap-3 rounded-xl p-3 flex-wrap"
+                style={{ background: "#fffbeb", border: "1px solid #fde68a" }}
+              >
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <p className="text-sm font-semibold" style={{ color: "#92400e" }}>
+                    {alert.vendor_name}
+                  </p>
+                  <p className="text-xs" style={{ color: "#b45309" }}>
+                    {alert.project_name} · {alert.category_name || alert.quotation_name}
+                  </p>
+                  {amount && (
+                    <p className="text-sm font-medium" style={{ color: "#111827" }}>
+                      Quoted: {amount}
+                    </p>
+                  )}
+                  {alert.notes && (
+                    <p className="text-xs line-clamp-2" style={{ color: "#78716c" }}>{alert.notes}</p>
+                  )}
+                  <p className="text-xs" style={{ color: "#a8a29e" }}>{when}</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => acknowledgeMutation.mutate(alert.id)}
+                  disabled={acknowledgeMutation.isPending}
+                  className="shrink-0"
+                >
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  Dismiss
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </ContentCard>
+  );
+}
+
 function ContentCard({
   children,
   className = "",
@@ -223,6 +324,7 @@ export default function Dashboard({
   tasksLoading = false,
   projectTaskBreakdown = [],
   remainingTasksByProject = {},
+  vendorAlerts = [],
   onNavigate,
 }: DashboardProps) {
   const [isQuotationDetailModalOpen, setIsQuotationDetailModalOpen] = useState(false);
@@ -339,6 +441,11 @@ export default function Dashboard({
             Overview of your vendors, projects, and quotations.
           </p>
         </div>
+
+        {/* ── Vendor Quote Alerts ── */}
+        {vendorAlerts.length > 0 && (
+          <VendorAlertsPanel alerts={vendorAlerts} />
+        )}
 
         {/* ── Latest Activity — PROMINENT HERO SECTION ── */}
         <ContentCard>

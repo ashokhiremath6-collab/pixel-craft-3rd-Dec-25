@@ -10929,6 +10929,97 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // POST /api/vendor-portal/quotes/:id/submit — vendor submits a quote via the portal
+  app.post("/api/vendor-portal/quotes/:id/submit", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (userRole?.role !== 'vendor') return res.status(403).json({ error: "Access denied" });
+      if (!userRole.linkedVendorId) return res.status(400).json({ error: "No vendor linked to your account" });
+
+      const { quotedAmount, notes } = req.body;
+      const pvId = req.params.id;
+
+      // Verify this quote request belongs to this vendor
+      const row = await db.execute(sql`
+        SELECT id, vendor_id, org_id FROM project_vendors WHERE id = ${pvId}
+      `);
+      if (!row.rows.length) return res.status(404).json({ error: "Quote request not found" });
+      if (row.rows[0].vendor_id !== userRole.linkedVendorId) return res.status(403).json({ error: "Access denied" });
+
+      await db.execute(sql`
+        UPDATE project_vendors
+        SET
+          quotation_value = ${quotedAmount ? String(quotedAmount) : null},
+          notes = ${notes || null},
+          portal_submitted_at = now(),
+          portal_acknowledged_at = NULL
+        WHERE id = ${pvId}
+      `);
+
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Vendor portal submit error:", err);
+      res.status(500).json({ error: "Failed to submit quote" });
+    }
+  });
+
+  // GET /api/dashboard/vendor-alerts — admin/designer sees pending vendor portal submissions
+  app.get("/api/dashboard/vendor-alerts", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (!userRole || !['admin', 'designer', 'project_manager'].includes(userRole.role)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user?.orgId) return res.json([]);
+
+      const rows = await db.execute(sql`
+        SELECT
+          pv.id,
+          pv.quotation_value,
+          pv.notes,
+          pv.portal_submitted_at,
+          pv.quotation_name,
+          p.name AS project_name,
+          v.name AS vendor_name,
+          COALESCE(vc.name, pv.category) AS category_name
+        FROM project_vendors pv
+        INNER JOIN projects p ON pv.project_id = p.id
+        LEFT JOIN vendors v ON pv.vendor_id = v.id
+        LEFT JOIN vendor_categories vc ON pv.category_id = vc.id
+        WHERE pv.org_id = ${user.orgId}
+          AND pv.portal_submitted_at IS NOT NULL
+          AND pv.portal_acknowledged_at IS NULL
+        ORDER BY pv.portal_submitted_at DESC
+      `);
+
+      res.json(rows.rows);
+    } catch (err) {
+      console.error("Vendor alerts error:", err);
+      res.status(500).json({ error: "Failed to fetch vendor alerts" });
+    }
+  });
+
+  // PATCH /api/dashboard/vendor-alerts/:id/acknowledge — dismiss a vendor alert
+  app.patch("/api/dashboard/vendor-alerts/:id/acknowledge", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (!userRole || !['admin', 'designer', 'project_manager'].includes(userRole.role)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      await db.execute(sql`
+        UPDATE project_vendors SET portal_acknowledged_at = now() WHERE id = ${req.params.id}
+      `);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Acknowledge vendor alert error:", err);
+      res.status(500).json({ error: "Failed to acknowledge" });
+    }
+  });
+
   // =============================================
   // BILLING ROUTES (Stripe)
   // =============================================

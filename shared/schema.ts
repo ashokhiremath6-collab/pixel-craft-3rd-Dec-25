@@ -105,6 +105,8 @@ export const projectVendors = pgTable("project_vendors", {
   submittedAt: timestamp("submitted_at").default(sql`now()`),
   unitRateSubtype: text("unit_rate_subtype"), // For unit rate quotes: "quote" or "comparative"
   orgId: varchar("org_id"),
+  portalSubmittedAt: timestamp("portal_submitted_at"), // Set when vendor submits via portal
+  portalAcknowledgedAt: timestamp("portal_acknowledged_at"), // Set when admin dismisses alert
 });
 
 // BOQ (Bill of Quantities) table

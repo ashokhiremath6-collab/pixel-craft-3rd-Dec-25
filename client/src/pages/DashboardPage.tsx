@@ -73,6 +73,14 @@ export default function DashboardPage() {
     refetchOnWindowFocus: true,
   });
 
+  const { data: vendorAlertsData } = useQuery<any[]>({
+    queryKey: ['/api/dashboard/vendor-alerts'],
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    enabled: isDesignerOrAdmin,
+  });
+
   const { data: allTasksData, isLoading: tasksLoading } = useQuery<Task[]>({
     queryKey: ['/api/tasks'],
     staleTime: 0,
@@ -303,6 +311,7 @@ export default function DashboardPage() {
         tasksLoading={tasksLoading}
         projectTaskBreakdown={projectTaskBreakdown}
         remainingTasksByProject={remainingTasksByProject}
+        vendorAlerts={vendorAlertsData || []}
         onNavigate={handleNavigate}
       />
     </div>
