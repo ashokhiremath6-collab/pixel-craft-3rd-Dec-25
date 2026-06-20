@@ -10857,7 +10857,7 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  // Returns all quote requests sent to this vendor (placeholder — full implementation in Step 3).
+  // Returns all quote requests sent to this vendor, enriched with project and category info.
   app.get("/api/vendor-portal/my-quotes", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
@@ -10865,8 +10865,35 @@ Return your response in the following JSON format only (no markdown, no code blo
       if (userRole?.role !== 'vendor') {
         return res.status(403).json({ error: "Access denied" });
       }
-      // Full implementation coming in Step 3
-      res.json([]);
+      if (!userRole.linkedVendorId) {
+        return res.json([]);
+      }
+
+      const rows = await db.execute(sql`
+        SELECT
+          pv.id,
+          pv.quotation_name,
+          pv.quotation_type,
+          pv.quotation_value,
+          pv.status,
+          pv.date_of_quotation,
+          pv.notes,
+          pv.submitted_at,
+          pv.is_negotiated,
+          p.id   AS project_id,
+          p.name AS project_name,
+          COALESCE(vc.name, pv.category) AS category_name,
+          COUNT(qf.id)::int AS file_count
+        FROM project_vendors pv
+        INNER JOIN projects p ON pv.project_id = p.id
+        LEFT JOIN vendor_categories vc ON pv.category_id = vc.id
+        LEFT JOIN quote_files qf ON qf.project_vendor_id = pv.id
+        WHERE pv.vendor_id = ${userRole.linkedVendorId}
+        GROUP BY pv.id, p.id, p.name, vc.name
+        ORDER BY pv.submitted_at DESC
+      `);
+
+      res.json(rows.rows);
     } catch (err) {
       console.error("Error fetching vendor portal quotes:", err);
       res.status(500).json({ error: "Failed to fetch quotes" });

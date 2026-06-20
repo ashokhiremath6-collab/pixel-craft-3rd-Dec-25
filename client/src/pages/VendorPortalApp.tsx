@@ -23,7 +23,10 @@ import {
   Mail,
   MapPin,
   Tag,
+  Paperclip,
+  CheckCircle2,
 } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 
@@ -233,7 +236,40 @@ function InfoRow({
   );
 }
 
-function QuotesTab({ quotes, loading }: { quotes: any[]; loading: boolean }) {
+interface VendorQuote {
+  id: string;
+  quotation_name: string;
+  quotation_type: string;
+  quotation_value: string | null;
+  status: string;
+  date_of_quotation: string | null;
+  notes: string | null;
+  submitted_at: string | null;
+  is_negotiated: boolean;
+  project_id: string;
+  project_name: string;
+  category_name: string | null;
+  file_count: number;
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  Quoted: "Quoted",
+  Selected: "Selected",
+  Rejected: "Rejected",
+};
+
+const STATUS_CLASSES: Record<string, string> = {
+  Quoted: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+  Selected: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  Rejected: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+};
+
+function formatDate(d?: string | null): string {
+  if (!d) return "—";
+  try { return format(parseISO(d), "dd MMM yyyy"); } catch { return d; }
+}
+
+function QuotesTab({ quotes, loading }: { quotes: VendorQuote[]; loading: boolean }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -260,7 +296,7 @@ function QuotesTab({ quotes, loading }: { quotes: any[]; loading: boolean }) {
     <div className="max-w-4xl space-y-4">
       <h2 className="text-base font-semibold">Quote requests</h2>
       <div className="space-y-3">
-        {quotes.map((q: any) => (
+        {quotes.map((q) => (
           <QuoteCard key={q.id} quote={q} />
         ))}
       </div>
@@ -268,26 +304,48 @@ function QuotesTab({ quotes, loading }: { quotes: any[]; loading: boolean }) {
   );
 }
 
-function QuoteCard({ quote }: { quote: any }) {
-  const statusColors: Record<string, string> = {
-    pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-    submitted: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-    rejected: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  };
-  const statusClass = statusColors[quote.status] ?? statusColors.pending;
+function QuoteCard({ quote }: { quote: VendorQuote }) {
+  const statusClass = STATUS_CLASSES[quote.status] ?? STATUS_CLASSES.Quoted;
+  const value = quote.quotation_value
+    ? Number(quote.quotation_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : null;
 
   return (
     <Card>
-      <CardContent className="p-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1 min-w-0">
-          <p className="text-sm font-medium truncate">{quote.projectName || "Project"}</p>
-          <p className="text-xs text-muted-foreground truncate">
-            {quote.categoryName || "Category"} — {quote.vendorName || ""}
-          </p>
+      <CardContent className="p-4 space-y-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="space-y-0.5 min-w-0">
+            <p className="text-sm font-medium truncate">{quote.project_name}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {quote.category_name || "—"}{quote.quotation_name !== "Main Quote" ? ` · ${quote.quotation_name}` : ""}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {quote.is_negotiated && (
+              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+            )}
+            <Badge className={`text-xs ${statusClass}`}>
+              {STATUS_LABELS[quote.status] ?? quote.status}
+            </Badge>
+          </div>
         </div>
-        <Badge className={`text-xs shrink-0 ${statusClass}`}>
-          {quote.status ?? "pending"}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+          {value && (
+            <span className="font-medium text-foreground">{value}</span>
+          )}
+          {quote.date_of_quotation && (
+            <span>Dated {formatDate(quote.date_of_quotation)}</span>
+          )}
+          {quote.file_count > 0 && (
+            <span className="flex items-center gap-1">
+              <Paperclip className="h-3 w-3" />
+              {quote.file_count} {quote.file_count === 1 ? "file" : "files"}
+            </span>
+          )}
+        </div>
+        {quote.notes && (
+          <p className="text-xs text-muted-foreground border-t pt-2 line-clamp-2">{quote.notes}</p>
+        )}
       </CardContent>
     </Card>
   );
