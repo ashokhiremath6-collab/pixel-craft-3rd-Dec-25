@@ -10964,6 +10964,101 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // Multer for vendor document uploads (PDF, Word, Excel, images — up to 50 MB, up to 10 files)
+  const vendorDocUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024, files: 10 },
+    fileFilter: (_req, file, cb) => {
+      const allowed = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/csv',
+        'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/tiff',
+      ];
+      const ext = path.extname(file.originalname).toLowerCase();
+      const allowedExts = ['.pdf','.doc','.docx','.xls','.xlsx','.csv','.jpg','.jpeg','.png','.webp','.gif','.bmp','.tiff','.tif'];
+      if (allowed.includes(file.mimetype) || allowedExts.includes(ext)) cb(null, true);
+      else cb(new Error('Unsupported file type. Allowed: PDF, Word, Excel, CSV, images.'));
+    },
+  });
+
+  // GET /api/vendor-portal/quotes/:id/files — list files uploaded by vendor for a quote
+  app.get("/api/vendor-portal/quotes/:id/files", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (userRole?.role !== 'vendor') return res.status(403).json({ error: "Access denied" });
+      if (!userRole.linkedVendorId) return res.status(400).json({ error: "No vendor linked" });
+      const pvId = req.params.id;
+      const row = await db.execute(sql`SELECT vendor_id FROM project_vendors WHERE id = ${pvId}`);
+      if (!row.rows.length || row.rows[0].vendor_id !== userRole.linkedVendorId) return res.status(403).json({ error: "Access denied" });
+      const files = await db.execute(sql`
+        SELECT id, file_name, file_path, file_type, file_size, uploaded_at
+        FROM quote_files WHERE project_vendor_id = ${pvId} ORDER BY uploaded_at ASC
+      `);
+      res.json(files.rows);
+    } catch (err) {
+      console.error("Vendor files list error:", err);
+      res.status(500).json({ error: "Failed to list files" });
+    }
+  });
+
+  // POST /api/vendor-portal/quotes/:id/files — vendor uploads document(s) for a quote
+  app.post("/api/vendor-portal/quotes/:id/files", requireAuth, vendorDocUpload.array('files', 10), async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (userRole?.role !== 'vendor') return res.status(403).json({ error: "Access denied" });
+      if (!userRole.linkedVendorId) return res.status(400).json({ error: "No vendor linked" });
+      const pvId = req.params.id;
+      const row = await db.execute(sql`SELECT vendor_id, org_id FROM project_vendors WHERE id = ${pvId}`);
+      if (!row.rows.length || row.rows[0].vendor_id !== userRole.linkedVendorId) return res.status(403).json({ error: "Access denied" });
+      const orgId = row.rows[0].org_id as string;
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) return res.status(400).json({ error: "No files uploaded" });
+      const user = await storage.getUser(userId);
+      const saved = [];
+      for (const file of files) {
+        const objectPath = await uploadToObjectStorage(file.buffer, file.originalname, userId, file.mimetype, orgId);
+        const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
+        const qf = await storage.createQuoteFile({
+          projectVendorId: pvId,
+          fileName: file.originalname,
+          filePath: objectPath,
+          fileType: ext,
+          fileSize: String(file.size),
+          orgId,
+        });
+        saved.push(qf);
+      }
+      res.json(saved);
+    } catch (err) {
+      console.error("Vendor file upload error:", err);
+      res.status(500).json({ error: "Failed to upload file(s)" });
+    }
+  });
+
+  // DELETE /api/vendor-portal/quotes/:pvId/files/:fileId — vendor removes their uploaded file
+  app.delete("/api/vendor-portal/quotes/:pvId/files/:fileId", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (userRole?.role !== 'vendor') return res.status(403).json({ error: "Access denied" });
+      if (!userRole.linkedVendorId) return res.status(400).json({ error: "No vendor linked" });
+      const { pvId, fileId } = req.params;
+      const row = await db.execute(sql`SELECT vendor_id FROM project_vendors WHERE id = ${pvId}`);
+      if (!row.rows.length || row.rows[0].vendor_id !== userRole.linkedVendorId) return res.status(403).json({ error: "Access denied" });
+      await db.execute(sql`DELETE FROM quote_files WHERE id = ${fileId} AND project_vendor_id = ${pvId}`);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Vendor file delete error:", err);
+      res.status(500).json({ error: "Failed to delete file" });
+    }
+  });
+
   // GET /api/dashboard/vendor-alerts — all staff and clients see pending vendor portal submissions
   app.get("/api/dashboard/vendor-alerts", requireAuth, async (req, res) => {
     try {
@@ -10982,7 +11077,7 @@ Return your response in the following JSON format only (no markdown, no code blo
           pv.notes,
           pv.portal_submitted_at,
           pv.quotation_name,
-          p.name AS project_name,
+          p.project_name AS project_name,
           v.name AS vendor_name,
           COALESCE(vc.name, pv.category) AS category_name
         FROM project_vendors pv

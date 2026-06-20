@@ -26,6 +26,10 @@ import {
   Paperclip,
   CheckCircle2,
   Send,
+  Upload,
+  Trash2,
+  Download,
+  FileIcon,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -311,42 +315,110 @@ function QuotesTab({ quotes, loading }: { quotes: VendorQuote[]; loading: boolea
   );
 }
 
+interface QuoteFileRecord {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_type: string;
+  file_size: string | null;
+  uploaded_at: string;
+}
+
+function formatFileSize(bytes: string | null): string {
+  if (!bytes) return "";
+  const n = Number(bytes);
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function QuoteCard({ quote }: { quote: VendorQuote }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [submitNotes, setSubmitNotes] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const statusClass = STATUS_CLASSES[quote.status] ?? STATUS_CLASSES.Quoted;
   const value = quote.quotation_value
     ? Number(quote.quotation_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : null;
-
   const alreadySubmitted = !!quote.submitted_at;
+
+  const { data: files = [], isLoading: filesLoading } = useQuery<QuoteFileRecord[]>({
+    queryKey: ["/api/vendor-portal/quotes", quote.id, "files"],
+    queryFn: async () => {
+      const res = await fetch(`/api/vendor-portal/quotes/${quote.id}/files`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load files");
+      return res.json();
+    },
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (fileId: string) => {
+      const res = await fetch(`/api/vendor-portal/quotes/${quote.id}/files/${fileId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete file");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vendor-portal/quotes", quote.id, "files"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/vendor-portal/my-quotes"] });
+    },
+    onError: () => toast({ title: "Could not delete file", variant: "destructive" }),
+  });
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/vendor-portal/quotes/${quote.id}/submit`, {
+      await apiRequest("POST", `/api/vendor-portal/quotes/${quote.id}/submit`, {
         quotedAmount: amount ? parseFloat(amount) : null,
         notes: submitNotes || null,
       });
-      return res;
     },
     onSuccess: () => {
       toast({ title: "Quote submitted", description: "The studio has been notified." });
       queryClient.invalidateQueries({ queryKey: ["/api/vendor-portal/my-quotes"] });
       setOpen(false);
     },
-    onError: () => {
-      toast({ title: "Failed to submit quote", variant: "destructive" });
-    },
+    onError: () => toast({ title: "Failed to submit quote", variant: "destructive" }),
   });
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(e.target.files || []);
+    if (!selected.length) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      selected.forEach(f => formData.append("files", f));
+      const res = await fetch(`/api/vendor-portal/quotes/${quote.id}/files`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Upload failed");
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/vendor-portal/quotes", quote.id, "files"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/vendor-portal/my-quotes"] });
+      toast({ title: "Uploaded", description: `${selected.length} file${selected.length !== 1 ? "s" : ""} added.` });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
 
   return (
     <>
       <Card>
-        <CardContent className="p-4 space-y-2">
+        <CardContent className="p-4 space-y-3">
+          {/* Header row */}
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="space-y-0.5 min-w-0">
               <p className="text-sm font-medium truncate">{quote.project_name}</p>
@@ -355,35 +427,23 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              {quote.is_negotiated && (
-                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-              )}
-              <Badge className={`text-xs ${statusClass}`}>
-                {STATUS_LABELS[quote.status] ?? quote.status}
-              </Badge>
+              {quote.is_negotiated && <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />}
+              <Badge className={`text-xs ${statusClass}`}>{STATUS_LABELS[quote.status] ?? quote.status}</Badge>
               <Button
                 size="sm"
                 variant={alreadySubmitted ? "outline" : "default"}
                 onClick={() => { setAmount(quote.quotation_value ? String(quote.quotation_value) : ""); setSubmitNotes(quote.notes || ""); setOpen(true); }}
               >
                 <Send className="h-3.5 w-3.5 mr-1.5" />
-                {alreadySubmitted ? "Update quote" : "Submit quote"}
+                {alreadySubmitted ? "Update submission" : "Submit quote"}
               </Button>
             </div>
           </div>
+
+          {/* Summary row */}
           <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-            {value && (
-              <span className="font-medium text-foreground">{value}</span>
-            )}
-            {quote.date_of_quotation && (
-              <span>Dated {formatDate(quote.date_of_quotation)}</span>
-            )}
-            {quote.file_count > 0 && (
-              <span className="flex items-center gap-1">
-                <Paperclip className="h-3 w-3" />
-                {quote.file_count} {quote.file_count === 1 ? "file" : "files"}
-              </span>
-            )}
+            {value && <span className="font-medium text-foreground">{value}</span>}
+            {quote.date_of_quotation && <span>Dated {formatDate(quote.date_of_quotation)}</span>}
             {alreadySubmitted && quote.submitted_at && (
               <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                 <CheckCircle2 className="h-3 w-3" />
@@ -391,24 +451,113 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
               </span>
             )}
           </div>
+
           {quote.notes && (
-            <p className="text-xs text-muted-foreground border-t pt-2 line-clamp-2">{quote.notes}</p>
+            <p className="text-xs text-muted-foreground line-clamp-2">{quote.notes}</p>
           )}
+
+          {/* Documents section */}
+          <div className="border-t pt-3 space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-xs font-medium flex items-center gap-1.5">
+                <Paperclip className="h-3.5 w-3.5" />
+                Documents
+                {files.length > 0 && (
+                  <span className="text-muted-foreground font-normal">({files.length})</span>
+                )}
+              </p>
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp"
+                  className="hidden"
+                  onChange={handleFileChange}
+                  disabled={uploading}
+                />
+                <Button size="sm" variant="outline" asChild disabled={uploading}>
+                  <span>
+                    {uploading
+                      ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Uploading…</>
+                      : <><Upload className="h-3.5 w-3.5 mr-1.5" />Upload documents</>
+                    }
+                  </span>
+                </Button>
+              </label>
+            </div>
+
+            {filesLoading && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Loading files…
+              </div>
+            )}
+
+            {!filesLoading && files.length === 0 && (
+              <p className="text-xs text-muted-foreground py-1">
+                No documents yet. Upload your quote — PDF, Word, Excel, CSV, or images accepted.
+              </p>
+            )}
+
+            {files.length > 0 && (
+              <div className="space-y-1">
+                {files.map(f => {
+                  const filePath = f.file_path.startsWith("/objects/")
+                    ? f.file_path.replace("/objects/", "/uploads/")
+                    : f.file_path;
+                  return (
+                    <div
+                      key={f.id}
+                      className="flex items-center justify-between gap-2 rounded-md px-2.5 py-2"
+                      style={{ background: "hsl(var(--muted)/0.4)" }}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium truncate">{f.file_name}</p>
+                          {f.file_size && (
+                            <p className="text-xs text-muted-foreground">{formatFileSize(f.file_size)}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <a href={filePath} download={f.file_name} target="_blank" rel="noreferrer">
+                          <Button size="icon" variant="ghost">
+                            <Download className="h-3.5 w-3.5" />
+                          </Button>
+                        </a>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => deleteMutation.mutate(f.id)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
+      {/* Submit dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Submit your quote</DialogTitle>
+            <DialogTitle>{alreadySubmitted ? "Update your submission" : "Submit your quote"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-1 text-sm text-muted-foreground">
+          <div className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{quote.project_name}</span>
             {" · "}{quote.category_name || "—"}
           </div>
-          <div className="space-y-4 pt-2">
+          <div className="space-y-4 pt-1">
             <div className="space-y-1">
-              <Label htmlFor="quote-amount">Quoted amount</Label>
+              <Label htmlFor="quote-amount">
+                Quoted amount <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
               <Input
                 id="quote-amount"
                 type="number"
@@ -420,15 +569,27 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="quote-notes">Notes <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Label htmlFor="quote-notes">
+                Notes <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
               <Textarea
                 id="quote-notes"
-                placeholder="Scope, materials, lead time, assumptions…"
+                placeholder="Scope, materials, lead time, assumptions, validity period…"
                 rows={4}
                 value={submitNotes}
                 onChange={(e) => setSubmitNotes(e.target.value)}
               />
             </div>
+            {files.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {files.length} document{files.length !== 1 ? "s" : ""} attached to this quote.
+              </p>
+            )}
+            {files.length === 0 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Tip: upload your quote documents on the card before submitting.
+              </p>
+            )}
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
