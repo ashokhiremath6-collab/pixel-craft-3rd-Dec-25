@@ -10834,6 +10834,46 @@ Return your response in the following JSON format only (no markdown, no code blo
   });
 
   // =============================================
+  // VENDOR PORTAL ROUTES
+  // =============================================
+
+  // Returns the vendor record linked to the logged-in vendor user (or null if not yet linked).
+  app.get("/api/vendor-portal/my-vendor", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (userRole?.role !== 'vendor') {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      if (!userRole.linkedVendorId) {
+        return res.json(null);
+      }
+      const vendor = await storage.getVendor(userRole.linkedVendorId);
+      if (!vendor) return res.json(null);
+      res.json(vendor);
+    } catch (err) {
+      console.error("Error fetching vendor portal vendor:", err);
+      res.status(500).json({ error: "Failed to fetch vendor data" });
+    }
+  });
+
+  // Returns all quote requests sent to this vendor (placeholder — full implementation in Step 3).
+  app.get("/api/vendor-portal/my-quotes", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (userRole?.role !== 'vendor') {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      // Full implementation coming in Step 3
+      res.json([]);
+    } catch (err) {
+      console.error("Error fetching vendor portal quotes:", err);
+      res.status(500).json({ error: "Failed to fetch quotes" });
+    }
+  });
+
+  // =============================================
   // BILLING ROUTES (Stripe)
   // =============================================
   // Note: POST /api/billing/webhook is registered in server/index.ts
