@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
-import { Search, Plus, Filter, ChevronRight, ChevronDown, FolderPlus, Edit, Trash2, Phone, Mail, User, Building2, Users, FileText, AlertTriangle, ArrowRightLeft } from "lucide-react";
+import { Search, Plus, Filter, ChevronRight, ChevronDown, FolderPlus, Edit, Trash2, Phone, Mail, User, Building2, Users, FileText, AlertTriangle, ArrowRightLeft, Send } from "lucide-react";
+import InviteVendorDialog from "./InviteVendorDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useForm } from "react-hook-form";
@@ -105,6 +106,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   const [isReassignDialogOpen, setIsReassignDialogOpen] = useState(false);
   const [reassignSourceVendor, setReassignSourceVendor] = useState<Vendor | null>(null);
   const [reassignTargetId, setReassignTargetId] = useState<string>("");
+  const [inviteVendor, setInviteVendor] = useState<Vendor | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -1342,6 +1344,16 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                       </TableCell>
                       <TableCell className="text-right py-2 flex-shrink-0">
                         <div className="flex gap-1 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setInviteVendor(vendor)}
+                            data-testid="button-invite-vendor"
+                            title="Invite this vendor to submit a quote via the portal"
+                          >
+                            <Send className="h-3.5 w-3.5 mr-1.5" />
+                            Invite
+                          </Button>
                           <Button 
                             size="icon" 
                             variant="ghost" 
@@ -1652,6 +1664,13 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
         </DialogContent>
       </Dialog>
 
+    {inviteVendor && (
+      <InviteVendorDialog
+        vendor={inviteVendor}
+        open={!!inviteVendor}
+        onOpenChange={(open) => { if (!open) setInviteVendor(null); }}
+      />
+    )}
     </div>
   );
 }
