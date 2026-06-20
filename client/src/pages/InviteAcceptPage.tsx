@@ -8,7 +8,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation, useParams } from "wouter";
+import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
 import { Eye, EyeOff, UserCheck, AlertTriangle, Loader2, LogIn } from "lucide-react";
 
@@ -33,9 +33,9 @@ interface InviteDetails {
 }
 
 export default function InviteAcceptPage() {
-  const { token } = useParams<{ token: string }>();
+  const [location, navigate] = useLocation();
+  const token = location.startsWith("/invite/") ? location.slice("/invite/".length) : undefined;
   const { toast } = useToast();
-  const [, navigate] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [inviteDetails, setInviteDetails] = useState<InviteDetails | null>(null);
