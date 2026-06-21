@@ -260,7 +260,7 @@ function AssignToProjectDialog({
               </SelectTrigger>
               <SelectContent>
                 {projects.map((p: any) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name ?? p.project_name}</SelectItem>
+                  <SelectItem key={p.id} value={p.id}>{p.projectName ?? p.project_name ?? p.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

@@ -165,9 +165,9 @@ export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {projects.map((p) => (
+                        {projects.map((p: any) => (
                           <SelectItem key={p.id} value={p.id}>
-                            {p.name ?? p.project_name}
+                            {p.projectName ?? p.project_name ?? p.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
