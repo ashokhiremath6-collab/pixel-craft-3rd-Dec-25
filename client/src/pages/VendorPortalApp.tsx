@@ -43,7 +43,8 @@ import { useLocation } from "wouter";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "quotes", label: "My Quotes", icon: FileText },
+  { id: "instructions", label: "Instructions to Quote", icon: Send },
+  { id: "upload", label: "Upload Quote", icon: Upload },
 ];
 
 interface StudioRequest {
@@ -81,19 +82,18 @@ export default function VendorPortalApp() {
 
   const { data: quotesData, isLoading: quotesLoading } = useQuery<any[]>({
     queryKey: ["/api/vendor-portal/my-quotes"],
-    enabled: activeTab === "quotes",
+    enabled: activeTab === "upload",
     retry: false,
   });
 
-  const { data: studioRequest } = useQuery<StudioRequest | null>({
+  const { data: studioRequest, isLoading: requestLoading } = useQuery<StudioRequest | null>({
     queryKey: ["/api/vendor-portal/my-request"],
-    enabled: activeTab === "quotes",
     retry: false,
   });
 
   const { data: generalDocs = [], isLoading: docsLoading } = useQuery<VendorDocument[]>({
     queryKey: ["/api/vendor-portal/documents"],
-    enabled: activeTab === "quotes",
+    enabled: activeTab === "upload",
     retry: false,
   });
 
@@ -174,11 +174,13 @@ export default function VendorPortalApp() {
         {activeTab === "overview" && (
           <OverviewTab vendorData={vendorData ?? null} loading={vendorLoading} />
         )}
-        {activeTab === "quotes" && (
-          <QuotesTab
+        {activeTab === "instructions" && (
+          <InstructionsTab studioRequest={studioRequest ?? null} loading={requestLoading} />
+        )}
+        {activeTab === "upload" && (
+          <UploadTab
             quotes={quotesData ?? []}
-            loading={quotesLoading}
-            studioRequest={studioRequest ?? null}
+            quotesLoading={quotesLoading}
             generalDocs={generalDocs}
             docsLoading={docsLoading}
           />
@@ -313,15 +315,48 @@ function formatDate(d?: string | null): string {
   try { return format(parseISO(d), "dd MMM yyyy"); } catch { return d; }
 }
 
-function GeneralRequestCard({
-  request,
-  docs,
-  docsLoading,
-}: {
-  request: StudioRequest;
-  docs: VendorDocument[];
-  docsLoading: boolean;
-}) {
+function InstructionsTab({ studioRequest, loading }: { studioRequest: StudioRequest | null; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (!studioRequest) {
+    return (
+      <div className="max-w-2xl">
+        <div className="text-center py-16 text-muted-foreground">
+          <Send className="h-10 w-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium">No instructions yet</p>
+          <p className="text-xs mt-1">The studio hasn't provided specific instructions for this quote request.</p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="max-w-2xl">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Send className="h-4 w-4 text-muted-foreground" />
+            Quote request from {studioRequest.org_name}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="bg-muted/50 rounded-md p-4 text-sm">
+            <p className="whitespace-pre-wrap leading-relaxed">{studioRequest.invite_message}</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Received {format(new Date(studioRequest.created_at), "d MMM yyyy")} · Go to the <strong>Upload Quote</strong> tab to submit your documents.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function GeneralDocUploadSection({ docs, docsLoading }: { docs: VendorDocument[]; docsLoading: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
@@ -345,7 +380,7 @@ function GeneralRequestCard({
       const res = await fetch("/api/vendor-portal/documents", { method: "POST", credentials: "include", body: formData });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || "Upload failed"); }
       queryClient.invalidateQueries({ queryKey: ["/api/vendor-portal/documents"] });
-      toast({ title: "Uploaded", description: `${selected.length} file${selected.length !== 1 ? "s" : ""} added.` });
+      toast({ title: "Uploaded", description: `${selected.length} file${selected.length !== 1 ? "s" : ""} uploaded successfully.` });
     } catch (err: any) {
       toast({ title: "Upload failed", description: err.message, variant: "destructive" });
     } finally {
@@ -358,101 +393,78 @@ function GeneralRequestCard({
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
-          <Send className="h-4 w-4 text-muted-foreground" />
-          Quote request from {request.org_name}
+          <Upload className="h-4 w-4 text-muted-foreground" />
+          Your quote documents
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="bg-muted/50 rounded-md p-3 text-sm">
-          <p className="text-xs text-muted-foreground mb-1 font-medium">Request details</p>
-          <p className="whitespace-pre-wrap">{request.invite_message}</p>
-        </div>
-
-        <div>
-          <p className="text-xs text-muted-foreground mb-2 font-medium">Your quote documents</p>
-          {docsLoading ? (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-          ) : docs.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No documents uploaded yet.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {docs.map(f => (
-                <div key={f.id} className="flex items-center justify-between gap-2 text-sm bg-muted/30 rounded px-2.5 py-1.5">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <span className="truncate text-xs">{f.file_name}</span>
-                    {f.file_size && <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(f.file_size)}</span>}
-                  </div>
-                  <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(f.id)} disabled={deleteMutation.isPending} className="h-6 w-6 shrink-0">
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+        {docsLoading ? (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+          </div>
+        ) : docs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No documents uploaded yet. Use the button below to attach your quote.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {docs.map(f => (
+              <div key={f.id} className="flex items-center justify-between gap-2 bg-muted/30 rounded-md px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="truncate text-sm">{f.file_name}</span>
+                  {f.file_size && <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(f.file_size)}</span>}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(f.id)} disabled={deleteMutation.isPending}>
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
 
-        <div>
+        <div className="flex items-center gap-3 flex-wrap">
           <label className="cursor-pointer">
             <input type="file" multiple className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.jpg,.jpeg,.png" onChange={handleFileChange} />
-            <Button variant="outline" size="sm" asChild disabled={uploading}>
-              <span>{uploading ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Uploading…</> : <><Upload className="h-3.5 w-3.5 mr-1.5" />Upload quote</>}</span>
+            <Button variant="default" size="sm" asChild disabled={uploading}>
+              <span>
+                {uploading
+                  ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Uploading…</>
+                  : <><Upload className="h-3.5 w-3.5 mr-1.5" />Upload quote document</>}
+              </span>
             </Button>
           </label>
-          <p className="text-xs text-muted-foreground mt-1.5">PDF, Excel, Word or images · up to 50 MB each</p>
+          <p className="text-xs text-muted-foreground">PDF, Excel, Word or images · up to 50 MB each</p>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function QuotesTab({
+function UploadTab({
   quotes,
-  loading,
-  studioRequest,
+  quotesLoading,
   generalDocs,
   docsLoading,
 }: {
   quotes: VendorQuote[];
-  loading: boolean;
-  studioRequest: StudioRequest | null;
+  quotesLoading: boolean;
   generalDocs: VendorDocument[];
   docsLoading: boolean;
 }) {
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-48">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (!quotes || quotes.length === 0) {
-    return (
-      <div className="max-w-2xl space-y-4">
-        {studioRequest ? (
-          <GeneralRequestCard request={studioRequest} docs={generalDocs} docsLoading={docsLoading} />
-        ) : (
-          <div className="text-center py-16 text-muted-foreground">
-            <FileText className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm font-medium">No quotes yet</p>
-            <p className="text-xs mt-1">
-              When a studio sends you a quote request, it will appear here.
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-4xl space-y-4">
-      <h2 className="text-base font-semibold">Quote requests</h2>
-      <div className="space-y-3">
-        {quotes.map((q) => (
-          <QuoteCard key={q.id} quote={q} />
-        ))}
-      </div>
+    <div className="max-w-2xl space-y-4">
+      <GeneralDocUploadSection docs={generalDocs} docsLoading={docsLoading} />
+      {quotesLoading ? (
+        <div className="flex items-center justify-center h-24">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : quotes.length > 0 ? (
+        <>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-1">Assigned quote requests</p>
+          <div className="space-y-3">
+            {quotes.map(q => <QuoteCard key={q.id} quote={q} />)}
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

@@ -183,6 +183,13 @@
       "when": 1782020000000,
       "tag": "0025_vendor_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1782030000000,
+      "tag": "0026_vendor_documents_ack",
+      "breakpoints": true
     }
   ]
 }

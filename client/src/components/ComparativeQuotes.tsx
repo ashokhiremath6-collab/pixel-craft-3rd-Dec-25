@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { sortProjectsForDropdown } from "@/lib/projectSort";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import StatusBadge from "./StatusBadge";
 import QuoteDetailModal from "./QuoteDetailModal";
-import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2, Paperclip } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2, Paperclip, Inbox } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -104,6 +104,12 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     isNegotiated: false
   });
   const { toast } = useToast();
+
+  interface VendorDoc { id: string; file_name: string; file_path: string; file_type: string; file_size: string | null; uploaded_at: string; acknowledged_at: string | null; vendor_name: string; }
+  const { data: portalDocs = [], isLoading: portalDocsLoading } = useQuery<VendorDoc[]>({
+    queryKey: ["/api/vendor-documents"],
+    retry: false,
+  });
 
   const handleProjectFilter = (projectId: string) => {
     setSelectedProject(projectId);
@@ -662,6 +668,63 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
           </div>
         </div>
       </div>
+
+      {/* Portal Submissions */}
+      {(portalDocsLoading || portalDocs.length > 0) && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Inbox className="h-4 w-4 text-muted-foreground" />
+              Portal Submissions
+              {portalDocs.length > 0 && (
+                <Badge variant="secondary" className="no-default-active-elevate text-xs">
+                  {portalDocs.length}
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {portalDocsLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {portalDocs.map(doc => {
+                  const filePath = doc.file_path.startsWith("/objects/")
+                    ? doc.file_path.replace("/objects/", "/uploads/")
+                    : doc.file_path;
+                  const uploadedDate = (() => { try { return format(new Date(doc.uploaded_at), "d MMM yyyy"); } catch { return doc.uploaded_at; } })();
+                  return (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between gap-3 rounded-md px-3 py-2 flex-wrap"
+                      style={{ background: "hsl(var(--muted)/0.4)" }}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{doc.file_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {doc.vendor_name} · {uploadedDate}
+                            {doc.acknowledged_at && <span className="ml-2 text-green-600 dark:text-green-400">Reviewed</span>}
+                          </p>
+                        </div>
+                      </div>
+                      <a href={filePath} download={doc.file_name} target="_blank" rel="noreferrer">
+                        <Button size="sm" variant="outline">
+                          <Download className="h-3.5 w-3.5 mr-1.5" />
+                          Download
+                        </Button>
+                      </a>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <Card>

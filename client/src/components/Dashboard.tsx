@@ -57,12 +57,14 @@ interface ProjectTaskBreakdownEntry {
 interface VendorAlert {
   id: string;
   vendor_name: string;
-  project_name: string;
+  project_name: string | null;
   category_name: string | null;
-  quotation_name: string;
+  quotation_name: string | null;
   quotation_value: string | null;
   notes: string | null;
-  portal_submitted_at: string;
+  submitted_at: string;
+  alert_type: 'project_vendor' | 'vendor_document';
+  file_name: string | null;
 }
 
 interface DashboardProps {
@@ -193,11 +195,14 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   const acknowledgeMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await fetch(`/api/dashboard/vendor-alerts/${id}/acknowledge`, { method: "PATCH", credentials: "include" });
+    mutationFn: async (alert: VendorAlert) => {
+      const url = alert.alert_type === 'vendor_document'
+        ? `/api/dashboard/vendor-alerts/doc/${alert.id}/acknowledge`
+        : `/api/dashboard/vendor-alerts/${alert.id}/acknowledge`;
+      await fetch(url, { method: "PATCH", credentials: "include" });
     },
-    onSuccess: (_, id) => {
-      setDismissed(prev => new Set(prev).add(id));
+    onSuccess: (_, alert) => {
+      setDismissed(prev => new Set(prev).add(alert.id));
       setTimeout(() => queryClient.invalidateQueries({ queryKey: ["/api/dashboard/vendor-alerts"] }), 300);
     },
   });
@@ -214,10 +219,10 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
           </div>
           <div>
             <h2 className="text-lg sm:text-[22px] font-semibold leading-tight" style={{ color: "#111827" }}>
-              Vendor quotes received
+              Vendor portal submissions
             </h2>
             <p className="text-xs" style={{ color: "#86868b" }}>
-              {visible.length} vendor{visible.length !== 1 ? "s" : ""} submitted {visible.length !== 1 ? "quotes" : "a quote"} through the portal
+              {visible.length} new submission{visible.length !== 1 ? "s" : ""} received through the vendor portal
             </p>
           </div>
         </div>
@@ -228,11 +233,12 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
               ? Number(alert.quotation_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
               : null;
             const when = (() => {
-              const h = differenceInHours(new Date(), new Date(alert.portal_submitted_at));
+              const h = differenceInHours(new Date(), new Date(alert.submitted_at));
               if (h < 1) return "just now";
               if (h < 24) return `${h}h ago`;
-              return format(new Date(alert.portal_submitted_at), "d MMM");
+              return format(new Date(alert.submitted_at), "d MMM");
             })();
+            const isDocAlert = alert.alert_type === 'vendor_document';
 
             return (
               <div
@@ -244,9 +250,16 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
                   <p className="text-sm font-semibold" style={{ color: "#92400e" }}>
                     {alert.vendor_name}
                   </p>
-                  <p className="text-xs" style={{ color: "#b45309" }}>
-                    {alert.project_name} · {alert.category_name || alert.quotation_name}
-                  </p>
+                  {isDocAlert ? (
+                    <p className="text-xs" style={{ color: "#b45309" }}>
+                      Uploaded a document via the portal
+                      {alert.file_name ? ` · ${alert.file_name}` : ""}
+                    </p>
+                  ) : (
+                    <p className="text-xs" style={{ color: "#b45309" }}>
+                      {alert.project_name}{alert.category_name ? ` · ${alert.category_name}` : alert.quotation_name ? ` · ${alert.quotation_name}` : ""}
+                    </p>
+                  )}
                   {amount && (
                     <p className="text-sm font-medium" style={{ color: "#111827" }}>
                       Quoted: {amount}
@@ -260,7 +273,7 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => acknowledgeMutation.mutate(alert.id)}
+                  onClick={() => acknowledgeMutation.mutate(alert)}
                   disabled={acknowledgeMutation.isPending}
                   className="shrink-0"
                 >

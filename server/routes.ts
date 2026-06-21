@@ -11172,6 +11172,31 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // GET /api/vendor-documents — studio-side: list all vendor portal document submissions for this org
+  app.get("/api/vendor-documents", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (!userRole || !['admin', 'designer', 'project_manager'].includes(userRole.role)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user?.orgId) return res.json([]);
+      const rows = await db.execute(sql`
+        SELECT vd.id, vd.file_name, vd.file_path, vd.file_type, vd.file_size, vd.uploaded_at,
+               vd.acknowledged_at, v.name AS vendor_name
+        FROM vendor_documents vd
+        LEFT JOIN vendors v ON vd.vendor_id = v.id
+        WHERE vd.org_id = ${user.orgId}
+        ORDER BY vd.uploaded_at DESC
+      `);
+      res.json(rows.rows);
+    } catch (err) {
+      console.error("Vendor documents studio list error:", err);
+      res.status(500).json({ error: "Failed to list vendor documents" });
+    }
+  });
+
   // GET /api/dashboard/vendor-alerts — all staff and clients see pending vendor portal submissions
   app.get("/api/dashboard/vendor-alerts", requireAuth, async (req, res) => {
     try {
@@ -11188,11 +11213,13 @@ Return your response in the following JSON format only (no markdown, no code blo
           pv.id,
           pv.quotation_value,
           pv.notes,
-          pv.portal_submitted_at,
+          pv.portal_submitted_at AS submitted_at,
           pv.quotation_name,
           p.project_name AS project_name,
           v.name AS vendor_name,
-          COALESCE(vc.name, pv.category) AS category_name
+          COALESCE(vc.name, pv.category) AS category_name,
+          'project_vendor' AS alert_type,
+          NULL::text AS file_name
         FROM project_vendors pv
         INNER JOIN projects p ON pv.project_id = p.id
         LEFT JOIN vendors v ON pv.vendor_id = v.id
@@ -11200,7 +11227,26 @@ Return your response in the following JSON format only (no markdown, no code blo
         WHERE pv.org_id = ${user.orgId}
           AND pv.portal_submitted_at IS NOT NULL
           AND pv.portal_acknowledged_at IS NULL
-        ORDER BY pv.portal_submitted_at DESC
+
+        UNION ALL
+
+        SELECT
+          vd.id,
+          NULL::numeric AS quotation_value,
+          NULL::text AS notes,
+          vd.uploaded_at AS submitted_at,
+          vd.file_name AS quotation_name,
+          NULL::text AS project_name,
+          v.name AS vendor_name,
+          NULL::text AS category_name,
+          'vendor_document' AS alert_type,
+          vd.file_name AS file_name
+        FROM vendor_documents vd
+        LEFT JOIN vendors v ON vd.vendor_id = v.id
+        WHERE vd.org_id = ${user.orgId}
+          AND vd.acknowledged_at IS NULL
+
+        ORDER BY submitted_at DESC
       `);
 
       res.json(rows.rows);
@@ -11210,7 +11256,7 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  // PATCH /api/dashboard/vendor-alerts/:id/acknowledge — dismiss a vendor alert
+  // PATCH /api/dashboard/vendor-alerts/:id/acknowledge — dismiss a project_vendor alert
   app.patch("/api/dashboard/vendor-alerts/:id/acknowledge", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
@@ -11224,6 +11270,24 @@ Return your response in the following JSON format only (no markdown, no code blo
       res.json({ ok: true });
     } catch (err) {
       console.error("Acknowledge vendor alert error:", err);
+      res.status(500).json({ error: "Failed to acknowledge" });
+    }
+  });
+
+  // PATCH /api/dashboard/vendor-alerts/doc/:id/acknowledge — dismiss a vendor_document alert
+  app.patch("/api/dashboard/vendor-alerts/doc/:id/acknowledge", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (!userRole || !['admin', 'designer', 'project_manager'].includes(userRole.role)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      await db.execute(sql`
+        UPDATE vendor_documents SET acknowledged_at = now() WHERE id = ${req.params.id}
+      `);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Acknowledge vendor document alert error:", err);
       res.status(500).json({ error: "Failed to acknowledge" });
     }
   });
