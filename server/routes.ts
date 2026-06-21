@@ -10932,8 +10932,8 @@ Return your response in the following JSON format only (no markdown, no code blo
           pv.notes,
           pv.submitted_at,
           pv.is_negotiated,
-          p.id   AS project_id,
-          p.name AS project_name,
+          p.id           AS project_id,
+          p.project_name AS project_name,
           COALESCE(vc.name, pv.category) AS category_name,
           COUNT(qf.id)::int AS file_count
         FROM project_vendors pv
@@ -10941,7 +10941,7 @@ Return your response in the following JSON format only (no markdown, no code blo
         LEFT JOIN vendor_categories vc ON pv.category_id = vc.id
         LEFT JOIN quote_files qf ON qf.project_vendor_id = pv.id
         WHERE pv.vendor_id = ${userRole.linkedVendorId}
-        GROUP BY pv.id, p.id, p.name, vc.name
+        GROUP BY pv.id, p.id, p.project_name, vc.name
         ORDER BY pv.submitted_at DESC
       `);
 
