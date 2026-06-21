@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -179,6 +179,26 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
     },
     enabled: !!selectedVendorForContacts,
   });
+
+  // Fetch invitations to show RFQ-sent status per vendor
+  const { data: invitations = [] } = useQuery<any[]>({
+    queryKey: ['/api/invitations'],
+  });
+
+  // Map linkedVendorId → invitation status
+  const vendorRfqStatus = useMemo(() => {
+    const now = new Date();
+    const map = new Map<string, 'accepted' | 'pending'>();
+    for (const inv of invitations) {
+      if (!inv.linkedVendorId) continue;
+      if (inv.acceptedAt) {
+        map.set(inv.linkedVendorId, 'accepted');
+      } else if (!map.has(inv.linkedVendorId) && new Date(inv.expiresAt) > now) {
+        map.set(inv.linkedVendorId, 'pending');
+      }
+    }
+    return map;
+  }, [invitations]);
 
   const handleSearch = (value: string) => {
     setSearchTerm(value);
@@ -1344,17 +1364,25 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                       </TableCell>
                       <TableCell className="text-right py-2 flex-shrink-0">
                         <div className="flex gap-1 justify-end items-center">
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() => setInviteVendor(vendor)}
-                            data-testid="button-invite-vendor"
-                            title="Invite this vendor to submit a quote via the portal"
-                            className="shrink-0"
-                          >
-                            <Send className="h-3.5 w-3.5 mr-1.5" />
-                            Send RFQ
-                          </Button>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => setInviteVendor(vendor)}
+                              data-testid="button-invite-vendor"
+                              title="Invite this vendor to submit a quote via the portal"
+                              className="shrink-0"
+                            >
+                              <Send className="h-3.5 w-3.5 mr-1.5" />
+                              Send RFQ
+                            </Button>
+                            {vendorRfqStatus.get(vendor.id) === 'accepted' && (
+                              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Portal active</span>
+                            )}
+                            {vendorRfqStatus.get(vendor.id) === 'pending' && (
+                              <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">RFQ sent</span>
+                            )}
+                          </div>
                           <Button 
                             size="icon" 
                             variant="ghost" 
