@@ -1343,16 +1343,17 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                         )}
                       </TableCell>
                       <TableCell className="text-right py-2 flex-shrink-0">
-                        <div className="flex gap-1 justify-end">
+                        <div className="flex gap-1 justify-end items-center">
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="default"
                             onClick={() => setInviteVendor(vendor)}
                             data-testid="button-invite-vendor"
                             title="Invite this vendor to submit a quote via the portal"
+                            className="shrink-0"
                           >
                             <Send className="h-3.5 w-3.5 mr-1.5" />
-                            Invite
+                            Send RFQ
                           </Button>
                           <Button 
                             size="icon" 
