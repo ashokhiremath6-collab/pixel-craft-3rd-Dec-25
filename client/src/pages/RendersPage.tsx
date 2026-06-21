@@ -221,13 +221,16 @@ export default function RendersPage() {
     return combined;
   }, [customRooms, renders]);
 
-  // ── Auto-open render from dashboard link ─────────────────────────────────
+  // ── Auto-open render from dashboard link (fires once per targetRenderId) ──
+  const autoOpenedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!targetRenderId || renders.length === 0 || viewingRender) return;
+    if (!targetRenderId || renders.length === 0) return;
+    if (autoOpenedRef.current === targetRenderId) return;
     const target = renders.find((r) => r.id === targetRenderId);
     if (!target) return;
     const url = getPreviewUrl(target);
     if (!url) return;
+    autoOpenedRef.current = targetRenderId;
     setViewingRender(target);
     setViewerUrl({ url, name: target.name || target.fileName || "Render" });
   }, [targetRenderId, renders]);
