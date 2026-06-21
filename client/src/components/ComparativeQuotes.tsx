@@ -839,7 +839,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                     <Badge variant="outline" className="text-xs px-1 py-0">Option</Badge>
                                   )}
                                   {quotation.portalSubmittedAt && (
-                                    <Badge className="text-xs px-1 py-0 no-default-active-elevate" style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd" }}>
+                                    <Badge className="text-xs px-1 py-0 no-default-active-elevate" style={{ background: "#ede9fe", color: "#6d28d9", border: "1px solid #c4b5fd" }}>
                                       Via Portal
                                     </Badge>
                                   )}
@@ -1218,7 +1218,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                         <Badge variant="outline" className="text-xs px-1 py-0">Option</Badge>
                                       )}
                                       {quotation.portalSubmittedAt && (
-                                        <Badge className="text-xs px-1 py-0 no-default-active-elevate" style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd" }}>
+                                        <Badge className="text-xs px-1 py-0 no-default-active-elevate" style={{ background: "#ede9fe", color: "#6d28d9", border: "1px solid #c4b5fd" }}>
                                           Via Portal
                                         </Badge>
                                       )}

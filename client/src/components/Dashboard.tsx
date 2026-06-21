@@ -298,7 +298,6 @@ function AssignToProjectDialog({
 function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
   const queryClient = useQueryClient();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [assigningAlert, setAssigningAlert] = useState<VendorAlert | null>(null);
 
   const acknowledgeMutation = useMutation({
     mutationFn: async (alert: VendorAlert) => {
@@ -318,14 +317,6 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
 
   return (
     <>
-      {assigningAlert && (
-        <AssignToProjectDialog
-          alert={assigningAlert}
-          open={!!assigningAlert}
-          onOpenChange={(v) => !v && setAssigningAlert(null)}
-          onDone={() => setDismissed(prev => new Set(prev).add(assigningAlert!.id))}
-        />
-      )}
       <ContentCard>
         <div className="px-5 sm:px-8 pt-6 pb-4 space-y-3">
           <div className="flex items-center gap-3 mb-1">
@@ -386,16 +377,6 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
                     <p className="text-xs" style={{ color: "#a8a29e" }}>{when}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {isDocAlert && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setAssigningAlert(alert)}
-                      >
-                        <FolderOpen className="h-3.5 w-3.5 mr-1" />
-                        Assign to project
-                      </Button>
-                    )}
                     <Button
                       size="sm"
                       variant="outline"

@@ -275,7 +275,7 @@ export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={inviteMutation.isPending}>
+              <Button type="submit" disabled={inviteMutation.isPending || !form.watch("projectId")}>
                 {inviteMutation.isPending ? "Sending…" : (
                   <><Send className="h-4 w-4 mr-2" />Send RFQ</>
                 )}
