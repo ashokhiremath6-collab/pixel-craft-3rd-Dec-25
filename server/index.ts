@@ -94,6 +94,20 @@ app.use((req, res, next) => {
     console.error("Failed to seed vendor categories:", err);
   }
 
+  // Backfill project_vendors that have a NULL org_id — copy it from their project
+  try {
+    await db.execute(sql`
+      UPDATE project_vendors pv
+      SET org_id = p.org_id
+      FROM projects p
+      WHERE pv.project_id = p.id
+        AND pv.org_id IS NULL
+        AND p.org_id IS NOT NULL
+    `);
+  } catch (err) {
+    console.error("Failed to backfill project_vendor org_id:", err);
+  }
+
   const server = await registerRoutes(app);
 
   // Keep the Neon serverless database connection warm to avoid cold-start delays.

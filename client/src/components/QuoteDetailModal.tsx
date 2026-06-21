@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -59,7 +60,18 @@ export default function QuoteDetailModal({
     queryKey: ['/api/quotes', quoteId, 'boq'],
     enabled: !!quoteId && isOpen,
     retry: 2,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: portalFiles = [] } = useQuery<{ id: string; file_name: string; file_path: string; file_type: string; file_size: string; uploaded_at: string }[]>({
+    queryKey: ['/api/quotes', quoteId, 'portal-files'],
+    queryFn: async () => {
+      const res = await fetch(`/api/quotes/${quoteId}/portal-files`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!quoteId && isOpen,
+    staleTime: 0,
   });
 
   // Handle errors with toast
@@ -239,6 +251,47 @@ export default function QuoteDetailModal({
                             Download
                           </Button>
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Vendor Portal Files */}
+                  {portalFiles.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium mb-2 flex items-center gap-1.5">
+                        <FileText className="h-4 w-4 text-violet-600" />
+                        Documents submitted via portal
+                      </h4>
+                      <div className="space-y-2">
+                        {portalFiles.map(f => (
+                          <div key={f.id} className="border rounded-lg p-3 bg-muted/50 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{f.file_name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {f.file_size ? `${(Number(f.file_size) / 1024 / 1024).toFixed(1)} MB · ` : ""}
+                                  {f.uploaded_at ? format(new Date(f.uploaded_at), "d MMM yyyy") : ""}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-1.5 shrink-0">
+                              <Button size="sm" variant="outline" onClick={() => openInViewer(f.file_path, f.file_name)}>
+                                <Eye className="h-3.5 w-3.5 mr-1" />View
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => {
+                                const a = document.createElement('a');
+                                a.href = f.file_path;
+                                a.download = f.file_name;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                              }}>
+                                <Download className="h-3.5 w-3.5 mr-1" />Download
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}

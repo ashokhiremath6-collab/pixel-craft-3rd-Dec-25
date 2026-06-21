@@ -2082,6 +2082,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/project-vendors/upsert", requireAuth, async (req, res) => {
     try {
       const parsed = insertProjectVendorSchema.parse(req.body);
+      // Ensure org_id is always populated from the project so dashboard alerts work
+      if (!parsed.orgId && parsed.projectId) {
+        const proj = await db.execute(sql`SELECT org_id FROM projects WHERE id = ${parsed.projectId}`);
+        const projOrgId = (proj.rows[0] as any)?.org_id ?? null;
+        if (projOrgId) (parsed as any).orgId = projOrgId;
+      }
       const projectVendor = await storage.upsertProjectVendor(parsed);
       res.status(201).json(projectVendor);
     } catch (error) {
@@ -11026,6 +11032,29 @@ Return your response in the following JSON format only (no markdown, no code blo
     } catch (err) {
       console.error("Vendor files list error:", err);
       res.status(500).json({ error: "Failed to list files" });
+    }
+  });
+
+  // GET /api/quotes/:id/portal-files — staff view of vendor-uploaded portal files for a quote
+  app.get("/api/quotes/:id/portal-files", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (!userRole || !['admin', 'designer', 'project_manager'].includes(userRole.role)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const pvId = req.params.id;
+      const files = await db.execute(sql`
+        SELECT qf.id, qf.file_name, qf.file_path, qf.file_type, qf.file_size, qf.uploaded_at
+        FROM quote_files qf
+        INNER JOIN project_vendors pv ON qf.project_vendor_id = pv.id
+        WHERE qf.project_vendor_id = ${pvId}
+        ORDER BY qf.uploaded_at ASC
+      `);
+      res.json(files.rows);
+    } catch (err) {
+      console.error("Staff portal files error:", err);
+      res.status(500).json({ error: "Failed to list portal files" });
     }
   });
 
