@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from "react";
-import { useSearch } from "wouter";
+import { useSearch, useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -144,6 +144,7 @@ export default function RendersPage() {
   const search = useSearch();
   const params = new URLSearchParams(search);
 
+  const [, setLocation] = useLocation();
   const [activeProjectId, setActiveProjectId] = useState<string>(params.get("projectId") || "");
   const targetRenderId = params.get("renderId");
   const [searchText, setSearchText] = useState("");
@@ -221,7 +222,8 @@ export default function RendersPage() {
     return combined;
   }, [customRooms, renders]);
 
-  // ── Auto-open render from dashboard link (fires once per targetRenderId) ──
+  // ── Auto-open render from dashboard link ─────────────────────────────────
+  // After opening, strip renderId from the URL so a page refresh won't re-trigger.
   const autoOpenedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!targetRenderId || renders.length === 0) return;
@@ -233,6 +235,8 @@ export default function RendersPage() {
     autoOpenedRef.current = targetRenderId;
     setViewingRender(target);
     setViewerUrl({ url, name: target.name || target.fileName || "Render" });
+    // Clean renderId from URL so refresh doesn't reopen the viewer
+    setLocation(`/renders?projectId=${activeProjectId}`, { replace: true });
   }, [targetRenderId, renders]);
 
   // ── Filtering & grouping ─────────────────────────────────────────────────
