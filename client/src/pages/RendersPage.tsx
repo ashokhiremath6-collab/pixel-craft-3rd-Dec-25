@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import {
   Upload, Eye, Trash2, Loader2, ChevronDown, ChevronRight,
-  Pencil, ImageIcon, Search, AlertCircle, X, User as UserIcon, Sparkles,
+  Pencil, ImageIcon, Search, AlertCircle, X, User as UserIcon, Sparkles, Plus,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -21,12 +21,26 @@ import type { Moodboard, Project, User } from "@shared/schema";
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 
-// ── Room type ordering ─────────────────────────────────────────────────────
-const ROOM_ORDER = [
+// ── Default room order ─────────────────────────────────────────────────────
+const DEFAULT_ROOM_ORDER = [
   "Living Room", "Foyer", "Bedroom", "Master Bedroom", "Kitchen",
   "Dining Room", "Bathroom", "Study", "Kids Room", "Guest Room",
   "Puja Room", "Hallway", "Walk-in Closet", "Balcony", "General",
 ];
+
+function getProjectRooms(projectId: string): string[] {
+  if (!projectId) return [];
+  try {
+    const stored = localStorage.getItem(`renders-rooms-${projectId}`);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveProjectRooms(projectId: string, rooms: string[]) {
+  localStorage.setItem(`renders-rooms-${projectId}`, JSON.stringify(rooms));
+}
 
 function inferRoomType(name: string): string {
   if (!name) return "General";
@@ -140,6 +154,13 @@ export default function RendersPage() {
   const [editingRender, setEditingRender] = useState<Moodboard | null>(null);
   const [editName, setEditName] = useState("");
   const [editRoomType, setEditRoomType] = useState("");
+  const [editCustomRoom, setEditCustomRoom] = useState("");
+
+  // Add Room dialog
+  const [addRoomOpen, setAddRoomOpen] = useState(false);
+  const [newRoomName, setNewRoomName] = useState("");
+  // Per-project custom rooms (persisted in localStorage)
+  const [customRooms, setCustomRooms] = useState<string[]>([]);
 
   // Upload form state
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -147,6 +168,7 @@ export default function RendersPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadName, setUploadName] = useState("");
   const [uploadRoomType, setUploadRoomType] = useState("");
+  const [uploadCustomRoom, setUploadCustomRoom] = useState("");
   const [uploadProjectId, setUploadProjectId] = useState("");
 
   // ── Queries ──────────────────────────────────────────────────────────────
@@ -180,6 +202,25 @@ export default function RendersPage() {
     refetchOnMount: "always",
   });
 
+  // ── Load per-project custom rooms from localStorage ───────────────────
+  useEffect(() => {
+    if (activeProjectId) {
+      setCustomRooms(getProjectRooms(activeProjectId));
+    }
+  }, [activeProjectId]);
+
+  // ── Combined ordered room list for this project ────────────────────────
+  const allRoomOptions = useMemo(() => {
+    // Rooms that already exist in renders data (not in default or custom list)
+    const existingRooms = Array.from(new Set(renders.map(getRoomType)));
+    const combined = [
+      ...DEFAULT_ROOM_ORDER,
+      ...customRooms.filter((r) => !DEFAULT_ROOM_ORDER.includes(r)),
+      ...existingRooms.filter((r) => !DEFAULT_ROOM_ORDER.includes(r) && !customRooms.includes(r)),
+    ];
+    return combined;
+  }, [customRooms, renders]);
+
   // ── Auto-open render from dashboard link ─────────────────────────────────
   useEffect(() => {
     if (!targetRenderId || renders.length === 0 || viewingRender) return;
@@ -203,6 +244,12 @@ export default function RendersPage() {
 
   const groups = useMemo(() => {
     const map = new Map<string, { ai: Moodboard[]; uploaded: Moodboard[] }>();
+
+    // Pre-populate empty groups for custom rooms (so they appear even with 0 renders)
+    for (const room of customRooms) {
+      map.set(room, { ai: [], uploaded: [] });
+    }
+
     for (const r of filtered) {
       const rt = getRoomType(r);
       if (!map.has(rt)) map.set(rt, { ai: [], uploaded: [] });
@@ -212,8 +259,10 @@ export default function RendersPage() {
         map.get(rt)!.uploaded.push(r);
       }
     }
+
+    // Sort by allRoomOptions order
     const sorted = Array.from(map.entries()).sort(([a], [b]) => {
-      const ia = ROOM_ORDER.indexOf(a), ib = ROOM_ORDER.indexOf(b);
+      const ia = allRoomOptions.indexOf(a), ib = allRoomOptions.indexOf(b);
       return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
     });
     return sorted.map(([room, { ai, uploaded }]) => ({
@@ -222,21 +271,25 @@ export default function RendersPage() {
       uploaded,
       total: ai.length + uploaded.length,
     }));
-  }, [filtered]);
+  }, [filtered, customRooms, allRoomOptions]);
 
   // ── Mutations ────────────────────────────────────────────────────────────
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: rendersKey });
+    queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+  };
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
       if (!uploadFile) throw new Error("No file selected");
       if (!uploadProjectId) throw new Error("Select a project");
+      const effectiveRoom = uploadRoomType !== "__custom__" ? uploadRoomType : uploadCustomRoom.trim();
       const fd = new FormData();
       fd.append("moodboard", uploadFile);
       fd.append("assetType", "render");
       fd.append("projectId", uploadProjectId);
       if (uploadName.trim()) fd.append("description", uploadName.trim());
-      if (uploadRoomType) fd.append("roomType", uploadRoomType);
+      if (effectiveRoom) fd.append("roomType", effectiveRoom);
       const res = await fetch("/api/moodboards", { method: "POST", body: fd });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Upload failed"); }
       return res.json();
@@ -247,6 +300,7 @@ export default function RendersPage() {
       setUploadFile(null);
       setUploadName("");
       setUploadRoomType("");
+      setUploadCustomRoom("");
       setUploadProjectId(activeProjectId || "");
       toast({ title: "Render uploaded", description: "Your render has been added." });
     },
@@ -255,7 +309,7 @@ export default function RendersPage() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, name, roomType }: { id: string; name: string; roomType: string }) =>
-      apiRequest("PUT", `/api/moodboards/${id}`, { name: name.trim(), roomType }),
+      apiRequest("PUT", `/api/moodboards/${id}`, { name: name.trim(), roomType: roomType.trim() }),
     onSuccess: () => {
       invalidate();
       setEditingRender(null);
@@ -273,6 +327,22 @@ export default function RendersPage() {
     },
     onError: (e: Error) => toast({ variant: "destructive", title: "Delete failed", description: e.message }),
   });
+
+  // ── Add room handler ───────────────────────────────────────────────────
+  const handleAddRoom = () => {
+    const name = newRoomName.trim();
+    if (!name || !activeProjectId) return;
+    if (allRoomOptions.some((r) => r.toLowerCase() === name.toLowerCase())) {
+      toast({ variant: "destructive", title: "Room already exists" });
+      return;
+    }
+    const updated = [...customRooms, name];
+    setCustomRooms(updated);
+    saveProjectRooms(activeProjectId, updated);
+    setNewRoomName("");
+    setAddRoomOpen(false);
+    toast({ title: `Room "${name}" added` });
+  };
 
   // ── File handling ─────────────────────────────────────────────────────────
   const handleFileSelect = (files: FileList | null) => {
@@ -302,6 +372,10 @@ export default function RendersPage() {
   };
 
   const activeProject = projects.find((p) => p.id === activeProjectId);
+
+  // Derived helpers for room selectors
+  const effectiveEditRoom = editRoomType === "__custom__" ? editCustomRoom : editRoomType;
+  const effectiveUploadRoom = uploadRoomType === "__custom__" ? uploadCustomRoom : uploadRoomType;
 
   return (
     <div className="flex flex-col h-full">
@@ -357,16 +431,26 @@ export default function RendersPage() {
         </div>
 
         {/* Stats row */}
-        {activeProjectId && !isLoading && renders.length > 0 && (
-          <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
-            <span>{renders.length} renders</span>
-            <span>{groups.length} rooms</span>
+        {activeProjectId && !isLoading && (
+          <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+            {renders.length > 0 && <span>{renders.length} renders</span>}
+            {groups.length > 0 && <span>{groups.length} rooms</span>}
             {renders.filter(isAiGenerated).length > 0 && (
               <span className="flex items-center gap-1">
                 <Sparkles className="h-3.5 w-3.5" />
                 {renders.filter(isAiGenerated).length} AI generated
               </span>
             )}
+            {/* Add Room button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs gap-1"
+              onClick={() => { setNewRoomName(""); setAddRoomOpen(true); }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Room
+            </Button>
           </div>
         )}
       </div>
@@ -389,7 +473,7 @@ export default function RendersPage() {
         )}
 
         {/* Empty */}
-        {activeProjectId && !isLoading && renders.length === 0 && (
+        {activeProjectId && !isLoading && renders.length === 0 && groups.length === 0 && (
           <div className="flex flex-col items-center justify-center h-64 text-center gap-2">
             <ImageIcon className="h-8 w-8 text-muted-foreground" />
             <p className="font-medium">No renders yet</p>
@@ -474,9 +558,12 @@ export default function RendersPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => {
+                          const rt = getRoomType(render);
+                          const isCustom = !allRoomOptions.includes(rt) && rt !== "";
                           setEditingRender(render);
                           setEditName(render.name || "");
-                          setEditRoomType(getRoomType(render));
+                          setEditRoomType(isCustom ? "__custom__" : rt);
+                          setEditCustomRoom(isCustom ? rt : "");
                         }}
                         title="Edit"
                       >
@@ -497,8 +584,12 @@ export default function RendersPage() {
               };
 
               return (
-                <GroupSection key={group.room} label={group.room} count={group.total} defaultOpen={false}>
-                  {hasBoth ? (
+                <GroupSection key={group.room} label={group.room} count={group.total} defaultOpen={group.total > 0}>
+                  {group.total === 0 ? (
+                    <p className="px-4 py-3 text-sm text-muted-foreground italic ml-4">
+                      No renders in this room yet. Edit a render and assign it here.
+                    </p>
+                  ) : hasBoth ? (
                     <>
                       <SubGroupSection
                         label="AI Generated"
@@ -528,6 +619,47 @@ export default function RendersPage() {
           </div>
         )}
       </div>
+
+      {/* ── Add Room Dialog ───────────────────────────────────────────────── */}
+      <Dialog open={addRoomOpen} onOpenChange={setAddRoomOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add Room / Area</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Room name</Label>
+              <Input
+                placeholder="e.g. Pooja Room, Laundry, Terrace…"
+                value={newRoomName}
+                onChange={(e) => setNewRoomName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddRoom()}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                Creates an empty room group. Move renders here by editing them.
+              </p>
+            </div>
+            {/* Show existing rooms as context */}
+            {allRoomOptions.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Current rooms</Label>
+                <div className="flex flex-wrap gap-1">
+                  {allRoomOptions.filter((r) => r !== "General").map((r) => (
+                    <Badge key={r} variant="outline" className="no-default-active-elevate text-xs">{r}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="outline" onClick={() => setAddRoomOpen(false)}>Cancel</Button>
+            <Button disabled={!newRoomName.trim()} onClick={handleAddRoom}>
+              <Plus className="h-4 w-4 mr-1" />Add Room
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Upload Sheet ─────────────────────────────────────────────────── */}
       <Sheet open={uploadOpen} onOpenChange={setUploadOpen}>
@@ -604,31 +736,32 @@ export default function RendersPage() {
             {/* Room type */}
             <div className="space-y-1.5">
               <Label>Room</Label>
-              <Select
-                value={ROOM_ORDER.includes(uploadRoomType) ? uploadRoomType : ""}
-                onValueChange={setUploadRoomType}
-              >
+              <Select value={uploadRoomType} onValueChange={(v) => { setUploadRoomType(v); if (v !== "__custom__") setUploadCustomRoom(""); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select room (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROOM_ORDER.map((r) => (
+                  {allRoomOptions.map((r) => (
                     <SelectItem key={r} value={r}>{r}</SelectItem>
                   ))}
+                  <SelectItem value="__custom__">Custom room name…</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                placeholder="Or type a custom room name..."
-                value={ROOM_ORDER.includes(uploadRoomType) ? "" : uploadRoomType}
-                onChange={(e) => setUploadRoomType(e.target.value)}
-              />
+              {uploadRoomType === "__custom__" && (
+                <Input
+                  placeholder="Type room name…"
+                  value={uploadCustomRoom}
+                  onChange={(e) => setUploadCustomRoom(e.target.value)}
+                  autoFocus
+                />
+              )}
             </div>
           </div>
 
           <div className="border-t px-6 py-4 flex gap-2">
             <Button
               className="flex-1"
-              disabled={!uploadFile || !uploadProjectId || uploadMutation.isPending}
+              disabled={!uploadFile || !uploadProjectId || uploadMutation.isPending || (uploadRoomType === "__custom__" && !uploadCustomRoom.trim())}
               onClick={() => uploadMutation.mutate()}
             >
               {uploadMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -653,30 +786,44 @@ export default function RendersPage() {
             <div className="space-y-1.5">
               <Label>Room</Label>
               <Select
-                value={ROOM_ORDER.includes(editRoomType) ? editRoomType : ""}
-                onValueChange={setEditRoomType}
+                value={editRoomType}
+                onValueChange={(v) => { setEditRoomType(v); if (v !== "__custom__") setEditCustomRoom(""); }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select room" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROOM_ORDER.map((r) => (
+                  {allRoomOptions.map((r) => (
                     <SelectItem key={r} value={r}>{r}</SelectItem>
                   ))}
+                  <SelectItem value="__custom__">Custom room name…</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                placeholder="Or type a custom room name..."
-                value={ROOM_ORDER.includes(editRoomType) ? "" : editRoomType}
-                onChange={(e) => setEditRoomType(e.target.value)}
-              />
+              {editRoomType === "__custom__" && (
+                <Input
+                  placeholder="Type room name…"
+                  value={editCustomRoom}
+                  onChange={(e) => setEditCustomRoom(e.target.value)}
+                  autoFocus
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                Changing the room will move this render to that group.
+              </p>
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <Button variant="outline" onClick={() => setEditingRender(null)}>Cancel</Button>
             <Button
-              disabled={updateMutation.isPending}
-              onClick={() => editingRender && updateMutation.mutate({ id: editingRender.id, name: editName, roomType: editRoomType })}
+              disabled={updateMutation.isPending || (editRoomType === "__custom__" && !editCustomRoom.trim())}
+              onClick={() => {
+                if (!editingRender) return;
+                updateMutation.mutate({
+                  id: editingRender.id,
+                  name: editName,
+                  roomType: effectiveEditRoom,
+                });
+              }}
             >
               {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Save
