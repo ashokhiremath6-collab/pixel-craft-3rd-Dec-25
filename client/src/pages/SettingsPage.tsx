@@ -116,6 +116,29 @@ export default function SettingsPage() {
     enabled: isAdmin,
   });
 
+  const { data: orgData } = useQuery<{ id: string; name: string }>({
+    queryKey: ["/api/organisations", currentUser?.orgId],
+    queryFn: () => fetch(`/api/organisations/${currentUser?.orgId}`).then(r => r.json()),
+    enabled: isAdmin && !!currentUser?.orgId,
+  });
+
+  const [editingOrgName, setEditingOrgName] = useState(false);
+  const [orgNameInput, setOrgNameInput] = useState("");
+
+  const updateOrgNameMutation = useMutation({
+    mutationFn: async (name: string) => {
+      return apiRequest("PATCH", `/api/organisations/${currentUser?.orgId}`, { name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organisations", currentUser?.orgId] });
+      setEditingOrgName(false);
+      toast({ title: "Studio name updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update studio name", description: error.message, variant: "destructive" });
+    },
+  });
+
   const { data: notificationPrefs } = useQuery<{
     planChanges: boolean;
     paymentFailures: boolean;
@@ -390,6 +413,49 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-semibold" data-testid="heading-settings">Settings</h1>
         <p className="text-muted-foreground">Manage users and system preferences</p>
       </div>
+
+      {/* Studio name */}
+      {isAdmin && currentUser?.orgId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Studio Name
+            </CardTitle>
+            <CardDescription>The name shown to vendors and team members across the platform.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {editingOrgName ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={orgNameInput}
+                  onChange={e => setOrgNameInput(e.target.value)}
+                  className="max-w-sm"
+                  autoFocus
+                  onKeyDown={e => {
+                    if (e.key === "Enter") updateOrgNameMutation.mutate(orgNameInput);
+                    if (e.key === "Escape") setEditingOrgName(false);
+                  }}
+                />
+                <Button
+                  onClick={() => updateOrgNameMutation.mutate(orgNameInput)}
+                  disabled={updateOrgNameMutation.isPending || !orgNameInput.trim()}
+                >
+                  {updateOrgNameMutation.isPending ? "Saving…" : "Save"}
+                </Button>
+                <Button variant="outline" onClick={() => setEditingOrgName(false)}>Cancel</Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <span className="text-base font-medium">{orgData?.name ?? "—"}</span>
+                <Button variant="outline" size="sm" onClick={() => { setOrgNameInput(orgData?.name ?? ""); setEditingOrgName(true); }}>
+                  Rename
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Billing — hidden until payment is configured */}
       {false && currentUser?.role === "admin" && currentUser?.orgId && (
