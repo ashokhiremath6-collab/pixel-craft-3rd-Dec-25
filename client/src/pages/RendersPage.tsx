@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useSearch } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -131,6 +131,7 @@ export default function RendersPage() {
   const params = new URLSearchParams(search);
 
   const [activeProjectId, setActiveProjectId] = useState<string>(params.get("projectId") || "");
+  const targetRenderId = params.get("renderId");
   const [searchText, setSearchText] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [viewingRender, setViewingRender] = useState<Moodboard | null>(null);
@@ -178,6 +179,17 @@ export default function RendersPage() {
     staleTime: 0,
     refetchOnMount: "always",
   });
+
+  // ── Auto-open render from dashboard link ─────────────────────────────────
+  useEffect(() => {
+    if (!targetRenderId || renders.length === 0 || viewingRender) return;
+    const target = renders.find((r) => r.id === targetRenderId);
+    if (!target) return;
+    const url = getPreviewUrl(target);
+    if (!url) return;
+    setViewingRender(target);
+    setViewerUrl({ url, name: target.name || target.fileName || "Render" });
+  }, [targetRenderId, renders]);
 
   // ── Filtering & grouping ─────────────────────────────────────────────────
   const filtered = useMemo(() => {

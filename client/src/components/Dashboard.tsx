@@ -161,7 +161,11 @@ function getActivityNavPath(activityType: string, projectId: string | null, meta
   const pid = projectId || (meta?.projectId as string | null);
   if (activityType.startsWith('floor_plan_')) return pid ? `/floor-plans?projectId=${pid}` : '/floor-plans';
   if (activityType.startsWith('moodboard_')) return pid ? `/moodboards?projectId=${pid}` : '/moodboards';
-  if (activityType.startsWith('render_')) return pid ? `/renders?projectId=${pid}` : '/renders';
+  if (activityType.startsWith('render_')) {
+    const rid = meta?.moodboardId as string | null;
+    if (pid && rid) return `/renders?projectId=${pid}&renderId=${rid}`;
+    return pid ? `/renders?projectId=${pid}` : '/renders';
+  }
   if (activityType.startsWith('working_drawing_')) {
     const mid = meta?.moodboardId as string | null;
     if (pid && mid) return `/working-drawings?projectId=${pid}&file=${mid}`;
