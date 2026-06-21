@@ -312,12 +312,13 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
     },
   });
 
-  // Auto-acknowledge quote submission alerts (project_vendor type) on first render
-  // so they appear once as a notification then clear automatically
+  // Auto-acknowledge project_vendor alerts that are older than 24 hours —
+  // they've already "moved to normal flow" in Comparative Quotes.
   const autoAckedRef = useState<Set<string>>(() => new Set())[0];
   useEffect(() => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     alerts
-      .filter(a => a.alert_type === 'project_vendor' && !autoAckedRef.has(a.id))
+      .filter(a => a.alert_type === 'project_vendor' && !autoAckedRef.has(a.id) && new Date(a.submitted_at).getTime() < cutoff)
       .forEach(a => {
         autoAckedRef.add(a.id);
         acknowledgeMutation.mutate(a);
