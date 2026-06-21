@@ -195,6 +195,23 @@ export default function SettingsPage() {
     },
   });
 
+  const [confirmRemoveUserId, setConfirmRemoveUserId] = useState<string | null>(null);
+
+  const removeUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest("DELETE", `/api/users/${userId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/billing/usage"] });
+      setConfirmRemoveUserId(null);
+      toast({ title: "User removed", description: "The user has been removed from your organisation." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Could not remove user", description: error.message || "Failed to remove user", variant: "destructive" });
+    },
+  });
+
   const resetLinkMutation = useMutation({
     mutationFn: async (userId: string) => {
       const res = await apiRequest("POST", `/api/admin/users/${userId}/reset-link`);
@@ -836,6 +853,17 @@ export default function SettingsPage() {
                           Change Role
                         </Button>
                       )}
+                      {user.id !== currentUser?.id && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setConfirmRemoveUserId(user.id)}
+                          title="Remove this user from the organisation"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
@@ -1044,6 +1072,33 @@ export default function SettingsPage() {
           <Button onClick={() => { setShowUserLimitDialog(false); navigate("/settings?tab=billing"); }}>
             <Zap className="h-4 w-4 mr-2" />
             View plans
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Remove user confirmation dialog */}
+    <Dialog open={!!confirmRemoveUserId} onOpenChange={(open) => { if (!open) setConfirmRemoveUserId(null); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Remove user from organisation?</DialogTitle>
+          <DialogDescription>
+            {(() => {
+              const u = users?.find(u => u.id === confirmRemoveUserId);
+              return u ? `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email : "This user";
+            })()} will lose access to the workspace immediately. You can re-invite them later if needed.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => setConfirmRemoveUserId(null)} disabled={removeUserMutation.isPending}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => confirmRemoveUserId && removeUserMutation.mutate(confirmRemoveUserId)}
+            disabled={removeUserMutation.isPending}
+          >
+            {removeUserMutation.isPending ? "Removing…" : "Remove user"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -151,6 +151,7 @@ export interface IStorage {
   getOrCreateUnsubscribeToken(userId: string): Promise<string>;
   updateTrialBannerSnooze(userId: string, snoozedUntil: Date | null, snoozeDuration?: string | null): Promise<void>;
   getTrialBannerSnooze(userId: string): Promise<{ snoozedUntil: Date | null; snoozeDuration: string | null }>;
+  removeUserFromOrg(userId: string): Promise<void>;
   
   // User Project Access (for client role project assignment)
   createUserProjectAccess(access: { userId: string; projectId: string }): Promise<{ userId: string; projectId: string }>;
@@ -543,6 +544,19 @@ export class MemStorage implements IStorage {
 
   async getUsersByOrg(orgId: string): Promise<User[]> {
     return Array.from(this.users.values()).filter(u => (u as any).orgId === orgId);
+  }
+
+  async removeUserFromOrg(userId: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      (user as any).orgId = null;
+      this.users.set(userId, user);
+    }
+    const role = this.userRoles.get(userId);
+    if (role) {
+      role.isActive = false;
+      this.userRoles.set(userId, role);
+    }
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
@@ -1579,6 +1593,11 @@ export class DBStorage implements IStorage {
   async getUsersByOrg(orgId: string): Promise<User[]> {
     const result = await db.select().from(users).where(eq(users.orgId, orgId));
     return result;
+  }
+
+  async removeUserFromOrg(userId: string): Promise<void> {
+    await db.update(users).set({ orgId: null }).where(eq(users.id, userId));
+    await db.update(userRoles).set({ isActive: false }).where(eq(userRoles.userId, userId));
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {

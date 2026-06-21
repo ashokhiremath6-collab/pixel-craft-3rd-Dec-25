@@ -823,6 +823,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Remove a user from the org (admin only, cannot remove yourself)
+  app.delete("/api/users/:userId", requireAdminOnly, async (req, res) => {
+    try {
+      const callerId = (req.user as any).id;
+      const { userId } = req.params;
+      if (userId === callerId) {
+        return res.status(400).json({ error: "You cannot remove yourself from the organisation." });
+      }
+      await storage.removeUserFromOrg(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Remove user error:", error);
+      res.status(500).json({ error: "Failed to remove user" });
+    }
+  });
+
   // Generate a password reset link for any user (admin only — for sharing via WhatsApp/email)
   app.post("/api/admin/users/:userId/reset-link", requireAdminOnly, async (req, res) => {
     try {
