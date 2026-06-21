@@ -11081,6 +11081,97 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // GET /api/vendor-portal/my-request — returns the latest invite message for this vendor
+  app.get("/api/vendor-portal/my-request", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (userRole?.role !== 'vendor') return res.status(403).json({ error: "Access denied" });
+      const userRow = await storage.getUser(userId);
+      if (!userRow?.email) return res.json(null);
+      const row = await db.execute(sql`
+        SELECT i.invite_message, i.created_at, o.name AS org_name
+        FROM invitations i
+        LEFT JOIN organisations o ON i.org_id = o.id
+        WHERE lower(i.email) = lower(${userRow.email})
+          AND i.accepted_at IS NOT NULL
+          AND i.invite_message IS NOT NULL
+        ORDER BY i.accepted_at DESC
+        LIMIT 1
+      `);
+      if (!row.rows.length) return res.json(null);
+      res.json(row.rows[0]);
+    } catch (err) {
+      console.error("Vendor my-request error:", err);
+      res.status(500).json({ error: "Failed to fetch request" });
+    }
+  });
+
+  // GET /api/vendor-portal/documents — list general documents uploaded by this vendor
+  app.get("/api/vendor-portal/documents", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (userRole?.role !== 'vendor') return res.status(403).json({ error: "Access denied" });
+      if (!userRole.linkedVendorId) return res.json([]);
+      const rows = await db.execute(sql`
+        SELECT id, file_name, file_path, file_type, file_size, uploaded_at
+        FROM vendor_documents
+        WHERE vendor_id = ${userRole.linkedVendorId}
+        ORDER BY uploaded_at DESC
+      `);
+      res.json(rows.rows);
+    } catch (err) {
+      console.error("Vendor documents list error:", err);
+      res.status(500).json({ error: "Failed to list documents" });
+    }
+  });
+
+  // POST /api/vendor-portal/documents — vendor uploads a general document
+  app.post("/api/vendor-portal/documents", requireAuth, vendorDocUpload.array('files', 10), async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (userRole?.role !== 'vendor') return res.status(403).json({ error: "Access denied" });
+      if (!userRole.linkedVendorId) return res.status(400).json({ error: "No vendor linked to your account" });
+      const vendorUser = await storage.getUser(userId);
+      const files = req.files as Express.Multer.File[];
+      if (!files?.length) return res.status(400).json({ error: "No files uploaded" });
+      const orgId = vendorUser?.orgId || "";
+      const saved = [];
+      for (const file of files) {
+        const objectPath = await uploadToObjectStorage(file.buffer, file.originalname, userId, file.mimetype, orgId);
+        const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
+        await db.execute(sql`
+          INSERT INTO vendor_documents (vendor_id, org_id, file_name, file_path, file_type, file_size)
+          VALUES (${userRole.linkedVendorId}, ${orgId}, ${file.originalname}, ${objectPath}, ${ext}, ${String(file.size)})
+        `);
+        saved.push({ fileName: file.originalname, fileType: ext });
+      }
+      res.json(saved);
+    } catch (err) {
+      console.error("Vendor document upload error:", err);
+      res.status(500).json({ error: "Failed to upload document(s)" });
+    }
+  });
+
+  // DELETE /api/vendor-portal/documents/:id — vendor deletes a general document
+  app.delete("/api/vendor-portal/documents/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (userRole?.role !== 'vendor') return res.status(403).json({ error: "Access denied" });
+      if (!userRole.linkedVendorId) return res.status(400).json({ error: "No vendor linked" });
+      await db.execute(sql`
+        DELETE FROM vendor_documents WHERE id = ${req.params.id} AND vendor_id = ${userRole.linkedVendorId}
+      `);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Vendor document delete error:", err);
+      res.status(500).json({ error: "Failed to delete document" });
+    }
+  });
+
   // GET /api/dashboard/vendor-alerts — all staff and clients see pending vendor portal submissions
   app.get("/api/dashboard/vendor-alerts", requireAuth, async (req, res) => {
     try {

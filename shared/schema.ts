@@ -138,6 +138,18 @@ export const quoteFiles = pgTable("quote_files", {
   orgId: varchar("org_id"),
 });
 
+// Vendor general documents — uploaded by vendors in response to quote requests (not tied to a project)
+export const vendorDocuments = pgTable("vendor_documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  vendorId: varchar("vendor_id").notNull(),
+  orgId: varchar("org_id").notNull(),
+  fileName: text("file_name").notNull(),
+  filePath: text("file_path").notNull(),
+  fileType: text("file_type").notNull(),
+  fileSize: decimal("file_size"),
+  uploadedAt: timestamp("uploaded_at").notNull().default(sql`now()`),
+});
+
 // Floor Plans table
 export const floorPlans = pgTable("floor_plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
