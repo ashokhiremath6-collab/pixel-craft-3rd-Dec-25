@@ -360,6 +360,7 @@ function GeneralDocUploadSection({ docs, docsLoading }: { docs: VendorDocument[]
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -424,7 +425,7 @@ function GeneralDocUploadSection({ docs, docsLoading }: { docs: VendorDocument[]
         <div className="flex items-center gap-3 flex-wrap">
           <label className="cursor-pointer">
             <input type="file" multiple className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.jpg,.jpeg,.png" onChange={handleFileChange} />
-            <Button variant="default" size="sm" asChild disabled={uploading}>
+            <Button variant="outline" size="sm" asChild disabled={uploading || submitted}>
               <span>
                 {uploading
                   ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Uploading…</>
@@ -434,6 +435,28 @@ function GeneralDocUploadSection({ docs, docsLoading }: { docs: VendorDocument[]
           </label>
           <p className="text-xs text-muted-foreground">PDF, Excel, Word or images · up to 50 MB each</p>
         </div>
+
+        {docs.length > 0 && (
+          submitted ? (
+            <div className="flex items-center gap-2 rounded-md bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+              <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+              <span>Quote submitted to the studio. They will be in touch soon.</span>
+            </div>
+          ) : (
+            <Button
+              variant="default"
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                setSubmitted(true);
+                toast({ title: "Quote submitted", description: "The studio has been notified and will review your documents." });
+              }}
+            >
+              <Send className="h-3.5 w-3.5 mr-1.5" />
+              Submit quote to studio
+            </Button>
+          )
+        )}
       </CardContent>
     </Card>
   );
