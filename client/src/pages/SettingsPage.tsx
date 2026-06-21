@@ -802,21 +802,21 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
-            User Role Management
+            Team Members
           </CardTitle>
           <CardDescription>
             Assign roles to control access levels. Admins have full access, designers can upload and manage content, clients have read-only access.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!users || users.length === 0 ? (
+          {!users || users.filter(u => u.role !== 'vendor').length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <UserCog className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>No users found</p>
+              <p>No team members found</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {users.map((user) => {
+              {users.filter(u => u.role !== 'vendor').map((user) => {
                 const isEditing = editingUserId === user.id;
                 return (
                   <div
@@ -918,6 +918,143 @@ export default function SettingsPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => { setEditingUserId(user.id); setSelectedRole(user.role || "client"); }}
+                          data-testid={`button-edit-role-${user.id}`}
+                        >
+                          Change Role
+                        </Button>
+                      )}
+                      {user.id !== currentUser?.id && !isEditing && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setConfirmRemoveUserId(user.id)}
+                          title="Remove this user from the organisation"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Vendors — separate from internal team */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Vendor Portal Users
+          </CardTitle>
+          <CardDescription>
+            Vendors who have been invited to submit quotes via the vendor portal. Each vendor account is linked to a vendor record.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!users || users.filter(u => u.role === 'vendor').length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Building2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>No vendor portal users yet</p>
+              <p className="text-xs mt-1">Send an RFQ from Comparative Quotes to invite a vendor.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {users.filter(u => u.role === 'vendor').map((user) => {
+                const isEditing = editingUserId === user.id;
+                return (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between gap-4 p-4 rounded-md border"
+                    data-testid={`user-row-${user.id}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium truncate" data-testid={`text-user-name-${user.id}`}>
+                          {user.firstName} {user.lastName}
+                        </p>
+                        <Badge variant={getRoleBadgeVariant(user.role)} className="flex items-center gap-1">
+                          {getRoleIcon(user.role)}
+                          {user.role}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate" data-testid={`text-user-email-${user.id}`}>
+                        {user.email}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        User ID: <code className="text-xs">{user.id}</code>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      <Select
+                        value={user.linkedVendorId ?? ""}
+                        onValueChange={(val) => linkVendorMutation.mutate({ userId: user.id, linkedVendorId: val || null })}
+                        disabled={linkVendorMutation.isPending}
+                      >
+                        <SelectTrigger className="w-44" title="Link this user to a vendor record">
+                          <Building2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                          <SelectValue placeholder="Link vendor…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {vendors?.map((v) => (
+                            <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => resetLinkMutation.mutate(user.id)}
+                        disabled={resetLinkMutation.isPending && resetLinkMutation.variables === user.id}
+                        title="Generate a password reset link to share with this user"
+                      >
+                        {copiedUserId === user.id ? (
+                          <><Check className="h-3.5 w-3.5 mr-1.5" />Copied</>
+                        ) : (
+                          <><Link2 className="h-3.5 w-3.5 mr-1.5" />Copy Login Link</>
+                        )}
+                      </Button>
+                      {isEditing ? (
+                        <>
+                          <Select value={selectedRole} onValueChange={setSelectedRole}>
+                            <SelectTrigger className="w-32" data-testid={`select-role-${user.id}`}>
+                              <SelectValue placeholder="Select role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="designer">Designer</SelectItem>
+                              <SelectItem value="project_manager">Project Manager</SelectItem>
+                              <SelectItem value="client">Client</SelectItem>
+                              <SelectItem value="vendor">Vendor</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            onClick={() => handleSaveRole(user.id)}
+                            disabled={updateRoleMutation.isPending}
+                            data-testid={`button-save-role-${user.id}`}
+                          >
+                            {updateRoleMutation.isPending ? "Saving..." : "Save"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => { setEditingUserId(null); setSelectedRole(""); }}
+                            disabled={updateRoleMutation.isPending}
+                            data-testid={`button-cancel-role-${user.id}`}
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setEditingUserId(user.id); setSelectedRole(user.role || "vendor"); }}
                           data-testid={`button-edit-role-${user.id}`}
                         >
                           Change Role
