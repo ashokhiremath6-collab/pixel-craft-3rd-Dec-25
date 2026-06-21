@@ -984,10 +984,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(409).json({ error: "An invitation has already been sent to this email. Use resend to send a new link." });
       }
 
-      // Vendor invitations are free — they don't occupy a seat in the org plan
-      if (role !== 'vendor') {
-        await checkOrgLimit(callerUser.orgId, 'users');
-      }
+      // No seat limit enforced — billing limits are not active
 
       const token = randomUUID();
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
