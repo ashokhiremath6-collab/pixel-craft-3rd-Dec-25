@@ -312,6 +312,19 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
     },
   });
 
+  // Auto-acknowledge quote submission alerts (project_vendor type) on first render
+  // so they appear once as a notification then clear automatically
+  const autoAckedRef = useState<Set<string>>(() => new Set())[0];
+  useEffect(() => {
+    alerts
+      .filter(a => a.alert_type === 'project_vendor' && !autoAckedRef.has(a.id))
+      .forEach(a => {
+        autoAckedRef.add(a.id);
+        acknowledgeMutation.mutate(a);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alerts]);
+
   const visible = alerts.filter(a => !dismissed.has(a.id));
   if (visible.length === 0) return null;
 
@@ -376,17 +389,19 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
                     )}
                     <p className="text-xs" style={{ color: "#a8a29e" }}>{when}</p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => acknowledgeMutation.mutate(alert)}
-                      disabled={acknowledgeMutation.isPending}
-                    >
-                      <X className="h-3.5 w-3.5 mr-1" />
-                      Dismiss
-                    </Button>
-                  </div>
+                  {isDocAlert && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => acknowledgeMutation.mutate(alert)}
+                        disabled={acknowledgeMutation.isPending}
+                      >
+                        <X className="h-3.5 w-3.5 mr-1" />
+                        Dismiss
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
             })}
