@@ -10988,7 +10988,8 @@ Return your response in the following JSON format only (no markdown, no code blo
           quotation_value = ${quotedAmount ? String(quotedAmount) : null},
           notes = ${notes || null},
           portal_submitted_at = now(),
-          portal_acknowledged_at = NULL
+          portal_acknowledged_at = NULL,
+          date_of_quotation = CURRENT_DATE
         WHERE id = ${pvId}
       `);
 
