@@ -51,6 +51,7 @@ interface Invitation {
   acceptedAt: string | null;
   expiresAt: string;
   createdAt: string;
+  inviteUrl?: string;
 }
 
 const inviteSchema = z.object({
@@ -235,29 +236,40 @@ export default function SettingsPage() {
     },
   });
 
+  const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
+
+  const copyInviteLink = async (url: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedInviteId(id);
+      setTimeout(() => setCopiedInviteId(null), 3000);
+      toast({ title: "Invite link copied", description: "Share this link via WhatsApp or email." });
+    } catch {
+      toast({ title: "Invite link", description: url });
+    }
+  };
+
   const sendInviteMutation = useMutation({
     mutationFn: async (values: InviteValues) => {
-      return apiRequest("POST", "/api/invitations", values);
+      const res = await apiRequest("POST", "/api/invitations", values);
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/invitations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/billing/usage"] });
       inviteForm.reset();
-      toast({ title: "Invitation sent", description: "An invitation email has been sent." });
+      if (!data.emailSent && data.inviteUrl) {
+        toast({
+          title: "Invitation created — email not sent",
+          description: "Email delivery failed. Copy the invite link and share it manually.",
+          variant: "destructive",
+        });
+        copyInviteLink(data.inviteUrl, data.id);
+      } else {
+        toast({ title: "Invitation sent", description: "An invitation email has been sent." });
+      }
     },
     onError: (error: Error) => {
-      // Parse structured 403 limit-exceeded responses and show upgrade dialog
-      const raw = error.message ?? "";
-      const jsonStart = raw.indexOf("{");
-      if (jsonStart !== -1) {
-        try {
-          const parsed = JSON.parse(raw.slice(jsonStart));
-          if (parsed.limitExceeded) {
-            setShowUserLimitDialog(true);
-            return;
-          }
-        } catch { /* fall through to generic toast */ }
-      }
       toast({ title: "Failed to send invitation", description: error.message, variant: "destructive" });
     },
   });
@@ -678,12 +690,26 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
+                        {inv.inviteUrl && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => copyInviteLink(inv.inviteUrl!, inv.id)}
+                            title="Copy invite link to share manually"
+                          >
+                            {copiedInviteId === inv.id ? (
+                              <><Check className="h-3.5 w-3.5 mr-1.5" />Copied</>
+                            ) : (
+                              <><Copy className="h-3.5 w-3.5 mr-1.5" />Copy link</>
+                            )}
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => resendInviteMutation.mutate(inv.id)}
                           disabled={resendInviteMutation.isPending}
-                          title="Resend invitation"
+                          title="Resend invitation email"
                         >
                           <RefreshCw className="h-3.5 w-3.5" />
                         </Button>

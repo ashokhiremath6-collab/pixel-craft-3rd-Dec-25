@@ -943,7 +943,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser((req.user as any).id);
       if (!user?.orgId) return res.json([]);
       const invites = await storage.getInvitationsByOrg(user.orgId);
-      res.json(invites);
+      const domains = process.env.REPLIT_DOMAINS;
+      const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
+      const invitesWithUrl = invites.map(inv => ({
+        ...inv,
+        inviteUrl: `${baseUrl}/invite/${inv.token}`,
+      }));
+      res.json(invitesWithUrl);
     } catch (err) {
       console.error("List invitations error:", err);
       res.status(500).json({ error: "Failed to fetch invitations" });
@@ -1006,14 +1012,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
       const inviterName = [callerUser.firstName, callerUser.lastName].filter(Boolean).join(" ") || callerUser.email || "A team member";
 
+      let emailSent = true;
       try {
         const { sendInvitationEmail } = await import("./email");
         await sendInvitationEmail(normalizedEmail, inviterName, org.name, role, token, baseUrl, inviteMessage ?? undefined);
       } catch (emailErr) {
         console.error("[INVITE] Failed to send invitation email:", emailErr);
+        emailSent = false;
       }
 
-      res.status(201).json(invitation);
+      const inviteUrl = `${baseUrl}/invite/${token}`;
+      res.status(201).json({ ...invitation, inviteUrl, emailSent });
     } catch (err: any) {
       if (err.limitExceeded) return res.status(403).json({ error: err.message, limitExceeded: true, current: err.current, limit: err.limit, resource: err.resource });
       console.error("Send invitation error:", err);
