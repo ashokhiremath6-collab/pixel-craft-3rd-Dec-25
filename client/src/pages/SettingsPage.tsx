@@ -379,8 +379,8 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">Manage users and system preferences</p>
       </div>
 
-      {/* Billing — only for admins with an org */}
-      {currentUser?.role === "admin" && currentUser?.orgId && (
+      {/* Billing — hidden until payment is configured */}
+      {false && currentUser?.role === "admin" && currentUser?.orgId && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -578,98 +578,76 @@ export default function SettingsPage() {
               Send an email invitation so a colleague can create their account and join your workspace.
             </CardDescription>
           </CardHeader>
-          {usageData && (
-            <div className="px-6 pb-0">
-              <PlanLimitBanner
-                current={usageData.usage.users}
-                limit={usageData.limits.maxUsers}
-                resourceLabel="Team members"
-              />
-            </div>
-          )}
           <CardContent className="space-y-6">
-            {(() => {
-              const atUserLimit = usageData
-                ? usageData.usage.users >= usageData.limits.maxUsers && usageData.limits.maxUsers < 999999
-                : false;
-              return (
-                <Form {...inviteForm}>
-                  <form
-                    onSubmit={inviteForm.handleSubmit((v) => sendInviteMutation.mutate(v))}
-                    className="flex flex-col sm:flex-row gap-3"
-                  >
-                    <FormField
-                      control={inviteForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem className="flex-1">
+            <Form {...inviteForm}>
+              <form
+                onSubmit={inviteForm.handleSubmit((v) => sendInviteMutation.mutate(v))}
+                className="flex flex-col sm:flex-row gap-3"
+              >
+                <FormField
+                  control={inviteForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormControl>
+                        <Input type="email" placeholder="colleague@yourcompany.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={inviteForm.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem className="w-full sm:w-48">
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="designer">Designer</SelectItem>
+                          <SelectItem value="project_manager">Project Manager</SelectItem>
+                          <SelectItem value="client">Client</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {inviteForm.watch("role") === "vendor" && (
+                  <FormField
+                    control={inviteForm.control}
+                    name="linkedVendorId"
+                    render={({ field }) => (
+                      <FormItem className="w-full sm:w-56">
+                        <Select onValueChange={field.onChange} value={field.value ?? ""}>
                           <FormControl>
-                            <Input type="email" placeholder="colleague@yourcompany.com" {...field} disabled={atUserLimit} />
+                            <SelectTrigger>
+                              <SelectValue placeholder="Link to vendor (optional)" />
+                            </SelectTrigger>
                           </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={inviteForm.control}
-                      name="role"
-                      render={({ field }) => (
-                        <FormItem className="w-full sm:w-48">
-                          <Select onValueChange={field.onChange} value={field.value} disabled={atUserLimit}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select role" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="designer">Designer</SelectItem>
-                              <SelectItem value="project_manager">Project Manager</SelectItem>
-                              <SelectItem value="client">Client</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    {inviteForm.watch("role") === "vendor" && (
-                      <FormField
-                        control={inviteForm.control}
-                        name="linkedVendorId"
-                        render={({ field }) => (
-                          <FormItem className="w-full sm:w-56">
-                            <Select onValueChange={field.onChange} value={field.value ?? ""} disabled={atUserLimit}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Link to vendor (optional)" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {vendors?.map((v) => (
-                                  <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                          <SelectContent>
+                            {vendors?.map((v) => (
+                              <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                    {atUserLimit ? (
-                      <Button type="button" variant="outline" onClick={() => setUpgradeDialog({ open: true, resource: 'users', current: usageData!.usage.users, limit: usageData!.limits.maxUsers })}>
-                        Upgrade to invite
-                      </Button>
-                    ) : (
-                      <Button type="submit" disabled={sendInviteMutation.isPending}>
-                        {sendInviteMutation.isPending ? "Sending…" : (
-                          <><Mail className="h-4 w-4 mr-2" />Send invite</>
-                        )}
-                      </Button>
-                    )}
-                  </form>
-                </Form>
-              );
-            })()}
+                  />
+                )}
+                <Button type="submit" disabled={sendInviteMutation.isPending}>
+                  {sendInviteMutation.isPending ? "Sending…" : (
+                    <><Mail className="h-4 w-4 mr-2" />Send invite</>
+                  )}
+                </Button>
+              </form>
+            </Form>
 
             {/* Pending invitations list */}
             {invitationsLoading ? (
