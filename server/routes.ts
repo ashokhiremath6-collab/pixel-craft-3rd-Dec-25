@@ -987,7 +987,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (i) => i.email.toLowerCase() === normalizedEmail && !i.acceptedAt && i.expiresAt > new Date()
       );
       if (existingPending) {
-        return res.status(409).json({ error: "An invitation has already been sent to this email. Use resend to send a new link." });
+        // For vendor re-invitations (fresh RFQ), replace the old pending invite
+        // For all other roles, block to avoid confusion
+        if (role === 'vendor') {
+          await storage.revokeInvitation(existingPending.id);
+        } else {
+          return res.status(409).json({ error: "An invitation has already been sent to this email. Use resend to send a new link." });
+        }
       }
 
       // No seat limit enforced — billing limits are not active
