@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useLocation } from "wouter";
 import Dashboard from '@/components/Dashboard';
 import type { Vendor, Project, VendorCategory, ActivityLog, Task } from "@shared/schema";
 import { differenceInDays, startOfDay } from "date-fns";
@@ -91,8 +92,9 @@ export default function DashboardPage() {
     refetchOnWindowFocus: true,
   });
 
+  const [, setLocation] = useLocation();
   const handleNavigate = (path: string) => {
-    window.location.href = path;
+    setLocation(path);
   };
 
   // Only block rendering on the core data needed to build the page skeleton.
