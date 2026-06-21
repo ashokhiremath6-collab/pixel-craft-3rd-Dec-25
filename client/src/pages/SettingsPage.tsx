@@ -853,7 +853,7 @@ export default function SettingsPage() {
                           Change Role
                         </Button>
                       )}
-                      {user.id !== currentUser?.id && (
+                      {user.id !== currentUser?.id && !isEditing && (
                         <Button
                           size="sm"
                           variant="outline"
