@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import StatusBadge from "./StatusBadge";
 import QuoteDetailModal from "./QuoteDetailModal";
-import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2, Paperclip, Inbox } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2, Paperclip } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -43,6 +43,7 @@ interface QuotationData {
   unitRateSubtype?: string | null; // "quote" or "comparative" for unit rate quotes
   uploaderName?: string | null; // Who uploaded the file
   uploadedAt?: string | null; // When the file was uploaded
+  portalSubmittedAt?: string | null; // Set when vendor submitted this via the portal
 }
 
 interface CategoryWithChildren extends VendorCategory {
@@ -104,12 +105,6 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     isNegotiated: false
   });
   const { toast } = useToast();
-
-  interface VendorDoc { id: string; file_name: string; file_path: string; file_type: string; file_size: string | null; uploaded_at: string; acknowledged_at: string | null; vendor_name: string; }
-  const { data: portalDocs = [], isLoading: portalDocsLoading } = useQuery<VendorDoc[]>({
-    queryKey: ["/api/vendor-documents"],
-    retry: false,
-  });
 
   const handleProjectFilter = (projectId: string) => {
     setSelectedProject(projectId);
@@ -669,63 +664,6 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
         </div>
       </div>
 
-      {/* Portal Submissions */}
-      {(portalDocsLoading || portalDocs.length > 0) && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Inbox className="h-4 w-4 text-muted-foreground" />
-              Portal Submissions
-              {portalDocs.length > 0 && (
-                <Badge variant="secondary" className="no-default-active-elevate text-xs">
-                  {portalDocs.length}
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {portalDocsLoading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {portalDocs.map(doc => {
-                  const filePath = doc.file_path.startsWith("/objects/")
-                    ? doc.file_path.replace("/objects/", "/uploads/")
-                    : doc.file_path;
-                  const uploadedDate = (() => { try { return format(new Date(doc.uploaded_at), "d MMM yyyy"); } catch { return doc.uploaded_at; } })();
-                  return (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between gap-3 rounded-md px-3 py-2 flex-wrap"
-                      style={{ background: "hsl(var(--muted)/0.4)" }}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{doc.file_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {doc.vendor_name} · {uploadedDate}
-                            {doc.acknowledged_at && <span className="ml-2 text-green-600 dark:text-green-400">Reviewed</span>}
-                          </p>
-                        </div>
-                      </div>
-                      <a href={filePath} download={doc.file_name} target="_blank" rel="noreferrer">
-                        <Button size="sm" variant="outline">
-                          <Download className="h-3.5 w-3.5 mr-1.5" />
-                          Download
-                        </Button>
-                      </a>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       {/* Filters */}
       <Card>
         <CardHeader className="pb-3">
@@ -890,7 +828,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                   </div>
                                 )}
                                 {/* Show quotation name and type */}
-                                <div className={`text-xs ${isFirstQuoteForVendor ? (isSelected ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-400') : (isSelected ? 'text-emerald-700 dark:text-emerald-400 ml-2' : 'text-gray-700 dark:text-gray-300 ml-2')} flex items-center gap-1`}>
+                                <div className={`text-xs ${isFirstQuoteForVendor ? (isSelected ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-400') : (isSelected ? 'text-emerald-700 dark:text-emerald-400 ml-2' : 'text-gray-700 dark:text-gray-300 ml-2')} flex items-center gap-1 flex-wrap`}>
                                   {quotation.quotationType === "option" && <span className="text-orange-500">└</span>}
                                   <span className="font-medium">
                                     {quotation.unitRateSubtype === 'comparative' 
@@ -899,6 +837,11 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                   </span>
                                   {quotation.quotationType === "option" && (
                                     <Badge variant="outline" className="text-xs px-1 py-0">Option</Badge>
+                                  )}
+                                  {quotation.portalSubmittedAt && (
+                                    <Badge className="text-xs px-1 py-0 no-default-active-elevate" style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd" }}>
+                                      Via Portal
+                                    </Badge>
                                   )}
                                 </div>
                               </div>
@@ -1266,13 +1209,18 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                       </div>
                                     )}
                                     {/* Show quotation name and type */}
-                                    <div className={`text-xs ${isFirstQuoteForVendor ? (isSelected ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-400') : (isSelected ? 'text-emerald-700 dark:text-emerald-400 ml-2' : 'text-gray-700 dark:text-gray-300 ml-2')} flex items-center gap-1`}>
+                                    <div className={`text-xs ${isFirstQuoteForVendor ? (isSelected ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-400') : (isSelected ? 'text-emerald-700 dark:text-emerald-400 ml-2' : 'text-gray-700 dark:text-gray-300 ml-2')} flex items-center gap-1 flex-wrap`}>
                                       {quotation.quotationType === "option" && <span className="text-orange-500">└</span>}
                                       <span className="font-medium">
                                         Unit rate comparative statement
                                       </span>
                                       {quotation.quotationType === "option" && (
                                         <Badge variant="outline" className="text-xs px-1 py-0">Option</Badge>
+                                      )}
+                                      {quotation.portalSubmittedAt && (
+                                        <Badge className="text-xs px-1 py-0 no-default-active-elevate" style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd" }}>
+                                          Via Portal
+                                        </Badge>
                                       )}
                                     </div>
                                   </div>

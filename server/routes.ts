@@ -2276,7 +2276,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             projectName: project.projectName,
             uploaderName: uploaderName,
             uploadedAt: uploadedAt,
-            unitRateSubtype: pv.unitRateSubtype
+            unitRateSubtype: pv.unitRateSubtype,
+            portalSubmittedAt: pv.portalSubmittedAt
           });
         }
       }

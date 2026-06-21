@@ -450,21 +450,30 @@ function UploadTab({
   generalDocs: VendorDocument[];
   docsLoading: boolean;
 }) {
+  if (quotesLoading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (quotes.length > 0) {
+    return (
+      <div className="max-w-2xl space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Upload your quote documents and submit them to the studio. Each quote request is listed below.
+        </p>
+        <div className="space-y-3">
+          {quotes.map(q => <QuoteCard key={q.id} quote={q} />)}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl space-y-4">
       <GeneralDocUploadSection docs={generalDocs} docsLoading={docsLoading} />
-      {quotesLoading ? (
-        <div className="flex items-center justify-center h-24">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : quotes.length > 0 ? (
-        <>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-1">Assigned quote requests</p>
-          <div className="space-y-3">
-            {quotes.map(q => <QuoteCard key={q.id} quote={q} />)}
-          </div>
-        </>
-      ) : null}
     </div>
   );
 }
