@@ -975,9 +975,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // Check if already a member
+      // Check if already a member — vendors are allowed to receive new RFQs even if already in the org
       const existingUser = await storage.getUserByEmail(normalizedEmail);
-      if (existingUser?.orgId === callerUser.orgId) {
+      if (existingUser?.orgId === callerUser.orgId && role !== 'vendor') {
         return res.status(409).json({ error: "This person is already a member of your workspace." });
       }
 
