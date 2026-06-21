@@ -11220,7 +11220,8 @@ Return your response in the following JSON format only (no markdown, no code blo
           v.name AS vendor_name,
           COALESCE(vc.name, pv.category) AS category_name,
           'project_vendor' AS alert_type,
-          NULL::text AS file_name
+          NULL::text AS file_name,
+          v.id AS vendor_id
         FROM project_vendors pv
         INNER JOIN projects p ON pv.project_id = p.id
         LEFT JOIN vendors v ON pv.vendor_id = v.id
@@ -11241,7 +11242,8 @@ Return your response in the following JSON format only (no markdown, no code blo
           v.name AS vendor_name,
           NULL::text AS category_name,
           'vendor_document' AS alert_type,
-          vd.file_name AS file_name
+          vd.file_name AS file_name,
+          vd.vendor_id AS vendor_id
         FROM vendor_documents vd
         LEFT JOIN vendors v ON vd.vendor_id = v.id
         WHERE vd.org_id = ${user.orgId}
@@ -11272,6 +11274,67 @@ Return your response in the following JSON format only (no markdown, no code blo
     } catch (err) {
       console.error("Acknowledge vendor alert error:", err);
       res.status(500).json({ error: "Failed to acknowledge" });
+    }
+  });
+
+  // POST /api/vendor-documents/:id/assign — assign a general vendor doc to a project+category
+  app.post("/api/vendor-documents/:id/assign", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (!userRole || !['admin', 'designer', 'project_manager'].includes(userRole.role)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user?.orgId) return res.status(400).json({ error: "No org" });
+
+      const { projectId, categoryId, categoryName } = req.body;
+      if (!projectId) return res.status(400).json({ error: "projectId required" });
+
+      // Fetch the vendor document
+      const docRows = await db.execute(sql`
+        SELECT * FROM vendor_documents WHERE id = ${req.params.id} AND org_id = ${user.orgId}
+      `);
+      if (!docRows.rows.length) return res.status(404).json({ error: "Document not found" });
+      const doc = docRows.rows[0] as any;
+
+      // Fetch category name if not provided but categoryId is
+      let resolvedCategoryName = categoryName;
+      if (!resolvedCategoryName && categoryId) {
+        const catRows = await db.execute(sql`SELECT name FROM vendor_categories WHERE id = ${categoryId}`);
+        resolvedCategoryName = catRows.rows[0] ? (catRows.rows[0] as any).name : null;
+      }
+
+      // Create project_vendor record
+      const pv = await storage.createProjectVendor({
+        projectId,
+        vendorId: doc.vendor_id,
+        categoryId: categoryId || null,
+        category: resolvedCategoryName || null,
+        quotationName: "Main Quote",
+        quotationType: "item",
+        status: "Quoted",
+        orgId: user.orgId,
+        portalSubmittedAt: new Date(),
+      } as any);
+
+      // Create quote_file record linking the file to this project_vendor
+      await storage.createQuoteFile({
+        projectVendorId: pv.id,
+        fileName: doc.file_name,
+        filePath: doc.file_path,
+        fileType: doc.file_type,
+        fileSize: doc.file_size,
+        orgId: user.orgId,
+      } as any);
+
+      // Acknowledge / hide the vendor_document alert
+      await db.execute(sql`UPDATE vendor_documents SET acknowledged_at = now() WHERE id = ${req.params.id}`);
+
+      res.json({ ok: true, projectVendorId: pv.id });
+    } catch (err) {
+      console.error("Assign vendor document error:", err);
+      res.status(500).json({ error: "Failed to assign document" });
     }
   });
 

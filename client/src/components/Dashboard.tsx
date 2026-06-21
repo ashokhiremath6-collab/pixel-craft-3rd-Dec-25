@@ -1,15 +1,18 @@
 import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import {
   Users, Building2, FileText, TrendingUp, ArrowRight, Clock, Download,
   AlertCircle, ImageIcon, LayoutDashboard, FileCheck2, CalendarDays,
   BookOpen, Package, Trash2, Pencil, Plus, Bell, FileUp,
-  ChevronDown, ChevronRight, ExternalLink, ArrowUpDown, X, SendHorizonal,
+  ChevronDown, ChevronRight, ExternalLink, ArrowUpDown, X, SendHorizonal, FolderOpen,
 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +60,7 @@ interface ProjectTaskBreakdownEntry {
 interface VendorAlert {
   id: string;
   vendor_name: string;
+  vendor_id: string | null;
   project_name: string | null;
   category_name: string | null;
   quotation_name: string | null;
@@ -190,9 +194,111 @@ const BREAKDOWN_SORT_LABELS: Record<BreakdownSortMode, string> = {
   least_complete: 'Least complete',
 };
 
+interface VendorCategory { id: string; name: string; }
+
+function AssignToProjectDialog({
+  alert,
+  open,
+  onOpenChange,
+  onDone,
+}: {
+  alert: VendorAlert;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onDone: () => void;
+}) {
+  const [projectId, setProjectId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const queryClient = useQueryClient();
+
+  const { data: projects = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["/api/projects"],
+    enabled: open,
+  });
+
+  const { data: categories = [] } = useQuery<VendorCategory[]>({
+    queryKey: ["/api/vendor-categories/tree"],
+    enabled: open,
+  });
+
+  const flatCategories = (cats: any[]): VendorCategory[] =>
+    cats.flatMap((c: any) => [{ id: c.id, name: c.name }, ...flatCategories(c.children ?? [])]);
+
+  const assignMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", `/api/vendor-documents/${alert.id}/assign`, {
+        projectId,
+        categoryId: categoryId || undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/vendor-alerts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotations"] });
+      onDone();
+      onOpenChange(false);
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FolderOpen className="h-4 w-4" />
+            Assign to project
+          </DialogTitle>
+          <DialogDescription>
+            Move <strong>{alert.file_name || "this document"}</strong> from <strong>{alert.vendor_name}</strong> into the correct project and category so it appears in Comparative Quotes.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          <div className="space-y-1.5">
+            <Label>Project</Label>
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p: any) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name ?? p.project_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Category <span className="text-muted-foreground text-xs">(optional)</span></Label>
+            <Select value={categoryId} onValueChange={setCategoryId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                {flatCategories(categories).map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            onClick={() => assignMutation.mutate()}
+            disabled={!projectId || assignMutation.isPending}
+          >
+            {assignMutation.isPending ? "Assigning…" : "Assign to project"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
   const queryClient = useQueryClient();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [assigningAlert, setAssigningAlert] = useState<VendorAlert | null>(null);
 
   const acknowledgeMutation = useMutation({
     mutationFn: async (alert: VendorAlert) => {
@@ -211,81 +317,102 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
   if (visible.length === 0) return null;
 
   return (
-    <ContentCard>
-      <div className="px-5 sm:px-8 pt-6 pb-4 space-y-3">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="flex items-center justify-center w-9 h-9 rounded-full" style={{ background: "#f59e0b" }}>
-            <SendHorizonal className="h-4 w-4 text-white" />
+    <>
+      {assigningAlert && (
+        <AssignToProjectDialog
+          alert={assigningAlert}
+          open={!!assigningAlert}
+          onOpenChange={(v) => !v && setAssigningAlert(null)}
+          onDone={() => setDismissed(prev => new Set(prev).add(assigningAlert!.id))}
+        />
+      )}
+      <ContentCard>
+        <div className="px-5 sm:px-8 pt-6 pb-4 space-y-3">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="flex items-center justify-center w-9 h-9 rounded-full" style={{ background: "#f59e0b" }}>
+              <SendHorizonal className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg sm:text-[22px] font-semibold leading-tight" style={{ color: "#111827" }}>
+                Vendor portal submissions
+              </h2>
+              <p className="text-xs" style={{ color: "#86868b" }}>
+                {visible.length} new submission{visible.length !== 1 ? "s" : ""} received through the vendor portal
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-lg sm:text-[22px] font-semibold leading-tight" style={{ color: "#111827" }}>
-              Vendor portal submissions
-            </h2>
-            <p className="text-xs" style={{ color: "#86868b" }}>
-              {visible.length} new submission{visible.length !== 1 ? "s" : ""} received through the vendor portal
-            </p>
-          </div>
-        </div>
 
-        <div className="space-y-2">
-          {visible.map(alert => {
-            const amount = alert.quotation_value
-              ? Number(alert.quotation_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-              : null;
-            const when = (() => {
-              const h = differenceInHours(new Date(), new Date(alert.submitted_at));
-              if (h < 1) return "just now";
-              if (h < 24) return `${h}h ago`;
-              return format(new Date(alert.submitted_at), "d MMM");
-            })();
-            const isDocAlert = alert.alert_type === 'vendor_document';
+          <div className="space-y-2">
+            {visible.map(alert => {
+              const amount = alert.quotation_value
+                ? Number(alert.quotation_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                : null;
+              const when = (() => {
+                const h = differenceInHours(new Date(), new Date(alert.submitted_at));
+                if (h < 1) return "just now";
+                if (h < 24) return `${h}h ago`;
+                return format(new Date(alert.submitted_at), "d MMM");
+              })();
+              const isDocAlert = alert.alert_type === 'vendor_document';
 
-            return (
-              <div
-                key={alert.id}
-                className="flex items-start justify-between gap-3 rounded-xl p-3 flex-wrap"
-                style={{ background: "#fffbeb", border: "1px solid #fde68a" }}
-              >
-                <div className="flex-1 min-w-0 space-y-0.5">
-                  <p className="text-sm font-semibold" style={{ color: "#92400e" }}>
-                    {alert.vendor_name}
-                  </p>
-                  {isDocAlert ? (
-                    <p className="text-xs" style={{ color: "#b45309" }}>
-                      Uploaded a document via the portal
-                      {alert.file_name ? ` · ${alert.file_name}` : ""}
-                    </p>
-                  ) : (
-                    <p className="text-xs" style={{ color: "#b45309" }}>
-                      {alert.project_name}{alert.category_name ? ` · ${alert.category_name}` : alert.quotation_name ? ` · ${alert.quotation_name}` : ""}
-                    </p>
-                  )}
-                  {amount && (
-                    <p className="text-sm font-medium" style={{ color: "#111827" }}>
-                      Quoted: {amount}
-                    </p>
-                  )}
-                  {alert.notes && (
-                    <p className="text-xs line-clamp-2" style={{ color: "#78716c" }}>{alert.notes}</p>
-                  )}
-                  <p className="text-xs" style={{ color: "#a8a29e" }}>{when}</p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => acknowledgeMutation.mutate(alert)}
-                  disabled={acknowledgeMutation.isPending}
-                  className="shrink-0"
+              return (
+                <div
+                  key={alert.id}
+                  className="flex items-start justify-between gap-3 rounded-xl p-3 flex-wrap"
+                  style={{ background: "#fffbeb", border: "1px solid #fde68a" }}
                 >
-                  <X className="h-3.5 w-3.5 mr-1" />
-                  Dismiss
-                </Button>
-              </div>
-            );
-          })}
+                  <div className="flex-1 min-w-0 space-y-0.5">
+                    <p className="text-sm font-semibold" style={{ color: "#92400e" }}>
+                      {alert.vendor_name}
+                    </p>
+                    {isDocAlert ? (
+                      <p className="text-xs" style={{ color: "#b45309" }}>
+                        Uploaded a document via the portal
+                        {alert.file_name ? ` · ${alert.file_name}` : ""}
+                      </p>
+                    ) : (
+                      <p className="text-xs" style={{ color: "#b45309" }}>
+                        {alert.project_name}{alert.category_name ? ` · ${alert.category_name}` : alert.quotation_name ? ` · ${alert.quotation_name}` : ""}
+                      </p>
+                    )}
+                    {amount && (
+                      <p className="text-sm font-medium" style={{ color: "#111827" }}>
+                        Quoted: {amount}
+                      </p>
+                    )}
+                    {alert.notes && (
+                      <p className="text-xs line-clamp-2" style={{ color: "#78716c" }}>{alert.notes}</p>
+                    )}
+                    <p className="text-xs" style={{ color: "#a8a29e" }}>{when}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {isDocAlert && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setAssigningAlert(alert)}
+                      >
+                        <FolderOpen className="h-3.5 w-3.5 mr-1" />
+                        Assign to project
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => acknowledgeMutation.mutate(alert)}
+                      disabled={acknowledgeMutation.isPending}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" />
+                      Dismiss
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
-    </ContentCard>
+      </ContentCard>
+    </>
   );
 }
 
