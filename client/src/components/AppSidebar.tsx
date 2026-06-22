@@ -1,4 +1,4 @@
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList, Lightbulb } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList, Lightbulb, PackageCheck } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -43,6 +43,7 @@ const mainItems: NavigationItem[] = [
   { title: "Asset Ingestion", url: "/asset-ingestion", icon: Camera },
   { title: "Catalogues", url: "/catalogue", icon: BookOpen },
   { title: "Specifications", url: "/specifications", icon: FileText },
+  { title: "Accessories Checklist", url: "/accessories-checklist", icon: PackageCheck },
   { title: "Meeting Minutes", url: "/meeting-minutes", icon: Calendar },
 ];
 

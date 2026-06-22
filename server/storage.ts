@@ -123,6 +123,9 @@ import {
   type Room,
   type Drawing,
   type DrawingRevision,
+  handoverItems,
+  type HandoverItem,
+  type InsertHandoverItem,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -398,7 +401,14 @@ export interface IStorage {
   createProjectCostItem(item: InsertProjectCostItem): Promise<ProjectCostItem>;
   updateProjectCostItem(id: string, item: Partial<InsertProjectCostItem>): Promise<ProjectCostItem | undefined>;
   deleteProjectCostItem(id: string): Promise<boolean>;
-  
+
+  // Accessories Checklist (Handover Items)
+  getHandoverItems(orgId: string, projectId: string): Promise<HandoverItem[]>;
+  createHandoverItem(item: InsertHandoverItem): Promise<HandoverItem>;
+  updateHandoverItem(id: string, orgId: string, updates: Partial<InsertHandoverItem>): Promise<HandoverItem | undefined>;
+  deleteHandoverItem(id: string, orgId: string): Promise<boolean>;
+  bulkCreateHandoverItems(items: InsertHandoverItem[]): Promise<HandoverItem[]>;
+
   // Saved Assets
   getAllSavedAssets(): Promise<SavedAsset[]>;
   getSavedAsset(id: string): Promise<SavedAsset | undefined>;
@@ -3534,6 +3544,37 @@ export class DBStorage implements IStorage {
   async deleteProjectCostItem(id: string): Promise<boolean> {
     const result = await db.delete(projectCostItems).where(eq(projectCostItems.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Accessories Checklist (Handover Items)
+  async getHandoverItems(orgId: string, projectId: string): Promise<HandoverItem[]> {
+    return await db.select().from(handoverItems)
+      .where(and(eq(handoverItems.orgId, orgId), eq(handoverItems.projectId, projectId)))
+      .orderBy(asc(handoverItems.category), asc(handoverItems.sortOrder), asc(handoverItems.createdAt));
+  }
+
+  async createHandoverItem(item: InsertHandoverItem): Promise<HandoverItem> {
+    const [result] = await db.insert(handoverItems).values(item).returning();
+    return result;
+  }
+
+  async updateHandoverItem(id: string, orgId: string, updates: Partial<InsertHandoverItem>): Promise<HandoverItem | undefined> {
+    const [result] = await db.update(handoverItems)
+      .set(updates)
+      .where(and(eq(handoverItems.id, id), eq(handoverItems.orgId, orgId)))
+      .returning();
+    return result;
+  }
+
+  async deleteHandoverItem(id: string, orgId: string): Promise<boolean> {
+    const result = await db.delete(handoverItems)
+      .where(and(eq(handoverItems.id, id), eq(handoverItems.orgId, orgId)));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async bulkCreateHandoverItems(items: InsertHandoverItem[]): Promise<HandoverItem[]> {
+    if (items.length === 0) return [];
+    return await db.insert(handoverItems).values(items).returning();
   }
 
   // Organisations

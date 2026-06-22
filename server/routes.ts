@@ -9331,6 +9331,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   // ────────────────────────────────────────────────────────────────────────────
 
+  // ── Accessories Checklist (Handover Items) ───────────────────────────────
+  app.get("/api/handover-items", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { projectId } = req.query;
+      if (!orgId || !projectId) return res.status(400).json({ error: "projectId required" });
+      const items = await storage.getHandoverItems(orgId, projectId as string);
+      res.json(items);
+    } catch (err) {
+      console.error("GET /api/handover-items error:", err);
+      res.status(500).json({ error: "Failed to fetch checklist items" });
+    }
+  });
+
+  app.post("/api/handover-items/populate", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { projectId } = req.body;
+      if (!orgId || !projectId) return res.status(400).json({ error: "projectId required" });
+      // Only populate if project has no items yet
+      const existing = await storage.getHandoverItems(orgId, projectId);
+      if (existing.length > 0) return res.json({ skipped: true, count: existing.length });
+      const DEFAULTS: { name: string; category: string; quantity: number; unit: string }[] = [
+        // Kitchen
+        { name: "Pedal dustbin", category: "Kitchen", quantity: 1, unit: "nos" },
+        { name: "Sink strainer", category: "Kitchen", quantity: 1, unit: "nos" },
+        { name: "Dish drying rack", category: "Kitchen", quantity: 1, unit: "nos" },
+        { name: "Liquid soap dispenser", category: "Kitchen", quantity: 1, unit: "nos" },
+        { name: "Hand towel holder", category: "Kitchen", quantity: 1, unit: "nos" },
+        { name: "Gas lighter", category: "Kitchen", quantity: 1, unit: "nos" },
+        // Master Bathroom
+        { name: "Toilet brush & holder", category: "Master Bathroom", quantity: 1, unit: "set" },
+        { name: "Dustbin", category: "Master Bathroom", quantity: 1, unit: "nos" },
+        { name: "Towel rail", category: "Master Bathroom", quantity: 2, unit: "nos" },
+        { name: "Soap dispenser", category: "Master Bathroom", quantity: 1, unit: "nos" },
+        { name: "Toilet paper holder", category: "Master Bathroom", quantity: 1, unit: "nos" },
+        { name: "Robe hook", category: "Master Bathroom", quantity: 2, unit: "nos" },
+        { name: "Shower squeegee", category: "Master Bathroom", quantity: 1, unit: "nos" },
+        { name: "Bath mat", category: "Master Bathroom", quantity: 1, unit: "nos" },
+        // Other Bathrooms
+        { name: "Toilet brush & holder", category: "Other Bathrooms", quantity: 1, unit: "set" },
+        { name: "Dustbin", category: "Other Bathrooms", quantity: 1, unit: "nos" },
+        { name: "Towel rail", category: "Other Bathrooms", quantity: 1, unit: "nos" },
+        { name: "Soap dispenser", category: "Other Bathrooms", quantity: 1, unit: "nos" },
+        { name: "Toilet paper holder", category: "Other Bathrooms", quantity: 1, unit: "nos" },
+        // Bedroom
+        { name: "Wardrobe hangers", category: "Bedroom", quantity: 20, unit: "nos" },
+        { name: "Dustbin", category: "Bedroom", quantity: 1, unit: "nos" },
+        { name: "Bedside lamp", category: "Bedroom", quantity: 2, unit: "nos" },
+        // Living / Dining
+        { name: "Doormat", category: "Living / Dining", quantity: 1, unit: "nos" },
+        { name: "Dustbin", category: "Living / Dining", quantity: 1, unit: "nos" },
+        { name: "Umbrella stand", category: "Living / Dining", quantity: 1, unit: "nos" },
+        // General
+        { name: "Door stoppers", category: "General", quantity: 1, unit: "set" },
+        { name: "Curtain rods & brackets", category: "General", quantity: 1, unit: "set" },
+        { name: "Coat hooks", category: "General", quantity: 4, unit: "nos" },
+        { name: "Spare light bulbs", category: "General", quantity: 6, unit: "nos" },
+        { name: "Extension boards", category: "General", quantity: 2, unit: "nos" },
+        { name: "Fire extinguisher", category: "General", quantity: 1, unit: "nos" },
+        { name: "First aid kit", category: "General", quantity: 1, unit: "nos" },
+        { name: "Toolbox (basic)", category: "General", quantity: 1, unit: "nos" },
+        { name: "Step ladder", category: "General", quantity: 1, unit: "nos" },
+        { name: "Vacuum cleaner", category: "General", quantity: 1, unit: "nos" },
+        { name: "Mop & bucket", category: "General", quantity: 1, unit: "set" },
+        { name: "Iron & ironing board", category: "General", quantity: 1, unit: "set" },
+      ];
+      const items = DEFAULTS.map((d, i) => ({
+        orgId,
+        projectId,
+        name: d.name,
+        category: d.category,
+        quantity: d.quantity,
+        unit: d.unit,
+        status: "pending" as const,
+        sortOrder: i,
+      }));
+      const created = await storage.bulkCreateHandoverItems(items);
+      res.json({ populated: true, count: created.length });
+    } catch (err) {
+      console.error("POST /api/handover-items/populate error:", err);
+      res.status(500).json({ error: "Failed to populate checklist" });
+    }
+  });
+
+  app.post("/api/handover-items", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { projectId, name, category, quantity, unit, status, notes, sortOrder } = req.body;
+      if (!orgId || !projectId || !name?.trim() || !category?.trim()) {
+        return res.status(400).json({ error: "projectId, name and category are required" });
+      }
+      const item = await storage.createHandoverItem({
+        orgId, projectId,
+        name: name.trim(),
+        category: category.trim(),
+        quantity: quantity ?? 1,
+        unit: unit ?? "nos",
+        status: status ?? "pending",
+        notes: notes ?? null,
+        sortOrder: sortOrder ?? 0,
+      });
+      res.status(201).json(item);
+    } catch (err) {
+      console.error("POST /api/handover-items error:", err);
+      res.status(500).json({ error: "Failed to create item" });
+    }
+  });
+
+  app.patch("/api/handover-items/:id", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { id } = req.params;
+      const { name, category, quantity, unit, status, notes } = req.body;
+      const updates: Record<string, unknown> = {};
+      if (name !== undefined) updates.name = name.trim();
+      if (category !== undefined) updates.category = category.trim();
+      if (quantity !== undefined) updates.quantity = quantity;
+      if (unit !== undefined) updates.unit = unit;
+      if (status !== undefined) updates.status = status;
+      if (notes !== undefined) updates.notes = notes;
+      const updated = await storage.updateHandoverItem(id, orgId, updates as any);
+      if (!updated) return res.status(404).json({ error: "Item not found" });
+      res.json(updated);
+    } catch (err) {
+      console.error("PATCH /api/handover-items/:id error:", err);
+      res.status(500).json({ error: "Failed to update item" });
+    }
+  });
+
+  app.delete("/api/handover-items/:id", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const deleted = await storage.deleteHandoverItem(req.params.id, orgId);
+      if (!deleted) return res.status(404).json({ error: "Item not found" });
+      res.json({ success: true });
+    } catch (err) {
+      console.error("DELETE /api/handover-items/:id error:", err);
+      res.status(500).json({ error: "Failed to delete item" });
+    }
+  });
+  // ────────────────────────────────────────────────────────────────────────────
+
   // Saved Assets Routes - Admin/Designer only
   app.get("/api/saved-assets", requireAdmin, async (req, res) => {
     try {

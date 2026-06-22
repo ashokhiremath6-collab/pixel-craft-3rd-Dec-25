@@ -1290,3 +1290,25 @@ export const proposals = pgTable("proposals", {
 export const insertProposalSchema = createInsertSchema(proposals).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertProposal = z.infer<typeof insertProposalSchema>;
 export type Proposal = typeof proposals.$inferSelect;
+
+// Accessories Checklist — per-project handover items
+export const handoverItems = pgTable("handover_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id").notNull(),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  unit: text("unit").notNull().default("nos"),
+  status: text("status").notNull().default("pending"), // pending | sourced | installed
+  notes: text("notes"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => ({
+  projectIdx: index("handover_items_project_idx").on(table.projectId),
+  orgIdx: index("handover_items_org_idx").on(table.orgId),
+}));
+
+export const insertHandoverItemSchema = createInsertSchema(handoverItems).omit({ id: true, createdAt: true });
+export type InsertHandoverItem = z.infer<typeof insertHandoverItemSchema>;
+export type HandoverItem = typeof handoverItems.$inferSelect;

@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import ThemeToggle from "@/components/ThemeToggle";
 import NotFound from "@/pages/not-found";
 import DashboardPage from "@/pages/DashboardPage";
+import AccessoriesChecklistPage from "@/pages/AccessoriesChecklistPage";
 import SuperAdminPage from "@/pages/SuperAdminPage";
 import VendorsPage from "@/pages/VendorsPage";
 import ProjectsPage from "@/pages/ProjectsPage";
@@ -96,6 +97,7 @@ function Router() {
       <Route path="/client-access" component={ClientAccessPage} />
       <Route path="/project-brief" component={ProjectBriefPage} />
       <Route path="/sops" component={SOPsPage} />
+      <Route path="/accessories-checklist" component={AccessoriesChecklistPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/account" component={AccountPage} />
       <Route path="/superadmin" component={SuperAdminPage} />
