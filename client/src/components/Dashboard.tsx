@@ -365,7 +365,7 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
           <div className="space-y-2">
             {visible.map(alert => {
               const amount = alert.quotation_value
-                ? Number(alert.quotation_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                ? `${(Number(alert.quotation_value) / 100000).toFixed(2)} lacs`
                 : null;
               const when = (() => {
                 const h = differenceInHours(new Date(), new Date(alert.submitted_at));
