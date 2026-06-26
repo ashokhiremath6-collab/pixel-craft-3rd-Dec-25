@@ -204,6 +204,13 @@
       "when": 1782470000000,
       "tag": "0028_quote_file_amount",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1782471000000,
+      "tag": "0029_quote_file_display_name",
+      "breakpoints": true
     }
   ]
 }

@@ -2329,10 +2329,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const portalFiles = pv.portalSubmittedAt ? (portalFilesByPV.get(pv.id) || []) : [];
           if (portalFiles.length > 0) {
             for (const file of portalFiles) {
-              const fileLabel = file.fileName.replace(/\.[^/.]+$/, ''); // strip extension
+              const f = file as any;
+              // Prefer parsed subject (display_name) → filename without extension
+              const fileLabel = f.displayName
+                ? String(f.displayName)
+                : file.fileName.replace(/\.[^/.]+$/, '');
               // Use per-file quoted_amount when available, fall back to pv-level value
-              const fileAmount = (file as any).quotedAmount != null
-                ? String((file as any).quotedAmount)
+              const fileAmount = f.quotedAmount != null
+                ? String(f.quotedAmount)
                 : baseEntry.quotationValue;
               quotationsByProject[pv.projectId].push({
                 ...baseEntry,
@@ -11178,17 +11182,55 @@ Return your response in the following JSON format only (no markdown, no code blo
       if (!row.rows.length) return res.status(404).json({ error: "Quote request not found" });
       if (row.rows[0].vendor_id !== userRole.linkedVendorId) return res.status(403).json({ error: "Access denied" });
 
-      // Parse each uploaded PDF individually and store per-file amounts in quote_files.quoted_amount
-      // Then use the TOTAL across all files as the pv-level quoted_amount fallback
+      // Parse each uploaded PDF individually — extract both the quote total and the subject/product name
       const NUM_AFTER_LABEL = /(?:grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|total\s*value|total)[^\n\d₹Rs$]*[₹Rs$.\s]*([1-9][0-9,]{3,}(?:\.[0-9]{1,2})?)/gi;
 
-      const parsePdfTotal = async (file: { id: string; fileName: string; filePath: string; fileType: string }): Promise<number | null> => {
+      // Extract the subject/product name from PDF text.
+      // Tries (in order): Subject/Sub line → Quotation-for line → product keyword line → null
+      const extractPdfSubject = (text: string): string | null => {
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 3);
+
+        // 1. Explicit Subject / Sub / Re label
+        for (const line of lines.slice(0, 40)) {
+          const m = line.match(/^(?:subject|sub(?:ject)?|re|ref(?:erence)?)\s*[:.\-–]\s*(.{8,})/i);
+          if (m) {
+            const val = m[1].replace(/\s+/g, ' ').trim();
+            if (val.length < 200) return val;
+          }
+        }
+
+        // 2. "Quotation for / Supply of / Installation of" patterns
+        for (const line of lines.slice(0, 40)) {
+          const m = line.match(/(?:quotation\s+for|supply\s+of|supply\s+&\s+installation\s+of|installation\s+of|for\s+supply\s+of)\s+(.{8,})/i);
+          if (m) {
+            const val = m[1].replace(/\s+/g, ' ').trim();
+            if (val.length < 200) return val;
+          }
+        }
+
+        // 3. First line in the first 30 that looks like a product name
+        // — contains interior/construction keywords and is of a reasonable length
+        const PRODUCT_KW = /aluminium|window|door|glass|kitchen|bathroom|tile|flooring|ceiling|light(?:ing)?|electrical|plumbing|carpentry|fabric|curtain|blind|shutter|sanitar|fitting|hardware|paint|wallpaper|furniture|modular|wardrobe|granite|marble|steel|iron|railing|balcony|balustrade/i;
+        // Exclude lines that look like addresses, dates, or greetings
+        const EXCLUDE = /dear|sir|madam|kindly|please|date|invoice|quotation\s*no|ref\s*no|gst|pan\s*no|phone|email|www\.|http|\d{5,}|pvt\.|ltd\.|llp/i;
+        for (const line of lines.slice(0, 30)) {
+          if (line.length >= 10 && line.length <= 120 && PRODUCT_KW.test(line) && !EXCLUDE.test(line)) {
+            return line.replace(/\s+/g, ' ').trim();
+          }
+        }
+
+        return null;
+      };
+
+      const parsePdfData = async (file: { id: string; fileName: string; filePath: string; fileType: string }): Promise<{ total: number | null; subject: string | null }> => {
         try {
           const buf = await downloadObjectBuffer(file.filePath);
-          if (!buf) { console.warn(`Portal submit: could not download ${file.fileName}`); return null; }
+          if (!buf) { console.warn(`Portal submit: could not download ${file.fileName}`); return { total: null, subject: null }; }
           const parsed = await pdfParse(buf);
           const text = parsed.text;
           console.log(`Portal submit: extracted ${text.length} chars from ${file.fileName}`);
+
+          // Extract total
           let best = 0;
           NUM_AFTER_LABEL.lastIndex = 0;
           let m: RegExpExecArray | null;
@@ -11199,14 +11241,20 @@ Return your response in the following JSON format only (no markdown, no code blo
               console.log(`Portal submit: candidate total ${val} from "${m[0].substring(0, 50)}"`);
             }
           }
-          return best > 0 ? best : null;
+
+          // Extract subject
+          const subject = extractPdfSubject(text);
+          if (subject) console.log(`Portal submit: extracted subject "${subject}" from ${file.fileName}`);
+          else console.log(`Portal submit: no subject found in ${file.fileName}`);
+
+          return { total: best > 0 ? best : null, subject };
         } catch (e) {
           console.warn(`Portal submit: PDF parse error for ${file.fileName}:`, e);
-          return null;
+          return { total: null, subject: null };
         }
       };
 
-      // Parse all files and store per-file amounts
+      // Parse all files and store per-file amounts + display names
       let resolvedAmount: string | null = quotedAmount ? String(quotedAmount) : null;
       try {
         const uploadedFiles = await storage.getQuoteFilesByProjectVendor(pvId);
@@ -11215,12 +11263,23 @@ Return your response in the following JSON format only (no markdown, no code blo
         for (const file of uploadedFiles) {
           const isPdf = (file.fileType || '').toLowerCase().replace('.', '') === 'pdf';
           if (!isPdf) continue;
-          const fileTotal = await parsePdfTotal(file);
+          const { total: fileTotal, subject } = await parsePdfData(file);
+          const updates: Record<string, string | null> = {};
           if (fileTotal !== null) {
-            // Store per-file amount
-            await db.execute(sql`UPDATE quote_files SET quoted_amount = ${String(fileTotal)} WHERE id = ${file.id}`);
+            updates.quoted_amount = String(fileTotal);
             sumTotal += fileTotal;
-            console.log(`Portal submit: stored ${fileTotal} on quote_file ${file.id} (${file.fileName})`);
+          }
+          if (subject) updates.display_name = subject;
+          if (Object.keys(updates).length > 0) {
+            // Build parameterised SET via individual fields
+            if (updates.quoted_amount !== undefined && updates.display_name !== undefined) {
+              await db.execute(sql`UPDATE quote_files SET quoted_amount = ${updates.quoted_amount}, display_name = ${updates.display_name} WHERE id = ${file.id}`);
+            } else if (updates.quoted_amount !== undefined) {
+              await db.execute(sql`UPDATE quote_files SET quoted_amount = ${updates.quoted_amount} WHERE id = ${file.id}`);
+            } else if (updates.display_name !== undefined) {
+              await db.execute(sql`UPDATE quote_files SET display_name = ${updates.display_name} WHERE id = ${file.id}`);
+            }
+            console.log(`Portal submit: updated quote_file ${file.id} — total=${fileTotal}, subject="${subject}"`);
           }
         }
         // If no manual amount was given, use the sum of all file totals as the pv-level value
