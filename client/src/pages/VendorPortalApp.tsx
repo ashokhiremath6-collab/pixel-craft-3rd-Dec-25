@@ -615,14 +615,6 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
               {quote.is_negotiated && <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />}
               <Badge className={`text-xs ${statusClass}`}>{STATUS_LABELS[quote.status] ?? quote.status}</Badge>
-              <Button
-                size="sm"
-                variant="default"
-                onClick={() => { setAmount(quote.quotation_value ? String(quote.quotation_value) : ""); setSubmitNotes(quote.notes || ""); setOpen(true); }}
-              >
-                <Send className="h-3.5 w-3.5 mr-1.5" />
-                {alreadySubmitted ? "Update submission" : "Send to studio"}
-              </Button>
             </div>
           </div>
 
@@ -726,6 +718,23 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
               </div>
             )}
           </div>
+
+          {/* Submit Quotation — final action below documents */}
+          <div className="border-t pt-3">
+            <Button
+              className="w-full"
+              variant="default"
+              onClick={() => { setAmount(quote.quotation_value ? String(quote.quotation_value) : ""); setSubmitNotes(quote.notes || ""); setOpen(true); }}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Submit Quotation
+            </Button>
+            {alreadySubmitted && quote.submitted_at && (
+              <p className="text-xs text-center text-muted-foreground mt-2">
+                Last submitted {formatDate(quote.submitted_at)}
+              </p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -733,7 +742,7 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{alreadySubmitted ? "Update your submission" : "Send quote to studio"}</DialogTitle>
+            <DialogTitle>Submit Quotation</DialogTitle>
           </DialogHeader>
           <div className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{quote.project_name}</span>
