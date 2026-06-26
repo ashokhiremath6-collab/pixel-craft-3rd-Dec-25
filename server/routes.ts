@@ -2114,14 +2114,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // PATCH /api/quote-files/:id — update per-file quoted amount
+  // PATCH /api/quote-files/:id — update per-file quoted amount and/or display name
   app.patch("/api/quote-files/:id", requireAuth, async (req, res) => {
     try {
-      const { quotedAmount } = req.body;
+      const { quotedAmount, displayName } = req.body;
       const fileId = req.params.id;
       const newAmount = quotedAmount ? String(quotedAmount) : null;
+      const newDisplayName = displayName && displayName.trim() ? displayName.trim() : null;
       const result = await db.execute(sql`
-        UPDATE quote_files SET quoted_amount = ${newAmount} WHERE id = ${fileId} RETURNING *
+        UPDATE quote_files
+        SET quoted_amount = ${newAmount},
+            display_name  = COALESCE(${newDisplayName}, display_name)
+        WHERE id = ${fileId}
+        RETURNING *
       `);
       if (!result.rows.length) return res.status(404).json({ error: "Quote file not found" });
       res.json(result.rows[0]);

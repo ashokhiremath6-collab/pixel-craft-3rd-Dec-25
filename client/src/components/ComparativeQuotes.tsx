@@ -198,8 +198,11 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const updateQuoteMutation = useMutation({
     mutationFn: async (data: { quoteId: string; quoteFileId?: string | null; updates: any }) => {
       if (data.quoteFileId) {
-        // Per-file row: update the file's own quoted_amount
-        const fileUpdates: any = { quotedAmount: data.updates.quotationValue || null };
+        // Per-file row: update the file's own quoted_amount and display_name
+        const fileUpdates: any = {
+          quotedAmount: data.updates.quotationValue || null,
+          displayName: data.updates.quotationName || null,
+        };
         const response = await apiRequest('PATCH', `/api/quote-files/${data.quoteFileId}`, fileUpdates);
         // Also update pv-level fields (notes, isNegotiated, dateOfQuotation) on the parent PV
         const pvUpdates = {
