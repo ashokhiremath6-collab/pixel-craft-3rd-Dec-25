@@ -116,6 +116,12 @@ export default function LandingPage() {
 
           {/* Desktop CTAs */}
           <div className="hidden md:flex items-center gap-3">
+            <button
+              onClick={() => navigate("/login")}
+              className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              Log in
+            </button>
           </div>
 
           {/* Mobile menu toggle */}
@@ -135,6 +141,12 @@ export default function LandingPage() {
             <a href="#how-it-works" className="text-sm text-gray-600 hover:text-gray-900" onClick={() => setMobileMenuOpen(false)}>How it works</a>
             <a href="#pricing" className="text-sm text-gray-600 hover:text-gray-900" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
             <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
+              <button
+                onClick={() => { setMobileMenuOpen(false); navigate("/login"); }}
+                className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors text-left"
+              >
+                Log in
+              </button>
             </div>
           </div>
         )}
