@@ -555,9 +555,9 @@ export default function Dashboard({
     taskAlerts.completionCountdown.length > 0 ||
     taskAlerts.overdue.length > 0;
 
-  const sortedActivities = [...activities].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  const sortedActivities = [...activities]
+    .filter(a => !a.activityType.endsWith("_delete"))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   // Sort breakdown based on user's chosen mode
   const sortedBreakdown = [...projectTaskBreakdown].sort((a, b) => {
