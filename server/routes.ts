@@ -11407,6 +11407,18 @@ Return your response in the following JSON format only (no markdown, no code blo
         });
         saved.push(qf);
       }
+
+      // Mark the quote as portal-submitted as soon as the vendor uploads any file,
+      // so the studio sees an alert immediately without requiring the vendor to click "Send to studio".
+      // Use COALESCE so we don't overwrite an existing timestamp; reset acknowledged so
+      // the studio is re-alerted if the vendor uploads additional files after a prior ack.
+      await db.execute(sql`
+        UPDATE project_vendors
+        SET portal_submitted_at    = COALESCE(portal_submitted_at, now()),
+            portal_acknowledged_at = NULL
+        WHERE id = ${pvId}
+      `);
+
       res.json(saved);
     } catch (err) {
       console.error("Vendor file upload error:", err);
@@ -11586,6 +11598,7 @@ Return your response in the following JSON format only (no markdown, no code blo
 
         SELECT
           vd.id,
+          NULL::text AS pv_id,
           NULL::numeric AS quotation_value,
           NULL::text AS notes,
           vd.uploaded_at AS submitted_at,
