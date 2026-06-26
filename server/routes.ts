@@ -2278,13 +2278,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             'projectVendorId' in a.metadata && 
             a.metadata.projectVendorId === pv.id
           );
-          if (uploadActivity) {
-            uploaderName = uploadActivity.userName;
-            uploadedAt = uploadActivity.createdAt;
-          } else if (pv.portalSubmittedAt) {
-            // Fix: use portal submission time as the upload date for portal-submitted quotes
+          if (pv.portalSubmittedAt) {
+            // Portal submission: the vendor submitted the quote themselves — use that timestamp
             uploadedAt = pv.portalSubmittedAt;
             uploaderName = vendor?.name || null;
+          } else if (uploadActivity && uploadActivity.createdAt) {
+            // Admin-side upload: use the activity log date and uploader
+            uploaderName = uploadActivity.userName;
+            uploadedAt = uploadActivity.createdAt;
           }
 
           const baseEntry = {
@@ -2307,15 +2308,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             portalSubmittedAt: pv.portalSubmittedAt,
           };
 
-          // Fix: portal submissions with multiple files → one row per file
+          // Fix 1: portal submissions → one row per uploaded file (so multiple quotes show separately)
           const portalFiles = pv.portalSubmittedAt ? (portalFilesByPV.get(pv.id) || []) : [];
-          if (portalFiles.length > 1) {
+          if (portalFiles.length > 0) {
             for (const file of portalFiles) {
               const fileLabel = file.fileName.replace(/\.[^/.]+$/, ''); // strip extension
               quotationsByProject[pv.projectId].push({
                 ...baseEntry,
                 quotationName: fileLabel,
-                // each file row shares the same pv.id so status changes work correctly
               });
             }
           } else {
@@ -11161,20 +11161,35 @@ Return your response in the following JSON format only (no markdown, no code blo
       if (!resolvedAmount) {
         try {
           const uploadedFiles = await storage.getQuoteFilesByProjectVendor(pvId);
-          const pdfFiles = uploadedFiles.filter(f => f.fileType === 'pdf');
-          const GRAND_TOTAL_PATTERN = /(grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|total\s*value|total)[\s:₹Rs.$]*([0-9,]+(?:\.[0-9]{1,2})?)/gi;
+          const pdfFiles = uploadedFiles.filter(f =>
+            f.fileType === 'pdf' || f.fileType === '.pdf' || (f.fileType || '').toLowerCase() === 'pdf'
+          );
+          console.log(`Portal submit: found ${pdfFiles.length} PDF file(s) for pvId=${pvId}`);
+          // Patterns ordered from most specific (grand total) to least specific (subtotals)
+          // We collect ALL matches and take the maximum value
+          const PATTERNS = [
+            /(grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|total\s*value)/gi,
+            /(total)/gi,
+          ];
+          // Broad number-after-label extraction — handles Indian & international formats
+          const NUM_AFTER_LABEL = /(?:grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|total\s*value|total)[^\n\d₹Rs$]*[₹Rs$.\s]*([1-9][0-9,]{3,}(?:\.[0-9]{1,2})?)/gi;
           let bestTotal = 0;
           for (const file of pdfFiles) {
             try {
               const buf = await downloadObjectBuffer(file.filePath);
-              if (!buf) continue;
+              if (!buf) { console.warn(`Portal submit: could not download ${file.fileName}`); continue; }
               const parsed = await pdfParse(buf);
               const text = parsed.text;
+              console.log(`Portal submit: extracted ${text.length} chars from ${file.fileName}`);
               let m: RegExpExecArray | null;
-              GRAND_TOTAL_PATTERN.lastIndex = 0;
-              while ((m = GRAND_TOTAL_PATTERN.exec(text)) !== null) {
-                const val = parseFloat(m[2].replace(/,/g, ''));
-                if (!isNaN(val) && val > 100 && val > bestTotal) bestTotal = val;
+              NUM_AFTER_LABEL.lastIndex = 0;
+              while ((m = NUM_AFTER_LABEL.exec(text)) !== null) {
+                const raw = m[1].replace(/,/g, '');
+                const val = parseFloat(raw);
+                if (!isNaN(val) && val > 1000 && val > bestTotal) {
+                  bestTotal = val;
+                  console.log(`Portal submit: candidate total ${val} from pattern "${m[0].substring(0, 40)}"`);
+                }
               }
             } catch (pdfErr) {
               console.warn(`Portal submit: could not parse PDF ${file.fileName}:`, pdfErr);
@@ -11182,10 +11197,12 @@ Return your response in the following JSON format only (no markdown, no code blo
           }
           if (bestTotal > 0) {
             resolvedAmount = String(bestTotal);
-            console.log(`Portal submit: auto-extracted total ${resolvedAmount} from uploaded PDFs for pvId=${pvId}`);
+            console.log(`Portal submit: auto-extracted total ${resolvedAmount} for pvId=${pvId}`);
+          } else {
+            console.log(`Portal submit: no total found in PDFs for pvId=${pvId}, storing null`);
           }
         } catch (parseErr) {
-          console.warn('Portal submit: PDF auto-parse failed, storing null total:', parseErr);
+          console.warn('Portal submit: PDF auto-parse failed:', parseErr);
         }
       }
 
