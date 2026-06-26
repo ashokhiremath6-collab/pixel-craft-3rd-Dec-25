@@ -136,6 +136,7 @@ export const quoteFiles = pgTable("quote_files", {
   externalStorageProvider: text("external_storage_provider"), // dropbox, onedrive, etc.
   externalFileId: text("external_file_id"), // ID in external storage system
   orgId: varchar("org_id"),
+  quotedAmount: decimal("quoted_amount"), // per-file quote total (parsed from PDF or entered manually)
 });
 
 // Vendor general documents — uploaded by vendors in response to quote requests (not tied to a project)

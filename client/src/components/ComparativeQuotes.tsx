@@ -44,6 +44,7 @@ interface QuotationData {
   uploaderName?: string | null; // Who uploaded the file
   uploadedAt?: string | null; // When the file was uploaded
   portalSubmittedAt?: string | null; // Set when vendor submitted this via the portal
+  quoteFileId?: string | null; // Set when this row represents a specific portal-uploaded file
 }
 
 interface CategoryWithChildren extends VendorCategory {
@@ -193,11 +194,25 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     setEditFormData({ quotationName: "", quotationValue: "", dateOfQuotation: "", notes: "", isNegotiated: false });
   };
 
-  // Update quote mutation
+  // Update quote mutation — routes to per-file endpoint when quoteFileId is set
   const updateQuoteMutation = useMutation({
-    mutationFn: async (data: { quoteId: string; updates: any }) => {
-      const response = await apiRequest('PUT', `/api/project-vendors/${data.quoteId}`, data.updates);
-      return response.json();
+    mutationFn: async (data: { quoteId: string; quoteFileId?: string | null; updates: any }) => {
+      if (data.quoteFileId) {
+        // Per-file row: update the file's own quoted_amount
+        const fileUpdates: any = { quotedAmount: data.updates.quotationValue || null };
+        const response = await apiRequest('PATCH', `/api/quote-files/${data.quoteFileId}`, fileUpdates);
+        // Also update pv-level fields (notes, isNegotiated, dateOfQuotation) on the parent PV
+        const pvUpdates = {
+          notes: data.updates.notes || null,
+          dateOfQuotation: data.updates.dateOfQuotation || null,
+          isNegotiated: data.updates.isNegotiated,
+        };
+        await apiRequest('PUT', `/api/project-vendors/${data.quoteId}`, pvUpdates);
+        return response.json();
+      } else {
+        const response = await apiRequest('PUT', `/api/project-vendors/${data.quoteId}`, data.updates);
+        return response.json();
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/quotations'] });
@@ -224,6 +239,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     
     updateQuoteMutation.mutate({
       quoteId: editingQuote.id,
+      quoteFileId: editingQuote.quoteFileId,
       updates: {
         quotationName: editFormData.quotationName || "Main Quote",
         quotationValue: editFormData.quotationValue || null,

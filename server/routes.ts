@@ -2114,6 +2114,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PATCH /api/quote-files/:id — update per-file quoted amount
+  app.patch("/api/quote-files/:id", requireAuth, async (req, res) => {
+    try {
+      const { quotedAmount } = req.body;
+      const fileId = req.params.id;
+      const newAmount = quotedAmount ? String(quotedAmount) : null;
+      const result = await db.execute(sql`
+        UPDATE quote_files SET quoted_amount = ${newAmount} WHERE id = ${fileId} RETURNING *
+      `);
+      if (!result.rows.length) return res.status(404).json({ error: "Quote file not found" });
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating quote file:', error);
+      res.status(500).json({ error: "Failed to update quote file" });
+    }
+  });
+
   // Delete a project vendor
   app.delete("/api/project-vendors/:id", requireAuth, async (req, res) => {
     try {
@@ -2313,9 +2330,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (portalFiles.length > 0) {
             for (const file of portalFiles) {
               const fileLabel = file.fileName.replace(/\.[^/.]+$/, ''); // strip extension
+              // Use per-file quoted_amount when available, fall back to pv-level value
+              const fileAmount = (file as any).quotedAmount != null
+                ? String((file as any).quotedAmount)
+                : baseEntry.quotationValue;
               quotationsByProject[pv.projectId].push({
                 ...baseEntry,
                 quotationName: fileLabel,
+                quotationValue: fileAmount,
+                quoteFileId: file.id,
               });
             }
           } else {
@@ -11155,55 +11178,58 @@ Return your response in the following JSON format only (no markdown, no code blo
       if (!row.rows.length) return res.status(404).json({ error: "Quote request not found" });
       if (row.rows[0].vendor_id !== userRole.linkedVendorId) return res.status(403).json({ error: "Access denied" });
 
-      // Determine quotation value — use manually entered amount if provided,
-      // otherwise try to parse grand total from uploaded PDF files
-      let resolvedAmount: string | null = quotedAmount ? String(quotedAmount) : null;
-      if (!resolvedAmount) {
+      // Parse each uploaded PDF individually and store per-file amounts in quote_files.quoted_amount
+      // Then use the TOTAL across all files as the pv-level quoted_amount fallback
+      const NUM_AFTER_LABEL = /(?:grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|total\s*value|total)[^\n\d₹Rs$]*[₹Rs$.\s]*([1-9][0-9,]{3,}(?:\.[0-9]{1,2})?)/gi;
+
+      const parsePdfTotal = async (file: { id: string; fileName: string; filePath: string; fileType: string }): Promise<number | null> => {
         try {
-          const uploadedFiles = await storage.getQuoteFilesByProjectVendor(pvId);
-          const pdfFiles = uploadedFiles.filter(f =>
-            f.fileType === 'pdf' || f.fileType === '.pdf' || (f.fileType || '').toLowerCase() === 'pdf'
-          );
-          console.log(`Portal submit: found ${pdfFiles.length} PDF file(s) for pvId=${pvId}`);
-          // Patterns ordered from most specific (grand total) to least specific (subtotals)
-          // We collect ALL matches and take the maximum value
-          const PATTERNS = [
-            /(grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|total\s*value)/gi,
-            /(total)/gi,
-          ];
-          // Broad number-after-label extraction — handles Indian & international formats
-          const NUM_AFTER_LABEL = /(?:grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|total\s*value|total)[^\n\d₹Rs$]*[₹Rs$.\s]*([1-9][0-9,]{3,}(?:\.[0-9]{1,2})?)/gi;
-          let bestTotal = 0;
-          for (const file of pdfFiles) {
-            try {
-              const buf = await downloadObjectBuffer(file.filePath);
-              if (!buf) { console.warn(`Portal submit: could not download ${file.fileName}`); continue; }
-              const parsed = await pdfParse(buf);
-              const text = parsed.text;
-              console.log(`Portal submit: extracted ${text.length} chars from ${file.fileName}`);
-              let m: RegExpExecArray | null;
-              NUM_AFTER_LABEL.lastIndex = 0;
-              while ((m = NUM_AFTER_LABEL.exec(text)) !== null) {
-                const raw = m[1].replace(/,/g, '');
-                const val = parseFloat(raw);
-                if (!isNaN(val) && val > 1000 && val > bestTotal) {
-                  bestTotal = val;
-                  console.log(`Portal submit: candidate total ${val} from pattern "${m[0].substring(0, 40)}"`);
-                }
-              }
-            } catch (pdfErr) {
-              console.warn(`Portal submit: could not parse PDF ${file.fileName}:`, pdfErr);
+          const buf = await downloadObjectBuffer(file.filePath);
+          if (!buf) { console.warn(`Portal submit: could not download ${file.fileName}`); return null; }
+          const parsed = await pdfParse(buf);
+          const text = parsed.text;
+          console.log(`Portal submit: extracted ${text.length} chars from ${file.fileName}`);
+          let best = 0;
+          NUM_AFTER_LABEL.lastIndex = 0;
+          let m: RegExpExecArray | null;
+          while ((m = NUM_AFTER_LABEL.exec(text)) !== null) {
+            const val = parseFloat(m[1].replace(/,/g, ''));
+            if (!isNaN(val) && val > 1000 && val > best) {
+              best = val;
+              console.log(`Portal submit: candidate total ${val} from "${m[0].substring(0, 50)}"`);
             }
           }
-          if (bestTotal > 0) {
-            resolvedAmount = String(bestTotal);
-            console.log(`Portal submit: auto-extracted total ${resolvedAmount} for pvId=${pvId}`);
-          } else {
-            console.log(`Portal submit: no total found in PDFs for pvId=${pvId}, storing null`);
-          }
-        } catch (parseErr) {
-          console.warn('Portal submit: PDF auto-parse failed:', parseErr);
+          return best > 0 ? best : null;
+        } catch (e) {
+          console.warn(`Portal submit: PDF parse error for ${file.fileName}:`, e);
+          return null;
         }
+      };
+
+      // Parse all files and store per-file amounts
+      let resolvedAmount: string | null = quotedAmount ? String(quotedAmount) : null;
+      try {
+        const uploadedFiles = await storage.getQuoteFilesByProjectVendor(pvId);
+        console.log(`Portal submit: found ${uploadedFiles.length} file(s) for pvId=${pvId}`);
+        let sumTotal = 0;
+        for (const file of uploadedFiles) {
+          const isPdf = (file.fileType || '').toLowerCase().replace('.', '') === 'pdf';
+          if (!isPdf) continue;
+          const fileTotal = await parsePdfTotal(file);
+          if (fileTotal !== null) {
+            // Store per-file amount
+            await db.execute(sql`UPDATE quote_files SET quoted_amount = ${String(fileTotal)} WHERE id = ${file.id}`);
+            sumTotal += fileTotal;
+            console.log(`Portal submit: stored ${fileTotal} on quote_file ${file.id} (${file.fileName})`);
+          }
+        }
+        // If no manual amount was given, use the sum of all file totals as the pv-level value
+        if (!resolvedAmount && sumTotal > 0) {
+          resolvedAmount = String(sumTotal);
+          console.log(`Portal submit: pv-level total set to ${resolvedAmount} (sum of file PDFs)`);
+        }
+      } catch (parseErr) {
+        console.warn('Portal submit: PDF parse phase failed:', parseErr);
       }
 
       await db.execute(sql`
