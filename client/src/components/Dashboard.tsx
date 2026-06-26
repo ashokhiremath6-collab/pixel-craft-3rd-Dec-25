@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -468,6 +469,18 @@ export default function Dashboard({
   vendorAlerts = [],
   onNavigate,
 }: DashboardProps) {
+  const { user } = useAuth();
+  const { data: org } = useQuery<{ id: string; name: string }>({
+    queryKey: ["/api/organisations", user?.orgId],
+    queryFn: async () => {
+      const res = await fetch(`/api/organisations/${user!.orgId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch org");
+      return res.json();
+    },
+    enabled: !!user?.orgId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const [isQuotationDetailModalOpen, setIsQuotationDetailModalOpen] = useState(false);
   const [showAllProjects, setShowAllProjects] = useState(() => localStorage.getItem('dashboard_show_all_projects') === 'true');
   const [breakdownSortMode, setBreakdownSortMode] = useState<BreakdownSortMode>(() => {
@@ -576,7 +589,7 @@ export default function Dashboard({
             style={{ fontSize: "clamp(1.5rem,4vw,3.75rem)", color: "#111827", letterSpacing: "-1px" }}
             data-testid="heading-dashboard"
           >
-            Olympik Design
+            {org?.name ?? "Olympik Design"}
           </h1>
           <p className="text-sm sm:text-[18px]" style={{ color: "#86868b" }}>
             Overview of your vendors, projects, and quotations.
