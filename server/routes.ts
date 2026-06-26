@@ -1018,8 +1018,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
       const inviterName = [callerUser.firstName, callerUser.lastName].filter(Boolean).join(" ") || callerUser.email || "A team member";
 
-      // Check if this vendor email already has an account so the email CTA can say "Enter Portal"
-      const existingUser = await storage.getUserByEmail(normalizedEmail);
+      // existingUser already fetched above — use it to set the email CTA for returning vendors
       const alreadyHasAccount = !!existingUser;
 
       let emailSent = true;
