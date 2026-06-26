@@ -163,7 +163,8 @@ export async function sendInvitationEmail(
   role: string,
   token: string,
   baseUrl?: string,
-  inviteMessage?: string
+  inviteMessage?: string,
+  alreadyHasAccount?: boolean
 ): Promise<void> {
   const inviteUrl = `${baseUrl || getBaseUrl()}/invite/${token}`;
   console.info(`[EMAIL] Invitation link for ${email}: ${inviteUrl}`);
@@ -184,7 +185,15 @@ export async function sendInvitationEmail(
     ? `<strong>${invitedBy}</strong> from <strong>${orgName}</strong> has invited you to submit a quote via Olympik Design.`
     : `<strong>${invitedBy}</strong> has invited you to join <strong>${orgName}</strong> on Olympik Design as a <strong>${role}</strong>.`;
 
-  const ctaLabel = isVendor ? 'Set Up Your Vendor Account' : 'Accept Invitation';
+  const ctaLabel = isVendor
+    ? (alreadyHasAccount ? 'Enter Portal' : 'Set Up Your Vendor Account')
+    : 'Accept Invitation';
+
+  const actionLine = isVendor
+    ? (alreadyHasAccount
+        ? 'Click the button below to enter your vendor portal and submit your quote. This link expires in 48 hours.'
+        : 'Click the button below to set up your account and submit your quote. This link expires in 48 hours.')
+    : 'Click the button below to get started. This link expires in 48 hours.';
 
   await sendEmail({
     to: email,
@@ -199,7 +208,7 @@ export async function sendInvitationEmail(
           <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 8px;">${bodyIntro}</p>
           ${messageBlock}
           <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
-            Click the button below to set up your account and ${isVendor ? 'submit your quote' : 'get started'}. This link expires in 48 hours.
+            ${actionLine}
           </p>
           <a href="${inviteUrl}" style="display:inline-block;background:#0071e3;color:#fff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
             ${ctaLabel}
@@ -211,7 +220,7 @@ export async function sendInvitationEmail(
       </div>
     `,
     text: isVendor
-      ? `Quote request from ${orgName}\n\n${invitedBy} has invited you to submit a quote via Olympik Design.${inviteMessage ? `\n\nDetails:\n${inviteMessage}` : ''}\n\nSet up your account here:\n${inviteUrl}\n\nThis link expires in 48 hours.`
+      ? `Quote request from ${orgName}\n\n${invitedBy} has invited you to submit a quote via Olympik Design.${inviteMessage ? `\n\nDetails:\n${inviteMessage}` : ''}\n\n${alreadyHasAccount ? 'Enter your portal here' : 'Set up your account here'}:\n${inviteUrl}\n\nThis link expires in 48 hours.`
       : `You've been invited to join ${orgName} on Olympik Design!\n\n${invitedBy} has invited you as a ${role}.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in 48 hours.`,
   });
 }

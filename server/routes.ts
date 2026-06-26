@@ -1018,10 +1018,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
       const inviterName = [callerUser.firstName, callerUser.lastName].filter(Boolean).join(" ") || callerUser.email || "A team member";
 
+      // Check if this vendor email already has an account so the email CTA can say "Enter Portal"
+      const existingUser = await storage.getUserByEmail(normalizedEmail);
+      const alreadyHasAccount = !!existingUser;
+
       let emailSent = true;
       try {
         const { sendInvitationEmail } = await import("./email");
-        await sendInvitationEmail(normalizedEmail, inviterName, org.name, role, token, baseUrl, inviteMessage ?? undefined);
+        await sendInvitationEmail(normalizedEmail, inviterName, org.name, role, token, baseUrl, inviteMessage ?? undefined, alreadyHasAccount);
       } catch (emailErr) {
         console.error("[INVITE] Failed to send invitation email:", emailErr);
         emailSent = false;
