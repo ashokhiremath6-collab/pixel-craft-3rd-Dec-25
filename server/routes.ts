@@ -2210,13 +2210,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Pre-fetch ALL BOQ items in a single query to avoid N+1 database round trips
       const allProjectVendorIds = projectVendors.map(pv => pv.id);
-      const allBOQItems = await storage.getBOQBulkByProjectVendors(allProjectVendorIds);
+      const [allBOQItems, allPortalFiles] = await Promise.all([
+        storage.getBOQBulkByProjectVendors(allProjectVendorIds),
+        storage.getQuoteFilesBulkByProjectVendors(allProjectVendorIds),
+      ]);
       const boqByProjectVendor = new Map<string, typeof allBOQItems>();
       for (const item of allBOQItems) {
         if (!boqByProjectVendor.has(item.projectVendorId)) {
           boqByProjectVendor.set(item.projectVendorId, []);
         }
         boqByProjectVendor.get(item.projectVendorId)!.push(item);
+      }
+      // Map of pvId → portal-uploaded files (quote_files)
+      const portalFilesByPV = new Map<string, typeof allPortalFiles>();
+      for (const f of allPortalFiles) {
+        if (!portalFilesByPV.has(f.projectVendorId)) {
+          portalFilesByPV.set(f.projectVendorId, []);
+        }
+        portalFilesByPV.get(f.projectVendorId)!.push(f);
       }
 
       // Calculate totals from BOQ items for quotes without explicit totals
@@ -2270,9 +2281,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (uploadActivity) {
             uploaderName = uploadActivity.userName;
             uploadedAt = uploadActivity.createdAt;
+          } else if (pv.portalSubmittedAt) {
+            // Fix: use portal submission time as the upload date for portal-submitted quotes
+            uploadedAt = pv.portalSubmittedAt;
+            uploaderName = vendor?.name || null;
           }
 
-          quotationsByProject[pv.projectId].push({
+          const baseEntry = {
             id: pv.id,
             vendorName: isComparativeStatement ? 'Multiple Vendors' : (vendor?.name || 'Unknown'),
             category: categoryName || 'Uncategorized',
@@ -2289,8 +2304,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             uploaderName: uploaderName,
             uploadedAt: uploadedAt,
             unitRateSubtype: pv.unitRateSubtype,
-            portalSubmittedAt: pv.portalSubmittedAt
-          });
+            portalSubmittedAt: pv.portalSubmittedAt,
+          };
+
+          // Fix: portal submissions with multiple files → one row per file
+          const portalFiles = pv.portalSubmittedAt ? (portalFilesByPV.get(pv.id) || []) : [];
+          if (portalFiles.length > 1) {
+            for (const file of portalFiles) {
+              const fileLabel = file.fileName.replace(/\.[^/.]+$/, ''); // strip extension
+              quotationsByProject[pv.projectId].push({
+                ...baseEntry,
+                quotationName: fileLabel,
+                // each file row shares the same pv.id so status changes work correctly
+              });
+            }
+          } else {
+            quotationsByProject[pv.projectId].push(baseEntry);
+          }
         }
       }
       
@@ -11125,10 +11155,44 @@ Return your response in the following JSON format only (no markdown, no code blo
       if (!row.rows.length) return res.status(404).json({ error: "Quote request not found" });
       if (row.rows[0].vendor_id !== userRole.linkedVendorId) return res.status(403).json({ error: "Access denied" });
 
+      // Determine quotation value — use manually entered amount if provided,
+      // otherwise try to parse grand total from uploaded PDF files
+      let resolvedAmount: string | null = quotedAmount ? String(quotedAmount) : null;
+      if (!resolvedAmount) {
+        try {
+          const uploadedFiles = await storage.getQuoteFilesByProjectVendor(pvId);
+          const pdfFiles = uploadedFiles.filter(f => f.fileType === 'pdf');
+          const GRAND_TOTAL_PATTERN = /(grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|total\s*value|total)[\s:₹Rs.$]*([0-9,]+(?:\.[0-9]{1,2})?)/gi;
+          let bestTotal = 0;
+          for (const file of pdfFiles) {
+            try {
+              const buf = await downloadObjectBuffer(file.filePath);
+              if (!buf) continue;
+              const parsed = await pdfParse(buf);
+              const text = parsed.text;
+              let m: RegExpExecArray | null;
+              GRAND_TOTAL_PATTERN.lastIndex = 0;
+              while ((m = GRAND_TOTAL_PATTERN.exec(text)) !== null) {
+                const val = parseFloat(m[2].replace(/,/g, ''));
+                if (!isNaN(val) && val > 100 && val > bestTotal) bestTotal = val;
+              }
+            } catch (pdfErr) {
+              console.warn(`Portal submit: could not parse PDF ${file.fileName}:`, pdfErr);
+            }
+          }
+          if (bestTotal > 0) {
+            resolvedAmount = String(bestTotal);
+            console.log(`Portal submit: auto-extracted total ${resolvedAmount} from uploaded PDFs for pvId=${pvId}`);
+          }
+        } catch (parseErr) {
+          console.warn('Portal submit: PDF auto-parse failed, storing null total:', parseErr);
+        }
+      }
+
       await db.execute(sql`
         UPDATE project_vendors
         SET
-          quotation_value = ${quotedAmount ? String(quotedAmount) : null},
+          quotation_value = ${resolvedAmount},
           notes = ${notes || null},
           portal_submitted_at = now(),
           portal_acknowledged_at = NULL,

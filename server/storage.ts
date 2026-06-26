@@ -282,6 +282,7 @@ export interface IStorage {
   // BOQ (Bill of Quantities)
   getBOQByProjectVendor(projectVendorId: string): Promise<Boq[]>;
   getBOQBulkByProjectVendors(projectVendorIds: string[]): Promise<Boq[]>;
+  getQuoteFilesBulkByProjectVendors(projectVendorIds: string[]): Promise<QuoteFile[]>;
   getBOQ(id: string): Promise<Boq | undefined>;
   createBOQ(boq: InsertBoq): Promise<Boq>;
   createBOQBatch(boqs: InsertBoq[]): Promise<Boq[]>;
@@ -1233,6 +1234,12 @@ export class MemStorage implements IStorage {
     if (projectVendorIds.length === 0) return [];
     const idSet = new Set(projectVendorIds);
     return Array.from(this.boq.values()).filter(b => idSet.has(b.projectVendorId));
+  }
+
+  async getQuoteFilesBulkByProjectVendors(projectVendorIds: string[]): Promise<QuoteFile[]> {
+    if (projectVendorIds.length === 0) return [];
+    const idSet = new Set(projectVendorIds);
+    return Array.from(this.quoteFiles.values()).filter(f => idSet.has(f.projectVendorId));
   }
 
   async getBOQ(id: string): Promise<Boq | undefined> {
@@ -2419,6 +2426,11 @@ export class DBStorage implements IStorage {
   async getBOQBulkByProjectVendors(projectVendorIds: string[]): Promise<Boq[]> {
     if (projectVendorIds.length === 0) return [];
     return await db.select().from(boq).where(inArray(boq.projectVendorId, projectVendorIds));
+  }
+
+  async getQuoteFilesBulkByProjectVendors(projectVendorIds: string[]): Promise<QuoteFile[]> {
+    if (projectVendorIds.length === 0) return [];
+    return await db.select().from(quoteFiles).where(inArray(quoteFiles.projectVendorId, projectVendorIds));
   }
 
   async getBOQ(id: string): Promise<Boq | undefined> {
