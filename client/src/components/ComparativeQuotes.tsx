@@ -866,7 +866,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         {!hideValueColumns && (
                           <>
                             <TableCell className="py-2" data-testid="text-quotation-value">
-                              <div className="flex items-center gap-1">
+                              <div className="flex flex-col items-start gap-1">
                                 <span className="font-mono font-semibold text-sm">
                                   {(() => {
                                     const quotationValue = quotation.quotationValue || '';
@@ -874,19 +874,21 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                     return !isNaN(numericValue) && numericValue > 0 ? formatCurrency(quotationValue) : <span className="text-muted-foreground">No total</span>;
                                   })()}
                                 </span>
-                                {isLowest && (
-                                  <Badge variant="outline" className="text-xs text-green-600 border-green-200 px-1">
-                                    Lowest
-                                  </Badge>
-                                )}
-                                {quotation.isNegotiated && (
-                                  <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 px-1">
-                                    Negotiated
-                                  </Badge>
-                                )}
-                                {quotation.isAboveAverage && (
-                                  <AlertTriangle className="h-3 w-3 text-orange-500" />
-                                )}
+                                <div className="flex flex-wrap gap-1">
+                                  {isLowest && (
+                                    <Badge variant="outline" className="text-xs text-green-600 border-green-200 px-1">
+                                      Lowest
+                                    </Badge>
+                                  )}
+                                  {quotation.isNegotiated && (
+                                    <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 px-1">
+                                      Negotiated
+                                    </Badge>
+                                  )}
+                                  {quotation.isAboveAverage && (
+                                    <AlertTriangle className="h-3 w-3 text-orange-500" />
+                                  )}
+                                </div>
                               </div>
                             </TableCell>
                             
@@ -1245,7 +1247,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                             {!hideValueColumns && (
                               <>
                                 <TableCell className="py-2" data-testid="text-quotation-value">
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex flex-col items-start gap-1">
                                     <span className="font-mono font-semibold text-sm">
                                       {(() => {
                                         const quotationValue = quotation.quotationValue || '';
@@ -1253,19 +1255,21 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                                         return !isNaN(numericValue) && numericValue > 0 ? formatCurrency(quotationValue) : <span className="text-muted-foreground">No total</span>;
                                       })()}
                                     </span>
-                                    {isLowest && (
-                                      <Badge variant="outline" className="text-xs text-green-600 border-green-200 px-1">
-                                        Lowest
-                                      </Badge>
-                                    )}
-                                    {quotation.isNegotiated && (
-                                      <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 px-1">
-                                        Negotiated
-                                      </Badge>
-                                    )}
-                                    {quotation.isAboveAverage && (
-                                      <AlertTriangle className="h-3 w-3 text-orange-500" />
-                                    )}
+                                    <div className="flex flex-wrap gap-1">
+                                      {isLowest && (
+                                        <Badge variant="outline" className="text-xs text-green-600 border-green-200 px-1">
+                                          Lowest
+                                        </Badge>
+                                      )}
+                                      {quotation.isNegotiated && (
+                                        <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 px-1">
+                                          Negotiated
+                                        </Badge>
+                                      )}
+                                      {quotation.isAboveAverage && (
+                                        <AlertTriangle className="h-3 w-3 text-orange-500" />
+                                      )}
+                                    </div>
                                   </div>
                                 </TableCell>
                                 
