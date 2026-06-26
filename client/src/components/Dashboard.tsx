@@ -60,6 +60,7 @@ interface ProjectTaskBreakdownEntry {
 
 interface VendorAlert {
   id: string;
+  pv_id?: string | null; // present for project_vendor alerts — the PV row id used for acknowledgement
   vendor_name: string;
   vendor_id: string | null;
   project_name: string | null;
@@ -306,9 +307,13 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
 
   const acknowledgeMutation = useMutation({
     mutationFn: async (alert: VendorAlert) => {
+      // For project_vendor alerts expanded per file, use pv_id (the PV row) for acknowledgement
+      const ackId = alert.alert_type === 'vendor_document'
+        ? alert.id
+        : (alert.pv_id || alert.id);
       const url = alert.alert_type === 'vendor_document'
-        ? `/api/dashboard/vendor-alerts/doc/${alert.id}/acknowledge`
-        : `/api/dashboard/vendor-alerts/${alert.id}/acknowledge`;
+        ? `/api/dashboard/vendor-alerts/doc/${ackId}/acknowledge`
+        : `/api/dashboard/vendor-alerts/${ackId}/acknowledge`;
       await fetch(url, { method: "PATCH", credentials: "include" });
     },
     onSuccess: (_, alert) => {
@@ -319,13 +324,18 @@ function VendorAlertsPanel({ alerts }: { alerts: VendorAlert[] }) {
 
   // Auto-acknowledge project_vendor alerts that are older than 24 hours —
   // they've already "moved to normal flow" in Comparative Quotes.
+  // Track by pv_id so all file-level rows for the same PV are only acked once.
   const autoAckedRef = useState<Set<string>>(() => new Set())[0];
   useEffect(() => {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     alerts
-      .filter(a => a.alert_type === 'project_vendor' && !autoAckedRef.has(a.id) && new Date(a.submitted_at).getTime() < cutoff)
+      .filter(a => {
+        const trackKey = a.pv_id || a.id;
+        return a.alert_type === 'project_vendor' && !autoAckedRef.has(trackKey) && new Date(a.submitted_at).getTime() < cutoff;
+      })
       .forEach(a => {
-        autoAckedRef.add(a.id);
+        const trackKey = a.pv_id || a.id;
+        autoAckedRef.add(trackKey);
         acknowledgeMutation.mutate(a);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps

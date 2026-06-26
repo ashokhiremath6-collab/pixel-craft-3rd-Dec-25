@@ -11561,11 +11561,12 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       const rows = await db.execute(sql`
         SELECT
-          pv.id,
-          pv.quotation_value,
+          CASE WHEN qf.id IS NOT NULL THEN qf.id::text ELSE pv.id::text END AS id,
+          pv.id AS pv_id,
+          COALESCE(qf.quoted_amount, pv.quotation_value) AS quotation_value,
           pv.notes,
           pv.portal_submitted_at AS submitted_at,
-          pv.quotation_name,
+          COALESCE(qf.display_name, pv.quotation_name) AS quotation_name,
           p.project_name AS project_name,
           v.name AS vendor_name,
           COALESCE(vc.name, pv.category) AS category_name,
@@ -11576,6 +11577,7 @@ Return your response in the following JSON format only (no markdown, no code blo
         INNER JOIN projects p ON pv.project_id = p.id
         LEFT JOIN vendors v ON pv.vendor_id = v.id
         LEFT JOIN vendor_categories vc ON pv.category_id = vc.id
+        LEFT JOIN quote_files qf ON qf.project_vendor_id = pv.id
         WHERE pv.org_id = ${user.orgId}
           AND pv.portal_submitted_at IS NOT NULL
           AND pv.portal_acknowledged_at IS NULL
