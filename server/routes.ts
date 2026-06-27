@@ -11092,6 +11092,15 @@ Return your response in the following JSON format only (no markdown, no code blo
         storage.getTasksByProject(projectId),
       ]);
 
+      let orgName: string | undefined;
+      if (project.orgId) {
+        const { eq: eqOrg } = await import("drizzle-orm");
+        const { organisations: orgsTable } = await import("@shared/schema");
+        const [orgRow] = await db.select({ name: orgsTable.name })
+          .from(orgsTable).where(eqOrg(orgsTable.id, project.orgId)).limit(1);
+        orgName = orgRow?.name;
+      }
+
       res.json({
         project,
         renders,
@@ -11100,6 +11109,7 @@ Return your response in the following JSON format only (no markdown, no code blo
         specifications: specs,
         meetingMinutes: minutes,
         tasks,
+        orgName,
       });
     } catch (error) {
       console.error('Error fetching client portal summary:', error);
@@ -13428,6 +13438,9 @@ Return your response in the following JSON format only (no markdown, no code blo
         clientToken,
       }).returning();
 
+      const [orgRow] = await db.select({ name: organisations.name })
+        .from(organisations).where(eq(organisations.id, orgId)).limit(1);
+
       const baseUrl = getBaseUrl(req);
       const tokenLink = `${baseUrl}/pay/${clientToken}`;
       await sendPaymentRequestEmail({
@@ -13442,6 +13455,7 @@ Return your response in the following JSON format only (no markdown, no code blo
         branch: vendor?.branch,
         projectName: project.projectName,
         tokenLink,
+        studioName: orgRow?.name,
       }).catch(e => console.warn("[EMAIL] Payment request email failed:", e));
 
       res.status(201).json(pr);

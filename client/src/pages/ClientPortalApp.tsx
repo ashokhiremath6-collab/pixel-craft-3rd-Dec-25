@@ -69,6 +69,7 @@ interface PortalData {
   specifications: Specification[];
   meetingMinutes: MeetingMinutes[];
   tasks: Task[];
+  orgName?: string;
 }
 
 const TABS = [
@@ -1056,9 +1057,12 @@ export default function ClientPortalApp({
         <Sidebar collapsible="icon">
           <SidebarHeader className="px-3 py-3 border-b">
             <div className="flex items-center gap-2.5 min-w-0">
-              <img src="/logo.png" alt="Olympik Design" className="h-7 w-7 object-contain shrink-0" />
-              <span className="font-semibold text-sm truncate group-data-[collapsible=icon]:hidden">
-                Olympik Design
+              <img src="/logo.png" alt="Studio logo" className="h-7 w-7 object-contain shrink-0" />
+              <span
+                className="font-bold truncate group-data-[collapsible=icon]:hidden"
+                style={{ fontSize: "clamp(0.75rem,1.5vw,0.875rem)", letterSpacing: "-0.2px", lineHeight: 1.2 }}
+              >
+                {portalData?.orgName || selectedProject?.projectName || "Client Portal"}
               </span>
             </div>
           </SidebarHeader>

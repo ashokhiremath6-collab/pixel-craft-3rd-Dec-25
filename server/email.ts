@@ -511,6 +511,7 @@ export async function sendPaymentRequestEmail(opts: {
   branch?: string | null;
   projectName?: string | null;
   tokenLink: string;
+  studioName?: string | null;
 }): Promise<void> {
   const amountFormatted = `₹${opts.amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const hasBankDetails = opts.bankName || opts.accountNumber || opts.ifscCode;
@@ -526,7 +527,8 @@ export async function sendPaymentRequestEmail(opts: {
 
   const bankTextBlock = hasBankDetails ? `\nBank Details:\n${opts.bankName ? `Bank: ${opts.bankName}\n` : ""}${opts.accountNumber ? `Account No: ${opts.accountNumber}\n` : ""}${opts.ifscCode ? `IFSC: ${opts.ifscCode}\n` : ""}${opts.branch ? `Branch: ${opts.branch}\n` : ""}` : "";
 
-  const subject = `Payment request from your designer — ${amountFormatted}`;
+  const studioLabel = opts.studioName || "Your Designer";
+  const subject = `Payment request from ${studioLabel} — ${amountFormatted}`;
 
   for (const to of opts.toEmails) {
     console.info(`[EMAIL] Payment request to ${to}: ${amountFormatted} for ${opts.vendorName}`);
@@ -536,7 +538,7 @@ export async function sendPaymentRequestEmail(opts: {
       html: `
         <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
           <div style="text-align:center;margin-bottom:24px;">
-            <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
+            <h1 style="font-size:20px;font-weight:700;color:#1d1d1f;margin:0;letter-spacing:-0.3px;">${studioLabel}</h1>
           </div>
           <div style="background:#fff;border-radius:12px;padding:28px;">
             <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Payment request</h2>
@@ -569,7 +571,7 @@ export async function sendPaymentRequestEmail(opts: {
           </div>
         </div>
       `,
-      text: `Payment request from Olympik Design\n\nHi ${opts.clientName},\n\nYour designer has raised a payment request.\n\nVendor: ${opts.vendorName}\nAmount: ${amountFormatted}\nDetails: ${opts.description}${opts.projectName ? `\nProject: ${opts.projectName}` : ""}${bankTextBlock}\n\nAfter making the payment, confirm it here (no login required):\n${opts.tokenLink}`,
+      text: `Payment request from ${studioLabel}\n\nHi ${opts.clientName},\n\nYour designer has raised a payment request.\n\nVendor: ${opts.vendorName}\nAmount: ${amountFormatted}\nDetails: ${opts.description}${opts.projectName ? `\nProject: ${opts.projectName}` : ""}${bankTextBlock}\n\nAfter making the payment, confirm it here (no login required):\n${opts.tokenLink}`,
     });
   }
 }

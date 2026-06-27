@@ -63,7 +63,13 @@ export default function PaymentRequestPublicPage() {
     <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-[#1d1d1f]">Olympik Design</h1>
+          {pr?.orgName ? (
+            <h1 className="font-bold text-[#1d1d1f]" style={{ fontSize: "clamp(1.1rem,3vw,1.5rem)", letterSpacing: "-0.3px" }}>
+              {pr.orgName}
+            </h1>
+          ) : (
+            <h1 className="text-xl font-bold text-[#1d1d1f]">Your Designer</h1>
+          )}
           <p className="text-sm text-[#6e6e73] mt-1">Payment Request</p>
         </div>
 
@@ -176,7 +182,7 @@ export default function PaymentRequestPublicPage() {
         </div>
 
         <p className="text-center text-xs text-[#a1a1a6] mt-5">
-          Powered by Olympik Design
+          {pr?.orgName ? `Powered by ${pr.orgName}` : "Powered by Olympik Design"}
         </p>
       </div>
     </div>

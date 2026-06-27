@@ -117,12 +117,21 @@ export default function VendorPortalApp() {
       {/* Top nav */}
       <header className="border-b bg-background shrink-0 sticky top-0 z-50">
         <div className="flex items-center justify-between px-4 sm:px-6 h-14 gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <Building2 className="h-5 w-5 text-primary shrink-0" />
-            <span className="font-semibold text-sm">Vendor Portal</span>
+            {studioRequest?.org_name ? (
+              <span
+                className="font-bold truncate"
+                style={{ fontSize: "clamp(0.8rem,1.5vw,1rem)", letterSpacing: "-0.2px" }}
+              >
+                {studioRequest.org_name}
+              </span>
+            ) : (
+              <span className="font-semibold text-sm">Vendor Portal</span>
+            )}
             {vendorData?.name && (
               <>
-                <span className="text-muted-foreground text-sm hidden sm:inline">/</span>
+                <span className="text-muted-foreground text-sm hidden sm:inline shrink-0">/</span>
                 <span className="text-sm text-muted-foreground hidden sm:inline truncate max-w-xs">
                   {vendorData.name}
                 </span>
