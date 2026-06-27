@@ -1626,7 +1626,7 @@ export default function AccountsPage() {
                 <Button
                   disabled={!requestsTabVendorId}
                   onClick={() => {
-                    paymentRequestForm.reset({ vendorId: requestsTabVendorId, projectId: "", amount: undefined, description: "" });
+                    paymentRequestForm.reset({ vendorId: requestsTabVendorId, projectId: "", description: "" } as any);
                     setRequestPaymentOpen(true);
                   }}
                 >

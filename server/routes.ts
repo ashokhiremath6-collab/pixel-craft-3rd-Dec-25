@@ -13440,19 +13440,22 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       const userRoleRow = await storage.getUserRole(userId);
       const role = userRoleRow?.role?.toLowerCase();
-      if (role !== 'client') return res.status(403).json({ error: "This action is only available to clients." });
+      const isStaff = ["admin","designer","project_manager"].includes(role ?? "");
 
       const [existing] = await db.select().from(paymentRequests).where(eq(paymentRequests.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
       if (existing.orgId !== orgId) return res.status(403).json({ error: "Access denied" });
 
-      if (!existing.projectId) return res.status(403).json({ error: "Access denied" });
-      const userEmail = (req.user as any)?.email;
-      if (!userEmail) return res.status(403).json({ error: "Access denied" });
-      const hasAccess = await db.select().from(projectClients)
-        .where(and(eq(projectClients.projectId, existing.projectId), eq(projectClients.clientEmail, userEmail)))
-        .limit(1);
-      if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
+      if (!isStaff) {
+        // Client: verify project access via projectClients
+        if (!existing.projectId) return res.status(403).json({ error: "Access denied" });
+        const userEmail = (req.user as any)?.email;
+        if (!userEmail) return res.status(403).json({ error: "Access denied" });
+        const hasAccess = await db.select().from(projectClients)
+          .where(and(eq(projectClients.projectId, existing.projectId), eq(projectClients.clientEmail, userEmail)))
+          .limit(1);
+        if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
+      }
 
       // Only pending → acknowledged
       const [pr] = await db.update(paymentRequests)
@@ -13478,26 +13481,26 @@ Return your response in the following JSON format only (no markdown, no code blo
       const { eq, and } = await import("drizzle-orm");
       const { projectClients } = await import("@shared/schema");
 
-      // Resolve role from user_roles table (req.user.role is not set by middleware)
+      // Resolve role — staff (admin/designer/PM) can also perform this action for testing/preview
       const userRoleRow = await storage.getUserRole(userId);
       const role = userRoleRow?.role?.toLowerCase();
-
-      // Only clients may use this endpoint
-      if (role !== 'client') return res.status(403).json({ error: "This action is only available to clients." });
+      const isStaff = ["admin","designer","project_manager"].includes(role ?? "");
 
       // Fetch the payment request; must be in same org
       const [existing] = await db.select().from(paymentRequests).where(eq(paymentRequests.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
       if (existing.orgId !== orgId) return res.status(403).json({ error: "Access denied" });
 
-      // Verify client is linked to this specific project (projectClients uses clientEmail, not userId)
-      if (!existing.projectId) return res.status(403).json({ error: "Access denied" });
-      const userEmail = (req.user as any)?.email;
-      if (!userEmail) return res.status(403).json({ error: "Access denied" });
-      const hasAccess = await db.select().from(projectClients)
-        .where(and(eq(projectClients.projectId, existing.projectId), eq(projectClients.clientEmail, userEmail)))
-        .limit(1);
-      if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
+      if (!isStaff) {
+        // Client: verify project access via projectClients (clientEmail match)
+        if (!existing.projectId) return res.status(403).json({ error: "Access denied" });
+        const userEmail = (req.user as any)?.email;
+        if (!userEmail) return res.status(403).json({ error: "Access denied" });
+        const hasAccess = await db.select().from(projectClients)
+          .where(and(eq(projectClients.projectId, existing.projectId), eq(projectClients.clientEmail, userEmail)))
+          .limit(1);
+        if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
+      }
 
       // Enforce state machine: pending OR acknowledged -> client_paid is valid
       const { inArray: inArr2 } = await import("drizzle-orm");
