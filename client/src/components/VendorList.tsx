@@ -153,6 +153,10 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       phone: "",
       email: "",
       notes: "",
+      bankName: "",
+      accountNumber: "",
+      ifscCode: "",
+      branch: "",
     },
   });
 
@@ -371,6 +375,10 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       phone: vendor.phone,
       email: vendor.email || "",
       notes: vendor.notes || "",
+      bankName: (vendor as any).bankName || "",
+      accountNumber: (vendor as any).accountNumber || "",
+      ifscCode: (vendor as any).ifscCode || "",
+      branch: (vendor as any).branch || "",
     });
     setIsEditDialogOpen(true);
     onEditVendor?.(vendor);
@@ -1190,6 +1198,60 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                       </FormItem>
                     )}
                   />
+                  {/* Bank Details Section */}
+                  <div className="pt-1">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Bank Details (for payment requests)</p>
+                    <div className="space-y-3">
+                      <FormField
+                        control={editVendorForm.control}
+                        name="bankName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Bank Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g. HDFC Bank" {...field} value={field.value || ""} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={editVendorForm.control}
+                        name="branch"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Branch</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g. Andheri West" {...field} value={field.value || ""} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={editVendorForm.control}
+                        name="accountNumber"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Account Number</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g. 00120987654321" {...field} value={field.value || ""} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={editVendorForm.control}
+                        name="ifscCode"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>IFSC Code</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g. HDFC0001234" {...field} value={field.value || ""} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
                   <div className="flex justify-end gap-2">
                     <Button
                       type="button"

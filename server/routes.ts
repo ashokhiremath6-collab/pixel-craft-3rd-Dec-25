@@ -13391,8 +13391,11 @@ Return your response in the following JSON format only (no markdown, no code blo
         // Client: must be mapped to this project via projectClients AND project must be in same org
         const [proj] = await db.select().from(projects).where(and(eq(projects.id, projectId), eq(projects.orgId, orgId))).limit(1);
         if (!proj) return res.status(403).json({ error: "Access denied" });
+        // projectClients uses clientEmail (no userId column) — match by user email
+        const userEmail = (req.user as any)?.email;
+        if (!userEmail) return res.status(403).json({ error: "Access denied" });
         const hasAccess = await db.select().from(projectClients)
-          .where(and(eq(projectClients.projectId, projectId), eq(projectClients.userId, userId)))
+          .where(and(eq(projectClients.projectId, projectId), eq(projectClients.clientEmail, userEmail)))
           .limit(1);
         if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
       }
@@ -13447,10 +13450,12 @@ Return your response in the following JSON format only (no markdown, no code blo
       if (!existing) return res.status(404).json({ error: "Not found" });
       if (existing.orgId !== orgId) return res.status(403).json({ error: "Access denied" });
 
-      // Verify client is linked to this specific project
+      // Verify client is linked to this specific project (projectClients uses clientEmail, not userId)
       if (!existing.projectId) return res.status(403).json({ error: "Access denied" });
+      const userEmail = (req.user as any)?.email;
+      if (!userEmail) return res.status(403).json({ error: "Access denied" });
       const hasAccess = await db.select().from(projectClients)
-        .where(and(eq(projectClients.projectId, existing.projectId), eq(projectClients.userId, userId)))
+        .where(and(eq(projectClients.projectId, existing.projectId), eq(projectClients.clientEmail, userEmail)))
         .limit(1);
       if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
 
