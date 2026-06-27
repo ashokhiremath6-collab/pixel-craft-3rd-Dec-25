@@ -68,9 +68,7 @@ const TABS = [
   { id: "renders", label: "Renders", icon: Sparkles },
   { id: "moodboards", label: "Moodboards", icon: Image },
   { id: "drawings", label: "Working Drawings", icon: PenTool },
-  { id: "specifications", label: "Specifications", icon: BookOpen },
   { id: "minutes", label: "Meeting Minutes", icon: Calendar },
-  { id: "design-intelligence", label: "Design Intelligence", icon: BrainCircuit },
 ];
 
 interface ClientPaymentRequest {
@@ -1123,10 +1121,8 @@ export default function ClientPortalApp({
       </div>
 
       {/* Content */}
-      <main className={`flex-1 overflow-auto${activeTab === "design-intelligence" ? " flex flex-col" : " p-4 sm:p-6"}`}>
-        {activeTab === "design-intelligence" ? (
-          <AIAssistantPage />
-        ) : dataLoading ? (
+      <main className="flex-1 overflow-auto p-4 sm:p-6">
+        {dataLoading ? (
           <div className="flex items-center justify-center h-48">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
@@ -1156,9 +1152,6 @@ export default function ClientPortalApp({
             )}
             {activeTab === "drawings" && (
               <DrawingsSection items={portalData?.workingDrawings || []} />
-            )}
-            {activeTab === "specifications" && (
-              <SpecificationsSection items={portalData?.specifications || []} />
             )}
             {activeTab === "minutes" && (
               <MinutesSection items={portalData?.meetingMinutes || []} />
