@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import {
   DropdownMenu,
@@ -598,6 +599,7 @@ interface PaymentAlert {
 
 function PaymentAlertsPanel() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [saveDialogAlert, setSaveDialogAlert] = useState<PaymentAlert | null>(null);
   const [paymentDate, setPaymentDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [paymentNotes, setPaymentNotes] = useState("");
@@ -626,6 +628,10 @@ function PaymentAlertsPanel() {
       queryClient.invalidateQueries({ queryKey: ["/api/vendors"] });
       setSaveDialogAlert(null);
       setPaymentNotes("");
+      toast({ title: "Saved to accounts and confirmed" });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Failed to save to accounts" });
     },
   });
 

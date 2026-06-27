@@ -305,7 +305,7 @@ export default function AccountsPage() {
     mutationFn: async ({ pr, date, notes }: { pr: PaymentRequestRow; date: string; notes: string }) => {
       await apiRequest('POST', `/api/vendors/${pr.vendorId}/payments`, {
         paymentDate: date,
-        amount: Number(pr.amount),
+        amount: String(pr.amount),
         paymentMethod: 'bank_transfer',
         paymentReference: pr.clientUtr || undefined,
         notes: notes || `Payment received from client. UTR: ${pr.clientUtr || "N/A"}. ${pr.description}`,
