@@ -40,6 +40,7 @@ import ProjectCostPage from "@/pages/ProjectCostPage";
 import AssetIngestionPage from "@/pages/AssetIngestionPage";
 import AIAssistantPage from "@/pages/AIAssistantPage";
 import ProjectBriefPage from "@/pages/ProjectBriefPage";
+import PaymentRequestPublicPage from "@/pages/PaymentRequestPublicPage";
 import LoginPage from "@/pages/LoginPage";
 import LandingPage from "@/pages/LandingPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
@@ -440,6 +441,7 @@ function AppContent() {
   );
   if (location === "/login") return <LoginPage />;
   if (location.startsWith("/invite/")) return <InviteAcceptPage />;
+  if (location.startsWith("/pay/")) return <PaymentRequestPublicPage />;
 
   if (isLoading) {
     return (

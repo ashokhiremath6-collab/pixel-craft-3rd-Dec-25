@@ -13309,6 +13309,80 @@ Return your response in the following JSON format only (no markdown, no code blo
 
   // ── Payment Requests ─────────────────────────────────────────────────────
 
+  // GET /api/payment-requests/public/:token — no auth, for magic-link emails
+  app.get("/api/payment-requests/public/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { eq, and, isNull, or } = await import("drizzle-orm");
+      const { vendors, projects, organisations } = await import("@shared/schema");
+
+      const [row] = await db
+        .select({
+          id: paymentRequests.id,
+          amount: paymentRequests.amount,
+          description: paymentRequests.description,
+          status: paymentRequests.status,
+          requestedAt: paymentRequests.requestedAt,
+          clientPaidAt: paymentRequests.clientPaidAt,
+          clientUtr: paymentRequests.clientUtr,
+          orgId: paymentRequests.orgId,
+          vendorId: paymentRequests.vendorId,
+          projectId: paymentRequests.projectId,
+          vendorName: vendors.name,
+          bankName: vendors.bankName,
+          accountNumber: vendors.accountNumber,
+          ifscCode: vendors.ifscCode,
+          branch: vendors.branch,
+          projectName: projects.projectName,
+        })
+        .from(paymentRequests)
+        .leftJoin(vendors, eq(paymentRequests.vendorId, vendors.id))
+        .leftJoin(projects, eq(paymentRequests.projectId, projects.id))
+        .where(eq(paymentRequests.clientToken, token))
+        .limit(1);
+
+      if (!row) return res.status(404).json({ error: "Payment request not found" });
+
+      let orgName = "Olympik Design";
+      if (row.orgId) {
+        const [org] = await db.select({ name: organisations.name })
+          .from(organisations).where(eq(organisations.id, row.orgId)).limit(1);
+        if (org) orgName = org.name;
+      }
+
+      res.json({ ...row, orgName });
+    } catch (err) {
+      console.error("GET /api/payment-requests/public/:token error:", err);
+      res.status(500).json({ error: "Failed to load payment request" });
+    }
+  });
+
+  // POST /api/payment-requests/public/:token/confirm — client confirms payment, no auth
+  app.post("/api/payment-requests/public/:token/confirm", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { clientUtr } = req.body;
+      if (!clientUtr?.trim()) return res.status(400).json({ error: "UTR / reference is required" });
+
+      const { eq } = await import("drizzle-orm");
+
+      const [pr] = await db.select().from(paymentRequests)
+        .where(eq(paymentRequests.clientToken, token)).limit(1);
+      if (!pr) return res.status(404).json({ error: "Payment request not found" });
+      if (pr.status === "confirmed") return res.status(409).json({ error: "Already confirmed" });
+
+      const [updated] = await db.update(paymentRequests)
+        .set({ status: "client_paid", clientUtr: clientUtr.trim(), clientPaidAt: new Date() })
+        .where(eq(paymentRequests.clientToken, token))
+        .returning();
+
+      res.json(updated);
+    } catch (err) {
+      console.error("POST /api/payment-requests/public/:token/confirm error:", err);
+      res.status(500).json({ error: "Failed to confirm payment" });
+    }
+  });
+
   // Create a payment request
   app.post("/api/payment-requests", requireAdmin, async (req: any, res) => {
     try {
@@ -13344,15 +13418,18 @@ Return your response in the following JSON format only (no markdown, no code blo
         .limit(1);
       if (!vendor) return res.status(400).json({ error: "Vendor not found or does not belong to your organisation." });
 
+      const clientToken = randomUUID();
       const [pr] = await db.insert(paymentRequests).values({
         ...body,
         amount: String(body.amount),
         orgId,
         requestedBy,
         status: "pending",
+        clientToken,
       }).returning();
 
       const baseUrl = getBaseUrl(req);
+      const tokenLink = `${baseUrl}/pay/${clientToken}`;
       await sendPaymentRequestEmail({
         toEmails: clientEmails,
         clientName: project.clientName || "Client",
@@ -13364,7 +13441,7 @@ Return your response in the following JSON format only (no markdown, no code blo
         ifscCode: vendor?.ifscCode,
         branch: vendor?.branch,
         projectName: project.projectName,
-        portalUrl: baseUrl,
+        tokenLink,
       }).catch(e => console.warn("[EMAIL] Payment request email failed:", e));
 
       res.status(201).json(pr);

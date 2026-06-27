@@ -232,6 +232,13 @@
       "when": 1782579000000,
       "tag": "0032_payment_acknowledged",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1782582600000,
+      "tag": "0033_payment_request_token",
+      "breakpoints": true
     }
   ]
 }

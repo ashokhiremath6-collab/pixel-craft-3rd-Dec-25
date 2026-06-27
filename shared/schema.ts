@@ -1335,6 +1335,7 @@ export const paymentRequests = pgTable("payment_requests", {
   clientUtr: text("client_utr"),
   confirmedAt: timestamp("confirmed_at"),
   confirmedBy: varchar("confirmed_by").references(() => users.id),
+  clientToken: varchar("client_token").unique(), // magic-link token for no-login access
 }, (table) => ({
   orgIdx: index("payment_requests_org_idx").on(table.orgId),
   statusIdx: index("payment_requests_status_idx").on(table.status),
