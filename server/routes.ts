@@ -959,7 +959,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/invitations — send an invitation
-  app.post("/api/invitations", requireAdminOnly, async (req, res) => {
+  app.post("/api/invitations", requireAdmin, async (req, res) => {
     try {
       const { email, role } = req.body;
       if (!email || !role) return res.status(400).json({ error: "Email and role are required" });
@@ -1042,7 +1042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/invitations/:id — revoke an invitation
-  app.delete("/api/invitations/:id", requireAdminOnly, async (req, res) => {
+  app.delete("/api/invitations/:id", requireAdmin, async (req, res) => {
     try {
       const callerUser = await storage.getUser((req.user as any).id);
       if (!callerUser?.orgId) return res.status(403).json({ error: "No organisation found." });
@@ -1061,7 +1061,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/invitations/:id/resend — resend an invitation with a fresh token
-  app.post("/api/invitations/:id/resend", requireAdminOnly, async (req, res) => {
+  app.post("/api/invitations/:id/resend", requireAdmin, async (req, res) => {
     try {
       const callerUser = await storage.getUser((req.user as any).id);
       if (!callerUser?.orgId) return res.status(400).json({ error: "No organisation found" });
