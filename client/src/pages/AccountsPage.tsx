@@ -64,7 +64,7 @@ interface PaymentRequestRow {
 
 const paymentRequestFormSchema = z.object({
   vendorId: z.string().min(1, "Select a vendor"),
-  projectId: z.string().optional(),
+  projectId: z.string().min(1, "Select a project"),
   amount: z.coerce.number().positive("Amount must be greater than 0"),
   description: z.string().min(1, "Description is required"),
 });
@@ -175,18 +175,17 @@ export default function AccountsPage() {
   // Create payment request mutation
   const createPaymentRequestMutation = useMutation({
     mutationFn: (data: PaymentRequestFormData) =>
-      apiRequest('POST', '/api/payment-requests', {
-        ...data,
-        projectId: (data.projectId && data.projectId !== "__none__") ? data.projectId : undefined,
-      }),
+      apiRequest('POST', '/api/payment-requests', data),
     onSuccess: () => {
-      toast({ title: "Payment request sent", description: "The client has been notified by email." });
+      toast({ title: "Payment request sent", description: "An email has been sent to the client with bank details." });
       setRequestPaymentOpen(false);
       paymentRequestForm.reset();
       queryClient.invalidateQueries({ queryKey: ['/api/payment-requests'] });
     },
-    onError: (error: any) => {
-      toast({ variant: "destructive", title: "Failed to send request", description: error?.message || "An error occurred." });
+    onError: async (error: any) => {
+      let msg = "An error occurred.";
+      try { const j = await error?.response?.json?.(); if (j?.error) msg = j.error; } catch {}
+      toast({ variant: "destructive", title: "Failed to send request", description: msg });
     },
   });
 
@@ -1281,16 +1280,29 @@ export default function AccountsPage() {
                       </FormItem>
                     )}
                   />
+                  {/* Bank details preview after vendor selection */}
+                  {(() => {
+                    const vid = paymentRequestForm.watch("vendorId");
+                    const v = vendors.find(x => x.id === vid);
+                    if (!v || (!v.bankName && !v.accountNumber && !v.ifscCode)) return null;
+                    return (
+                      <div className="rounded-md border bg-muted/40 px-3 py-2.5 space-y-1 text-xs">
+                        <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Bank details that will be sent to client</p>
+                        {v.bankName && <p><span className="text-muted-foreground">Bank:</span> {v.bankName}{v.branch ? ` — ${v.branch}` : ""}</p>}
+                        {v.accountNumber && <p><span className="text-muted-foreground">Account:</span> {v.accountNumber}</p>}
+                        {v.ifscCode && <p><span className="text-muted-foreground">IFSC:</span> {v.ifscCode}</p>}
+                      </div>
+                    );
+                  })()}
                   <FormField
                     control={paymentRequestForm.control}
                     name="projectId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Project (optional)</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value || "__none__"}>
-                          <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
+                        <FormLabel>Project</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <SelectTrigger><SelectValue placeholder="Select project (required)" /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__none__">No project</SelectItem>
                             {sortProjectsForDropdown(projects).map(p => (
                               <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>
                             ))}

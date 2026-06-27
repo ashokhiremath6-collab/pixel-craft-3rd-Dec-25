@@ -13272,6 +13272,26 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       const body = insertPaymentRequestSchema.parse({ ...req.body, orgId, requestedBy, status: "pending" });
 
+      // projectId is required — must resolve to a project with client emails
+      if (!body.projectId) {
+        return res.status(400).json({ error: "A project must be selected so the client can be notified." });
+      }
+
+      // Verify project exists + belongs to org, and resolve client emails before inserting
+      const [project] = await db.select().from(projects)
+        .where(and(eq(projects.id, body.projectId), eq(projects.orgId, orgId)))
+        .limit(1);
+      if (!project) return res.status(400).json({ error: "Project not found." });
+
+      const pcs = await db.select().from(projectClients).where(eq(projectClients.projectId, body.projectId));
+      let clientEmails: string[] = pcs.map(pc => pc.clientEmail).filter(Boolean) as string[];
+      if (clientEmails.length === 0 && project.clientEmail) clientEmails = [project.clientEmail];
+      if (clientEmails.length === 0) {
+        return res.status(400).json({ error: "No client email is configured for this project. Add a client email before sending a payment request." });
+      }
+
+      const [vendor] = await db.select().from(vendors).where(eq(vendors.id, body.vendorId)).limit(1);
+
       const [pr] = await db.insert(paymentRequests).values({
         ...body,
         amount: String(body.amount),
@@ -13280,40 +13300,20 @@ Return your response in the following JSON format only (no markdown, no code blo
         status: "pending",
       }).returning();
 
-      // Load vendor + project for email
-      const [vendor] = await db.select().from(vendors).where(eq(vendors.id, pr.vendorId)).limit(1);
-      let projectName: string | null = null;
-      let clientEmails: string[] = [];
-      let clientName = "Client";
-
-      if (pr.projectId) {
-        const [project] = await db.select().from(projects).where(eq(projects.id, pr.projectId)).limit(1);
-        if (project) {
-          projectName = project.projectName;
-          // Gather client emails from projectClients first
-          const pcs = await db.select().from(projectClients).where(eq(projectClients.projectId, pr.projectId));
-          clientEmails = pcs.map(pc => pc.clientEmail).filter(Boolean);
-          if (clientEmails.length === 0 && project.clientEmail) clientEmails = [project.clientEmail];
-          clientName = project.clientName || "Client";
-        }
-      }
-
-      if (vendor && clientEmails.length > 0) {
-        const baseUrl = getBaseUrl(req);
-        await sendPaymentRequestEmail({
-          toEmails: clientEmails,
-          clientName,
-          vendorName: vendor.name,
-          amount: Number(pr.amount),
-          description: pr.description,
-          bankName: vendor.bankName,
-          accountNumber: vendor.accountNumber,
-          ifscCode: vendor.ifscCode,
-          branch: vendor.branch,
-          projectName,
-          portalUrl: baseUrl,
-        }).catch(e => console.warn("[EMAIL] Payment request email failed:", e));
-      }
+      const baseUrl = getBaseUrl(req);
+      await sendPaymentRequestEmail({
+        toEmails: clientEmails,
+        clientName: project.clientName || "Client",
+        vendorName: vendor?.name || "Vendor",
+        amount: Number(pr.amount),
+        description: pr.description,
+        bankName: vendor?.bankName,
+        accountNumber: vendor?.accountNumber,
+        ifscCode: vendor?.ifscCode,
+        branch: vendor?.branch,
+        projectName: project.projectName,
+        portalUrl: baseUrl,
+      }).catch(e => console.warn("[EMAIL] Payment request email failed:", e));
 
       res.status(201).json(pr);
     } catch (err) {
@@ -13446,9 +13446,14 @@ Return your response in the following JSON format only (no markdown, no code blo
         if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
       }
 
+      // Enforce state machine: only pending -> client_paid is valid
       const [pr] = await db.update(paymentRequests)
         .set({ status: "client_paid", clientPaidAt: new Date(), clientUtr: clientUtr || null })
-        .where(and(eq(paymentRequests.id, id), eq(paymentRequests.orgId, orgId)))
+        .where(and(
+          eq(paymentRequests.id, id),
+          eq(paymentRequests.orgId, orgId),
+          eq(paymentRequests.status, "pending")
+        ))
         .returning();
 
       if (!pr) return res.status(404).json({ error: "Not found" });
