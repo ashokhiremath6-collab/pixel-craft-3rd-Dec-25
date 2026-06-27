@@ -13290,7 +13290,10 @@ Return your response in the following JSON format only (no markdown, no code blo
         return res.status(400).json({ error: "No client email is configured for this project. Add a client email before sending a payment request." });
       }
 
-      const [vendor] = await db.select().from(vendors).where(eq(vendors.id, body.vendorId)).limit(1);
+      const [vendor] = await db.select().from(vendors)
+        .where(and(eq(vendors.id, body.vendorId), eq(vendors.orgId, orgId)))
+        .limit(1);
+      if (!vendor) return res.status(400).json({ error: "Vendor not found or does not belong to your organisation." });
 
       const [pr] = await db.insert(paymentRequests).values({
         ...body,
@@ -13419,7 +13422,7 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  // Client marks a payment as paid (with UTR)
+  // Client marks a payment as paid (with UTR) — client role only
   app.patch("/api/payment-requests/:id/client-confirm", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.id;
@@ -13430,21 +13433,20 @@ Return your response in the following JSON format only (no markdown, no code blo
       const { eq, and } = await import("drizzle-orm");
       const { projectClients } = await import("@shared/schema");
 
-      // Fetch the payment request first for ownership checks
+      // Only clients may use this endpoint
+      if (role !== 'client') return res.status(403).json({ error: "This action is only available to clients." });
+
+      // Fetch the payment request; must be in same org
       const [existing] = await db.select().from(paymentRequests).where(eq(paymentRequests.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
-
-      // Must be in the same org
       if (existing.orgId !== orgId) return res.status(403).json({ error: "Access denied" });
 
-      // If client role, verify they are linked to this specific project
-      if (role === 'client') {
-        if (!existing.projectId) return res.status(403).json({ error: "Access denied" });
-        const hasAccess = await db.select().from(projectClients)
-          .where(and(eq(projectClients.projectId, existing.projectId), eq(projectClients.userId, userId)))
-          .limit(1);
-        if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
-      }
+      // Verify client is linked to this specific project
+      if (!existing.projectId) return res.status(403).json({ error: "Access denied" });
+      const hasAccess = await db.select().from(projectClients)
+        .where(and(eq(projectClients.projectId, existing.projectId), eq(projectClients.userId, userId)))
+        .limit(1);
+      if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
 
       // Enforce state machine: only pending -> client_paid is valid
       const [pr] = await db.update(paymentRequests)
