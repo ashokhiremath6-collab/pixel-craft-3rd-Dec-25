@@ -211,6 +211,20 @@
       "when": 1782471000000,
       "tag": "0029_quote_file_display_name",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1782540000000,
+      "tag": "0030_vendor_bank_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1782541000000,
+      "tag": "0031_payment_requests",
+      "breakpoints": true
     }
   ]
 }

@@ -23,6 +23,10 @@ export const vendors = pgTable("vendors", {
   email: text("email").notNull(),
   notes: text("notes"),
   orgId: varchar("org_id"),
+  bankName: text("bank_name"),
+  accountNumber: text("account_number"),
+  ifscCode: text("ifsc_code"),
+  branch: text("branch"),
 });
 
 // Vendor Contacts table - supports multiple contact persons per vendor
@@ -1314,3 +1318,38 @@ export const handoverItems = pgTable("handover_items", {
 export const insertHandoverItemSchema = createInsertSchema(handoverItems).omit({ id: true, createdAt: true });
 export type InsertHandoverItem = z.infer<typeof insertHandoverItemSchema>;
 export type HandoverItem = typeof handoverItems.$inferSelect;
+
+// Payment Requests — designer raises a request for client to pay a vendor
+export const paymentRequests = pgTable("payment_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id"),
+  vendorId: varchar("vendor_id").notNull().references(() => vendors.id),
+  projectId: varchar("project_id").references(() => projects.id),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  description: text("description").notNull(),
+  status: text("status").notNull().default("pending"), // pending | client_paid | confirmed
+  requestedBy: varchar("requested_by").notNull().references(() => users.id),
+  requestedAt: timestamp("requested_at").notNull().default(sql`now()`),
+  clientPaidAt: timestamp("client_paid_at"),
+  clientUtr: text("client_utr"),
+  confirmedAt: timestamp("confirmed_at"),
+  confirmedBy: varchar("confirmed_by").references(() => users.id),
+}, (table) => ({
+  orgIdx: index("payment_requests_org_idx").on(table.orgId),
+  statusIdx: index("payment_requests_status_idx").on(table.status),
+}));
+
+export const insertPaymentRequestSchema = createInsertSchema(paymentRequests).omit({
+  id: true,
+  requestedAt: true,
+  clientPaidAt: true,
+  clientUtr: true,
+  confirmedAt: true,
+  confirmedBy: true,
+}).extend({
+  amount: z.coerce.number().positive("Amount must be greater than zero"),
+  description: z.string().min(1, "Description is required"),
+});
+
+export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;
+export type PaymentRequest = typeof paymentRequests.$inferSelect;

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee, Edit, Trash2, MoreVertical, Upload, Eye, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee, Edit, Trash2, MoreVertical, Upload, Eye, ChevronDown, ChevronRight, SendHorizonal, Building2, CreditCard, CheckCircle2, Clock } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -22,10 +22,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertVendorInvoiceSchema, insertVendorPaymentSchema } from "@shared/schema";
-import type { Vendor, VendorInvoice, VendorPayment, Project } from "@shared/schema";
+import type { Vendor, VendorInvoice, VendorPayment, Project, PaymentRequest } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { Badge } from "@/components/ui/badge";
 import * as XLSX from "xlsx";
 
 type InvoiceFormData = z.infer<typeof insertVendorInvoiceSchema>;
@@ -42,6 +43,41 @@ interface LedgerEntry {
   balance: number;
 }
 
+interface PaymentRequestRow {
+  id: string;
+  vendorId: string;
+  vendorName: string;
+  bankName?: string | null;
+  accountNumber?: string | null;
+  ifscCode?: string | null;
+  branch?: string | null;
+  projectId?: string | null;
+  projectName?: string | null;
+  amount: string;
+  description: string;
+  status: string;
+  requestedAt: string;
+  clientPaidAt?: string | null;
+  clientUtr?: string | null;
+  confirmedAt?: string | null;
+}
+
+const paymentRequestFormSchema = z.object({
+  vendorId: z.string().min(1, "Select a vendor"),
+  projectId: z.string().optional(),
+  amount: z.coerce.number().positive("Amount must be greater than 0"),
+  description: z.string().min(1, "Description is required"),
+});
+type PaymentRequestFormData = z.infer<typeof paymentRequestFormSchema>;
+
+const bankDetailsSchema = z.object({
+  bankName: z.string().optional(),
+  accountNumber: z.string().optional(),
+  ifscCode: z.string().optional(),
+  branch: z.string().optional(),
+});
+type BankDetailsFormData = z.infer<typeof bankDetailsSchema>;
+
 export default function AccountsPage() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerUrl, setViewerUrl] = useState("");
@@ -54,6 +90,9 @@ export default function AccountsPage() {
   const [selectedVendorId, setSelectedVendorId] = useState<string>("");
   const [addInvoiceDialogOpen, setAddInvoiceDialogOpen] = useState(false);
   const [addPaymentDialogOpen, setAddPaymentDialogOpen] = useState(false);
+  const [requestPaymentOpen, setRequestPaymentOpen] = useState(false);
+  const [bankDetailsOpen, setBankDetailsOpen] = useState(false);
+  const [bankDetailsVendorId, setBankDetailsVendorId] = useState<string>("");
   const [editInvoiceDialogOpen, setEditInvoiceDialogOpen] = useState(false);
   const [editPaymentDialogOpen, setEditPaymentDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<VendorInvoice | null>(null);
@@ -91,6 +130,12 @@ export default function AccountsPage() {
     enabled: !!selectedVendorId,
   });
 
+  // Fetch payment requests (all)
+  const { data: paymentRequestsList = [] } = useQuery<PaymentRequestRow[]>({
+    queryKey: ['/api/payment-requests'],
+    enabled: canManageAccounts,
+  });
+
   // Invoice form
   const invoiceForm = useForm<InvoiceFormData>({
     resolver: zodResolver(insertVendorInvoiceSchema.omit({ vendorId: true, createdBy: true })),
@@ -105,6 +150,67 @@ export default function AccountsPage() {
     defaultValues: {
       paymentDate: format(new Date(), 'yyyy-MM-dd'),
       paymentMethod: 'bank_transfer',
+    },
+  });
+
+  // Payment Request form
+  const paymentRequestForm = useForm<PaymentRequestFormData>({
+    resolver: zodResolver(paymentRequestFormSchema),
+    defaultValues: {
+      vendorId: selectedVendorId || "",
+      projectId: "",
+      description: "",
+    },
+  });
+
+  // Bank details form
+  const bankDetailsForm = useForm<BankDetailsFormData>({
+    resolver: zodResolver(bankDetailsSchema),
+    defaultValues: {},
+  });
+
+  // Create payment request mutation
+  const createPaymentRequestMutation = useMutation({
+    mutationFn: (data: PaymentRequestFormData) =>
+      apiRequest('POST', '/api/payment-requests', {
+        ...data,
+        projectId: (data.projectId && data.projectId !== "__none__") ? data.projectId : undefined,
+      }),
+    onSuccess: () => {
+      toast({ title: "Payment request sent", description: "The client has been notified by email." });
+      setRequestPaymentOpen(false);
+      paymentRequestForm.reset();
+      queryClient.invalidateQueries({ queryKey: ['/api/payment-requests'] });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Failed to send request", description: error?.message || "An error occurred." });
+    },
+  });
+
+  // Save bank details mutation
+  const saveBankDetailsMutation = useMutation({
+    mutationFn: (data: BankDetailsFormData) =>
+      apiRequest('PATCH', `/api/vendors/${bankDetailsVendorId}`, data),
+    onSuccess: () => {
+      toast({ title: "Bank details saved" });
+      setBankDetailsOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Failed to save bank details" });
+    },
+  });
+
+  // Confirm payment request mutation (designer acknowledges client paid)
+  const confirmPaymentRequestMutation = useMutation({
+    mutationFn: (id: string) => apiRequest('PATCH', `/api/payment-requests/${id}/confirm`, {}),
+    onSuccess: () => {
+      toast({ title: "Payment confirmed" });
+      queryClient.invalidateQueries({ queryKey: ['/api/payment-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/payment-alerts'] });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Failed to confirm payment" });
     },
   });
 
@@ -497,6 +603,9 @@ export default function AccountsPage() {
         <TabsList>
           <TabsTrigger value="ledger" data-testid="tab-vendor-ledger">Vendor Ledger</TabsTrigger>
           <TabsTrigger value="summary" data-testid="tab-payments-summary">Payments Summary</TabsTrigger>
+          {canManageAccounts && (
+            <TabsTrigger value="requests">Payment Requests</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="ledger" className="space-y-3">
@@ -583,9 +692,41 @@ export default function AccountsPage() {
               </AlertDescription>
             </Alert>
           )}
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {canManageAccounts && (
               <>
+                {/* Request Payment Button */}
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    paymentRequestForm.reset({ vendorId: selectedVendorId || "", projectId: "", description: "" });
+                    setRequestPaymentOpen(true);
+                  }}
+                >
+                  <SendHorizonal className="h-4 w-4 mr-2" />
+                  Request Payment
+                </Button>
+
+                {/* Edit Bank Details Button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const v = vendors.find(x => x.id === selectedVendorId);
+                    setBankDetailsVendorId(selectedVendorId);
+                    bankDetailsForm.reset({
+                      bankName: (v as any)?.bankName || "",
+                      accountNumber: (v as any)?.accountNumber || "",
+                      ifscCode: (v as any)?.ifscCode || "",
+                      branch: (v as any)?.branch || "",
+                    });
+                    setBankDetailsOpen(true);
+                  }}
+                >
+                  <Building2 className="h-4 w-4 mr-1.5" />
+                  Bank Details
+                </Button>
+
                 <Dialog open={addInvoiceDialogOpen} onOpenChange={(open) => {
               if (!open) {
                 setInvoiceFile(null);
@@ -1097,6 +1238,136 @@ export default function AccountsPage() {
             )}
           </div>
 
+          {/* ── Request Payment Dialog ── */}
+          <Dialog open={requestPaymentOpen} onOpenChange={setRequestPaymentOpen}>
+            <DialogContent className="max-w-[95vw] sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Request Payment from Client</DialogTitle>
+                <DialogDescription>Send a payment request to the client for a vendor payment. They will receive an email with bank details.</DialogDescription>
+              </DialogHeader>
+              <Form {...paymentRequestForm}>
+                <form onSubmit={paymentRequestForm.handleSubmit(d => createPaymentRequestMutation.mutate(d))} className="space-y-4">
+                  <FormField
+                    control={paymentRequestForm.control}
+                    name="vendorId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Vendor</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger><SelectValue placeholder="Select vendor" /></SelectTrigger>
+                          <SelectContent>
+                            {vendors.map(v => (
+                              <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={paymentRequestForm.control}
+                    name="projectId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Project (optional)</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || "__none__"}>
+                          <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">No project</SelectItem>
+                            {sortProjectsForDropdown(projects).map(p => (
+                              <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={paymentRequestForm.control}
+                    name="amount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Amount (₹)</FormLabel>
+                        <FormControl>
+                          <Input {...field} type="number" step="0.01" placeholder="0.00" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={paymentRequestForm.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea {...field} placeholder="Payment for furniture supply — Phase 1" rows={2} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setRequestPaymentOpen(false)}>Cancel</Button>
+                    <Button type="submit" disabled={createPaymentRequestMutation.isPending}>
+                      <SendHorizonal className="h-4 w-4 mr-2" />
+                      {createPaymentRequestMutation.isPending ? "Sending..." : "Send Request"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+
+          {/* ── Bank Details Dialog ── */}
+          <Dialog open={bankDetailsOpen} onOpenChange={setBankDetailsOpen}>
+            <DialogContent className="max-w-[95vw] sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Bank Details</DialogTitle>
+                <DialogDescription>
+                  Set the bank account details for {vendors.find(v => v.id === bankDetailsVendorId)?.name || "this vendor"}. These are shown to clients in payment request emails.
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...bankDetailsForm}>
+                <form onSubmit={bankDetailsForm.handleSubmit(d => saveBankDetailsMutation.mutate(d))} className="space-y-4">
+                  <FormField control={bankDetailsForm.control} name="bankName" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bank Name</FormLabel>
+                      <FormControl><Input {...field} value={field.value || ""} placeholder="e.g. HDFC Bank" /></FormControl>
+                    </FormItem>
+                  )} />
+                  <FormField control={bankDetailsForm.control} name="accountNumber" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Account Number</FormLabel>
+                      <FormControl><Input {...field} value={field.value || ""} placeholder="1234567890" /></FormControl>
+                    </FormItem>
+                  )} />
+                  <FormField control={bankDetailsForm.control} name="ifscCode" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>IFSC Code</FormLabel>
+                      <FormControl><Input {...field} value={field.value || ""} placeholder="HDFC0001234" /></FormControl>
+                    </FormItem>
+                  )} />
+                  <FormField control={bankDetailsForm.control} name="branch" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Branch</FormLabel>
+                      <FormControl><Input {...field} value={field.value || ""} placeholder="Koramangala, Bengaluru" /></FormControl>
+                    </FormItem>
+                  )} />
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setBankDetailsOpen(false)}>Cancel</Button>
+                    <Button type="submit" disabled={saveBankDetailsMutation.isPending}>
+                      {saveBankDetailsMutation.isPending ? "Saving..." : "Save Details"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+
           {/* Ledger Table */}
           <Card>
             <CardHeader>
@@ -1216,6 +1487,85 @@ export default function AccountsPage() {
         <TabsContent value="summary" className="space-y-3">
           <PaymentsSummary />
         </TabsContent>
+
+        {canManageAccounts && (
+          <TabsContent value="requests" className="space-y-3">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Payment Requests
+                </CardTitle>
+                <CardDescription>All payment requests sent to clients. Track status and confirm once the client marks as paid.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {paymentRequestsList.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No payment requests yet. Select a vendor and click "Request Payment" to get started.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {paymentRequestsList.map(pr => {
+                      const statusColor = pr.status === 'confirmed'
+                        ? { bg: '#dcfce7', text: '#166534' }
+                        : pr.status === 'client_paid'
+                        ? { bg: '#fff7ed', text: '#c2410c' }
+                        : { bg: '#eff6ff', text: '#1d4ed8' };
+                      const statusLabel = pr.status === 'confirmed' ? 'Confirmed' : pr.status === 'client_paid' ? 'Client Paid' : 'Pending';
+                      return (
+                        <div key={pr.id} className="flex items-start justify-between gap-4 p-4 rounded-md border">
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm">{pr.vendorName}</span>
+                              {pr.projectName && (
+                                <span className="text-xs text-muted-foreground">· {pr.projectName}</span>
+                              )}
+                              <span
+                                className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                                style={{ background: statusColor.bg, color: statusColor.text }}
+                              >
+                                {statusLabel}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{pr.description}</p>
+                            <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
+                              <span className="font-semibold text-foreground">
+                                ₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </span>
+                              <span>Requested {format(new Date(pr.requestedAt), 'dd MMM yyyy')}</span>
+                              {pr.clientPaidAt && (
+                                <span className="text-orange-700">Paid {format(new Date(pr.clientPaidAt), 'dd MMM yyyy')}</span>
+                              )}
+                              {pr.clientUtr && (
+                                <span>UTR: <span className="font-mono">{pr.clientUtr}</span></span>
+                              )}
+                            </div>
+                          </div>
+                          {pr.status === 'client_paid' && (
+                            <Button
+                              size="sm"
+                              onClick={() => confirmPaymentRequestMutation.mutate(pr.id)}
+                              disabled={confirmPaymentRequestMutation.isPending}
+                            >
+                              <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                              Confirm
+                            </Button>
+                          )}
+                          {pr.status === 'confirmed' && (
+                            <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                          )}
+                          {pr.status === 'pending' && (
+                            <Clock className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
       <FileViewerModal
         isOpen={viewerOpen}

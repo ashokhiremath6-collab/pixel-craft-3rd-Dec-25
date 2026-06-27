@@ -52,7 +52,9 @@ import {
   insertWorksOrderSchema,
   insertWorksOrderSignatureSchema,
   worksOrderFiles,
-  BILLING_VISIBLE_ROLES
+  BILLING_VISIBLE_ROLES,
+  paymentRequests,
+  insertPaymentRequestSchema,
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -13254,6 +13256,235 @@ Return your response in the following JSON format only (no markdown, no code blo
     } catch (err) {
       console.error("DELETE /api/proposals/:id error:", err);
       res.status(500).json({ error: "Failed to delete proposal" });
+    }
+  });
+
+  // ── Payment Requests ─────────────────────────────────────────────────────
+
+  // Create a payment request
+  app.post("/api/payment-requests", requireAdmin, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const requestedBy = req.user?.id;
+      const { sendPaymentRequestEmail, getBaseUrl } = await import("./email");
+      const { eq, and } = await import("drizzle-orm");
+      const { projects, vendors, projectClients } = await import("@shared/schema");
+
+      const body = insertPaymentRequestSchema.parse({ ...req.body, orgId, requestedBy, status: "pending" });
+
+      const [pr] = await db.insert(paymentRequests).values({
+        ...body,
+        amount: String(body.amount),
+        orgId,
+        requestedBy,
+        status: "pending",
+      }).returning();
+
+      // Load vendor + project for email
+      const [vendor] = await db.select().from(vendors).where(eq(vendors.id, pr.vendorId)).limit(1);
+      let projectName: string | null = null;
+      let clientEmails: string[] = [];
+      let clientName = "Client";
+
+      if (pr.projectId) {
+        const [project] = await db.select().from(projects).where(eq(projects.id, pr.projectId)).limit(1);
+        if (project) {
+          projectName = project.projectName;
+          // Gather client emails from projectClients first
+          const pcs = await db.select().from(projectClients).where(eq(projectClients.projectId, pr.projectId));
+          clientEmails = pcs.map(pc => pc.clientEmail).filter(Boolean);
+          if (clientEmails.length === 0 && project.clientEmail) clientEmails = [project.clientEmail];
+          clientName = project.clientName || "Client";
+        }
+      }
+
+      if (vendor && clientEmails.length > 0) {
+        const baseUrl = getBaseUrl(req);
+        await sendPaymentRequestEmail({
+          toEmails: clientEmails,
+          clientName,
+          vendorName: vendor.name,
+          amount: Number(pr.amount),
+          description: pr.description,
+          bankName: vendor.bankName,
+          accountNumber: vendor.accountNumber,
+          ifscCode: vendor.ifscCode,
+          branch: vendor.branch,
+          projectName,
+          portalUrl: baseUrl,
+        }).catch(e => console.warn("[EMAIL] Payment request email failed:", e));
+      }
+
+      res.status(201).json(pr);
+    } catch (err) {
+      console.error("POST /api/payment-requests error:", err);
+      if (err instanceof Error && err.message.includes("ZodError")) return res.status(400).json({ error: "Invalid data" });
+      res.status(500).json({ error: "Failed to create payment request" });
+    }
+  });
+
+  // List payment requests (designer/admin view)
+  app.get("/api/payment-requests", requireAdmin, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { eq, and, desc } = await import("drizzle-orm");
+      const { vendors, projects } = await import("@shared/schema");
+
+      const rows = await db
+        .select({
+          id: paymentRequests.id,
+          orgId: paymentRequests.orgId,
+          vendorId: paymentRequests.vendorId,
+          vendorName: vendors.name,
+          bankName: vendors.bankName,
+          accountNumber: vendors.accountNumber,
+          ifscCode: vendors.ifscCode,
+          branch: vendors.branch,
+          projectId: paymentRequests.projectId,
+          projectName: projects.projectName,
+          amount: paymentRequests.amount,
+          description: paymentRequests.description,
+          status: paymentRequests.status,
+          requestedBy: paymentRequests.requestedBy,
+          requestedAt: paymentRequests.requestedAt,
+          clientPaidAt: paymentRequests.clientPaidAt,
+          clientUtr: paymentRequests.clientUtr,
+          confirmedAt: paymentRequests.confirmedAt,
+          confirmedBy: paymentRequests.confirmedBy,
+        })
+        .from(paymentRequests)
+        .leftJoin(vendors, eq(vendors.id, paymentRequests.vendorId))
+        .leftJoin(projects, eq(projects.id, paymentRequests.projectId))
+        .where(eq(paymentRequests.orgId, orgId))
+        .orderBy(desc(paymentRequests.requestedAt));
+
+      res.json(rows);
+    } catch (err) {
+      console.error("GET /api/payment-requests error:", err);
+      res.status(500).json({ error: "Failed to fetch payment requests" });
+    }
+  });
+
+  // Client-portal: get payment requests for a project
+  app.get("/api/client-portal/:projectId/payment-requests", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const { projectId } = req.params;
+      const { eq, and } = await import("drizzle-orm");
+      const { projectClients, vendors, projects } = await import("@shared/schema");
+
+      // Verify client has access to this project
+      const hasAccess = await db.select().from(projectClients)
+        .where(and(eq(projectClients.projectId, projectId), eq(projectClients.userId, userId)))
+        .limit(1);
+
+      // Also allow admin/designer/pm roles
+      if (hasAccess.length === 0 && !["admin","designer","project_manager"].includes(req.user?.role)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const rows = await db
+        .select({
+          id: paymentRequests.id,
+          vendorId: paymentRequests.vendorId,
+          vendorName: vendors.name,
+          bankName: vendors.bankName,
+          accountNumber: vendors.accountNumber,
+          ifscCode: vendors.ifscCode,
+          branch: vendors.branch,
+          amount: paymentRequests.amount,
+          description: paymentRequests.description,
+          status: paymentRequests.status,
+          requestedAt: paymentRequests.requestedAt,
+          clientPaidAt: paymentRequests.clientPaidAt,
+          clientUtr: paymentRequests.clientUtr,
+        })
+        .from(paymentRequests)
+        .leftJoin(vendors, eq(vendors.id, paymentRequests.vendorId))
+        .where(eq(paymentRequests.projectId, projectId))
+        .orderBy(paymentRequests.requestedAt);
+
+      res.json(rows);
+    } catch (err) {
+      console.error("GET /api/client-portal/:projectId/payment-requests error:", err);
+      res.status(500).json({ error: "Failed to fetch payment requests" });
+    }
+  });
+
+  // Client marks a payment as paid (with UTR)
+  app.patch("/api/payment-requests/:id/client-confirm", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { clientUtr } = req.body;
+      const { eq } = await import("drizzle-orm");
+
+      const [pr] = await db.update(paymentRequests)
+        .set({ status: "client_paid", clientPaidAt: new Date(), clientUtr: clientUtr || null })
+        .where(eq(paymentRequests.id, id))
+        .returning();
+
+      if (!pr) return res.status(404).json({ error: "Not found" });
+      res.json(pr);
+    } catch (err) {
+      console.error("PATCH /api/payment-requests/:id/client-confirm error:", err);
+      res.status(500).json({ error: "Failed to update payment request" });
+    }
+  });
+
+  // Designer acknowledges client payment and marks confirmed
+  app.patch("/api/payment-requests/:id/confirm", requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const confirmedBy = req.user?.id;
+      const { eq } = await import("drizzle-orm");
+
+      const [pr] = await db.update(paymentRequests)
+        .set({ status: "confirmed", confirmedAt: new Date(), confirmedBy })
+        .where(eq(paymentRequests.id, id))
+        .returning();
+
+      if (!pr) return res.status(404).json({ error: "Not found" });
+      res.json(pr);
+    } catch (err) {
+      console.error("PATCH /api/payment-requests/:id/confirm error:", err);
+      res.status(500).json({ error: "Failed to confirm payment request" });
+    }
+  });
+
+  // Dashboard: list payment requests that are client_paid (designer needs to acknowledge)
+  app.get("/api/dashboard/payment-alerts", requireAdmin, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { eq, and } = await import("drizzle-orm");
+      const { vendors, projects } = await import("@shared/schema");
+
+      const rows = await db
+        .select({
+          id: paymentRequests.id,
+          vendorId: paymentRequests.vendorId,
+          vendorName: vendors.name,
+          bankName: vendors.bankName,
+          accountNumber: vendors.accountNumber,
+          ifscCode: vendors.ifscCode,
+          projectId: paymentRequests.projectId,
+          projectName: projects.projectName,
+          amount: paymentRequests.amount,
+          description: paymentRequests.description,
+          status: paymentRequests.status,
+          requestedAt: paymentRequests.requestedAt,
+          clientPaidAt: paymentRequests.clientPaidAt,
+          clientUtr: paymentRequests.clientUtr,
+        })
+        .from(paymentRequests)
+        .leftJoin(vendors, eq(vendors.id, paymentRequests.vendorId))
+        .leftJoin(projects, eq(projects.id, paymentRequests.projectId))
+        .where(and(eq(paymentRequests.orgId, orgId), eq(paymentRequests.status, "client_paid")))
+        .orderBy(paymentRequests.clientPaidAt);
+
+      res.json(rows);
+    } catch (err) {
+      console.error("GET /api/dashboard/payment-alerts error:", err);
+      res.status(500).json({ error: "Failed to fetch payment alerts" });
     }
   });
 

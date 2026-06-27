@@ -499,6 +499,81 @@ export async function sendProjectUpdateEmail(
   });
 }
 
+export async function sendPaymentRequestEmail(opts: {
+  toEmails: string[];
+  clientName: string;
+  vendorName: string;
+  amount: number;
+  description: string;
+  bankName?: string | null;
+  accountNumber?: string | null;
+  ifscCode?: string | null;
+  branch?: string | null;
+  projectName?: string | null;
+  portalUrl: string;
+}): Promise<void> {
+  const amountFormatted = `₹${opts.amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const hasBankDetails = opts.bankName || opts.accountNumber || opts.ifscCode;
+
+  const bankBlock = hasBankDetails ? `
+    <div style="background:#f5f5f7;border-radius:10px;padding:16px 20px;margin:16px 0;">
+      <p style="font-size:13px;font-weight:600;color:#6e6e73;text-transform:uppercase;letter-spacing:.5px;margin:0 0 10px;">Bank Details</p>
+      ${opts.bankName ? `<p style="margin:0 0 5px;font-size:14px;color:#1d1d1f;"><strong>Bank:</strong> ${opts.bankName}</p>` : ""}
+      ${opts.accountNumber ? `<p style="margin:0 0 5px;font-size:14px;color:#1d1d1f;"><strong>Account No:</strong> ${opts.accountNumber}</p>` : ""}
+      ${opts.ifscCode ? `<p style="margin:0 0 5px;font-size:14px;color:#1d1d1f;"><strong>IFSC:</strong> ${opts.ifscCode}</p>` : ""}
+      ${opts.branch ? `<p style="margin:0;font-size:14px;color:#1d1d1f;"><strong>Branch:</strong> ${opts.branch}</p>` : ""}
+    </div>` : "";
+
+  const bankTextBlock = hasBankDetails ? `\nBank Details:\n${opts.bankName ? `Bank: ${opts.bankName}\n` : ""}${opts.accountNumber ? `Account No: ${opts.accountNumber}\n` : ""}${opts.ifscCode ? `IFSC: ${opts.ifscCode}\n` : ""}${opts.branch ? `Branch: ${opts.branch}\n` : ""}` : "";
+
+  const subject = `Payment request from your designer — ${amountFormatted}`;
+
+  for (const to of opts.toEmails) {
+    console.info(`[EMAIL] Payment request to ${to}: ${amountFormatted} for ${opts.vendorName}`);
+    await sendEmail({
+      to,
+      subject,
+      html: `
+        <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
+          <div style="text-align:center;margin-bottom:24px;">
+            <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
+          </div>
+          <div style="background:#fff;border-radius:12px;padding:28px;">
+            <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Payment request</h2>
+            <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 16px;">
+              Hi ${opts.clientName}, your designer has raised a payment request. Please transfer the amount below to your vendor${opts.projectName ? ` for project <strong>${opts.projectName}</strong>` : ""}.
+            </p>
+            <table style="width:100%;border-collapse:collapse;margin:0 0 16px;">
+              <tr>
+                <td style="padding:10px 12px;background:#f5f5f7;border-radius:8px 8px 0 0;color:#6e6e73;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Vendor</td>
+                <td style="padding:10px 12px;background:#f5f5f7;border-radius:8px 8px 0 0;color:#1d1d1f;font-size:15px;font-weight:600;text-align:right;">${opts.vendorName}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 12px;background:#e8f4fd;border-radius:0;color:#6e6e73;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Amount</td>
+                <td style="padding:10px 12px;background:#e8f4fd;border-radius:0;color:#0071e3;font-size:18px;font-weight:700;text-align:right;">${amountFormatted}</td>
+              </tr>
+              <tr>
+                <td colspan="2" style="padding:10px 12px;background:#f5f5f7;border-radius:0 0 8px 8px;color:#3d3d3d;font-size:14px;">${opts.description}</td>
+              </tr>
+            </table>
+            ${bankBlock}
+            <p style="color:#3d3d3d;font-size:14px;line-height:1.6;margin:0 0 20px;">
+              After completing the payment, please log in to your client portal and mark this request as paid with your UTR/transaction reference.
+            </p>
+            <a href="${opts.portalUrl}" style="display:inline-block;background:#0071e3;color:#fff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
+              Open Client Portal
+            </a>
+            <p style="color:#6e6e73;font-size:13px;margin:20px 0 0;">
+              If you have any questions, please contact your designer directly.
+            </p>
+          </div>
+        </div>
+      `,
+      text: `Payment request from Olympik Design\n\nHi ${opts.clientName},\n\nYour designer has raised a payment request.\n\nVendor: ${opts.vendorName}\nAmount: ${amountFormatted}\nDetails: ${opts.description}${opts.projectName ? `\nProject: ${opts.projectName}` : ""}${bankTextBlock}\n\nAfter making the payment, please log in to your client portal and mark it as paid:\n${opts.portalUrl}`,
+    });
+  }
+}
+
 export async function sendVerificationEmail(
   email: string,
   token: string,

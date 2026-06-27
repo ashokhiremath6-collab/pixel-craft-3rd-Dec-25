@@ -10,6 +10,7 @@ import {
   AlertCircle, ImageIcon, LayoutDashboard, FileCheck2, CalendarDays,
   BookOpen, Package, Trash2, Pencil, Plus, Bell, FileUp,
   ChevronDown, ChevronRight, ExternalLink, ArrowUpDown, X, SendHorizonal, FolderOpen,
+  CreditCard, CheckCircle2,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -465,6 +466,102 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
+interface PaymentAlert {
+  id: string;
+  vendorId: string;
+  vendorName: string;
+  bankName?: string | null;
+  accountNumber?: string | null;
+  ifscCode?: string | null;
+  projectId?: string | null;
+  projectName?: string | null;
+  amount: string;
+  description: string;
+  status: string;
+  requestedAt: string;
+  clientPaidAt?: string | null;
+  clientUtr?: string | null;
+}
+
+function PaymentAlertsPanel() {
+  const queryClient = useQueryClient();
+
+  const { data: alerts = [] } = useQuery<PaymentAlert[]>({
+    queryKey: ["/api/dashboard/payment-alerts"],
+    refetchInterval: 60_000,
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: (id: string) => apiRequest('PATCH', `/api/payment-requests/${id}/confirm`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/payment-alerts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/payment-requests"] });
+    },
+  });
+
+  if (alerts.length === 0) return null;
+
+  return (
+    <ContentCard>
+      <div className="px-5 sm:px-8 pt-6 pb-4 space-y-3">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="flex items-center justify-center w-9 h-9 rounded-full" style={{ background: "#059669" }}>
+            <CreditCard className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg sm:text-[22px] font-semibold leading-tight" style={{ color: "#111827" }}>
+              Client Payments Received
+            </h2>
+            <p className="text-xs" style={{ color: "#86868b" }}>
+              {alerts.length} payment{alerts.length !== 1 ? "s" : ""} marked paid by client — confirm to log
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {alerts.map(alert => (
+            <div
+              key={alert.id}
+              className="flex items-start justify-between gap-4 px-4 py-3 rounded-[12px]"
+              style={{ background: "#f0fdf4", border: "1px solid #bbf7d0" }}
+            >
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-semibold" style={{ color: "#111827" }}>{alert.vendorName}</span>
+                  {alert.projectName && (
+                    <span className="text-xs" style={{ color: "#6b7280" }}>· {alert.projectName}</span>
+                  )}
+                </div>
+                <p className="text-xs" style={{ color: "#374151" }}>{alert.description}</p>
+                <div className="flex items-center gap-3 flex-wrap text-xs" style={{ color: "#6b7280" }}>
+                  <span className="font-semibold" style={{ color: "#059669" }}>
+                    ₹{Number(alert.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                  {alert.clientPaidAt && (
+                    <span>Paid {format(new Date(alert.clientPaidAt), "dd MMM yyyy")}</span>
+                  )}
+                  {alert.clientUtr && (
+                    <span>UTR: <span className="font-mono">{alert.clientUtr}</span></span>
+                  )}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => confirmMutation.mutate(alert.id)}
+                disabled={confirmMutation.isPending}
+                style={{ background: "#059669", color: "#fff", flexShrink: 0 }}
+              >
+                <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                Confirm
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </ContentCard>
+  );
+}
+
 export default function Dashboard({
   vendors,
   projects,
@@ -610,6 +707,9 @@ export default function Dashboard({
         {vendorAlerts.length > 0 && (
           <VendorAlertsPanel alerts={vendorAlerts} />
         )}
+
+        {/* ── Client Payment Alerts ── */}
+        <PaymentAlertsPanel />
 
         {/* ── Latest Activity — PROMINENT HERO SECTION ── */}
         <ContentCard>

@@ -35,7 +35,15 @@ import {
   BrainCircuit,
   Receipt,
   SendHorizonal,
+  CreditCard,
+  Building2,
 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { differenceInHours } from "date-fns";
 import AIAssistantPage from "@/pages/AIAssistantPage";
 import { format, parseISO } from "date-fns";
@@ -56,6 +64,7 @@ const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "timeline", label: "Timeline", icon: Clock },
   { id: "project-cost", label: "Project Cost", icon: Receipt },
+  { id: "payments", label: "Payments", icon: CreditCard },
   { id: "renders", label: "Renders", icon: Sparkles },
   { id: "moodboards", label: "Moodboards", icon: Image },
   { id: "drawings", label: "Working Drawings", icon: PenTool },
@@ -63,6 +72,196 @@ const TABS = [
   { id: "minutes", label: "Meeting Minutes", icon: Calendar },
   { id: "design-intelligence", label: "Design Intelligence", icon: BrainCircuit },
 ];
+
+interface ClientPaymentRequest {
+  id: string;
+  vendorId: string;
+  vendorName: string;
+  bankName?: string | null;
+  accountNumber?: string | null;
+  ifscCode?: string | null;
+  branch?: string | null;
+  amount: string;
+  description: string;
+  status: string;
+  requestedAt: string;
+  clientPaidAt?: string | null;
+  clientUtr?: string | null;
+}
+
+function PaymentsSection({ projectId }: { projectId: string }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [markPaidId, setMarkPaidId] = useState<string | null>(null);
+  const [utr, setUtr] = useState("");
+
+  const { data: requests = [], isLoading } = useQuery<ClientPaymentRequest[]>({
+    queryKey: ['/api/client-portal', projectId, 'payment-requests'],
+    queryFn: () => fetch(`/api/client-portal/${projectId}/payment-requests`).then(r => r.json()),
+  });
+
+  const markPaidMutation = useMutation({
+    mutationFn: ({ id, clientUtr }: { id: string; clientUtr: string }) =>
+      apiRequest('PATCH', `/api/payment-requests/${id}/client-confirm`, { clientUtr }),
+    onSuccess: () => {
+      toast({ title: "Payment marked as paid", description: "The designer has been notified." });
+      setMarkPaidId(null);
+      setUtr("");
+      queryClient.invalidateQueries({ queryKey: ['/api/client-portal', projectId, 'payment-requests'] });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Failed to mark as paid" });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const pending = requests.filter(r => r.status === 'pending');
+  const clientPaid = requests.filter(r => r.status === 'client_paid');
+  const confirmed = requests.filter(r => r.status === 'confirmed');
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold mb-1">Payments</h2>
+        <p className="text-sm text-muted-foreground">Payment requests from your designer. Mark each as paid once you have transferred the amount.</p>
+      </div>
+
+      {requests.length === 0 && (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            No payment requests yet.
+          </CardContent>
+        </Card>
+      )}
+
+      {pending.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Awaiting Payment</h3>
+          {pending.map(pr => (
+            <Card key={pr.id}>
+              <CardContent className="pt-5 space-y-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="font-semibold">{pr.vendorName}</div>
+                    <div className="text-sm text-muted-foreground mt-0.5">{pr.description}</div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-lg font-bold">
+                      ₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Requested {formatDate(pr.requestedAt)}</div>
+                  </div>
+                </div>
+                {(pr.bankName || pr.accountNumber || pr.ifscCode) && (
+                  <div className="rounded-md border bg-muted/30 p-3 space-y-1.5 text-sm">
+                    <div className="flex items-center gap-1.5 font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                      <Building2 className="h-3.5 w-3.5" />
+                      Bank Details
+                    </div>
+                    {pr.bankName && <div className="flex justify-between"><span className="text-muted-foreground">Bank</span><span className="font-medium">{pr.bankName}</span></div>}
+                    {pr.accountNumber && <div className="flex justify-between"><span className="text-muted-foreground">Account No.</span><span className="font-mono font-medium">{pr.accountNumber}</span></div>}
+                    {pr.ifscCode && <div className="flex justify-between"><span className="text-muted-foreground">IFSC</span><span className="font-mono font-medium">{pr.ifscCode}</span></div>}
+                    {pr.branch && <div className="flex justify-between"><span className="text-muted-foreground">Branch</span><span className="font-medium">{pr.branch}</span></div>}
+                  </div>
+                )}
+                <Button className="w-full" onClick={() => { setMarkPaidId(pr.id); setUtr(""); }}>
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Mark as Paid
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {clientPaid.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Awaiting Designer Confirmation</h3>
+          {clientPaid.map(pr => (
+            <Card key={pr.id} className="opacity-75">
+              <CardContent className="pt-5">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="font-medium">{pr.vendorName}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{pr.description}</div>
+                    {pr.clientUtr && <div className="text-xs mt-1">UTR: <span className="font-mono">{pr.clientUtr}</span></div>}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="font-bold">₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                    <div className="flex items-center gap-1 text-xs text-orange-600 mt-1">
+                      <Clock className="h-3 w-3" />
+                      Confirming
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {confirmed.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Completed</h3>
+          {confirmed.map(pr => (
+            <Card key={pr.id} className="opacity-60">
+              <CardContent className="pt-5">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="font-medium">{pr.vendorName}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{pr.description}</div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="font-bold">₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                    <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Confirmed
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Mark as Paid Dialog */}
+      <Dialog open={!!markPaidId} onOpenChange={open => !open && setMarkPaidId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Mark as Paid</DialogTitle>
+            <DialogDescription>Enter your UTR / transaction reference number to confirm this payment.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label htmlFor="utr-input">UTR / Reference Number</Label>
+            <Input
+              id="utr-input"
+              value={utr}
+              onChange={e => setUtr(e.target.value)}
+              placeholder="e.g. HDFC000123456789"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMarkPaidId(null)}>Cancel</Button>
+            <Button
+              onClick={() => markPaidId && markPaidMutation.mutate({ id: markPaidId, clientUtr: utr })}
+              disabled={markPaidMutation.isPending || !utr.trim()}
+            >
+              {markPaidMutation.isPending ? "Saving..." : "Confirm Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 function getFileUrl(filePath?: string | null, fileName?: string | null): string | null {
   if (!fileName) return null;
@@ -903,6 +1102,9 @@ export default function ClientPortalApp({
                 categories={costCategories}
                 quotations={costQuotations}
               />
+            )}
+            {activeTab === "payments" && effectiveProjectId && (
+              <PaymentsSection projectId={effectiveProjectId} />
             )}
             {activeTab === "renders" && (
               <MediaSection title="Renders" items={portalData?.renders || []} />
