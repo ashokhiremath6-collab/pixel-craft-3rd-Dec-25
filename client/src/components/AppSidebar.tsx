@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
 
 interface NavigationItem {
   title: string;
@@ -80,6 +81,15 @@ export function AppSidebar() {
   // Choose which main items to show based on role
   const visibleMainItems = isProjectManager ? projectManagerMainItems : mainItems;
 
+  // Poll for client_paid payment requests — same cadence as PaymentAlertsPanel
+  const { data: paymentAlerts = [] } = useQuery<unknown[]>({
+    queryKey: ["/api/dashboard/payment-alerts"],
+    refetchInterval: 60_000,
+    enabled: isAdminOrDesigner,
+  });
+
+  const pendingPaymentCount = paymentAlerts.length;
+
   // Close mobile sidebar when a link is clicked
   const handleLinkClick = () => {
     if (isMobile) {
@@ -87,21 +97,36 @@ export function AppSidebar() {
     }
   };
 
-  const renderMenuItems = (items: NavigationItem[]) =>
-    items.map((item) => (
-      <SidebarMenuItem key={item.title}>
-        <SidebarMenuButton
-          asChild
-          data-active={location === item.url}
-          data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-        >
-          <Link href={item.url} onClick={handleLinkClick}>
-            <item.icon />
-            <span>{item.title}</span>
-          </Link>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    ));
+  const renderMenuItems = (items: NavigationItem[], badgeCounts: Record<string, number> = {}) =>
+    items.map((item) => {
+      const badge = badgeCounts[item.url] ?? 0;
+      return (
+        <SidebarMenuItem key={item.title}>
+          <SidebarMenuButton
+            asChild
+            data-active={location === item.url}
+            data-testid={`sidebar-link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+          >
+            <Link href={item.url} onClick={handleLinkClick}>
+              <item.icon />
+              <span className="flex-1">{item.title}</span>
+              {badge > 0 && (
+                <span
+                  className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground"
+                  data-testid={`badge-${item.url.replace(/\//g, '')}-count`}
+                >
+                  {badge > 99 ? "99+" : badge}
+                </span>
+              )}
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      );
+    });
+
+  const accountsBadgeCounts = isAdminOrDesigner && pendingPaymentCount > 0
+    ? { "/accounts": pendingPaymentCount }
+    : {};
 
   return (
     <Sidebar data-testid="sidebar-main">
@@ -137,7 +162,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {renderMenuItems(visibleMainItems)}
+              {renderMenuItems(visibleMainItems, accountsBadgeCounts)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
