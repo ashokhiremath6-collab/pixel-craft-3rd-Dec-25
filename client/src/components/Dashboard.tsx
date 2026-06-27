@@ -612,7 +612,7 @@ function PaymentAlertsPanel() {
       // 1. Record the vendor payment in the ledger
       await apiRequest('POST', `/api/vendors/${alert.vendorId}/payments`, {
         paymentDate: date,
-        amount: Number(alert.amount),
+        amount: String(alert.amount),
         paymentMethod: 'bank_transfer',
         paymentReference: alert.clientUtr || undefined,
         notes: notes || `Payment received from client. UTR: ${alert.clientUtr || "N/A"}. ${alert.description}`,
