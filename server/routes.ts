@@ -13373,12 +13373,15 @@ Return your response in the following JSON format only (no markdown, no code blo
     try {
       const userId = req.user?.id;
       const orgId = req.user?.orgId;
-      const role = req.user?.role;
       const { projectId } = req.params;
       const { eq, and } = await import("drizzle-orm");
       const { projectClients, vendors, projects } = await import("@shared/schema");
 
-      const isStaff = ["admin","designer","project_manager"].includes(role);
+      // Resolve role from user_roles table (req.user.role is not set by middleware)
+      const userRoleRow = await storage.getUserRole(userId);
+      const role = userRoleRow?.role?.toLowerCase();
+
+      const isStaff = ["admin","designer","project_manager"].includes(role ?? "");
 
       if (isStaff) {
         // Staff must belong to the same org; also verify project belongs to org
@@ -13427,11 +13430,14 @@ Return your response in the following JSON format only (no markdown, no code blo
     try {
       const userId = req.user?.id;
       const orgId = req.user?.orgId;
-      const role = req.user?.role;
       const { id } = req.params;
       const { clientUtr } = req.body;
       const { eq, and } = await import("drizzle-orm");
       const { projectClients } = await import("@shared/schema");
+
+      // Resolve role from user_roles table (req.user.role is not set by middleware)
+      const userRoleRow = await storage.getUserRole(userId);
+      const role = userRoleRow?.role?.toLowerCase();
 
       // Only clients may use this endpoint
       if (role !== 'client') return res.status(403).json({ error: "This action is only available to clients." });
