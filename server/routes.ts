@@ -13503,6 +13503,53 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // Delete a payment request (admin only, any status except confirmed)
+  app.delete("/api/payment-requests/:id", requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const orgId = req.user?.orgId;
+      const { eq, and, ne } = await import("drizzle-orm");
+
+      const [deleted] = await db.delete(paymentRequests)
+        .where(and(
+          eq(paymentRequests.id, id),
+          eq(paymentRequests.orgId, orgId),
+          ne(paymentRequests.status, "confirmed")
+        ))
+        .returning();
+
+      if (!deleted) return res.status(404).json({ error: "Not found or already confirmed" });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("DELETE /api/payment-requests/:id error:", err);
+      res.status(500).json({ error: "Failed to delete payment request" });
+    }
+  });
+
+  // Cancel a payment request (admin only, pending or client_paid → cancelled)
+  app.patch("/api/payment-requests/:id/cancel", requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const orgId = req.user?.orgId;
+      const { eq, and, inArray } = await import("drizzle-orm");
+
+      const [pr] = await db.update(paymentRequests)
+        .set({ status: "cancelled" })
+        .where(and(
+          eq(paymentRequests.id, id),
+          eq(paymentRequests.orgId, orgId),
+          inArray(paymentRequests.status, ["pending", "client_paid"])
+        ))
+        .returning();
+
+      if (!pr) return res.status(404).json({ error: "Not found or not cancellable" });
+      res.json(pr);
+    } catch (err) {
+      console.error("PATCH /api/payment-requests/:id/cancel error:", err);
+      res.status(500).json({ error: "Failed to cancel payment request" });
+    }
+  });
+
   // Dashboard: list payment requests that are client_paid (designer needs to acknowledge)
   app.get("/api/dashboard/payment-alerts", requireAdmin, async (req: any, res) => {
     try {

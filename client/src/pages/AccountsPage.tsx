@@ -102,6 +102,8 @@ export default function AccountsPage() {
   const [editingPayment, setEditingPayment] = useState<VendorPayment | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingEntry, setDeletingEntry] = useState<{ id: string; type: 'invoice' | 'payment' } | null>(null);
+  const [deletePrDialogOpen, setDeletePrDialogOpen] = useState(false);
+  const [deletingPr, setDeletingPr] = useState<PaymentRequestRow | null>(null);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
   const { toast } = useToast();
@@ -186,6 +188,34 @@ export default function AccountsPage() {
       let msg = "An error occurred.";
       try { const j = await error?.response?.json?.(); if (j?.error) msg = j.error; } catch {}
       toast({ variant: "destructive", title: "Failed to send request", description: msg });
+    },
+  });
+
+  // Delete payment request mutation
+  const deletePaymentRequestMutation = useMutation({
+    mutationFn: (id: string) => apiRequest('DELETE', `/api/payment-requests/${id}`),
+    onSuccess: () => {
+      toast({ title: "Payment request deleted" });
+      setDeletePrDialogOpen(false);
+      setDeletingPr(null);
+      queryClient.invalidateQueries({ queryKey: ['/api/payment-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/payment-alerts'] });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Failed to delete payment request" });
+    },
+  });
+
+  // Cancel payment request mutation
+  const cancelPaymentRequestMutation = useMutation({
+    mutationFn: (id: string) => apiRequest('PATCH', `/api/payment-requests/${id}/cancel`, {}),
+    onSuccess: () => {
+      toast({ title: "Payment request cancelled" });
+      queryClient.invalidateQueries({ queryKey: ['/api/payment-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/payment-alerts'] });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Failed to cancel payment request" });
     },
   });
 
@@ -1569,25 +1599,37 @@ export default function AccountsPage() {
                               )}
                             </div>
                           </div>
-                          {pr.status === 'client_paid' && (
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                setPrSaveDialog(pr);
-                                setPrSaveDate(pr.clientPaidAt ? format(new Date(pr.clientPaidAt), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
-                                setPrSaveNotes("");
-                              }}
-                            >
-                              <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                              Save to Accounts
-                            </Button>
-                          )}
-                          {pr.status === 'confirmed' && (
-                            <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                          )}
-                          {pr.status === 'pending' && (
-                            <Clock className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
-                          )}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {pr.status === 'client_paid' && (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setPrSaveDialog(pr);
+                                  setPrSaveDate(pr.clientPaidAt ? format(new Date(pr.clientPaidAt), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
+                                  setPrSaveNotes("");
+                                }}
+                              >
+                                <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                                Save to Accounts
+                              </Button>
+                            )}
+                            {pr.status === 'confirmed' && (
+                              <CheckCircle2 className="h-5 w-5 text-green-600" />
+                            )}
+                            {pr.status === 'pending' && (
+                              <Clock className="h-5 w-5 text-blue-400" />
+                            )}
+                            {pr.status !== 'confirmed' && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="text-muted-foreground"
+                                onClick={() => { setDeletingPr(pr); setDeletePrDialogOpen(true); }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -1604,6 +1646,30 @@ export default function AccountsPage() {
         fileUrl={viewerUrl}
         fileName={viewerFileName}
       />
+
+      {/* Delete Payment Request confirmation dialog */}
+      <AlertDialog open={deletePrDialogOpen} onOpenChange={setDeletePrDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete payment request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the payment request
+              {deletingPr ? ` for ${deletingPr.vendorName} (₹${Number(deletingPr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })})` : ''}.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeletingPr(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingPr && deletePaymentRequestMutation.mutate(deletingPr.id)}
+              disabled={deletePaymentRequestMutation.isPending}
+              className="bg-destructive text-destructive-foreground"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Save to Accounts dialog for Payment Requests tab */}
       {prSaveDialog && (
