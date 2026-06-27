@@ -12,6 +12,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import {
   LogOut,
   Calendar,
   FileText,
@@ -32,7 +45,6 @@ import {
   File,
   ChevronRight,
   ArrowLeft,
-  BrainCircuit,
   Receipt,
   SendHorizonal,
   CreditCard,
@@ -45,7 +57,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { differenceInHours } from "date-fns";
-import AIAssistantPage from "@/pages/AIAssistantPage";
 import { format, parseISO } from "date-fns";
 import type { Project, Moodboard, Specification, MeetingMinutes, Task, VendorCategory } from "@shared/schema";
 import { formatCurrencyCompact } from "@/lib/currencyUtils";
@@ -1001,85 +1012,28 @@ export default function ClientPortalApp({
   });
 
   const costQuotations = costQuotationsData?.quotations?.[effectiveProjectId] ?? [];
-
   const selectedProject = portalData?.project || projects.find(p => p.id === effectiveProjectId);
+  const activeTabMeta = TABS.find(t => t.id === activeTab) ?? TABS[0];
 
-  const Header = () => (
-    <>
-      {previewMode && (
-        <div className="bg-amber-50 dark:bg-amber-950 border-b border-amber-200 dark:border-amber-800 px-4 py-2 flex items-center justify-between gap-3">
-          <p className="text-xs text-amber-800 dark:text-amber-200 font-medium">
-            Admin Preview — you are viewing the client portal as a client would see it
-          </p>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onExitPreview}
-            className="h-7 text-xs gap-1.5 shrink-0"
-          >
-            <ArrowLeft className="h-3 w-3" />
-            Exit Preview
-          </Button>
-        </div>
-      )}
-      <header className="border-b bg-background px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <img src="/logo.png" alt="Olympik Design" className="h-7 w-7 object-contain shrink-0" />
-          <span className="font-semibold text-sm hidden sm:block shrink-0">Olympik Design</span>
-          {projects.length > 1 ? (
-            <Select value={effectiveProjectId} onValueChange={v => { setSelectedProjectId(v); setActiveTab("overview"); }}>
-              <SelectTrigger className="w-[180px] sm:w-[220px]">
-                <SelectValue placeholder="Select project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : selectedProject ? (
-            <span className="text-sm text-muted-foreground truncate">{selectedProject.projectName}</span>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Badge variant="secondary" className="hidden sm:flex items-center gap-1 text-xs">
-            Client Portal
-          </Badge>
-          {user && !previewMode && (
-            <span className="text-sm text-muted-foreground hidden md:block">
-              {user.firstName ? `Hi, ${user.firstName}` : user.email}
-            </span>
-          )}
-          {previewMode ? (
-            <Button variant="ghost" size="icon" onClick={onExitPreview} title="Exit Preview">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button variant="ghost" size="icon" onClick={() => logout()} title="Logout">
-              <LogOut className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </header>
-    </>
+  const sidebarStyle = {
+    "--sidebar-width": "14rem",
+    "--sidebar-width-icon": "3.25rem",
+  } as React.CSSProperties;
+
+  const LoadingScreen = () => (
+    <SidebarProvider style={sidebarStyle}>
+      <div className="flex h-screen w-full bg-background items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    </SidebarProvider>
   );
 
-  if (projectsLoading) {
-    return (
-      <div className="min-h-screen flex flex-col bg-background">
-        <Header />
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      </div>
-    );
-  }
+  if (projectsLoading) return <LoadingScreen />;
 
   if (projects.length === 0) {
     return (
-      <div className="min-h-screen flex flex-col bg-background">
-        <Header />
-        <div className="flex-1 flex items-center justify-center p-6">
+      <SidebarProvider style={sidebarStyle}>
+        <div className="flex h-screen w-full bg-background items-center justify-center p-6">
           <div className="text-center max-w-sm">
             <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
               <LayoutDashboard className="h-7 w-7 text-muted-foreground" />
@@ -1090,75 +1044,160 @@ export default function ClientPortalApp({
             </p>
           </div>
         </div>
-      </div>
+      </SidebarProvider>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <Header />
+    <SidebarProvider style={sidebarStyle}>
+      <div className="flex h-screen w-full bg-background overflow-hidden">
 
-      {/* Tab navigation */}
-      <div className="border-b bg-background shrink-0 overflow-x-auto">
-        <div className="flex px-4 sm:px-6 gap-0">
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={[
-                "flex items-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-                activeTab === tab.id
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              ].join(" ")}
-            >
-              <tab.icon className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">{tab.label}</span>
-              <span className="sm:hidden">{tab.label.split(" ")[0]}</span>
-            </button>
-          ))}
+        {/* ── SIDEBAR ── */}
+        <Sidebar collapsible="icon">
+          <SidebarHeader className="px-3 py-3 border-b">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img src="/logo.png" alt="Olympik Design" className="h-7 w-7 object-contain shrink-0" />
+              <span className="font-semibold text-sm truncate group-data-[collapsible=icon]:hidden">
+                Olympik Design
+              </span>
+            </div>
+          </SidebarHeader>
+
+          <SidebarContent>
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {TABS.map(tab => (
+                    <SidebarMenuItem key={tab.id}>
+                      <SidebarMenuButton
+                        isActive={activeTab === tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        tooltip={tab.label}
+                        className="cursor-pointer"
+                      >
+                        <tab.icon />
+                        <span>{tab.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
+
+          {projects.length > 1 && (
+            <SidebarFooter className="border-t px-3 py-3">
+              <Select
+                value={effectiveProjectId}
+                onValueChange={v => { setSelectedProjectId(v); setActiveTab("overview"); }}
+              >
+                <SelectTrigger className="w-full group-data-[collapsible=icon]:hidden">
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SidebarFooter>
+          )}
+        </Sidebar>
+
+        {/* ── MAIN AREA ── */}
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+
+          {/* Preview banner */}
+          {previewMode && (
+            <div className="bg-amber-50 dark:bg-amber-950 border-b border-amber-200 dark:border-amber-800 px-4 py-2 flex items-center justify-between gap-3 shrink-0">
+              <p className="text-xs text-amber-800 dark:text-amber-200 font-medium">
+                Admin Preview — you are viewing the client portal as a client would see it
+              </p>
+              <Button size="sm" variant="outline" onClick={onExitPreview} className="text-xs gap-1.5 shrink-0">
+                <ArrowLeft className="h-3 w-3" />
+                Exit Preview
+              </Button>
+            </div>
+          )}
+
+          {/* Header */}
+          <header className="border-b bg-background px-4 py-3 flex items-center justify-between shrink-0 gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <SidebarTrigger />
+              <div className="h-5 w-px bg-border hidden sm:block" />
+              <div className="flex items-center gap-2 min-w-0">
+                <activeTabMeta.icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="font-semibold text-sm truncate">{activeTabMeta.label}</span>
+              </div>
+              {projects.length === 1 && selectedProject && (
+                <span className="text-xs text-muted-foreground truncate hidden sm:block">
+                  — {selectedProject.projectName}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <Badge variant="secondary" className="hidden sm:flex text-xs">
+                Client Portal
+              </Badge>
+              {user && !previewMode && (
+                <span className="text-sm text-muted-foreground hidden md:block">
+                  {user.firstName ? `Hi, ${user.firstName}` : user.email}
+                </span>
+              )}
+              {previewMode ? (
+                <Button variant="ghost" size="icon" onClick={onExitPreview} title="Exit Preview">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button variant="ghost" size="icon" onClick={() => logout()} title="Logout">
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </header>
+
+          {/* Page content */}
+          <main className="flex-1 overflow-auto p-6">
+            {dataLoading ? (
+              <div className="flex items-center justify-center h-48">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                {activeTab === "overview" && (
+                  <OverviewSection project={selectedProject} data={portalData} vendorAlerts={vendorAlertsData} />
+                )}
+                {activeTab === "timeline" && (
+                  <TimelineSection tasks={portalData?.tasks || []} />
+                )}
+                {activeTab === "project-cost" && (
+                  <ProjectCostSection
+                    projectId={effectiveProjectId}
+                    categories={costCategories}
+                    quotations={costQuotations}
+                  />
+                )}
+                {activeTab === "payments" && effectiveProjectId && (
+                  <PaymentsSection projectId={effectiveProjectId} />
+                )}
+                {activeTab === "renders" && (
+                  <MediaSection title="Renders" items={portalData?.renders || []} />
+                )}
+                {activeTab === "moodboards" && (
+                  <MediaSection title="Moodboards" items={portalData?.moodboards || []} />
+                )}
+                {activeTab === "drawings" && (
+                  <DrawingsSection items={portalData?.workingDrawings || []} />
+                )}
+                {activeTab === "minutes" && (
+                  <MinutesSection items={portalData?.meetingMinutes || []} />
+                )}
+              </>
+            )}
+          </main>
         </div>
       </div>
-
-      {/* Content */}
-      <main className="flex-1 overflow-auto p-4 sm:p-6">
-        {dataLoading ? (
-          <div className="flex items-center justify-center h-48">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <>
-            {activeTab === "overview" && (
-              <OverviewSection project={selectedProject} data={portalData} vendorAlerts={vendorAlertsData} />
-            )}
-            {activeTab === "timeline" && (
-              <TimelineSection tasks={portalData?.tasks || []} />
-            )}
-            {activeTab === "project-cost" && (
-              <ProjectCostSection
-                projectId={effectiveProjectId}
-                categories={costCategories}
-                quotations={costQuotations}
-              />
-            )}
-            {activeTab === "payments" && effectiveProjectId && (
-              <PaymentsSection projectId={effectiveProjectId} />
-            )}
-            {activeTab === "renders" && (
-              <MediaSection title="Renders" items={portalData?.renders || []} />
-            )}
-            {activeTab === "moodboards" && (
-              <MediaSection title="Moodboards" items={portalData?.moodboards || []} />
-            )}
-            {activeTab === "drawings" && (
-              <DrawingsSection items={portalData?.workingDrawings || []} />
-            )}
-            {activeTab === "minutes" && (
-              <MinutesSection items={portalData?.meetingMinutes || []} />
-            )}
-          </>
-        )}
-      </main>
-    </div>
+    </SidebarProvider>
   );
 }
