@@ -1616,18 +1616,26 @@ export default function AccountsPage() {
               {(() => {
                 const v = vendors.find(x => x.id === paymentRequestVendorId);
                 if (!v) return null;
+                const hasBankDetails = (v as any).bankName || (v as any).accountNumber || (v as any).ifscCode;
+                if (!hasBankDetails) {
+                  return (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>{v.name}</strong> has no bank details on file. The client will not know where to transfer the money.
+                        <br />
+                        <span className="text-sm">Close this dialog and click <strong>"Bank Details"</strong> next to the vendor to add account number, IFSC and bank name first.</span>
+                      </AlertDescription>
+                    </Alert>
+                  );
+                }
                 return (
                   <div className="rounded-md border bg-muted/40 px-3 py-2.5 space-y-1 text-xs">
-                    <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Vendor</p>
+                    <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Vendor — bank details that will be sent to client</p>
                     <p className="font-medium text-sm">{v.name}</p>
-                    {(v.bankName || v.accountNumber || v.ifscCode) && (
-                      <>
-                        <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px] pt-1">Bank details that will be sent to client</p>
-                        {v.bankName && <p><span className="text-muted-foreground">Bank:</span> {(v as any).bankName}{(v as any).branch ? ` — ${(v as any).branch}` : ""}</p>}
-                        {v.accountNumber && <p><span className="text-muted-foreground">Account:</span> {(v as any).accountNumber}</p>}
-                        {v.ifscCode && <p><span className="text-muted-foreground">IFSC:</span> {(v as any).ifscCode}</p>}
-                      </>
-                    )}
+                    {(v as any).bankName && <p><span className="text-muted-foreground">Bank:</span> {(v as any).bankName}{(v as any).branch ? ` — ${(v as any).branch}` : ""}</p>}
+                    {(v as any).accountNumber && <p><span className="text-muted-foreground">Account:</span> {(v as any).accountNumber}</p>}
+                    {(v as any).ifscCode && <p><span className="text-muted-foreground">IFSC:</span> {(v as any).ifscCode}</p>}
                   </div>
                 );
               })()}
