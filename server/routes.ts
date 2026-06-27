@@ -11578,7 +11578,18 @@ Return your response in the following JSON format only (no markdown, no code blo
         SELECT
           CASE WHEN qf.id IS NOT NULL THEN qf.id::text ELSE pv.id::text END AS id,
           pv.id AS pv_id,
-          COALESCE(qf.quoted_amount, pv.quotation_value) AS quotation_value,
+          -- Only fall back to the PV-level value for the FIRST file on that PV.
+          -- If a PV has multiple files and a file has no individual amount, showing
+          -- the PV value on every row misleadingly duplicates the same number.
+          COALESCE(
+            qf.quoted_amount,
+            CASE
+              WHEN COUNT(qf.id) OVER (PARTITION BY pv.id) <= 1
+                OR ROW_NUMBER() OVER (PARTITION BY pv.id ORDER BY qf.created_at NULLS LAST) = 1
+              THEN pv.quotation_value
+              ELSE NULL
+            END
+          ) AS quotation_value,
           pv.notes,
           pv.portal_submitted_at AS submitted_at,
           COALESCE(qf.display_name, pv.quotation_name) AS quotation_name,
