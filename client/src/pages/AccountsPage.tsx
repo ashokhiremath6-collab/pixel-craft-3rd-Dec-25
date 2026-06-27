@@ -1,5 +1,33 @@
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { useState } from "react";
+import { sortProjectsForDropdown } from "@/lib/projectSort";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useToast } from "@/hooks/use-toast";
+import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee, Edit, Trash2, MoreVertical, Upload, Eye, ChevronDown, ChevronRight, SendHorizonal, Building2, CreditCard, CheckCircle2, Clock } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { insertVendorInvoiceSchema, insertVendorPaymentSchema } from "@shared/schema";
+import type { Vendor, VendorInvoice, VendorPayment, Project, PaymentRequest } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import { format } from "date-fns";
+import { useAuth } from "@/hooks/useAuth";
+import { Badge } from "@/components/ui/badge";
+import * as XLSX from "xlsx";
 
 const INDIAN_BANKS = [
   "State Bank of India (SBI)",
@@ -65,34 +93,6 @@ function BankNameField({ field }: { field: any }) {
     </div>
   );
 }
-import { sortProjectsForDropdown } from "@/lib/projectSort";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee, Edit, Trash2, MoreVertical, Upload, Eye, ChevronDown, ChevronRight, SendHorizonal, Building2, CreditCard, CheckCircle2, Clock } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { insertVendorInvoiceSchema, insertVendorPaymentSchema } from "@shared/schema";
-import type { Vendor, VendorInvoice, VendorPayment, Project, PaymentRequest } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
-import { format } from "date-fns";
-import { useAuth } from "@/hooks/useAuth";
-import { Badge } from "@/components/ui/badge";
-import * as XLSX from "xlsx";
 
 type InvoiceFormData = z.infer<typeof insertVendorInvoiceSchema>;
 type PaymentFormData = z.infer<typeof insertVendorPaymentSchema>;
@@ -169,6 +169,7 @@ export default function AccountsPage() {
   const [deletingEntry, setDeletingEntry] = useState<{ id: string; type: 'invoice' | 'payment' } | null>(null);
   const [deletePrDialogOpen, setDeletePrDialogOpen] = useState(false);
   const [deletingPr, setDeletingPr] = useState<PaymentRequestRow | null>(null);
+  const [requestsTabVendorId, setRequestsTabVendorId] = useState<string>("");
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
   const { toast } = useToast();
@@ -1357,35 +1358,22 @@ export default function AccountsPage() {
               </DialogHeader>
               <Form {...paymentRequestForm}>
                 <form onSubmit={paymentRequestForm.handleSubmit(d => createPaymentRequestMutation.mutate(d))} className="space-y-4">
-                  <FormField
-                    control={paymentRequestForm.control}
-                    name="vendorId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Vendor</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger><SelectValue placeholder="Select vendor" /></SelectTrigger>
-                          <SelectContent>
-                            {vendors.map(v => (
-                              <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {/* Bank details preview after vendor selection */}
+                  {/* Selected vendor summary */}
                   {(() => {
-                    const vid = paymentRequestForm.watch("vendorId");
-                    const v = vendors.find(x => x.id === vid);
-                    if (!v || (!v.bankName && !v.accountNumber && !v.ifscCode)) return null;
+                    const v = vendors.find(x => x.id === requestsTabVendorId);
+                    if (!v) return null;
                     return (
                       <div className="rounded-md border bg-muted/40 px-3 py-2.5 space-y-1 text-xs">
-                        <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Bank details that will be sent to client</p>
-                        {v.bankName && <p><span className="text-muted-foreground">Bank:</span> {v.bankName}{v.branch ? ` — ${v.branch}` : ""}</p>}
-                        {v.accountNumber && <p><span className="text-muted-foreground">Account:</span> {v.accountNumber}</p>}
-                        {v.ifscCode && <p><span className="text-muted-foreground">IFSC:</span> {v.ifscCode}</p>}
+                        <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Vendor</p>
+                        <p className="font-medium text-sm">{v.name}</p>
+                        {(v.bankName || v.accountNumber || v.ifscCode) && (
+                          <>
+                            <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px] pt-1">Bank details that will be sent to client</p>
+                            {v.bankName && <p><span className="text-muted-foreground">Bank:</span> {v.bankName}{v.branch ? ` — ${v.branch}` : ""}</p>}
+                            {v.accountNumber && <p><span className="text-muted-foreground">Account:</span> {v.accountNumber}</p>}
+                            {v.ifscCode && <p><span className="text-muted-foreground">IFSC:</span> {v.ifscCode}</p>}
+                          </>
+                        )}
                       </div>
                     );
                   })()}
@@ -1613,6 +1601,41 @@ export default function AccountsPage() {
 
         {canManageAccounts && (
           <TabsContent value="requests" className="space-y-3">
+            {/* Vendor picker + action */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">New Payment Request</CardTitle>
+                <CardDescription>Select a vendor then click "Request Payment" to send a payment request to the client.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-[220px]">
+                  <Select value={requestsTabVendorId} onValueChange={setRequestsTabVendorId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a vendor..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vendors
+                        .slice()
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map(v => (
+                          <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  disabled={!requestsTabVendorId}
+                  onClick={() => {
+                    paymentRequestForm.reset({ vendorId: requestsTabVendorId, projectId: "", amount: undefined, description: "" });
+                    setRequestPaymentOpen(true);
+                  }}
+                >
+                  <SendHorizonal className="h-4 w-4 mr-2" />
+                  Request Payment
+                </Button>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -1624,7 +1647,7 @@ export default function AccountsPage() {
               <CardContent>
                 {paymentRequestsList.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    No payment requests yet. Select a vendor and click "Request Payment" to get started.
+                    No payment requests yet. Select a vendor above and click "Request Payment" to get started.
                   </div>
                 ) : (
                   <div className="space-y-3">
