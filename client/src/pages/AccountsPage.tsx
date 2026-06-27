@@ -170,6 +170,7 @@ export default function AccountsPage() {
   const [deletePrDialogOpen, setDeletePrDialogOpen] = useState(false);
   const [deletingPr, setDeletingPr] = useState<PaymentRequestRow | null>(null);
   const [requestsTabVendorId, setRequestsTabVendorId] = useState<string>("");
+  const [paymentRequestVendorId, setPaymentRequestVendorId] = useState<string>("");
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
   const { toast } = useToast();
@@ -810,6 +811,7 @@ export default function AccountsPage() {
                 <Button
                   variant="outline"
                   onClick={() => {
+                    setPaymentRequestVendorId(selectedVendorId || "");
                     paymentRequestForm.reset({ vendorId: selectedVendorId || "", projectId: "", description: "" });
                     setRequestPaymentOpen(true);
                   }}
@@ -1349,136 +1351,6 @@ export default function AccountsPage() {
             )}
           </div>
 
-          {/* ── Request Payment Dialog ── */}
-          <Dialog open={requestPaymentOpen} onOpenChange={setRequestPaymentOpen}>
-            <DialogContent className="max-w-[95vw] sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Request Payment from Client</DialogTitle>
-                <DialogDescription>Send a payment request to the client for a vendor payment. They will receive an email with bank details.</DialogDescription>
-              </DialogHeader>
-              <Form {...paymentRequestForm}>
-                <form onSubmit={paymentRequestForm.handleSubmit(d => createPaymentRequestMutation.mutate(d))} className="space-y-4">
-                  {/* Selected vendor summary */}
-                  {(() => {
-                    const v = vendors.find(x => x.id === requestsTabVendorId);
-                    if (!v) return null;
-                    return (
-                      <div className="rounded-md border bg-muted/40 px-3 py-2.5 space-y-1 text-xs">
-                        <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Vendor</p>
-                        <p className="font-medium text-sm">{v.name}</p>
-                        {(v.bankName || v.accountNumber || v.ifscCode) && (
-                          <>
-                            <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px] pt-1">Bank details that will be sent to client</p>
-                            {v.bankName && <p><span className="text-muted-foreground">Bank:</span> {v.bankName}{v.branch ? ` — ${v.branch}` : ""}</p>}
-                            {v.accountNumber && <p><span className="text-muted-foreground">Account:</span> {v.accountNumber}</p>}
-                            {v.ifscCode && <p><span className="text-muted-foreground">IFSC:</span> {v.ifscCode}</p>}
-                          </>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  <FormField
-                    control={paymentRequestForm.control}
-                    name="projectId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Project</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value || ""}>
-                          <SelectTrigger><SelectValue placeholder="Select project (required)" /></SelectTrigger>
-                          <SelectContent>
-                            {sortProjectsForDropdown(projects).map(p => (
-                              <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={paymentRequestForm.control}
-                    name="amount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Amount (₹)</FormLabel>
-                        <FormControl>
-                          <Input {...field} type="number" step="0.01" placeholder="0.00" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={paymentRequestForm.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Description</FormLabel>
-                        <FormControl>
-                          <Textarea {...field} placeholder="Payment for furniture supply — Phase 1" rows={2} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setRequestPaymentOpen(false)}>Cancel</Button>
-                    <Button type="submit" disabled={createPaymentRequestMutation.isPending}>
-                      <SendHorizonal className="h-4 w-4 mr-2" />
-                      {createPaymentRequestMutation.isPending ? "Sending..." : "Send Request"}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-
-          {/* ── Bank Details Dialog ── */}
-          <Dialog open={bankDetailsOpen} onOpenChange={setBankDetailsOpen}>
-            <DialogContent className="max-w-[95vw] sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Bank Details</DialogTitle>
-                <DialogDescription>
-                  Set the bank account details for {vendors.find(v => v.id === bankDetailsVendorId)?.name || "this vendor"}. These are shown to clients in payment request emails.
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...bankDetailsForm}>
-                <form onSubmit={bankDetailsForm.handleSubmit(d => saveBankDetailsMutation.mutate(d))} className="space-y-4">
-                  <FormField control={bankDetailsForm.control} name="bankName" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Bank Name</FormLabel>
-                      <FormControl><BankNameField field={field} /></FormControl>
-                    </FormItem>
-                  )} />
-                  <FormField control={bankDetailsForm.control} name="accountNumber" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Account Number</FormLabel>
-                      <FormControl><Input {...field} value={field.value || ""} placeholder="1234567890" /></FormControl>
-                    </FormItem>
-                  )} />
-                  <FormField control={bankDetailsForm.control} name="ifscCode" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>IFSC Code</FormLabel>
-                      <FormControl><Input {...field} value={field.value || ""} placeholder="HDFC0001234" /></FormControl>
-                    </FormItem>
-                  )} />
-                  <FormField control={bankDetailsForm.control} name="branch" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Branch</FormLabel>
-                      <FormControl><Input {...field} value={field.value || ""} placeholder="Koramangala, Bengaluru" /></FormControl>
-                    </FormItem>
-                  )} />
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setBankDetailsOpen(false)}>Cancel</Button>
-                    <Button type="submit" disabled={saveBankDetailsMutation.isPending}>
-                      {saveBankDetailsMutation.isPending ? "Saving..." : "Save Details"}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-
           {/* Ledger Table */}
           <Card>
             <CardHeader>
@@ -1626,6 +1498,7 @@ export default function AccountsPage() {
                 <Button
                   disabled={!requestsTabVendorId}
                   onClick={() => {
+                    setPaymentRequestVendorId(requestsTabVendorId);
                     paymentRequestForm.reset({ vendorId: requestsTabVendorId, projectId: "", description: "" } as any);
                     setRequestPaymentOpen(true);
                   }}
@@ -1730,6 +1603,136 @@ export default function AccountsPage() {
           </TabsContent>
         )}
       </Tabs>
+
+      {/* ── Request Payment Dialog (outside Tabs so it renders on any tab) ── */}
+      <Dialog open={requestPaymentOpen} onOpenChange={setRequestPaymentOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Request Payment from Client</DialogTitle>
+            <DialogDescription>Send a payment request to the client for a vendor payment. They will receive an email with bank details.</DialogDescription>
+          </DialogHeader>
+          <Form {...paymentRequestForm}>
+            <form onSubmit={paymentRequestForm.handleSubmit(d => createPaymentRequestMutation.mutate(d))} className="space-y-4">
+              {(() => {
+                const v = vendors.find(x => x.id === paymentRequestVendorId);
+                if (!v) return null;
+                return (
+                  <div className="rounded-md border bg-muted/40 px-3 py-2.5 space-y-1 text-xs">
+                    <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Vendor</p>
+                    <p className="font-medium text-sm">{v.name}</p>
+                    {(v.bankName || v.accountNumber || v.ifscCode) && (
+                      <>
+                        <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px] pt-1">Bank details that will be sent to client</p>
+                        {v.bankName && <p><span className="text-muted-foreground">Bank:</span> {(v as any).bankName}{(v as any).branch ? ` — ${(v as any).branch}` : ""}</p>}
+                        {v.accountNumber && <p><span className="text-muted-foreground">Account:</span> {(v as any).accountNumber}</p>}
+                        {v.ifscCode && <p><span className="text-muted-foreground">IFSC:</span> {(v as any).ifscCode}</p>}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+              <FormField
+                control={paymentRequestForm.control}
+                name="projectId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Project</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <SelectTrigger><SelectValue placeholder="Select project (required)" /></SelectTrigger>
+                      <SelectContent>
+                        {sortProjectsForDropdown(projects).map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={paymentRequestForm.control}
+                name="amount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Amount (₹)</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="number" step="0.01" placeholder="0.00" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={paymentRequestForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} placeholder="Payment for furniture supply — Phase 1" rows={2} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setRequestPaymentOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={createPaymentRequestMutation.isPending}>
+                  <SendHorizonal className="h-4 w-4 mr-2" />
+                  {createPaymentRequestMutation.isPending ? "Sending..." : "Send Request"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Bank Details Dialog (outside Tabs so it renders on any tab) ── */}
+      <Dialog open={bankDetailsOpen} onOpenChange={setBankDetailsOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bank Details</DialogTitle>
+            <DialogDescription>
+              Set the bank account details for {vendors.find(v => v.id === bankDetailsVendorId)?.name || "this vendor"}. These are shown to clients in payment request emails.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...bankDetailsForm}>
+            <form onSubmit={bankDetailsForm.handleSubmit(d => saveBankDetailsMutation.mutate(d))} className="space-y-4">
+              <FormField control={bankDetailsForm.control} name="bankName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Bank Name</FormLabel>
+                  <FormControl><BankNameField field={field} /></FormControl>
+                </FormItem>
+              )} />
+              <FormField control={bankDetailsForm.control} name="accountNumber" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Account Number</FormLabel>
+                  <FormControl><Input {...field} value={field.value || ""} placeholder="1234567890" /></FormControl>
+                </FormItem>
+              )} />
+              <FormField control={bankDetailsForm.control} name="ifscCode" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>IFSC Code</FormLabel>
+                  <FormControl><Input {...field} value={field.value || ""} placeholder="HDFC0001234" /></FormControl>
+                </FormItem>
+              )} />
+              <FormField control={bankDetailsForm.control} name="branch" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Branch</FormLabel>
+                  <FormControl><Input {...field} value={field.value || ""} placeholder="Koramangala, Bengaluru" /></FormControl>
+                </FormItem>
+              )} />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setBankDetailsOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={saveBankDetailsMutation.isPending}>
+                  {saveBankDetailsMutation.isPending ? "Saving..." : "Save Details"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
       <FileViewerModal
         isOpen={viewerOpen}
         onClose={() => setViewerOpen(false)}
