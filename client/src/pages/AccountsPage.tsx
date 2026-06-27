@@ -93,6 +93,9 @@ export default function AccountsPage() {
   const [requestPaymentOpen, setRequestPaymentOpen] = useState(false);
   const [bankDetailsOpen, setBankDetailsOpen] = useState(false);
   const [bankDetailsVendorId, setBankDetailsVendorId] = useState<string>("");
+  const [prSaveDialog, setPrSaveDialog] = useState<PaymentRequestRow | null>(null);
+  const [prSaveDate, setPrSaveDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [prSaveNotes, setPrSaveNotes] = useState("");
   const [editInvoiceDialogOpen, setEditInvoiceDialogOpen] = useState(false);
   const [editPaymentDialogOpen, setEditPaymentDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<VendorInvoice | null>(null);
@@ -201,16 +204,29 @@ export default function AccountsPage() {
     },
   });
 
-  // Confirm payment request mutation (designer acknowledges client paid)
-  const confirmPaymentRequestMutation = useMutation({
-    mutationFn: (id: string) => apiRequest('PATCH', `/api/payment-requests/${id}/confirm`, {}),
+  // Save to Accounts: record vendor payment in ledger then confirm the payment request
+  const saveToAccountsMutation = useMutation({
+    mutationFn: async ({ pr, date, notes }: { pr: PaymentRequestRow; date: string; notes: string }) => {
+      await apiRequest('POST', `/api/vendors/${pr.vendorId}/payments`, {
+        paymentDate: date,
+        amount: Number(pr.amount),
+        paymentMethod: 'bank_transfer',
+        paymentReference: pr.clientUtr || undefined,
+        notes: notes || `Payment received from client. UTR: ${pr.clientUtr || "N/A"}. ${pr.description}`,
+      });
+      await apiRequest('PATCH', `/api/payment-requests/${pr.id}/confirm`, {});
+    },
     onSuccess: () => {
-      toast({ title: "Payment confirmed" });
+      toast({ title: "Saved to accounts and confirmed" });
       queryClient.invalidateQueries({ queryKey: ['/api/payment-requests'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/payment-alerts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
+      if (prSaveDialog) queryClient.invalidateQueries({ queryKey: ['/api/vendors', prSaveDialog.vendorId, 'payments'] });
+      setPrSaveDialog(null);
+      setPrSaveNotes("");
     },
     onError: () => {
-      toast({ variant: "destructive", title: "Failed to confirm payment" });
+      toast({ variant: "destructive", title: "Failed to save to accounts" });
     },
   });
 
@@ -1544,11 +1560,14 @@ export default function AccountsPage() {
                           {pr.status === 'client_paid' && (
                             <Button
                               size="sm"
-                              onClick={() => confirmPaymentRequestMutation.mutate(pr.id)}
-                              disabled={confirmPaymentRequestMutation.isPending}
+                              onClick={() => {
+                                setPrSaveDialog(pr);
+                                setPrSaveDate(pr.clientPaidAt ? format(new Date(pr.clientPaidAt), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
+                                setPrSaveNotes("");
+                              }}
                             >
                               <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                              Confirm
+                              Save to Accounts
                             </Button>
                           )}
                           {pr.status === 'confirmed' && (
@@ -1573,6 +1592,61 @@ export default function AccountsPage() {
         fileUrl={viewerUrl}
         fileName={viewerFileName}
       />
+
+      {/* Save to Accounts dialog for Payment Requests tab */}
+      {prSaveDialog && (
+        <Dialog open={!!prSaveDialog} onOpenChange={open => !open && setPrSaveDialog(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Save to Accounts</DialogTitle>
+              <DialogDescription>
+                Record this payment in the vendor ledger for <strong>{prSaveDialog.vendorName}</strong> and mark the request as confirmed.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Amount</span>
+                <span className="font-bold text-base">
+                  ₹{Number(prSaveDialog.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              {prSaveDialog.clientUtr && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">UTR / Reference</span>
+                  <span className="font-mono">{prSaveDialog.clientUtr}</span>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="pr-save-date">Payment Date</Label>
+                <Input
+                  id="pr-save-date"
+                  type="date"
+                  value={prSaveDate}
+                  onChange={e => setPrSaveDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pr-save-notes">Notes (optional)</Label>
+                <Input
+                  id="pr-save-notes"
+                  value={prSaveNotes}
+                  onChange={e => setPrSaveNotes(e.target.value)}
+                  placeholder="Additional notes for the ledger entry"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPrSaveDialog(null)}>Cancel</Button>
+              <Button
+                onClick={() => saveToAccountsMutation.mutate({ pr: prSaveDialog, date: prSaveDate, notes: prSaveNotes })}
+                disabled={saveToAccountsMutation.isPending}
+              >
+                {saveToAccountsMutation.isPending ? "Saving..." : "Save to Accounts"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

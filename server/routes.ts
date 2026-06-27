@@ -13369,18 +13369,26 @@ Return your response in the following JSON format only (no markdown, no code blo
   app.get("/api/client-portal/:projectId/payment-requests", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.id;
+      const orgId = req.user?.orgId;
+      const role = req.user?.role;
       const { projectId } = req.params;
       const { eq, and } = await import("drizzle-orm");
       const { projectClients, vendors, projects } = await import("@shared/schema");
 
-      // Verify client has access to this project
-      const hasAccess = await db.select().from(projectClients)
-        .where(and(eq(projectClients.projectId, projectId), eq(projectClients.userId, userId)))
-        .limit(1);
+      const isStaff = ["admin","designer","project_manager"].includes(role);
 
-      // Also allow admin/designer/pm roles
-      if (hasAccess.length === 0 && !["admin","designer","project_manager"].includes(req.user?.role)) {
-        return res.status(403).json({ error: "Access denied" });
+      if (isStaff) {
+        // Staff must belong to the same org; also verify project belongs to org
+        const [proj] = await db.select().from(projects).where(and(eq(projects.id, projectId), eq(projects.orgId, orgId))).limit(1);
+        if (!proj) return res.status(403).json({ error: "Access denied" });
+      } else {
+        // Client: must be mapped to this project via projectClients AND project must be in same org
+        const [proj] = await db.select().from(projects).where(and(eq(projects.id, projectId), eq(projects.orgId, orgId))).limit(1);
+        if (!proj) return res.status(403).json({ error: "Access denied" });
+        const hasAccess = await db.select().from(projectClients)
+          .where(and(eq(projectClients.projectId, projectId), eq(projectClients.userId, userId)))
+          .limit(1);
+        if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
       }
 
       const rows = await db
@@ -13401,7 +13409,7 @@ Return your response in the following JSON format only (no markdown, no code blo
         })
         .from(paymentRequests)
         .leftJoin(vendors, eq(vendors.id, paymentRequests.vendorId))
-        .where(eq(paymentRequests.projectId, projectId))
+        .where(and(eq(paymentRequests.projectId, projectId), eq(paymentRequests.orgId, orgId)))
         .orderBy(paymentRequests.requestedAt);
 
       res.json(rows);
@@ -13451,19 +13459,25 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  // Designer acknowledges client payment and marks confirmed
+  // Designer acknowledges client payment and marks confirmed (only from client_paid state)
   app.patch("/api/payment-requests/:id/confirm", requireAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
       const confirmedBy = req.user?.id;
-      const { eq } = await import("drizzle-orm");
+      const orgId = req.user?.orgId;
+      const { eq, and } = await import("drizzle-orm");
 
+      // Enforce state machine: only client_paid -> confirmed is valid; scope to org
       const [pr] = await db.update(paymentRequests)
         .set({ status: "confirmed", confirmedAt: new Date(), confirmedBy })
-        .where(eq(paymentRequests.id, id))
+        .where(and(
+          eq(paymentRequests.id, id),
+          eq(paymentRequests.orgId, orgId),
+          eq(paymentRequests.status, "client_paid")
+        ))
         .returning();
 
-      if (!pr) return res.status(404).json({ error: "Not found" });
+      if (!pr) return res.status(404).json({ error: "Not found or not in client_paid state" });
       res.json(pr);
     } catch (err) {
       console.error("PATCH /api/payment-requests/:id/confirm error:", err);
