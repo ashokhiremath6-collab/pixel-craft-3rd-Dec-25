@@ -918,7 +918,14 @@ export default function ClientPortalApp({
 } = {}) {
   const { user, logout } = useAuth();
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab && TABS.some(t => t.id === tab)) return tab;
+    }
+    return "overview";
+  });
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
     queryKey: ["/api/client-portal/projects"],

@@ -485,80 +485,158 @@ interface PaymentAlert {
 
 function PaymentAlertsPanel() {
   const queryClient = useQueryClient();
+  const [saveDialogAlert, setSaveDialogAlert] = useState<PaymentAlert | null>(null);
+  const [paymentDate, setPaymentDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [paymentNotes, setPaymentNotes] = useState("");
 
   const { data: alerts = [] } = useQuery<PaymentAlert[]>({
     queryKey: ["/api/dashboard/payment-alerts"],
     refetchInterval: 60_000,
   });
 
-  const confirmMutation = useMutation({
-    mutationFn: (id: string) => apiRequest('PATCH', `/api/payment-requests/${id}/confirm`, {}),
+  const saveToAccountsMutation = useMutation({
+    mutationFn: async ({ alert, date, notes }: { alert: PaymentAlert; date: string; notes: string }) => {
+      // 1. Record the vendor payment in the ledger
+      await apiRequest('POST', `/api/vendors/${alert.vendorId}/payments`, {
+        paymentDate: date,
+        amount: Number(alert.amount),
+        paymentMethod: 'bank_transfer',
+        paymentReference: alert.clientUtr || undefined,
+        notes: notes || `Payment received from client. UTR: ${alert.clientUtr || "N/A"}. ${alert.description}`,
+      });
+      // 2. Mark the payment request as confirmed
+      await apiRequest('PATCH', `/api/payment-requests/${alert.id}/confirm`, {});
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/payment-alerts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/payment-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/vendors"] });
+      setSaveDialogAlert(null);
+      setPaymentNotes("");
     },
   });
 
   if (alerts.length === 0) return null;
 
   return (
-    <ContentCard>
-      <div className="px-5 sm:px-8 pt-6 pb-4 space-y-3">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="flex items-center justify-center w-9 h-9 rounded-full" style={{ background: "#059669" }}>
-            <CreditCard className="h-4 w-4 text-white" />
-          </div>
-          <div>
-            <h2 className="text-lg sm:text-[22px] font-semibold leading-tight" style={{ color: "#111827" }}>
-              Client Payments Received
-            </h2>
-            <p className="text-xs" style={{ color: "#86868b" }}>
-              {alerts.length} payment{alerts.length !== 1 ? "s" : ""} marked paid by client — confirm to log
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          {alerts.map(alert => (
-            <div
-              key={alert.id}
-              className="flex items-start justify-between gap-4 px-4 py-3 rounded-[12px]"
-              style={{ background: "#f0fdf4", border: "1px solid #bbf7d0" }}
-            >
-              <div className="flex-1 min-w-0 space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold" style={{ color: "#111827" }}>{alert.vendorName}</span>
-                  {alert.projectName && (
-                    <span className="text-xs" style={{ color: "#6b7280" }}>· {alert.projectName}</span>
-                  )}
-                </div>
-                <p className="text-xs" style={{ color: "#374151" }}>{alert.description}</p>
-                <div className="flex items-center gap-3 flex-wrap text-xs" style={{ color: "#6b7280" }}>
-                  <span className="font-semibold" style={{ color: "#059669" }}>
-                    ₹{Number(alert.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </span>
-                  {alert.clientPaidAt && (
-                    <span>Paid {format(new Date(alert.clientPaidAt), "dd MMM yyyy")}</span>
-                  )}
-                  {alert.clientUtr && (
-                    <span>UTR: <span className="font-mono">{alert.clientUtr}</span></span>
-                  )}
-                </div>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => confirmMutation.mutate(alert.id)}
-                disabled={confirmMutation.isPending}
-                style={{ background: "#059669", color: "#fff", flexShrink: 0 }}
-              >
-                <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                Confirm
-              </Button>
+    <>
+      <ContentCard>
+        <div className="px-5 sm:px-8 pt-6 pb-4 space-y-3">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="flex items-center justify-center w-9 h-9 rounded-full" style={{ background: "#059669" }}>
+              <CreditCard className="h-4 w-4 text-white" />
             </div>
-          ))}
+            <div>
+              <h2 className="text-lg sm:text-[22px] font-semibold leading-tight" style={{ color: "#111827" }}>
+                Client Payments Received
+              </h2>
+              <p className="text-xs" style={{ color: "#86868b" }}>
+                {alerts.length} payment{alerts.length !== 1 ? "s" : ""} marked paid by client — save to accounts to confirm
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {alerts.map(alert => (
+              <div
+                key={alert.id}
+                className="flex items-start justify-between gap-4 px-4 py-3 rounded-[12px]"
+                style={{ background: "#f0fdf4", border: "1px solid #bbf7d0" }}
+              >
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold" style={{ color: "#111827" }}>{alert.vendorName}</span>
+                    {alert.projectName && (
+                      <span className="text-xs" style={{ color: "#6b7280" }}>· {alert.projectName}</span>
+                    )}
+                  </div>
+                  <p className="text-xs" style={{ color: "#374151" }}>{alert.description}</p>
+                  <div className="flex items-center gap-3 flex-wrap text-xs" style={{ color: "#6b7280" }}>
+                    <span className="font-semibold" style={{ color: "#059669" }}>
+                      ₹{Number(alert.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                    {alert.clientPaidAt && (
+                      <span>Paid {format(new Date(alert.clientPaidAt), "dd MMM yyyy")}</span>
+                    )}
+                    {alert.clientUtr && (
+                      <span>UTR: <span className="font-mono">{alert.clientUtr}</span></span>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setSaveDialogAlert(alert);
+                    setPaymentDate(alert.clientPaidAt ? format(new Date(alert.clientPaidAt), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
+                    setPaymentNotes("");
+                  }}
+                  style={{ background: "#059669", color: "#fff", flexShrink: 0 }}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                  Save to Accounts
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
-    </ContentCard>
+      </ContentCard>
+
+      {/* Save to Accounts Dialog */}
+      {saveDialogAlert && (
+        <Dialog open={!!saveDialogAlert} onOpenChange={open => !open && setSaveDialogAlert(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Save to Accounts</DialogTitle>
+              <DialogDescription>
+                Record this payment in the vendor ledger for <strong>{saveDialogAlert.vendorName}</strong> and mark the request as confirmed.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Amount</span>
+                <span className="font-bold text-base">
+                  ₹{Number(saveDialogAlert.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              {saveDialogAlert.clientUtr && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">UTR / Reference</span>
+                  <span className="font-mono">{saveDialogAlert.clientUtr}</span>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="pay-date">Payment Date</Label>
+                <Input
+                  id="pay-date"
+                  type="date"
+                  value={paymentDate}
+                  onChange={e => setPaymentDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pay-notes">Notes (optional)</Label>
+                <Input
+                  id="pay-notes"
+                  value={paymentNotes}
+                  onChange={e => setPaymentNotes(e.target.value)}
+                  placeholder="Additional notes for the ledger entry"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSaveDialogAlert(null)}>Cancel</Button>
+              <Button
+                onClick={() => saveToAccountsMutation.mutate({ alert: saveDialogAlert, date: paymentDate, notes: paymentNotes })}
+                disabled={saveToAccountsMutation.isPending}
+                style={{ background: "#059669", color: "#fff" }}
+              >
+                {saveToAccountsMutation.isPending ? "Saving..." : "Save to Accounts"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }
 

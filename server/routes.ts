@@ -13414,13 +13414,33 @@ Return your response in the following JSON format only (no markdown, no code blo
   // Client marks a payment as paid (with UTR)
   app.patch("/api/payment-requests/:id/client-confirm", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user?.id;
+      const orgId = req.user?.orgId;
+      const role = req.user?.role;
       const { id } = req.params;
       const { clientUtr } = req.body;
-      const { eq } = await import("drizzle-orm");
+      const { eq, and } = await import("drizzle-orm");
+      const { projectClients } = await import("@shared/schema");
+
+      // Fetch the payment request first for ownership checks
+      const [existing] = await db.select().from(paymentRequests).where(eq(paymentRequests.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
+
+      // Must be in the same org
+      if (existing.orgId !== orgId) return res.status(403).json({ error: "Access denied" });
+
+      // If client role, verify they are linked to this specific project
+      if (role === 'client') {
+        if (!existing.projectId) return res.status(403).json({ error: "Access denied" });
+        const hasAccess = await db.select().from(projectClients)
+          .where(and(eq(projectClients.projectId, existing.projectId), eq(projectClients.userId, userId)))
+          .limit(1);
+        if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
+      }
 
       const [pr] = await db.update(paymentRequests)
         .set({ status: "client_paid", clientPaidAt: new Date(), clientUtr: clientUtr || null })
-        .where(eq(paymentRequests.id, id))
+        .where(and(eq(paymentRequests.id, id), eq(paymentRequests.orgId, orgId)))
         .returning();
 
       if (!pr) return res.status(404).json({ error: "Not found" });

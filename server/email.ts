@@ -560,8 +560,8 @@ export async function sendPaymentRequestEmail(opts: {
             <p style="color:#3d3d3d;font-size:14px;line-height:1.6;margin:0 0 20px;">
               After completing the payment, please log in to your client portal and mark this request as paid with your UTR/transaction reference.
             </p>
-            <a href="${opts.portalUrl}" style="display:inline-block;background:#0071e3;color:#fff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
-              Open Client Portal
+            <a href="${opts.portalUrl}/client-portal?tab=payments" style="display:inline-block;background:#0071e3;color:#fff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
+              View in Client Portal
             </a>
             <p style="color:#6e6e73;font-size:13px;margin:20px 0 0;">
               If you have any questions, please contact your designer directly.
@@ -569,7 +569,7 @@ export async function sendPaymentRequestEmail(opts: {
           </div>
         </div>
       `,
-      text: `Payment request from Olympik Design\n\nHi ${opts.clientName},\n\nYour designer has raised a payment request.\n\nVendor: ${opts.vendorName}\nAmount: ${amountFormatted}\nDetails: ${opts.description}${opts.projectName ? `\nProject: ${opts.projectName}` : ""}${bankTextBlock}\n\nAfter making the payment, please log in to your client portal and mark it as paid:\n${opts.portalUrl}`,
+      text: `Payment request from Olympik Design\n\nHi ${opts.clientName},\n\nYour designer has raised a payment request.\n\nVendor: ${opts.vendorName}\nAmount: ${amountFormatted}\nDetails: ${opts.description}${opts.projectName ? `\nProject: ${opts.projectName}` : ""}${bankTextBlock}\n\nAfter making the payment, please log in to your client portal and mark it as paid:\n${opts.portalUrl}/client-portal?tab=payments`,
     });
   }
 }
