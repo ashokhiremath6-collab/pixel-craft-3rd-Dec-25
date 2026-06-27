@@ -13290,8 +13290,9 @@ Return your response in the following JSON format only (no markdown, no code blo
         return res.status(400).json({ error: "No client email is configured for this project. Add a client email before sending a payment request." });
       }
 
+      const { or, isNull } = await import("drizzle-orm");
       const [vendor] = await db.select().from(vendors)
-        .where(and(eq(vendors.id, body.vendorId), eq(vendors.orgId, orgId)))
+        .where(and(eq(vendors.id, body.vendorId), or(eq(vendors.orgId, orgId), isNull(vendors.orgId))))
         .limit(1);
       if (!vendor) return res.status(400).json({ error: "Vendor not found or does not belong to your organisation." });
 
