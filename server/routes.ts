@@ -13686,22 +13686,21 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  // Delete a payment request (admin only, any status except confirmed)
+  // Delete a payment request (admin only)
   app.delete("/api/payment-requests/:id", requireAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
       const orgId = req.user?.orgId;
-      const { eq, and, ne } = await import("drizzle-orm");
+      const { eq, and } = await import("drizzle-orm");
 
       const [deleted] = await db.delete(paymentRequests)
         .where(and(
           eq(paymentRequests.id, id),
-          eq(paymentRequests.orgId, orgId),
-          ne(paymentRequests.status, "confirmed")
+          eq(paymentRequests.orgId, orgId)
         ))
         .returning();
 
-      if (!deleted) return res.status(404).json({ error: "Not found or already confirmed" });
+      if (!deleted) return res.status(404).json({ error: "Not found" });
       res.json({ ok: true });
     } catch (err) {
       console.error("DELETE /api/payment-requests/:id error:", err);
