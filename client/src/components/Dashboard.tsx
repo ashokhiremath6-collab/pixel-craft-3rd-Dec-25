@@ -601,12 +601,26 @@ function PaymentAlertsPanel() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [saveDialogAlert, setSaveDialogAlert] = useState<PaymentAlert | null>(null);
+  const [deleteConfirmAlert, setDeleteConfirmAlert] = useState<PaymentAlert | null>(null);
   const [paymentDate, setPaymentDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [paymentNotes, setPaymentNotes] = useState("");
 
   const { data: alerts = [] } = useQuery<PaymentAlert[]>({
     queryKey: ["/api/dashboard/payment-alerts"],
     refetchInterval: 60_000,
+  });
+
+  const deletePrMutation = useMutation({
+    mutationFn: (id: string) => apiRequest('DELETE', `/api/payment-requests/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/payment-alerts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/payment-requests"] });
+      setDeleteConfirmAlert(null);
+      toast({ title: "Payment request deleted" });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Failed to delete payment request" });
+    },
   });
 
   const saveToAccountsMutation = useMutation({
@@ -682,23 +696,57 @@ function PaymentAlertsPanel() {
                     )}
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setSaveDialogAlert(alert);
-                    setPaymentDate(alert.clientPaidAt ? format(new Date(alert.clientPaidAt), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
-                    setPaymentNotes("");
-                  }}
-                  style={{ background: "#059669", color: "#fff", flexShrink: 0 }}
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                  Save to Accounts
-                </Button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setSaveDialogAlert(alert);
+                      setPaymentDate(alert.clientPaidAt ? format(new Date(alert.clientPaidAt), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
+                      setPaymentNotes("");
+                    }}
+                    style={{ background: "#059669", color: "#fff" }}
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                    Save to Accounts
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setDeleteConfirmAlert(alert)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </ContentCard>
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmAlert && (
+        <Dialog open={!!deleteConfirmAlert} onOpenChange={open => !open && setDeleteConfirmAlert(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Delete payment request?</DialogTitle>
+              <DialogDescription>
+                This will permanently delete the payment request for <strong>{deleteConfirmAlert.vendorName}</strong> — ₹{Number(deleteConfirmAlert.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}. This cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteConfirmAlert(null)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                onClick={() => deletePrMutation.mutate(deleteConfirmAlert.id)}
+                disabled={deletePrMutation.isPending}
+              >
+                {deletePrMutation.isPending ? "Deleting..." : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Save to Accounts Dialog */}
       {saveDialogAlert && (
