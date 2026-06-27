@@ -13429,6 +13429,45 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // Client acknowledges a payment request (pending → acknowledged) — client role only
+  app.patch("/api/payment-requests/:id/client-acknowledge", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const orgId = req.user?.orgId;
+      const { id } = req.params;
+      const { eq, and } = await import("drizzle-orm");
+      const { projectClients } = await import("@shared/schema");
+
+      const userRoleRow = await storage.getUserRole(userId);
+      const role = userRoleRow?.role?.toLowerCase();
+      if (role !== 'client') return res.status(403).json({ error: "This action is only available to clients." });
+
+      const [existing] = await db.select().from(paymentRequests).where(eq(paymentRequests.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
+      if (existing.orgId !== orgId) return res.status(403).json({ error: "Access denied" });
+
+      if (!existing.projectId) return res.status(403).json({ error: "Access denied" });
+      const userEmail = (req.user as any)?.email;
+      if (!userEmail) return res.status(403).json({ error: "Access denied" });
+      const hasAccess = await db.select().from(projectClients)
+        .where(and(eq(projectClients.projectId, existing.projectId), eq(projectClients.clientEmail, userEmail)))
+        .limit(1);
+      if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
+
+      // Only pending → acknowledged
+      const [pr] = await db.update(paymentRequests)
+        .set({ status: "acknowledged", acknowledgedAt: new Date() } as any)
+        .where(and(eq(paymentRequests.id, id), eq(paymentRequests.orgId, orgId), eq(paymentRequests.status, "pending")))
+        .returning();
+
+      if (!pr) return res.status(409).json({ error: "Request is not in pending state" });
+      res.json(pr);
+    } catch (err) {
+      console.error("PATCH /api/payment-requests/:id/client-acknowledge error:", err);
+      res.status(500).json({ error: "Failed to acknowledge payment request" });
+    }
+  });
+
   // Client marks a payment as paid (with UTR) — client role only
   app.patch("/api/payment-requests/:id/client-confirm", isAuthenticated, async (req: any, res) => {
     try {
@@ -13460,13 +13499,14 @@ Return your response in the following JSON format only (no markdown, no code blo
         .limit(1);
       if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
 
-      // Enforce state machine: only pending -> client_paid is valid
+      // Enforce state machine: pending OR acknowledged -> client_paid is valid
+      const { inArray: inArr2 } = await import("drizzle-orm");
       const [pr] = await db.update(paymentRequests)
         .set({ status: "client_paid", clientPaidAt: new Date(), clientUtr: clientUtr || null })
         .where(and(
           eq(paymentRequests.id, id),
           eq(paymentRequests.orgId, orgId),
-          eq(paymentRequests.status, "pending")
+          inArr2(paymentRequests.status, ["pending", "acknowledged"])
         ))
         .returning();
 

@@ -100,17 +100,29 @@ function PaymentsSection({ projectId }: { projectId: string }) {
     queryFn: () => fetch(`/api/client-portal/${projectId}/payment-requests`).then(r => r.json()),
   });
 
+  const acknowledgeMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiRequest('PATCH', `/api/payment-requests/${id}/client-acknowledge`, {}),
+    onSuccess: () => {
+      toast({ title: "Request acknowledged", description: "The designer has been notified." });
+      queryClient.invalidateQueries({ queryKey: ['/api/client-portal', projectId, 'payment-requests'] });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Failed to acknowledge" });
+    },
+  });
+
   const markPaidMutation = useMutation({
     mutationFn: ({ id, clientUtr }: { id: string; clientUtr: string }) =>
       apiRequest('PATCH', `/api/payment-requests/${id}/client-confirm`, { clientUtr }),
     onSuccess: () => {
-      toast({ title: "Payment marked as paid", description: "The designer has been notified." });
+      toast({ title: "Payment submitted", description: "The designer has been alerted and will confirm receipt." });
       setMarkPaidId(null);
       setUtr("");
       queryClient.invalidateQueries({ queryKey: ['/api/client-portal', projectId, 'payment-requests'] });
     },
     onError: () => {
-      toast({ variant: "destructive", title: "Failed to mark as paid" });
+      toast({ variant: "destructive", title: "Failed to submit payment" });
     },
   });
 
@@ -123,14 +135,69 @@ function PaymentsSection({ projectId }: { projectId: string }) {
   }
 
   const pending = requests.filter(r => r.status === 'pending');
+  const acknowledged = requests.filter(r => r.status === 'acknowledged');
+  const awaitingAction = [...pending, ...acknowledged];
   const clientPaid = requests.filter(r => r.status === 'client_paid');
   const confirmed = requests.filter(r => r.status === 'confirmed');
+
+  function PaymentCard({ pr, showAcknowledge }: { pr: ClientPaymentRequest; showAcknowledge: boolean }) {
+    return (
+      <Card key={pr.id}>
+        <CardContent className="pt-5 space-y-4">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="font-semibold">{pr.vendorName}</div>
+              <div className="text-sm text-muted-foreground mt-0.5">{pr.description}</div>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <div className="text-lg font-bold">
+                ₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </div>
+              <div className="text-xs text-muted-foreground">Requested {formatDate(pr.requestedAt)}</div>
+            </div>
+          </div>
+          {(pr.bankName || pr.accountNumber || pr.ifscCode) && (
+            <div className="rounded-md border bg-muted/30 p-3 space-y-1.5 text-sm">
+              <div className="flex items-center gap-1.5 font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                <Building2 className="h-3.5 w-3.5" />
+                Bank Details
+              </div>
+              {pr.bankName && <div className="flex justify-between"><span className="text-muted-foreground">Bank</span><span className="font-medium">{pr.bankName}</span></div>}
+              {pr.accountNumber && <div className="flex justify-between"><span className="text-muted-foreground">Account No.</span><span className="font-mono font-medium">{pr.accountNumber}</span></div>}
+              {pr.ifscCode && <div className="flex justify-between"><span className="text-muted-foreground">IFSC</span><span className="font-mono font-medium">{pr.ifscCode}</span></div>}
+              {pr.branch && <div className="flex justify-between"><span className="text-muted-foreground">Branch</span><span className="font-medium">{pr.branch}</span></div>}
+            </div>
+          )}
+          <div className="flex gap-2">
+            {showAcknowledge && (
+              <Button
+                variant="outline"
+                className="flex-1"
+                disabled={acknowledgeMutation.isPending}
+                onClick={() => acknowledgeMutation.mutate(pr.id)}
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Acknowledge
+              </Button>
+            )}
+            <Button
+              className="flex-1"
+              onClick={() => { setMarkPaidId(pr.id); setUtr(""); }}
+            >
+              <CreditCard className="h-4 w-4 mr-2" />
+              Made Payment
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold mb-1">Payments</h2>
-        <p className="text-sm text-muted-foreground">Payment requests from your designer. Mark each as paid once you have transferred the amount.</p>
+        <p className="text-sm text-muted-foreground">Payment requests from your designer. Acknowledge each request and click "Made Payment" once you have transferred the amount.</p>
       </div>
 
       {requests.length === 0 && (
@@ -141,43 +208,11 @@ function PaymentsSection({ projectId }: { projectId: string }) {
         </Card>
       )}
 
-      {pending.length > 0 && (
+      {awaitingAction.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Awaiting Payment</h3>
-          {pending.map(pr => (
-            <Card key={pr.id}>
-              <CardContent className="pt-5 space-y-4">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div>
-                    <div className="font-semibold">{pr.vendorName}</div>
-                    <div className="text-sm text-muted-foreground mt-0.5">{pr.description}</div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="text-lg font-bold">
-                      ₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Requested {formatDate(pr.requestedAt)}</div>
-                  </div>
-                </div>
-                {(pr.bankName || pr.accountNumber || pr.ifscCode) && (
-                  <div className="rounded-md border bg-muted/30 p-3 space-y-1.5 text-sm">
-                    <div className="flex items-center gap-1.5 font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                      <Building2 className="h-3.5 w-3.5" />
-                      Bank Details
-                    </div>
-                    {pr.bankName && <div className="flex justify-between"><span className="text-muted-foreground">Bank</span><span className="font-medium">{pr.bankName}</span></div>}
-                    {pr.accountNumber && <div className="flex justify-between"><span className="text-muted-foreground">Account No.</span><span className="font-mono font-medium">{pr.accountNumber}</span></div>}
-                    {pr.ifscCode && <div className="flex justify-between"><span className="text-muted-foreground">IFSC</span><span className="font-mono font-medium">{pr.ifscCode}</span></div>}
-                    {pr.branch && <div className="flex justify-between"><span className="text-muted-foreground">Branch</span><span className="font-medium">{pr.branch}</span></div>}
-                  </div>
-                )}
-                <Button className="w-full" onClick={() => { setMarkPaidId(pr.id); setUtr(""); }}>
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Mark as Paid
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Action Required</h3>
+          {pending.map(pr => <PaymentCard key={pr.id} pr={pr} showAcknowledge={true} />)}
+          {acknowledged.map(pr => <PaymentCard key={pr.id} pr={pr} showAcknowledge={false} />)}
         </div>
       )}
 
@@ -197,7 +232,7 @@ function PaymentsSection({ projectId }: { projectId: string }) {
                     <div className="font-bold">₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
                     <div className="flex items-center gap-1 text-xs text-orange-600 mt-1">
                       <Clock className="h-3 w-3" />
-                      Confirming
+                      Payment submitted — awaiting confirmation
                     </div>
                   </div>
                 </div>
@@ -232,12 +267,12 @@ function PaymentsSection({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      {/* Mark as Paid Dialog */}
+      {/* Made Payment Dialog */}
       <Dialog open={!!markPaidId} onOpenChange={open => !open && setMarkPaidId(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Mark as Paid</DialogTitle>
-            <DialogDescription>Enter your UTR / transaction reference number to confirm this payment.</DialogDescription>
+            <DialogTitle>Confirm Payment</DialogTitle>
+            <DialogDescription>Enter your UTR / transaction reference number. The designer will be alerted immediately.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <Label htmlFor="utr-input">UTR / Reference Number</Label>
@@ -254,7 +289,7 @@ function PaymentsSection({ projectId }: { projectId: string }) {
               onClick={() => markPaidId && markPaidMutation.mutate({ id: markPaidId, clientUtr: utr })}
               disabled={markPaidMutation.isPending || !utr.trim()}
             >
-              {markPaidMutation.isPending ? "Saving..." : "Confirm Payment"}
+              {markPaidMutation.isPending ? "Submitting..." : "Submit Payment"}
             </Button>
           </DialogFooter>
         </DialogContent>

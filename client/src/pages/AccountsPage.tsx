@@ -1656,8 +1656,10 @@ export default function AccountsPage() {
                         ? { bg: '#dcfce7', text: '#166534' }
                         : pr.status === 'client_paid'
                         ? { bg: '#fff7ed', text: '#c2410c' }
+                        : pr.status === 'acknowledged'
+                        ? { bg: '#fef9c3', text: '#854d0e' }
                         : { bg: '#eff6ff', text: '#1d4ed8' };
-                      const statusLabel = pr.status === 'confirmed' ? 'Confirmed' : pr.status === 'client_paid' ? 'Client Paid' : 'Pending';
+                      const statusLabel = pr.status === 'confirmed' ? 'Confirmed' : pr.status === 'client_paid' ? 'Payment Submitted' : pr.status === 'acknowledged' ? 'Acknowledged' : 'Pending';
                       return (
                         <div key={pr.id} className="flex items-start justify-between gap-4 p-4 rounded-md border">
                           <div className="flex-1 min-w-0 space-y-1">

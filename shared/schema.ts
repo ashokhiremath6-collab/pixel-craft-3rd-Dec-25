@@ -1327,9 +1327,10 @@ export const paymentRequests = pgTable("payment_requests", {
   projectId: varchar("project_id").references(() => projects.id),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   description: text("description").notNull(),
-  status: text("status").notNull().default("pending"), // pending | client_paid | confirmed
+  status: text("status").notNull().default("pending"), // pending | acknowledged | client_paid | confirmed
   requestedBy: varchar("requested_by").notNull().references(() => users.id),
   requestedAt: timestamp("requested_at").notNull().default(sql`now()`),
+  acknowledgedAt: timestamp("acknowledged_at"),
   clientPaidAt: timestamp("client_paid_at"),
   clientUtr: text("client_utr"),
   confirmedAt: timestamp("confirmed_at"),
