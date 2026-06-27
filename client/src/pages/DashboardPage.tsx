@@ -92,6 +92,14 @@ export default function DashboardPage() {
     refetchOnWindowFocus: true,
   });
 
+  const { data: rfqAlertsData } = useQuery<any[]>({
+    queryKey: ['/api/dashboard/rfq-alerts'],
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    enabled: isDesignerOrAdmin,
+  });
+
   const [, setLocation] = useLocation();
   const handleNavigate = (path: string) => {
     setLocation(path);
@@ -316,6 +324,7 @@ export default function DashboardPage() {
         projectTaskBreakdown={projectTaskBreakdown}
         remainingTasksByProject={remainingTasksByProject}
         vendorAlerts={vendorAlertsData || []}
+        rfqAlerts={rfqAlertsData || []}
         onNavigate={handleNavigate}
       />
     </div>

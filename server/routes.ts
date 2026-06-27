@@ -11565,6 +11565,54 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // GET /api/dashboard/rfq-alerts — recent RFQ invitations sent to vendors (last 7 days)
+  app.get("/api/dashboard/rfq-alerts", requireAdmin, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const user = await storage.getUser(userId);
+      if (!user?.orgId) return res.json([]);
+
+      const rows = await db.execute(sql`
+        SELECT
+          i.id,
+          i.email,
+          i.invite_message,
+          i.created_at,
+          i.accepted_at,
+          v.name  AS vendor_name,
+          v.id    AS vendor_id,
+          COALESCE(
+            NULLIF(TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')), ''),
+            u.email
+          ) AS sent_by,
+          latest_pv.project_name,
+          latest_pv.category_name
+        FROM invitations i
+        LEFT JOIN vendors v ON v.id = i.linked_vendor_id
+        LEFT JOIN users   u ON u.id = i.invited_by
+        LEFT JOIN LATERAL (
+          SELECT p.project_name, vc.name AS category_name
+          FROM   project_vendors pv
+          INNER  JOIN projects p ON p.id = pv.project_id
+          LEFT   JOIN vendor_categories vc ON vc.id = pv.category_id
+          WHERE  pv.vendor_id = v.id
+            AND  pv.org_id    = ${user.orgId}
+          ORDER  BY pv.submitted_at DESC NULLS LAST, pv.id DESC
+          LIMIT  1
+        ) latest_pv ON TRUE
+        WHERE i.org_id = ${user.orgId}
+          AND i.role   = 'vendor'
+          AND i.created_at > NOW() - INTERVAL '7 days'
+        ORDER BY i.created_at DESC
+      `);
+
+      res.json(rows.rows);
+    } catch (err) {
+      console.error("RFQ alerts error:", err);
+      res.status(500).json({ error: "Failed to fetch RFQ alerts" });
+    }
+  });
+
   // GET /api/dashboard/vendor-alerts — all staff and clients see pending vendor portal submissions
   app.get("/api/dashboard/vendor-alerts", requireAuth, async (req, res) => {
     try {

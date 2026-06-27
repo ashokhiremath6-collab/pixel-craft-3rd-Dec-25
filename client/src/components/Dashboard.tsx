@@ -59,6 +59,19 @@ interface ProjectTaskBreakdownEntry {
   overdueCount?: number;
 }
 
+interface RFQAlert {
+  id: string;
+  email: string;
+  invite_message: string | null;
+  created_at: string;
+  accepted_at: string | null;
+  vendor_name: string | null;
+  vendor_id: string | null;
+  sent_by: string | null;
+  project_name: string | null;
+  category_name: string | null;
+}
+
 interface VendorAlert {
   id: string;
   pv_id?: string | null; // present for project_vendor alerts — the PV row id used for acknowledgement
@@ -90,6 +103,7 @@ interface DashboardProps {
   projectTaskBreakdown?: ProjectTaskBreakdownEntry[];
   remainingTasksByProject?: Record<string, Array<Task & { projectName: string }>>;
   vendorAlerts?: VendorAlert[];
+  rfqAlerts?: RFQAlert[];
   onNavigate?: (path: string) => void;
 }
 
@@ -299,6 +313,104 @@ function AssignToProjectDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const RFQ_DISMISSED_KEY = "dashboard_rfq_dismissed";
+
+function RFQAlertsPanel({ alerts }: { alerts: RFQAlert[] }) {
+  const [dismissed, setDismissed] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(RFQ_DISMISSED_KEY);
+      return saved ? new Set(JSON.parse(saved) as string[]) : new Set();
+    } catch { return new Set(); }
+  });
+
+  const dismiss = (id: string) => {
+    setDismissed(prev => {
+      const next = new Set(prev).add(id);
+      localStorage.setItem(RFQ_DISMISSED_KEY, JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
+
+  const visible = alerts.filter(a => !dismissed.has(a.id));
+  if (visible.length === 0) return null;
+
+  return (
+    <ContentCard>
+      <div className="px-5 sm:px-8 pt-6 pb-4 space-y-3">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="flex items-center justify-center w-9 h-9 rounded-full" style={{ background: "#0071e3" }}>
+            <SendHorizonal className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg sm:text-[22px] font-semibold leading-tight" style={{ color: "#111827" }}>
+              RFQs sent
+            </h2>
+            <p className="text-xs" style={{ color: "#86868b" }}>
+              {visible.length} vendor invitation{visible.length !== 1 ? "s" : ""} sent in the last 7 days
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {visible.map(alert => {
+            const when = (() => {
+              const h = differenceInHours(new Date(), new Date(alert.created_at));
+              if (h < 1) return "just now";
+              if (h < 24) return `${h}h ago`;
+              return format(new Date(alert.created_at), "d MMM");
+            })();
+            const accepted = !!alert.accepted_at;
+
+            return (
+              <div
+                key={alert.id}
+                className="flex items-start justify-between gap-3 rounded-xl p-3 flex-wrap"
+                style={{ background: "#eff6ff", border: "1px solid #bfdbfe" }}
+              >
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold" style={{ color: "#1e3a5f" }}>
+                      {alert.vendor_name || alert.email}
+                    </p>
+                    {accepted ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: "#dcfce7", color: "#166534" }}>
+                        <CheckCircle2 className="h-3 w-3" /> Accepted
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: "#fef9c3", color: "#854d0e" }}>
+                        Pending
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs" style={{ color: "#3b82f6" }}>
+                    {alert.email}
+                    {alert.project_name ? ` · ${alert.project_name}` : ""}
+                    {alert.category_name ? ` · ${alert.category_name}` : ""}
+                  </p>
+                  {alert.invite_message && (
+                    <p className="text-xs line-clamp-2" style={{ color: "#475569" }}>{alert.invite_message}</p>
+                  )}
+                  <p className="text-xs" style={{ color: "#94a3b8" }}>
+                    Sent {when}{alert.sent_by ? ` by ${alert.sent_by}` : ""}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => dismiss(alert.id)}
+                >
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  Dismiss
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </ContentCard>
   );
 }
 
@@ -652,6 +764,7 @@ export default function Dashboard({
   projectTaskBreakdown = [],
   remainingTasksByProject = {},
   vendorAlerts = [],
+  rfqAlerts = [],
   onNavigate,
 }: DashboardProps) {
   const { user } = useAuth();
@@ -780,6 +893,11 @@ export default function Dashboard({
             Overview of your vendors, projects, and quotations.
           </p>
         </div>
+
+        {/* ── RFQ Sent Alerts ── */}
+        {rfqAlerts.length > 0 && (
+          <RFQAlertsPanel alerts={rfqAlerts} />
+        )}
 
         {/* ── Vendor Quote Alerts ── */}
         {vendorAlerts.length > 0 && (
