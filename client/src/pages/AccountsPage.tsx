@@ -1,5 +1,70 @@
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { useState } from "react";
+
+const INDIAN_BANKS = [
+  "State Bank of India (SBI)",
+  "HDFC Bank",
+  "ICICI Bank",
+  "Axis Bank",
+  "Kotak Mahindra Bank",
+  "Punjab National Bank (PNB)",
+  "Bank of Baroda",
+  "Canara Bank",
+  "Union Bank of India",
+  "IndusInd Bank",
+  "Yes Bank",
+  "IDFC First Bank",
+  "Bank of India",
+  "Indian Bank",
+  "Central Bank of India",
+  "Federal Bank",
+  "RBL Bank",
+  "South Indian Bank",
+  "Karnataka Bank",
+  "DCB Bank",
+  "Standard Chartered Bank",
+  "HSBC Bank",
+  "Citibank",
+];
+
+function BankNameField({ field }: { field: any }) {
+  const isKnown = INDIAN_BANKS.includes(field.value || "");
+  const [showOther, setShowOther] = useState(!isKnown && !!field.value);
+
+  return (
+    <div className="space-y-2">
+      <Select
+        value={showOther ? "__other__" : (field.value || "")}
+        onValueChange={(v) => {
+          if (v === "__other__") {
+            setShowOther(true);
+            field.onChange("");
+          } else {
+            setShowOther(false);
+            field.onChange(v);
+          }
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Select a bank" />
+        </SelectTrigger>
+        <SelectContent>
+          {INDIAN_BANKS.map((b) => (
+            <SelectItem key={b} value={b}>{b}</SelectItem>
+          ))}
+          <SelectItem value="__other__">Other (type manually)</SelectItem>
+        </SelectContent>
+      </Select>
+      {showOther && (
+        <Input
+          placeholder="Type bank name"
+          value={field.value || ""}
+          onChange={(e) => field.onChange(e.target.value)}
+        />
+      )}
+    </div>
+  );
+}
 import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1394,7 +1459,7 @@ export default function AccountsPage() {
                   <FormField control={bankDetailsForm.control} name="bankName" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Bank Name</FormLabel>
-                      <FormControl><Input {...field} value={field.value || ""} placeholder="e.g. HDFC Bank" /></FormControl>
+                      <FormControl><BankNameField field={field} /></FormControl>
                     </FormItem>
                   )} />
                   <FormField control={bankDetailsForm.control} name="accountNumber" render={({ field }) => (
