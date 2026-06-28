@@ -11122,8 +11122,10 @@ Return your response in the following JSON format only (no markdown, no code blo
   app.get("/api/client-portal/:projectId/brief-and-proposal", requireAuth, async (req: any, res) => {
     try {
       const userId = req.user?.id;
+      const userRoleRow = await storage.getUserRole(userId);
+      const role = userRoleRow?.role || 'client';
       const { projectId } = req.params;
-      const accessibleProjects = await storage.getProjectsForUser(userId, req.user?.role || 'client');
+      const accessibleProjects = await storage.getProjectsForUser(userId, role);
       const project = accessibleProjects.find((p: any) => p.id === projectId);
       if (!project) return res.status(403).json({ error: "Access denied" });
 
@@ -11178,12 +11180,13 @@ Return your response in the following JSON format only (no markdown, no code blo
   app.post("/api/client-portal/:projectId/brief", requireAuth, async (req: any, res) => {
     try {
       const userId = req.user?.id;
-      const userRole = req.user?.role;
+      const userRoleRow = await storage.getUserRole(userId);
+      const role = userRoleRow?.role || 'client';
       // Only clients may submit a brief through the portal
-      if (userRole !== 'client') return res.status(403).json({ error: "Only client accounts may submit a brief" });
+      if (role !== 'client') return res.status(403).json({ error: "Only client accounts may submit a brief" });
 
       const { projectId } = req.params;
-      const accessibleProjects = await storage.getProjectsForUser(userId, userRole);
+      const accessibleProjects = await storage.getProjectsForUser(userId, role);
       const project = accessibleProjects.find((p: any) => p.id === projectId);
       if (!project) return res.status(403).json({ error: "Access denied" });
 
@@ -11228,12 +11231,13 @@ Return your response in the following JSON format only (no markdown, no code blo
   app.post("/api/client-portal/:projectId/proposals/:proposalId/accept", requireAuth, async (req: any, res) => {
     try {
       const userId = req.user?.id;
-      const userRole = req.user?.role;
+      const userRoleRow = await storage.getUserRole(userId);
+      const role = userRoleRow?.role || 'client';
       // Only clients may accept a proposal
-      if (userRole !== 'client') return res.status(403).json({ error: "Only client accounts may accept a proposal" });
+      if (role !== 'client') return res.status(403).json({ error: "Only client accounts may accept a proposal" });
 
       const { projectId, proposalId } = req.params;
-      const accessibleProjects = await storage.getProjectsForUser(userId, userRole);
+      const accessibleProjects = await storage.getProjectsForUser(userId, role);
       const project = accessibleProjects.find((p: any) => p.id === projectId);
       if (!project) return res.status(403).json({ error: "Access denied" });
 
