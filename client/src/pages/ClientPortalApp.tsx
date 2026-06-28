@@ -530,7 +530,93 @@ function TimelineSection({ tasks }: { tasks: Task[] }) {
   );
 }
 
-// ── MEDIA GRID (Renders + Moodboards) ────────────────────────────────────────
+// ── SHARED MEDIA CARD ────────────────────────────────────────────────────────
+function MediaCard({ item, onClick }: { item: Moodboard; onClick: () => void }) {
+  const url = getFileUrl(item.filePath, item.fileName);
+  const isImg = isImageFile(item.fileName);
+  return (
+    <Card className="overflow-hidden hover-elevate cursor-pointer" onClick={onClick}>
+      {url && isImg ? (
+        <div className="aspect-video bg-muted overflow-hidden">
+          <img src={url} alt={item.name} className="w-full h-full object-cover"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        </div>
+      ) : (
+        <div className="aspect-video bg-muted flex items-center justify-center">
+          <FileImage className="h-10 w-10 text-muted-foreground" />
+        </div>
+      )}
+      <CardContent className="pt-3 pb-3">
+        <p className="font-medium text-sm truncate">{item.name}</p>
+        <div className="flex items-center justify-between mt-1">
+          <p className="text-xs text-muted-foreground">{formatDate(item.uploadedAt?.toString())}</p>
+          {url && (
+            <a href={url} download={item.fileName || item.name}
+              onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-foreground">
+              <Download className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+        {item.canvaLink && (
+          <a href={item.canvaLink} target="_blank" rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="mt-2 flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">
+            <ChevronRight className="h-3 w-3" /> Open in Canva
+          </a>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── RENDERS (grouped by room) ─────────────────────────────────────────────────
+function RendersSection({ items }: { items: Moodboard[] }) {
+  const [preview, setPreview] = useState<Moodboard | null>(null);
+
+  if (items.length === 0) {
+    return <EmptyState icon={Sparkles} title="No renders yet" description="Renders will appear here once your designer uploads them." />;
+  }
+
+  // Group by roomType; items without a roomType go under "General"
+  const grouped: Record<string, Moodboard[]> = {};
+  for (const item of items) {
+    const room = item.roomType?.trim() || "General";
+    if (!grouped[room]) grouped[room] = [];
+    grouped[room].push(item);
+  }
+  const rooms = Object.keys(grouped).sort((a, b) =>
+    a === "General" ? 1 : b === "General" ? -1 : a.localeCompare(b)
+  );
+
+  return (
+    <div className="space-y-8">
+      {rooms.map(room => (
+        <div key={room} className="space-y-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{room}</h3>
+            <span className="text-xs text-muted-foreground">({grouped[room].length})</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {grouped[room].map(item => (
+              <MediaCard key={item.id} item={item}
+                onClick={() => { const url = getFileUrl(item.filePath, item.fileName); if (url && isImageFile(item.fileName)) setPreview(item); }} />
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {preview && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
+          <img src={getFileUrl(preview.filePath, preview.fileName) || ""}
+            alt={preview.name} className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={e => e.stopPropagation()} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MEDIA GRID (Moodboards — flat grid) ──────────────────────────────────────
 function MediaSection({
   title,
   items,
@@ -541,66 +627,17 @@ function MediaSection({
   const [preview, setPreview] = useState<Moodboard | null>(null);
 
   if (items.length === 0) {
-    const icon = title === "Renders" ? Sparkles : Image;
+    const icon = Image;
     return <EmptyState icon={icon} title={`No ${title.toLowerCase()} yet`} description={`${title} will appear here once your designer uploads them.`} />;
   }
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">{title}</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {items.map(item => {
-          const url = getFileUrl(item.filePath, item.fileName);
-          const isImg = isImageFile(item.fileName);
-          return (
-            <Card key={item.id} className="overflow-hidden hover-elevate cursor-pointer" onClick={() => url && isImg && setPreview(item)}>
-              {url && isImg ? (
-                <div className="aspect-video bg-muted overflow-hidden">
-                  <img
-                    src={url}
-                    alt={item.name}
-                    className="w-full h-full object-cover"
-                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                </div>
-              ) : (
-                <div className="aspect-video bg-muted flex items-center justify-center">
-                  <FileImage className="h-10 w-10 text-muted-foreground" />
-                </div>
-              )}
-              <CardContent className="pt-3 pb-3">
-                <p className="font-medium text-sm truncate">{item.name}</p>
-                <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-muted-foreground">{formatDate(item.uploadedAt?.toString())}</p>
-                  {url && (
-                    <a
-                      href={url}
-                      download={item.fileName || item.name}
-                      onClick={e => e.stopPropagation()}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                    </a>
-                  )}
-                </div>
-                {item.roomType && item.roomType !== "General" && (
-                  <Badge variant="secondary" className="mt-2 text-xs">{item.roomType}</Badge>
-                )}
-                {item.canvaLink && (
-                  <a
-                    href={item.canvaLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    className="mt-2 flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
-                  >
-                    <ChevronRight className="h-3 w-3" /> Open in Canva
-                  </a>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
+        {items.map(item => (
+          <MediaCard key={item.id} item={item}
+            onClick={() => { const url = getFileUrl(item.filePath, item.fileName); if (url && isImageFile(item.fileName)) setPreview(item); }} />
+        ))}
       </div>
 
       {preview && (
@@ -997,6 +1034,16 @@ export default function ClientPortalApp({
     staleTime: 2 * 60 * 1000,
   });
 
+  // Fetch org name directly from user's orgId — reliable regardless of whether project has orgId set
+  const { data: orgData } = useQuery<{ id: string; name: string }>({
+    queryKey: ["/api/organisations", (user as any)?.orgId],
+    queryFn: () => fetch(`/api/organisations/${(user as any)?.orgId}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!(user as any)?.orgId,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const studioName = orgData?.name || portalData?.orgName || "";
+
   const { data: vendorAlertsData = [] } = useQuery<VendorAlertClient[]>({
     queryKey: ["/api/dashboard/vendor-alerts"],
     staleTime: 0,
@@ -1064,7 +1111,7 @@ export default function ClientPortalApp({
             <div className="flex items-center gap-2.5 min-w-0">
               {/* Studio initials avatar */}
               {(() => {
-                const name = portalData?.orgName || "O";
+                const name = studioName || "Studio";
                 const words = name.trim().split(/\s+/).filter(Boolean);
                 const initials = words.length >= 2
                   ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
@@ -1088,7 +1135,7 @@ export default function ClientPortalApp({
                   className="font-semibold leading-snug"
                   style={{ fontSize: "0.72rem" }}
                 >
-                  {portalData?.orgName || selectedProject?.projectName || "Client Portal"}
+                  {studioName || "Client Portal"}
                 </span>
                 <span className="text-muted-foreground" style={{ fontSize: "0.62rem" }}>
                   Client Portal
@@ -1239,7 +1286,7 @@ export default function ClientPortalApp({
                   <PaymentsSection projectId={effectiveProjectId} />
                 )}
                 {activeTab === "renders" && (
-                  <MediaSection title="Renders" items={portalData?.renders || []} />
+                  <RendersSection items={portalData?.renders || []} />
                 )}
                 {activeTab === "moodboards" && (
                   <MediaSection title="Moodboards" items={portalData?.moodboards || []} />
