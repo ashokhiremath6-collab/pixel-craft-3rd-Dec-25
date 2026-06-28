@@ -962,7 +962,12 @@ export default function ClientPortalApp({
   onExitPreview?: () => void;
 } = {}) {
   const { user, logout } = useAuth();
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(() => {
+    if (previewMode && typeof window !== 'undefined') {
+      return localStorage.getItem('_portal_preview_project') || "";
+    }
+    return "";
+  });
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -1093,7 +1098,11 @@ export default function ClientPortalApp({
             <SidebarFooter className="border-t px-3 py-3">
               <Select
                 value={effectiveProjectId}
-                onValueChange={v => { setSelectedProjectId(v); setActiveTab("overview"); }}
+                onValueChange={v => {
+                  setSelectedProjectId(v);
+                  setActiveTab("overview");
+                  if (previewMode) localStorage.setItem('_portal_preview_project', v);
+                }}
               >
                 <SelectTrigger className="w-full group-data-[collapsible=icon]:hidden">
                   <SelectValue placeholder="Select project" />
@@ -1113,10 +1122,29 @@ export default function ClientPortalApp({
 
           {/* Preview banner */}
           {previewMode && (
-            <div className="bg-amber-50 dark:bg-amber-950 border-b border-amber-200 dark:border-amber-800 px-4 py-2 flex items-center justify-between gap-3 shrink-0">
-              <p className="text-xs text-amber-800 dark:text-amber-200 font-medium">
-                Admin Preview — you are viewing the client portal as a client would see it
+            <div className="bg-amber-50 dark:bg-amber-950 border-b border-amber-200 dark:border-amber-800 px-4 py-2 flex items-center justify-between gap-3 shrink-0 flex-wrap">
+              <p className="text-xs text-amber-800 dark:text-amber-200 font-medium shrink-0">
+                Admin Preview — viewing as client
               </p>
+              {projects.length > 1 && (
+                <Select
+                  value={effectiveProjectId}
+                  onValueChange={v => {
+                    setSelectedProjectId(v);
+                    setActiveTab("overview");
+                    localStorage.setItem('_portal_preview_project', v);
+                  }}
+                >
+                  <SelectTrigger className="h-7 text-xs w-44 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 text-amber-900 dark:text-amber-100">
+                    <SelectValue placeholder="Select project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map(p => (
+                      <SelectItem key={p.id} value={p.id} className="text-xs">{p.projectName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <Button size="sm" variant="outline" onClick={onExitPreview} className="text-xs gap-1.5 shrink-0">
                 <ArrowLeft className="h-3 w-3" />
                 Exit Preview
