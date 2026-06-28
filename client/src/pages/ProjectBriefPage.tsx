@@ -160,10 +160,9 @@ function BriefSheet({ open, onClose, brief, projects }: {
   const [workType, setWorkType] = useState<string>("");
   const [bedroomCount, setBedroomCount] = useState<string>("");
   const [childBedroomCount, setChildBedroomCount] = useState<string>("");
+  const [occupants, setOccupants] = useState<string>("");
+  const [occupantAges, setOccupantAges] = useState<string>("");
   const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set());
-
-  // Timeline — client's preferred start date
-  const [clientStart, setClientStart] = useState<string>("");
 
   const existingRefs = useMemo(
     () => ((brief?.referenceFiles as any[]) || []).filter((f: any) => !removedPaths.has(f.path)),
@@ -219,8 +218,9 @@ function BriefSheet({ open, onClose, brief, projects }: {
       setWorkType("");
       setBedroomCount("");
       setChildBedroomCount("");
+      setOccupants("");
+      setOccupantAges("");
       setSelectedStyles(new Set());
-      setClientStart(brief?.timeline ?? "");
     }
   }, [open, brief?.id]);
 
@@ -240,21 +240,20 @@ function BriefSheet({ open, onClose, brief, projects }: {
       if (selectedRooms.size > 0) scopeParts.push(`Rooms: ${Array.from(selectedRooms).join(", ")}`);
       if (bedroomCount.trim()) scopeParts.push(`Bedrooms: ${bedroomCount.trim()}`);
       if (childBedroomCount.trim()) scopeParts.push(`Children's bedrooms: ${childBedroomCount.trim()}`);
+      if (occupants.trim()) scopeParts.push(`Occupants: ${occupants.trim()}`);
+      if (occupantAges.trim()) scopeParts.push(`Ages: ${occupantAges.trim()}`);
       if (data.scopeOfWork?.trim()) scopeParts.push(data.scopeOfWork.trim());
 
       const styleParts: string[] = [];
       if (selectedStyles.size > 0) styleParts.push(`Style direction: ${Array.from(selectedStyles).join(", ")}`);
       if (data.stylePreferences?.trim()) styleParts.push(data.stylePreferences.trim());
 
-      const timelineParts: string[] = [];
-      if (clientStart.trim()) timelineParts.push(clientStart.trim());
-
       const keepRefs = ((brief?.referenceFiles as any[]) || []).filter((f: any) => !removedPaths.has(f.path));
       const payload = {
         ...data,
         scopeOfWork: scopeParts.join("\n") || null,
         stylePreferences: styleParts.join("\n") || null,
-        timeline: timelineParts.join("\n") || null,
+        timeline: null,
         projectId: data.projectId || null,
         clientEmail: data.clientEmail || null,
         referenceFiles: keepRefs,
@@ -393,9 +392,19 @@ function BriefSheet({ open, onClose, brief, projects }: {
                 </div>
               </div>
 
+              <div>
+                <Q number={5} label="Who will be living in the home?" hint="e.g. Couple, 2 adults + 2 children, elderly parent" />
+                <Input value={occupants} onChange={e => setOccupants(e.target.value)} placeholder="e.g. Couple + 2 children + elderly parent" />
+              </div>
+
+              <div>
+                <Q number={6} label="Ages of the occupants" hint="Helps tailor storage, accessibility, and room design" />
+                <Input value={occupantAges} onChange={e => setOccupantAges(e.target.value)} placeholder="e.g. Adults: 38, 35 — Children: 9, 6 — Parent: 68" />
+              </div>
+
               <FormField control={form.control} name="scopeOfWork" render={({ field }) => (
                 <FormItem>
-                  <Q number={5} label="Any additional scope details?" hint="Size of the home, special requirements, specific rooms not listed above, etc." />
+                  <Q number={7} label="Any additional scope details?" hint="Size of the home, special requirements, specific rooms not listed above, etc." />
                   <FormControl><Textarea rows={3} placeholder="e.g. 2,800 sq ft 3-BHK. False ceiling, AV integration, and custom joinery throughout." {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -409,7 +418,7 @@ function BriefSheet({ open, onClose, brief, projects }: {
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">C — Design direction</p>
 
               <div>
-                <Q number={6} label="Which style directions resonate with the client?" hint="Select one or more" />
+                <Q number={8} label="Which style directions resonate with the client?" hint="Select one or more" />
                 <div className="flex flex-wrap gap-2">
                   {STYLE_OPTIONS.map(s => (
                     <PillToggle key={s} label={s} selected={selectedStyles.has(s)} onToggle={() => toggleStyle(s)} />
@@ -419,7 +428,7 @@ function BriefSheet({ open, onClose, brief, projects }: {
 
               <FormField control={form.control} name="stylePreferences" render={({ field }) => (
                 <FormItem>
-                  <Q number={7} label="Describe the feel in your own words" hint="Materials, colours, mood, lighting preferences — anything goes." />
+                  <Q number={9} label="Describe the feel in your own words" hint="Materials, colours, mood, lighting preferences — anything goes." />
                   <FormControl><Textarea rows={3} placeholder="e.g. Warm and earthy — oak veneer, sage green accents, textured plaster. Natural light is a priority. No dark or heavy elements." {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -428,14 +437,14 @@ function BriefSheet({ open, onClose, brief, projects }: {
               <div className="grid grid-cols-2 gap-3">
                 <FormField control={form.control} name="mustHaves" render={({ field }) => (
                   <FormItem>
-                    <Q number={8} label="Must-haves" hint="Non-negotiables" />
+                    <Q number={10} label="Must-haves" hint="Non-negotiables" />
                     <FormControl><Textarea rows={4} placeholder="e.g. Walk-in wardrobe, home office nook, concealed storage throughout, Italian marble in bathrooms." {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="mustAvoids" render={({ field }) => (
                   <FormItem>
-                    <Q number={9} label="Must-avoids" hint="Things to stay away from" />
+                    <Q number={11} label="Must-avoids" hint="Things to stay away from" />
                     <FormControl><Textarea rows={4} placeholder="e.g. No dark walls, no brass, avoid heavy drapes, nothing too formal or hotel-like." {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
@@ -444,7 +453,7 @@ function BriefSheet({ open, onClose, brief, projects }: {
 
               <FormField control={form.control} name="inspirationNotes" render={({ field }) => (
                 <FormItem>
-                  <Q number={10} label="Inspiration sources" hint="Hotels, projects, Instagram handles, Pinterest boards, magazines — links welcome." />
+                  <Q number={12} label="Inspiration sources" hint="Hotels, projects, Instagram handles, Pinterest boards, magazines — links welcome." />
                   <FormControl><Textarea rows={2} placeholder="e.g. Soho House Mumbai, Studio Lotus projects, AD India Jan 2024 cover story." {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -453,33 +462,9 @@ function BriefSheet({ open, onClose, brief, projects }: {
 
             <Separator />
 
-            {/* ── Section D: Budget & timeline ── */}
-            <div className="space-y-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">D — Budget & timeline</p>
-
-              <div>
-                <Q number={11} label="What is the approximate budget?" />
-                <FormField control={form.control} name="budgetMax" render={({ field }) => (
-                  <FormItem><FormLabel>Budget (₹)</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-              </div>
-
-              <div>
-                <Q number={12} label="When does the client want to start?" hint="Capture what the client said — even a rough indication helps." />
-                <Input
-                  value={clientStart}
-                  onChange={e => setClientStart(e.target.value)}
-                  placeholder="e.g. ASAP, March 2026, After flat handover in May"
-                />
-              </div>
-
-            </div>
-
-            <Separator />
-
-            {/* ── Section E: Reference files ── */}
+            {/* ── Section D: Reference files ── */}
             <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">E — Reference files</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">D — Reference files</p>
               <p className="text-sm text-muted-foreground">Upload mood boards, inspiration images, floor plans, or any supporting documents.</p>
 
               {(existingRefs.length > 0 || pendingFiles.length > 0) && (
