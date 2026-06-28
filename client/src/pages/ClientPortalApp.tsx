@@ -56,6 +56,8 @@ import {
   TrendingUp,
   IndianRupee,
   Banknote,
+  X,
+  Search,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -928,11 +930,13 @@ function MediaSection({
 
 // ── WORKING DRAWINGS ──────────────────────────────────────────────────────────
 function DrawingsSection({ items }: { items: PortalDrawing[] }) {
-  const [viewer, setViewer] = useState<{ url: string; name: string; isImg: boolean } | null>(null);
+  const [viewer, setViewer] = useState<{ url: string; name: string; isImg: boolean; downloadName: string } | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
-  const openFile = async (url: string, name: string, isImg: boolean, download = false) => {
+  const openFile = async (url: string, viewName: string, downloadName: string, isImg: boolean, download = false) => {
     if (!url) return;
     setChecking(url);
     try {
@@ -948,12 +952,10 @@ function DrawingsSection({ items }: { items: PortalDrawing[] }) {
       if (download) {
         const a = document.createElement('a');
         a.href = url;
-        a.download = name;
+        a.download = downloadName;
         a.click();
-      } else if (isImg) {
-        setViewer({ url, name, isImg });
       } else {
-        window.open(url, '_blank', 'noopener,noreferrer');
+        setViewer({ url, name: viewName, isImg, downloadName });
       }
     } catch {
       toast({
@@ -966,12 +968,19 @@ function DrawingsSection({ items }: { items: PortalDrawing[] }) {
     }
   };
 
+  const toggleRoom = (room: string) => setCollapsed(prev => ({ ...prev, [room]: !prev[room] }));
+
   if (items.length === 0) {
     return <EmptyState icon={PenTool} title="No working drawings yet" description="Floor plans, elevations and other drawings will appear here." />;
   }
 
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? items.filter(d => d.title.toLowerCase().includes(q) || d.category.toLowerCase().includes(q) || (d.room?.name || '').toLowerCase().includes(q))
+    : items;
+
   const grouped: Record<string, PortalDrawing[]> = {};
-  items.forEach(item => {
+  filtered.forEach(item => {
     const folder = item.room?.name || "General";
     if (!grouped[folder]) grouped[folder] = [];
     grouped[folder].push(item);
@@ -979,39 +988,63 @@ function DrawingsSection({ items }: { items: PortalDrawing[] }) {
 
   return (
     <>
-      <div className="space-y-6 max-w-3xl">
-        {Object.entries(grouped).map(([folder, drawings]) => (
-          <div key={folder}>
-            <h3 className="text-sm font-medium text-muted-foreground mb-2 uppercase tracking-wide">{folder}</h3>
-            <div className="space-y-2">
-              {drawings.map(item => {
-                const rev = item.latestRevision;
-                const url = getFileUrl(rev?.filePath, rev?.fileName);
-                const isImg = isImageFile(rev?.fileName);
-                const ext = (rev?.fileName || "").split(".").pop()?.toUpperCase() || "";
-                const isPdf = ext === "PDF";
-                const isChecking = checking === url;
-                const extColor = isPdf
-                  ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/50 dark:text-red-400 dark:border-red-800"
-                  : isImg
-                  ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800"
-                  : ext
-                  ? "bg-muted text-muted-foreground border-border"
-                  : "bg-muted/50 text-muted-foreground/50 border-border";
-                return (
-                  <Card
-                    key={item.id}
-                    className={`${url ? 'hover-elevate cursor-pointer' : 'opacity-60'} ${isChecking ? 'opacity-60' : ''}`}
-                    onClick={() => { if (!url || isChecking) return; openFile(url, item.title, isImg); }}
-                  >
-                    <CardContent className="pt-3 pb-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`h-10 w-12 rounded-md border flex flex-col items-center justify-center shrink-0 ${extColor}`}>
-                          <span className="text-[10px] font-bold leading-none tracking-wide">{ext ? ext.slice(0, 4) : "—"}</span>
+      {/* Search bar */}
+      <div className="relative max-w-sm mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <Input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search drawings…"
+          className="pl-9"
+        />
+      </div>
+
+      {filtered.length === 0 && (
+        <p className="text-sm text-muted-foreground py-6 text-center">No drawings match "{search}"</p>
+      )}
+
+      <div className="space-y-2 max-w-3xl">
+        {Object.entries(grouped).map(([folder, drawings]) => {
+          const isOpen = !collapsed[folder];
+          return (
+            <Collapsible key={folder} open={isOpen} onOpenChange={() => toggleRoom(folder)}>
+              <CollapsibleTrigger asChild>
+                <button className="w-full flex items-center justify-between px-3 py-2.5 rounded-md bg-muted/50 hover-elevate text-left">
+                  <span className="text-sm font-medium">{folder}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{drawings.length}</span>
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? '' : '-rotate-90'}`} />
+                  </div>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="mt-1 space-y-1 pl-1">
+                  {drawings.map(item => {
+                    const rev = item.latestRevision;
+                    const url = getFileUrl(rev?.filePath, rev?.fileName);
+                    const isImg = isImageFile(rev?.fileName);
+                    const ext = (rev?.fileName || "").split(".").pop()?.toUpperCase() || "";
+                    const isPdf = ext === "PDF";
+                    const isChecking = checking === url;
+                    const extColor = isPdf
+                      ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/50 dark:text-red-400 dark:border-red-800"
+                      : isImg
+                      ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800"
+                      : ext
+                      ? "bg-muted text-muted-foreground border-border"
+                      : "bg-muted/50 text-muted-foreground/50 border-border";
+                    return (
+                      <div
+                        key={item.id}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-md ${url && !isChecking ? 'hover-elevate cursor-pointer' : ''} ${isChecking ? 'opacity-60' : !url ? 'opacity-50' : ''}`}
+                        onClick={() => { if (!url || isChecking) return; openFile(url, item.title, rev?.fileName || item.title, isImg); }}
+                      >
+                        <div className={`h-9 w-11 rounded-md border flex items-center justify-center shrink-0 ${extColor}`}>
+                          <span className="text-[9px] font-bold leading-none tracking-wide">{ext ? ext.slice(0, 4) : "—"}</span>
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm truncate">{item.title}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground truncate">
                             {item.category}{rev ? ` · Rev ${rev.revisionLetter} · ${formatDate(rev.uploadedAt?.toString())}` : ' · No file yet'}
                           </p>
                         </div>
@@ -1021,62 +1054,48 @@ function DrawingsSection({ items }: { items: PortalDrawing[] }) {
                             variant="ghost"
                             disabled={isChecking}
                             className="shrink-0"
-                            onClick={e => { e.stopPropagation(); openFile(url, rev?.fileName || item.title, isImg, true); }}
+                            onClick={e => { e.stopPropagation(); openFile(url, item.title, rev?.fileName || item.title, isImg, true); }}
                           >
                             <Download className="h-4 w-4" />
                           </Button>
                         )}
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+                    );
+                  })}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          );
+        })}
       </div>
 
-      {/* In-app viewer modal */}
+      {/* In-app viewer modal — all file types (PDFs via iframe, images inline) */}
       {viewer && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex flex-col"
-          onClick={() => setViewer(null)}
-        >
+        <div className="fixed inset-0 z-50 flex flex-col bg-black/90" onClick={() => setViewer(null)}>
           {/* Toolbar */}
           <div
-            className="flex items-center justify-between px-4 py-2 bg-background/95 border-b shrink-0"
+            className="flex items-center gap-3 px-4 py-2 bg-background border-b shrink-0"
             onClick={e => e.stopPropagation()}
           >
-            <p className="text-sm font-medium truncate max-w-lg">{viewer.name}</p>
-            <div className="flex items-center gap-2 shrink-0">
-              <a href={viewer.url} download className="inline-flex">
-                <Button size="sm" variant="outline" className="gap-1.5">
-                  <Download className="h-3.5 w-3.5" />
-                  Download
-                </Button>
-              </a>
-              <Button size="icon" variant="ghost" onClick={() => setViewer(null)}>
-                <X className="h-4 w-4" />
+            <p className="text-sm font-medium truncate flex-1">{viewer.name}</p>
+            <a href={viewer.url} download={viewer.downloadName} className="inline-flex shrink-0">
+              <Button size="icon" variant="ghost">
+                <Download className="h-4 w-4" />
               </Button>
-            </div>
+            </a>
+            <Button size="icon" variant="ghost" className="shrink-0" onClick={() => setViewer(null)}>
+              <X className="h-4 w-4" />
+            </Button>
           </div>
 
           {/* Content */}
           <div className="flex-1 overflow-hidden" onClick={e => e.stopPropagation()}>
             {viewer.isImg ? (
               <div className="w-full h-full flex items-center justify-center p-4">
-                <img
-                  src={viewer.url}
-                  alt={viewer.name}
-                  className="max-w-full max-h-full object-contain rounded"
-                />
+                <img src={viewer.url} alt={viewer.name} className="max-w-full max-h-full object-contain rounded" />
               </div>
             ) : (
-              <iframe
-                src={viewer.url}
-                className="w-full h-full border-0"
-                title={viewer.name}
-              />
+              <iframe src={viewer.url} className="w-full h-full border-0" title={viewer.name} />
             )}
           </div>
         </div>
