@@ -203,12 +203,41 @@ function PaymentsSection({ projectId }: { projectId: string }) {
     );
   }
 
+  const fmt = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const totalRequested = requests.reduce((s, r) => s + Number(r.amount), 0);
+  const totalPaid = confirmed.reduce((s, r) => s + Number(r.amount), 0);
+  const totalPending = awaitingAction.reduce((s, r) => s + Number(r.amount), 0) + clientPaid.reduce((s, r) => s + Number(r.amount), 0);
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-1">Payments</h2>
+        <h2 className="text-xl font-semibold mb-1">Accounts</h2>
         <p className="text-sm text-muted-foreground">Payment requests from your designer. Acknowledge each request and click "Made Payment" once you have transferred the amount.</p>
       </div>
+
+      {/* Summary cards */}
+      {requests.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Total Requested</p>
+              <p className="text-lg font-bold">{fmt(totalRequested)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Total Paid</p>
+              <p className="text-lg font-bold text-green-600 dark:text-green-400">{fmt(totalPaid)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Outstanding</p>
+              <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{fmt(totalPending)}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {requests.length === 0 && (
         <Card>
@@ -228,7 +257,7 @@ function PaymentsSection({ projectId }: { projectId: string }) {
 
       {clientPaid.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Awaiting Designer Confirmation</h3>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Awaiting Confirmation</h3>
           {clientPaid.map(pr => (
             <Card key={pr.id} className="opacity-75">
               <CardContent className="pt-5">
@@ -254,20 +283,21 @@ function PaymentsSection({ projectId }: { projectId: string }) {
 
       {confirmed.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Completed</h3>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Paid</h3>
           {confirmed.map(pr => (
-            <Card key={pr.id} className="opacity-60">
+            <Card key={pr.id} className="opacity-70">
               <CardContent className="pt-5">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <div className="font-medium">{pr.vendorName}</div>
                     <div className="text-xs text-muted-foreground mt-0.5">{pr.description}</div>
+                    {pr.clientUtr && <div className="text-xs mt-1">UTR: <span className="font-mono">{pr.clientUtr}</span></div>}
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="font-bold">₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-                    <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
+                    <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 mt-1">
                       <CheckCircle2 className="h-3 w-3" />
-                      Confirmed
+                      Paid
                     </div>
                   </div>
                 </div>
