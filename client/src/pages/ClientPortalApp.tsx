@@ -1085,12 +1085,12 @@ export default function ClientPortalApp({
               })()}
               <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
                 <span
-                  className="font-bold truncate leading-tight"
-                  style={{ fontSize: "0.78rem", letterSpacing: "-0.2px" }}
+                  className="font-semibold leading-snug"
+                  style={{ fontSize: "0.72rem" }}
                 >
                   {portalData?.orgName || selectedProject?.projectName || "Client Portal"}
                 </span>
-                <span className="text-muted-foreground truncate" style={{ fontSize: "0.65rem" }}>
+                <span className="text-muted-foreground" style={{ fontSize: "0.62rem" }}>
                   Client Portal
                 </span>
               </div>

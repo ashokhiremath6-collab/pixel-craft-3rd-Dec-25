@@ -75,6 +75,13 @@ export function AppSidebar() {
   const { user } = useAuth();
 
   const role = (user as any)?.role as string | undefined;
+  const orgId = (user as any)?.orgId as string | undefined;
+
+  const { data: org } = useQuery<{ name: string }>({
+    queryKey: ["/api/organisations", orgId],
+    queryFn: () => fetch(`/api/organisations/${orgId}`).then(r => r.json()),
+    enabled: !!orgId,
+  });
   const isAdminOrDesigner = role === 'admin' || role === 'designer';
   const isProjectManager = role === 'project_manager';
 
@@ -132,8 +139,32 @@ export function AppSidebar() {
     <Sidebar data-testid="sidebar-main">
       <SidebarHeader className="px-3 py-3 border-b">
         <div className="flex items-center gap-2.5">
-          <img src="/logo.png" alt="Olympik Design" className="h-7 w-7 object-contain shrink-0" />
-          <span className="font-semibold text-xs leading-tight">Olympik Design</span>
+          {(() => {
+            const name = org?.name || "Studio";
+            const words = name.trim().split(/\s+/).filter(Boolean);
+            const initials = words.length >= 2
+              ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
+              : name.slice(0, 2).toUpperCase();
+            return (
+              <div
+                className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 text-white font-bold select-none"
+                style={{
+                  background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
+                  fontSize: "0.62rem",
+                  letterSpacing: "0.04em",
+                }}
+                title={name}
+              >
+                {initials}
+              </div>
+            );
+          })()}
+          <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
+            <span className="font-semibold leading-snug" style={{ fontSize: "0.72rem" }}>
+              {org?.name || "Studio"}
+            </span>
+            <span className="text-muted-foreground" style={{ fontSize: "0.62rem" }}>Interior Design</span>
+          </div>
         </div>
       </SidebarHeader>
       <SidebarContent className="pb-4">
