@@ -126,7 +126,7 @@ export default function VendorPortalApp() {
                   alt={studioRequest.org_name}
                   title={studioRequest.org_name}
                   className="shrink-0 rounded-sm bg-white object-contain"
-                  style={{ width: 32, height: 32 }}
+                  style={{ height: 40, width: "auto", maxWidth: 160 }}
                 />
                 <div className="min-w-0">
                   <div className="font-semibold text-sm leading-tight truncate">

@@ -942,7 +942,7 @@ export default function Dashboard({
             alt={org?.name || "Studio"}
             title={org?.name || "Studio"}
             className="shrink-0 rounded-md bg-white object-contain"
-            style={{ height: 56, width: 56 }}
+            style={{ height: 72, width: "auto", maxWidth: 220 }}
           />
           <div className="flex flex-col gap-0.5">
             <h1

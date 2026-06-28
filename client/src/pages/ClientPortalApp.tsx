@@ -1297,8 +1297,8 @@ export default function ClientPortalApp({
                 src="/studio-logo.png"
                 alt={studioName || "Studio"}
                 title={studioName || "Studio"}
-                className="shrink-0 rounded-sm bg-white object-contain"
-                style={{ height: 32, width: 32 }}
+                className="shrink-0 rounded-sm bg-white object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
+                style={{ height: 44, width: "auto", maxWidth: 150 }}
               />
               <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
                 <span
