@@ -826,6 +826,8 @@ function SpecificationsSection({ items }: { items: Specification[] }) {
 
 // ── MEETING MINUTES ───────────────────────────────────────────────────────────
 function MinutesSection({ items }: { items: MeetingMinutes[] }) {
+  const [selected, setSelected] = useState<MeetingMinutes | null>(null);
+
   if (items.length === 0) {
     return <EmptyState icon={Calendar} title="No meeting minutes yet" description="Minutes from your design meetings and site visits will appear here." />;
   }
@@ -841,14 +843,16 @@ function MinutesSection({ items }: { items: MeetingMinutes[] }) {
     return map[type || ""] || "outline";
   }
 
+  const viewerUrl = selected ? getFileUrl(selected.filePath, selected.fileName) : null;
+  const viewerIsImg = selected ? isImageFile(selected.fileName || "") : false;
+
   return (
-    <div className="space-y-4 max-w-3xl">
-      <h2 className="text-lg font-semibold">Meeting Minutes</h2>
-      <div className="space-y-3">
+    <>
+      <div className="space-y-3 max-w-3xl">
         {items.map(item => {
           const url = getFileUrl(item.filePath, item.fileName);
           return (
-            <Card key={item.id}>
+            <Card key={item.id} className="hover-elevate cursor-pointer" onClick={() => setSelected(item)}>
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-start gap-3">
                   <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
@@ -875,11 +879,12 @@ function MinutesSection({ items }: { items: MeetingMinutes[] }) {
                       </div>
                     )}
                     {item.summary && (
-                      <p className="text-xs text-muted-foreground mt-2 line-clamp-3 border-t pt-2">{item.summary}</p>
+                      <p className="text-xs text-muted-foreground mt-2 line-clamp-2 border-t pt-2">{item.summary}</p>
                     )}
                   </div>
                   {url && (
-                    <a href={url} download={item.fileName || item.meetingTitle} className="shrink-0">
+                    <a href={url} download={item.fileName || item.meetingTitle} className="shrink-0"
+                      onClick={e => e.stopPropagation()}>
                       <Button size="icon" variant="ghost" title="Download minutes">
                         <Download className="h-4 w-4" />
                       </Button>
@@ -891,7 +896,101 @@ function MinutesSection({ items }: { items: MeetingMinutes[] }) {
           );
         })}
       </div>
-    </div>
+
+      {/* In-app minutes detail viewer */}
+      {selected && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex flex-col" onClick={() => setSelected(null)}>
+          {/* Toolbar */}
+          <div
+            className="flex items-center justify-between px-4 py-2 bg-background/95 border-b shrink-0"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Calendar className="h-4 w-4 text-primary shrink-0" />
+              <p className="text-sm font-medium truncate">{selected.meetingTitle}</p>
+              {selected.meetingType && (
+                <Badge variant={meetingTypeBadge(selected.meetingType)} className="text-xs shrink-0">
+                  {selected.meetingType}
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {viewerUrl && (
+                <a href={viewerUrl} download={selected.fileName || selected.meetingTitle} className="inline-flex">
+                  <Button size="sm" variant="outline" className="gap-1.5">
+                    <Download className="h-3.5 w-3.5" /> Download
+                  </Button>
+                </a>
+              )}
+              <Button size="icon" variant="ghost" onClick={() => setSelected(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="flex flex-1 overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* Meeting details panel */}
+            <div className="w-80 shrink-0 bg-background border-r overflow-y-auto p-5 space-y-4">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Date</p>
+                <p className="text-sm font-medium">{formatDate(selected.meetingDate)}</p>
+              </div>
+              {selected.location && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Location</p>
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    {selected.location}
+                  </div>
+                </div>
+              )}
+              {selected.attendees && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Attendees</p>
+                  <div className="flex items-start gap-1.5 text-sm">
+                    <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">{selected.attendees}</span>
+                  </div>
+                </div>
+              )}
+              {selected.summary && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Discussion Points</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{selected.summary}</p>
+                </div>
+              )}
+              {selected.actionItems && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Action Items</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{selected.actionItems}</p>
+                </div>
+              )}
+              {!viewerUrl && (
+                <p className="text-xs text-muted-foreground italic">No file attached to these minutes.</p>
+              )}
+            </div>
+
+            {/* File viewer (PDF / image) */}
+            {viewerUrl ? (
+              <div className="flex-1 overflow-hidden">
+                {viewerIsImg ? (
+                  <div className="w-full h-full flex items-center justify-center p-4 bg-black/40">
+                    <img src={viewerUrl} alt={selected.meetingTitle} className="max-w-full max-h-full object-contain rounded" />
+                  </div>
+                ) : (
+                  <iframe src={viewerUrl} className="w-full h-full border-0" title={selected.meetingTitle} />
+                )}
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center bg-muted/30">
+                <p className="text-sm text-muted-foreground">No attachment for this meeting.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
