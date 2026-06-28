@@ -2090,12 +2090,11 @@ export default function ClientPortalApp({
 
   // Gate logic: server-authoritative unlock flag (any accepted proposal = unlocked),
   // OR legacy auto-unlock when no brief/proposal system was ever used (project already has content)
+  // Fallback unlock: only renders and working drawings are reliable per-project
+  // indicators. Other collections (specs, minutes) may include cross-project data.
   const hasContent = !bapLoading && (
     (portalData?.renders?.length ?? 0) > 0 ||
-    (portalData?.workingDrawings?.length ?? 0) > 0 ||
-    (portalData?.moodboards?.length ?? 0) > 0 ||
-    (portalData?.meetingMinutes?.length ?? 0) > 0 ||
-    (portalData?.specifications?.length ?? 0) > 0
+    (portalData?.workingDrawings?.length ?? 0) > 0
   );
   const noProposal = !bapLoading && !briefAndProposal?.proposal;
   const isUnlocked = (briefAndProposal?.isUnlocked ?? false) || (noProposal && hasContent);
@@ -2210,7 +2209,7 @@ export default function ClientPortalApp({
                 value={effectiveProjectId}
                 onValueChange={v => {
                   setSelectedProjectId(v);
-                  setActiveTab("overview");
+                  setActiveTab("brief");
                   if (previewMode) localStorage.setItem('_portal_preview_project', v);
                 }}
               >
@@ -2241,7 +2240,7 @@ export default function ClientPortalApp({
                   value={effectiveProjectId}
                   onValueChange={v => {
                     setSelectedProjectId(v);
-                    setActiveTab("overview");
+                    setActiveTab("brief");
                     localStorage.setItem('_portal_preview_project', v);
                   }}
                 >
