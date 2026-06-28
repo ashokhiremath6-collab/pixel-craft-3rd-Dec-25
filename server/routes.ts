@@ -231,8 +231,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: error?.constructor?.name
       });
       if (error instanceof ObjectNotFoundError) {
-        console.log("🔍 Error type: ObjectNotFoundError - returning 404");
-        return res.status(404).send("File not found: This file may have been deleted or moved");
+        // File not found via exists() check — attempt signed-URL redirect as a
+        // fallback (covers cases where the GCS exists() call returns false but the
+        // object is actually present, e.g. after a bucket re-provision).
+        console.log("🔍 ObjectNotFoundError — trying signed-URL fallback");
+        try {
+          const signedUrl = await new ObjectStorageService().getObjectEntitySignedUrl(req.path);
+          console.log("🔗 Redirecting to signed URL fallback");
+          return res.redirect(signedUrl);
+        } catch (_) {
+          return res.status(404).send("File not found: This file may have been deleted or moved");
+        }
       }
       // Check for configuration errors
       if (error instanceof Error && error.message.includes('PRIVATE_OBJECT_DIR')) {
@@ -13797,8 +13806,11 @@ Return your response in the following JSON format only (no markdown, no code blo
         if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
       }
 
+      const { or, isNull } = await import("drizzle-orm");
       const orgVendors = await db.select({ id: vendors.id, name: vendors.name })
-        .from(vendors).where(eq(vendors.orgId, orgId)).orderBy(vendors.name);
+        .from(vendors)
+        .where(or(eq(vendors.orgId, orgId), isNull(vendors.orgId)))
+        .orderBy(vendors.name);
 
       res.json(orgVendors);
     } catch (err) {
@@ -13833,7 +13845,10 @@ Return your response in the following JSON format only (no markdown, no code blo
         if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
       }
 
-      const [vendor] = await db.select().from(vendors).where(and(eq(vendors.id, vendorId), eq(vendors.orgId, orgId))).limit(1);
+      const { or: orVL, isNull: isNullVL } = await import("drizzle-orm");
+      const [vendor] = await db.select().from(vendors)
+        .where(and(eq(vendors.id, vendorId), orVL(eq(vendors.orgId, orgId), isNullVL(vendors.orgId))))
+        .limit(1);
       if (!vendor) return res.status(403).json({ error: "Access denied" });
 
       const invoices = await storage.getVendorInvoices(vendorId);
@@ -13882,7 +13897,7 @@ Return your response in the following JSON format only (no markdown, no code blo
         notes: vendorPayments.notes,
       })
       .from(vendorPayments)
-      .innerJoin(vendors, and(eq(vendorPayments.vendorId, vendors.id), eq(vendors.orgId, orgId)))
+      .innerJoin(vendors, eq(vendorPayments.vendorId, vendors.id))
       .orderBy(desc(vendorPayments.paymentDate));
 
       res.json(rows);
