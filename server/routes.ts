@@ -5018,7 +5018,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         Promise.resolve().then(async () => {
           try {
             const clients = await storage.getProjectClients(validatedProjectId);
-            const toEmails = clients.map((c: any) => c.clientEmail).filter(Boolean);
+            const clientEmails = clients.map((c: any) => c.clientEmail).filter(Boolean);
+            if (!clientEmails.length) return;
+            // Resolve only actual user accounts with role=client
+            const { db: emailDb } = await import("./db");
+            const { users: usersTable, userRoles: urTable } = await import("@shared/schema");
+            const { inArray: inArrR, eq: eqR, and: andR } = await import("drizzle-orm");
+            const clientUsers = await emailDb
+              .select({ email: usersTable.email })
+              .from(usersTable)
+              .innerJoin(urTable, eqR(urTable.userId, usersTable.id))
+              .where(andR(inArrR(usersTable.email, clientEmails), eqR(urTable.role, 'client'), eqR(urTable.isActive, true)));
+            const toEmails = clientUsers.map((u: any) => u.email).filter(Boolean);
             if (!toEmails.length) return;
             const proj = await storage.getProject(validatedProjectId);
             const { sendNewRenderEmail, getBaseUrl } = await import("./email");
@@ -11396,7 +11407,7 @@ Return your response in the following JSON format only (no markdown, no code blo
             drawingTitle: revRow.drawingTitle || 'Drawing',
             clientName,
             projectName: proj?.projectName || 'project',
-            adminUrl: `${getBaseUrl()}/`,
+            adminUrl: `${getBaseUrl()}/working-drawings?drawingId=${revRow.drawingId}`,
           });
         } catch (e) {
           console.error('[EMAIL] Drawing approval notification failed:', e);
@@ -13370,8 +13381,8 @@ Return your response in the following JSON format only (no markdown, no code blo
         Promise.resolve().then(async () => {
           try {
             const { db: emailDb } = await import("./db");
-            const { drawings: drawingsTable2, projects: projectsTable } = await import("@shared/schema");
-            const { eq: eqD } = await import("drizzle-orm");
+            const { drawings: drawingsTable2, projects: projectsTable, users: usersTable, userRoles: urTable } = await import("@shared/schema");
+            const { eq: eqD, inArray: inArrD, and: andD } = await import("drizzle-orm");
             const [dwg] = await emailDb
               .select({ title: drawingsTable2.title, projectId: drawingsTable2.projectId })
               .from(drawingsTable2)
@@ -13384,7 +13395,15 @@ Return your response in the following JSON format only (no markdown, no code blo
               .where(eqD(projectsTable.id, dwg.projectId))
               .limit(1);
             const clients = await storage.getProjectClients(dwg.projectId);
-            const toEmails = clients.map((c: any) => c.clientEmail).filter(Boolean);
+            const clientEmails = clients.map((c: any) => c.clientEmail).filter(Boolean);
+            if (!clientEmails.length) return;
+            // Resolve only actual user accounts with role=client
+            const clientUsers = await emailDb
+              .select({ email: usersTable.email })
+              .from(usersTable)
+              .innerJoin(urTable, eqD(urTable.userId, usersTable.id))
+              .where(andD(inArrD(usersTable.email, clientEmails), eqD(urTable.role, 'client'), eqD(urTable.isActive, true)));
+            const toEmails = clientUsers.map((u: any) => u.email).filter(Boolean);
             if (!toEmails.length) return;
             const { sendDrawingForReviewEmail, getBaseUrl } = await import("./email");
             await sendDrawingForReviewEmail({
