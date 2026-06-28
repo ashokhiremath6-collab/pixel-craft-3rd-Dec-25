@@ -11134,8 +11134,8 @@ Return your response in the following JSON format only (no markdown, no code blo
       const [brief] = await reqDb.select().from(clientBriefs)
         .where(eq(clientBriefs.projectId, projectId)).limit(1);
 
-      // Return the most recent proposal that is either sent or accepted (latest first)
-      const [proposal] = await reqDb.select().from(proposals)
+      // For display: return the most recent sent/accepted proposal
+      const [displayProposal] = await reqDb.select().from(proposals)
         .where(and(
           eq(proposals.projectId, projectId),
           inArray(proposals.status, ['sent', 'accepted'])
@@ -11143,12 +11143,37 @@ Return your response in the following JSON format only (no markdown, no code blo
         .orderBy(desc(proposals.createdAt))
         .limit(1);
 
-      res.json({ brief: brief || null, proposal: proposal || null });
+      // For unlock: check whether ANY accepted proposal exists for this project
+      // (independent of which proposal is displayed — handles accepted+newer-sent edge case)
+      const [acceptedProposal] = await reqDb.select({ id: proposals.id }).from(proposals)
+        .where(and(eq(proposals.projectId, projectId), inArray(proposals.status, ['accepted'])))
+        .limit(1);
+
+      res.json({
+        brief: brief || null,
+        proposal: displayProposal || null,
+        isUnlocked: !!acceptedProposal,
+      });
     } catch (err) {
       console.error("GET brief-and-proposal error:", err);
       res.status(500).json({ error: "Failed to fetch brief and proposal" });
     }
   });
+
+  // Whitelisted fields a client may set on a brief (all server-controlled
+  // fields — id, orgId, projectId, status, referenceFiles, timestamps — are
+  // explicitly excluded to prevent mass-assignment).
+  const CLIENT_BRIEF_ALLOWED_FIELDS = new Set([
+    'clientName', 'phone', 'clientEmail', 'projectType', 'propertyAddress',
+    'scopeOfWork', 'budgetMin', 'budgetMax', 'currency', 'timeline',
+    'stylePreferences', 'mustHaves', 'mustAvoids', 'inspirationNotes',
+  ]);
+
+  function pickBriefFields(body: Record<string, unknown>): Record<string, unknown> {
+    return Object.fromEntries(
+      Object.entries(body).filter(([k]) => CLIENT_BRIEF_ALLOWED_FIELDS.has(k))
+    );
+  }
 
   app.post("/api/client-portal/:projectId/brief", requireAuth, async (req: any, res) => {
     try {
@@ -11170,14 +11195,16 @@ Return your response in the following JSON format only (no markdown, no code blo
       const orgId = project.orgId || req.user?.orgId;
       if (!orgId) return res.status(400).json({ error: "Cannot determine organisation for brief" });
 
-      const body = req.body;
+      // Only allow whitelisted fields — server controls id, orgId, projectId, status, etc.
+      const safeFields = pickBriefFields(req.body);
+
       const [existing] = await reqDb.select().from(clientBriefs)
         .where(eq(clientBriefs.projectId, projectId)).limit(1);
 
       let result;
       if (existing) {
         [result] = await reqDb.update(clientBriefs)
-          .set({ ...body, updatedAt: new Date() })
+          .set({ ...safeFields, updatedAt: new Date() })
           .where(eq(clientBriefs.id, existing.id))
           .returning();
       } else {
@@ -11185,10 +11212,10 @@ Return your response in the following JSON format only (no markdown, no code blo
           id: randomUUID(),
           orgId,
           projectId,
-          clientName: body.clientName || project.clientName || "Client",
           status: "new",
           referenceFiles: [],
-          ...body,
+          clientName: (safeFields.clientName as string) || project.clientName || "Client",
+          ...safeFields,
         }).returning();
       }
       res.json(result);

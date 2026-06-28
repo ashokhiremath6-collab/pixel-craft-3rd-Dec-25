@@ -126,6 +126,7 @@ interface ProposalPhase {
 interface BriefAndProposalData {
   brief: ClientBrief | null;
   proposal: Proposal | null;
+  isUnlocked: boolean;
 }
 
 const ROOM_OPTIONS = ["Living room", "Dining area", "Kitchen", "Master bedroom", "Bedroom", "Bathroom / en-suite", "Powder room", "Study / office", "Children's room", "Terrace / balcony", "Laundry / utility", "Pooja room"];
@@ -2085,8 +2086,8 @@ export default function ClientPortalApp({
   const costQuotations = costQuotationsData?.quotations?.[effectiveProjectId] ?? [];
   const selectedProject = portalData?.project || projects.find(p => p.id === effectiveProjectId);
 
-  // Gate logic: unlocked if proposal is accepted, OR if no proposal exists AND project already has content
-  const proposalAccepted = briefAndProposal?.proposal?.status === "accepted";
+  // Gate logic: server-authoritative unlock flag (any accepted proposal = unlocked),
+  // OR legacy auto-unlock when no brief/proposal system was ever used (project already has content)
   const hasContent = !bapLoading && (
     (portalData?.renders?.length ?? 0) > 0 ||
     (portalData?.workingDrawings?.length ?? 0) > 0 ||
@@ -2095,7 +2096,7 @@ export default function ClientPortalApp({
     (portalData?.specifications?.length ?? 0) > 0
   );
   const noProposal = !bapLoading && !briefAndProposal?.proposal;
-  const isUnlocked = proposalAccepted || (noProposal && hasContent);
+  const isUnlocked = (briefAndProposal?.isUnlocked ?? false) || (noProposal && hasContent);
 
   const visibleTabs = isUnlocked ? ALL_TABS : ONBOARDING_TABS;
   const activeTabMeta = ALL_TABS.find(t => t.id === activeTab) ?? ALL_TABS[0];
