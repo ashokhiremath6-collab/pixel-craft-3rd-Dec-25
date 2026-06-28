@@ -936,17 +936,39 @@ export default function Dashboard({
       <div className="max-w-[1280px] mx-auto flex flex-col gap-6 sm:gap-10">
 
         {/* ── Page Header ── */}
-        <div className="flex flex-col gap-1">
-          <h1
-            className="font-semibold leading-none"
-            style={{ fontSize: "clamp(1.5rem,4vw,3.75rem)", color: "#111827", letterSpacing: "-1px" }}
-            data-testid="heading-dashboard"
-          >
-            {org?.name ?? "Olympik Design"}
-          </h1>
-          <p className="text-sm sm:text-[18px]" style={{ color: "#86868b" }}>
-            Overview of your vendors, projects, and quotations.
-          </p>
+        <div className="flex items-center gap-4">
+          {(() => {
+            const name = org?.name || "Studio";
+            const words = name.trim().split(/\s+/).filter(Boolean);
+            const initials = words.length >= 2
+              ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
+              : name.slice(0, 2).toUpperCase();
+            return (
+              <div
+                className="h-14 w-14 rounded-xl flex items-center justify-center shrink-0 text-white font-bold select-none"
+                style={{
+                  background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
+                  fontSize: "1rem",
+                  letterSpacing: "0.04em",
+                }}
+                title={name}
+              >
+                {initials}
+              </div>
+            );
+          })()}
+          <div className="flex flex-col gap-0.5">
+            <h1
+              className="font-semibold leading-tight text-foreground"
+              style={{ fontSize: "clamp(1.25rem,3vw,2rem)", letterSpacing: "-0.5px" }}
+              data-testid="heading-dashboard"
+            >
+              {org?.name ?? "Your Studio"}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Overview of your vendors, projects, and quotations.
+            </p>
+          </div>
         </div>
 
         {/* ── RFQ Sent Alerts ── */}
