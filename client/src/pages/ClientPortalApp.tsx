@@ -2017,9 +2017,11 @@ export default function ClientPortalApp({
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get('tab');
-      if (tab && ALL_TABS.some(t => t.id === tab)) return tab;
+      // Only allow onboarding tabs from URL at init time — lock state is unknown.
+      // The useEffect below will re-allow project tabs once isUnlocked is confirmed.
+      if (tab && ONBOARDING_TABS.some(t => t.id === tab)) return tab;
     }
-    return "overview";
+    return "brief";
   });
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
@@ -2305,6 +2307,7 @@ export default function ClientPortalApp({
               </div>
             ) : (
               <>
+                {/* ── Onboarding tabs — always accessible ── */}
                 {activeTab === "brief" && effectiveProjectId && (
                   <BriefSection
                     projectId={effectiveProjectId}
@@ -2319,32 +2322,33 @@ export default function ClientPortalApp({
                     onAccepted={() => setActiveTab("overview")}
                   />
                 )}
-                {activeTab === "overview" && (
+                {/* ── Project tabs — only rendered after portal is unlocked ── */}
+                {isUnlocked && activeTab === "overview" && (
                   <OverviewSection project={selectedProject} data={portalData} vendorAlerts={vendorAlertsData} />
                 )}
-                {activeTab === "timeline" && (
+                {isUnlocked && activeTab === "timeline" && (
                   <TimelineSection tasks={portalData?.tasks || []} />
                 )}
-                {activeTab === "project-cost" && (
+                {isUnlocked && activeTab === "project-cost" && (
                   <ProjectCostSection
                     projectId={effectiveProjectId}
                     categories={costCategories}
                     quotations={costQuotations}
                   />
                 )}
-                {activeTab === "payments" && effectiveProjectId && (
+                {isUnlocked && activeTab === "payments" && effectiveProjectId && (
                   <PaymentsSection projectId={effectiveProjectId} />
                 )}
-                {activeTab === "renders" && (
+                {isUnlocked && activeTab === "renders" && (
                   <RendersSection items={portalData?.renders || []} />
                 )}
-                {activeTab === "moodboards" && (
+                {isUnlocked && activeTab === "moodboards" && (
                   <MediaSection title="Moodboards" items={portalData?.moodboards || []} />
                 )}
-                {activeTab === "drawings" && (
+                {isUnlocked && activeTab === "drawings" && (
                   <DrawingsSection items={portalData?.workingDrawings || []} />
                 )}
-                {activeTab === "minutes" && (
+                {isUnlocked && activeTab === "minutes" && (
                   <MinutesSection items={portalData?.meetingMinutes || []} />
                 )}
               </>
