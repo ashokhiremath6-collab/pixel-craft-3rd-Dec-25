@@ -42,6 +42,9 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [blobLoading, setBlobLoading] = useState(false);
   const [blobError, setBlobError] = useState(false);
+  const [sheetHtml, setSheetHtml] = useState<string | null>(null);
+  const [sheetLoading, setSheetLoading] = useState(false);
+  const [sheetError, setSheetError] = useState(false);
   const prevBlobUrl = useRef<string | null>(null);
 
   const revokePrev = () => {
@@ -58,6 +61,8 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
     setZoom(100);
     setBlobUrl(null);
     setBlobError(false);
+    setSheetHtml(null);
+    setSheetError(false);
     revokePrev();
 
     const guessed = guessTypeFromName(fileName, fileUrl);
@@ -74,8 +79,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
       .catch(() => setFileType("pdf"));
   }, [isOpen, fileUrl, fileName]);
 
-  // Fetch blob for PDF and image types so X-Frame-Options / CORS from
-  // signed GCS URLs can't block the inline iframe / <img>.
+  // Fetch blob for PDF and image types
   useEffect(() => {
     if (!isOpen || !fileUrl) return;
     if (fileType !== "pdf" && fileType !== "image") return;
@@ -100,6 +104,32 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
         setBlobError(true);
         setBlobLoading(false);
       });
+  }, [isOpen, fileUrl, fileType]);
+
+  // Parse Excel files client-side with SheetJS
+  useEffect(() => {
+    if (!isOpen || !fileUrl || fileType !== "excel") return;
+    setSheetHtml(null);
+    setSheetLoading(true);
+    setSheetError(false);
+
+    (async () => {
+      try {
+        const XLSX = await import("xlsx");
+        const res = await fetch(fileUrl);
+        if (!res.ok) throw new Error("fetch failed");
+        const arrayBuffer = await res.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: "array" });
+        const firstSheet = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheet];
+        const html = XLSX.utils.sheet_to_html(worksheet, { id: "xlsx-table", editable: false });
+        setSheetHtml(html);
+        setSheetLoading(false);
+      } catch {
+        setSheetError(true);
+        setSheetLoading(false);
+      }
+    })();
   }, [isOpen, fileUrl, fileType]);
 
   // Text content fetch
@@ -231,16 +261,54 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
         </div>
       );
     }
-    if (fileType === "word" || fileType === "excel") {
-      const officeUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl)}`;
+    if (fileType === "excel") {
+      if (sheetLoading) {
+        return (
+          <div className="flex flex-col items-center justify-center h-full gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading spreadsheet…</p>
+          </div>
+        );
+      }
+      if (sheetError || !sheetHtml) {
+        return (
+          <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
+            <p className="text-sm text-muted-foreground">Could not display this file inline.</p>
+            <Button onClick={handleDownload} data-testid="button-download-office">
+              <Download className="w-4 h-4 mr-2" />
+              Download File
+            </Button>
+          </div>
+        );
+      }
       return (
-        <iframe
-          key={officeUrl}
-          src={officeUrl}
-          style={{ width: "100%", height: "100%", border: "none", display: "block" }}
-          title={fileName || "Office viewer"}
-          data-testid="file-viewer-office"
+        <div
+          className="w-full h-full overflow-auto p-4 bg-white"
+          data-testid="file-viewer-excel"
+          dangerouslySetInnerHTML={{ __html: `<style>
+            #xlsx-table { border-collapse: collapse; font-size: 13px; font-family: Arial, sans-serif; min-width: 100%; }
+            #xlsx-table td, #xlsx-table th { border: 1px solid #d0d0d0; padding: 4px 8px; white-space: nowrap; }
+            #xlsx-table tr:first-child td, #xlsx-table tr:first-child th { background: #f0f0f0; font-weight: 600; }
+            #xlsx-table tr:nth-child(even) td { background: #fafafa; }
+          </style>${sheetHtml}` }}
         />
+      );
+    }
+    if (fileType === "word") {
+      return (
+        <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+            <Download className="w-8 h-8 text-primary" />
+          </div>
+          <div className="text-center">
+            <p className="font-medium mb-1">{fileName}</p>
+            <p className="text-sm text-muted-foreground">Word documents cannot be previewed inline.</p>
+          </div>
+          <Button onClick={handleDownload} data-testid="button-download-office">
+            <Download className="w-4 h-4 mr-2" />
+            Download File
+          </Button>
+        </div>
       );
     }
     return (
