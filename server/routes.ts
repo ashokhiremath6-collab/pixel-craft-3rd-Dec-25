@@ -11117,6 +11117,110 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // ── Client Portal — Brief & Proposal ────────────────────────────────────────
+
+  app.get("/api/client-portal/:projectId/brief-and-proposal", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const { projectId } = req.params;
+      const accessibleProjects = await storage.getProjectsForUser(userId, req.user?.role || 'client');
+      const project = accessibleProjects.find((p: any) => p.id === projectId);
+      if (!project) return res.status(403).json({ error: "Access denied" });
+
+      const { db: reqDb } = await import("./db");
+      const { clientBriefs, proposals } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+
+      const [brief] = await reqDb.select().from(clientBriefs)
+        .where(eq(clientBriefs.projectId, projectId)).limit(1);
+
+      const allProposals = await reqDb.select().from(proposals)
+        .where(eq(proposals.projectId, projectId))
+        .orderBy(desc(proposals.createdAt));
+
+      const proposal = allProposals.find((p: any) => p.status === 'accepted')
+        || allProposals.find((p: any) => p.status === 'sent')
+        || null;
+
+      res.json({ brief: brief || null, proposal });
+    } catch (err) {
+      console.error("GET brief-and-proposal error:", err);
+      res.status(500).json({ error: "Failed to fetch brief and proposal" });
+    }
+  });
+
+  app.post("/api/client-portal/:projectId/brief", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const { projectId } = req.params;
+      const accessibleProjects = await storage.getProjectsForUser(userId, req.user?.role || 'client');
+      const project = accessibleProjects.find((p: any) => p.id === projectId);
+      if (!project) return res.status(403).json({ error: "Access denied" });
+
+      const { db: reqDb } = await import("./db");
+      const { clientBriefs } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const { randomUUID } = await import("crypto");
+
+      const orgId = project.orgId || req.user?.orgId;
+      if (!orgId) return res.status(400).json({ error: "Cannot determine organisation for brief" });
+
+      const body = req.body;
+      const [existing] = await reqDb.select().from(clientBriefs)
+        .where(eq(clientBriefs.projectId, projectId)).limit(1);
+
+      let result;
+      if (existing) {
+        [result] = await reqDb.update(clientBriefs)
+          .set({ ...body, updatedAt: new Date() })
+          .where(eq(clientBriefs.id, existing.id))
+          .returning();
+      } else {
+        [result] = await reqDb.insert(clientBriefs).values({
+          id: randomUUID(),
+          orgId,
+          projectId,
+          clientName: body.clientName || project.clientName || "Client",
+          status: "new",
+          referenceFiles: [],
+          ...body,
+        }).returning();
+      }
+      res.json(result);
+    } catch (err) {
+      console.error("POST client-portal brief error:", err);
+      res.status(500).json({ error: "Failed to save brief" });
+    }
+  });
+
+  app.post("/api/client-portal/:projectId/proposals/:proposalId/accept", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const { projectId, proposalId } = req.params;
+      const accessibleProjects = await storage.getProjectsForUser(userId, req.user?.role || 'client');
+      const project = accessibleProjects.find((p: any) => p.id === projectId);
+      if (!project) return res.status(403).json({ error: "Access denied" });
+
+      const { db: reqDb } = await import("./db");
+      const { proposals } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      const [existing] = await reqDb.select().from(proposals)
+        .where(and(eq(proposals.id, proposalId), eq(proposals.projectId, projectId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Proposal not found" });
+      if (existing.status === 'accepted') return res.json(existing);
+
+      const [updated] = await reqDb.update(proposals)
+        .set({ status: 'accepted', acceptedAt: new Date(), updatedAt: new Date() })
+        .where(eq(proposals.id, proposalId))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      console.error("POST accept proposal error:", err);
+      res.status(500).json({ error: "Failed to accept proposal" });
+    }
+  });
+
   // =============================================
   // VENDOR PORTAL ROUTES
   // =============================================

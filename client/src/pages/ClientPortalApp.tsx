@@ -1,4 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import type { ClientBrief, Proposal } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -39,6 +46,7 @@ import {
   Download,
   Sparkles,
   CheckCircle2,
+  CheckCircle,
   Circle,
   AlertCircle,
   Loader2,
@@ -58,6 +66,10 @@ import {
   Banknote,
   X,
   Search,
+  ClipboardList,
+  DollarSign,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -83,7 +95,12 @@ interface PortalData {
   orgName?: string;
 }
 
-const TABS = [
+const ONBOARDING_TABS = [
+  { id: "brief", label: "Project Brief", icon: ClipboardList },
+  { id: "proposal", label: "Proposal", icon: FileText },
+];
+
+const PROJECT_TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "timeline", label: "Timeline", icon: Clock },
   { id: "project-cost", label: "Project Cost", icon: Receipt },
@@ -93,6 +110,508 @@ const TABS = [
   { id: "drawings", label: "Working Drawings", icon: PenTool },
   { id: "minutes", label: "Meeting Minutes", icon: Calendar },
 ];
+
+const ALL_TABS = [...ONBOARDING_TABS, ...PROJECT_TABS];
+
+// ── Brief / Proposal types & helpers ─────────────────────────────────────────
+interface ProposalPhase {
+  id: string;
+  name: string;
+  description: string;
+  fee: number;
+  timeline: string;
+  deliverables: { id: string; title: string }[];
+}
+
+interface BriefAndProposalData {
+  brief: ClientBrief | null;
+  proposal: Proposal | null;
+}
+
+const ROOM_OPTIONS = ["Living room", "Dining area", "Kitchen", "Master bedroom", "Bedroom", "Bathroom / en-suite", "Powder room", "Study / office", "Children's room", "Terrace / balcony", "Laundry / utility", "Pooja room"];
+const WORK_TYPES = ["New construction", "Renovation", "Furnishing only", "Partial renovation"];
+const STYLE_OPTIONS = ["Minimalist", "Contemporary", "Transitional", "Modern classic", "Maximalist", "Japandi", "Industrial", "Traditional / ethnic", "Eclectic", "Biophilic"];
+const PROPOSAL_STATUS_COLOR: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground",
+  sent: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  accepted: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+  rejected: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+};
+
+function fmtCurrency(amount: number | string | null | undefined, currency = "INR") {
+  const n = Number(amount) || 0;
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
+}
+
+// ── Pill toggle (for brief form) ──────────────────────────────────────────────
+function PillToggle({ label, selected, onToggle }: { label: string; selected: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={[
+        "px-3 py-1 rounded-full text-sm border transition-colors",
+        selected
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-background text-foreground border-border hover-elevate",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
+}
+
+// ── Brief form schema ─────────────────────────────────────────────────────────
+const briefFormSchema = z.object({
+  clientName: z.string().min(1, "Name is required"),
+  phone: z.string().optional(),
+  projectType: z.string().optional(),
+  propertyAddress: z.string().optional(),
+  scopeOfWork: z.string().optional(),
+  budgetMin: z.string().optional(),
+  budgetMax: z.string().optional(),
+  currency: z.string().default("INR"),
+  timeline: z.string().optional(),
+  stylePreferences: z.string().optional(),
+  mustHaves: z.string().optional(),
+  mustAvoids: z.string().optional(),
+  inspirationNotes: z.string().optional(),
+});
+type BriefFormValues = z.infer<typeof briefFormSchema>;
+
+// ── Q label helper ────────────────────────────────────────────────────────────
+function QLabel({ number, label, hint }: { number: number; label: string; hint?: string }) {
+  return (
+    <div className="flex items-baseline gap-2.5 mb-3">
+      <span className="text-xs font-bold text-muted-foreground/60 w-5 shrink-0 text-right">{number}</span>
+      <div>
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── Brief Section ─────────────────────────────────────────────────────────────
+function BriefSection({ projectId, brief, onSaved }: { projectId: string; brief: ClientBrief | null; onSaved: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  // Quick-select states
+  const [isEntireFlat, setIsEntireFlat] = useState(true);
+  const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set());
+  const [workType, setWorkType] = useState("");
+  const [bedroomCount, setBedroomCount] = useState("");
+  const [childBedroomCount, setChildBedroomCount] = useState("");
+  const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set());
+
+  const form = useForm<BriefFormValues>({
+    resolver: zodResolver(briefFormSchema),
+    defaultValues: {
+      clientName: brief?.clientName ?? "",
+      phone: brief?.phone ?? "",
+      projectType: brief?.projectType ?? "",
+      propertyAddress: brief?.propertyAddress ?? "",
+      scopeOfWork: "",
+      budgetMin: brief?.budgetMin?.toString() ?? "",
+      budgetMax: brief?.budgetMax?.toString() ?? "",
+      currency: brief?.currency ?? "INR",
+      timeline: brief?.timeline ?? "",
+      stylePreferences: "",
+      mustHaves: brief?.mustHaves ?? "",
+      mustAvoids: brief?.mustAvoids ?? "",
+      inspirationNotes: brief?.inspirationNotes ?? "",
+    },
+  });
+
+  const saveMut = useMutation({
+    mutationFn: async (data: BriefFormValues) => {
+      const scopeParts: string[] = [];
+      scopeParts.push(isEntireFlat ? "Scope: Entire flat" : "Scope: Specific rooms");
+      if (workType) scopeParts.push(`Work type: ${workType}`);
+      if (selectedRooms.size > 0) scopeParts.push(`Rooms: ${Array.from(selectedRooms).join(", ")}`);
+      if (bedroomCount.trim()) scopeParts.push(`Bedrooms: ${bedroomCount.trim()}`);
+      if (childBedroomCount.trim()) scopeParts.push(`Children's bedrooms: ${childBedroomCount.trim()}`);
+      if (data.scopeOfWork?.trim()) scopeParts.push(data.scopeOfWork.trim());
+
+      const styleParts: string[] = [];
+      if (selectedStyles.size > 0) styleParts.push(`Style direction: ${Array.from(selectedStyles).join(", ")}`);
+      if (data.stylePreferences?.trim()) styleParts.push(data.stylePreferences.trim());
+
+      const payload = {
+        ...data,
+        scopeOfWork: scopeParts.join("\n") || null,
+        stylePreferences: styleParts.join("\n") || null,
+        projectType: data.projectType || null,
+        budgetMin: data.budgetMin || null,
+        budgetMax: data.budgetMax || null,
+        timeline: data.timeline || null,
+        phone: data.phone || null,
+        propertyAddress: data.propertyAddress || null,
+        mustHaves: data.mustHaves || null,
+        mustAvoids: data.mustAvoids || null,
+        inspirationNotes: data.inspirationNotes || null,
+      };
+      const res = await apiRequest("POST", `/api/client-portal/${projectId}/brief`, payload);
+      if (!res.ok) throw new Error("Failed to save");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/client-portal", projectId, "brief-and-proposal"] });
+      toast({ title: "Brief submitted", description: "Your designer has been notified." });
+      onSaved();
+    },
+    onError: () => toast({ title: "Error", description: "Could not save your brief. Please try again.", variant: "destructive" }),
+  });
+
+  // If brief already exists, show read-only view
+  if (brief) {
+    const rows: { label: string; value: string | null | undefined; icon?: React.ElementType }[] = [
+      { label: "Property address", value: brief.propertyAddress, icon: MapPin },
+      { label: "Project type", value: brief.projectType },
+      { label: "Phone", value: brief.phone, icon: Phone },
+      { label: "Scope of work", value: brief.scopeOfWork },
+      { label: "Budget", value: (brief.budgetMin || brief.budgetMax)
+        ? (brief.budgetMin && brief.budgetMax
+            ? `${fmtCurrency(brief.budgetMin, brief.currency)} – ${fmtCurrency(brief.budgetMax, brief.currency)}`
+            : brief.budgetMin ? `From ${fmtCurrency(brief.budgetMin, brief.currency)}` : `Up to ${fmtCurrency(brief.budgetMax, brief.currency)}`)
+        : null, icon: DollarSign },
+      { label: "Timeline", value: brief.timeline },
+      { label: "Style preferences", value: brief.stylePreferences },
+      { label: "Must-haves", value: brief.mustHaves },
+      { label: "Must-avoids", value: brief.mustAvoids },
+      { label: "Inspiration", value: brief.inspirationNotes },
+    ].filter(r => r.value);
+
+    return (
+      <div className="max-w-2xl space-y-6">
+        <div>
+          <h2 className="text-xl font-semibold">Project Brief</h2>
+          <p className="text-sm text-muted-foreground mt-1">Your requirements as submitted. Your designer refers to this throughout the project.</p>
+        </div>
+        <Card>
+          <CardContent className="pt-5 space-y-4">
+            {rows.map(r => (
+              <div key={r.label} className="grid grid-cols-3 gap-3 text-sm">
+                <p className="text-muted-foreground font-medium">{r.label}</p>
+                <p className="col-span-2 whitespace-pre-line">{r.value}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // New brief — show the intake form
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold">Project Brief</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Help your designer understand your vision. Answer what you can — every detail shapes the design.
+        </p>
+      </div>
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(d => saveMut.mutate(d))} className="space-y-8">
+
+          {/* A — About you */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">A — About you</p>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField control={form.control} name="clientName" render={({ field }) => (
+                <FormItem><FormLabel>Your name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="phone" render={({ field }) => (
+                <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <FormField control={form.control} name="propertyAddress" render={({ field }) => (
+              <FormItem><FormLabel>Property address</FormLabel><FormControl><Input placeholder="City / locality is fine if full address is not yet known" {...field} /></FormControl><FormMessage /></FormItem>
+            )} />
+          </div>
+
+          <Separator />
+
+          {/* B — Scope */}
+          <div className="space-y-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">B — Scope of work</p>
+            <div className="space-y-3">
+              <QLabel number={1} label="Is the scope the entire flat?" />
+              <div className="flex flex-wrap gap-2">
+                <PillToggle label="Entire flat" selected={isEntireFlat} onToggle={() => setIsEntireFlat(true)} />
+                <PillToggle label="Specific rooms only" selected={!isEntireFlat} onToggle={() => setIsEntireFlat(false)} />
+              </div>
+              <p className="text-xs text-muted-foreground">{isEntireFlat ? "Which rooms does the flat include?" : "Which rooms are in scope?"} Select all that apply.</p>
+              <div className="flex flex-wrap gap-2">
+                {ROOM_OPTIONS.map(r => (
+                  <PillToggle key={r} label={r} selected={selectedRooms.has(r)} onToggle={() => setSelectedRooms(prev => { const n = new Set(prev); n.has(r) ? n.delete(r) : n.add(r); return n; })} />
+                ))}
+              </div>
+            </div>
+            <div>
+              <QLabel number={2} label="What type of work is required?" />
+              <div className="flex flex-wrap gap-2">
+                {WORK_TYPES.map(w => (
+                  <PillToggle key={w} label={w} selected={workType === w} onToggle={() => setWorkType(prev => prev === w ? "" : w)} />
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <QLabel number={3} label="How many bedrooms?" />
+                <Input type="number" min={1} value={bedroomCount} onChange={e => setBedroomCount(e.target.value)} placeholder="e.g. 3" />
+              </div>
+              <div>
+                <QLabel number={4} label="Children's bedrooms?" />
+                <Input type="number" min={0} value={childBedroomCount} onChange={e => setChildBedroomCount(e.target.value)} placeholder="e.g. 1" />
+              </div>
+            </div>
+            <FormField control={form.control} name="scopeOfWork" render={({ field }) => (
+              <FormItem>
+                <QLabel number={5} label="Additional scope details" hint="Size, special requirements, anything not listed above." />
+                <FormControl><Textarea rows={3} placeholder="e.g. 2,800 sq ft 3-BHK. Custom joinery throughout." {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+          </div>
+
+          <Separator />
+
+          {/* C — Design direction */}
+          <div className="space-y-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">C — Design direction</p>
+            <div>
+              <QLabel number={6} label="Which style directions resonate with you?" hint="Select one or more" />
+              <div className="flex flex-wrap gap-2">
+                {STYLE_OPTIONS.map(s => (
+                  <PillToggle key={s} label={s} selected={selectedStyles.has(s)} onToggle={() => setSelectedStyles(prev => { const n = new Set(prev); n.has(s) ? n.delete(s) : n.add(s); return n; })} />
+                ))}
+              </div>
+            </div>
+            <FormField control={form.control} name="stylePreferences" render={({ field }) => (
+              <FormItem>
+                <QLabel number={7} label="Describe the feel in your own words" hint="Materials, colours, mood, lighting — anything goes." />
+                <FormControl><Textarea rows={3} placeholder="e.g. Warm and earthy — oak veneer, sage green accents. Natural light is a priority." {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <div className="grid grid-cols-2 gap-3">
+              <FormField control={form.control} name="mustHaves" render={({ field }) => (
+                <FormItem>
+                  <QLabel number={8} label="Must-haves" hint="Non-negotiables" />
+                  <FormControl><Textarea rows={4} placeholder="e.g. Walk-in wardrobe, home office nook, Italian marble in bathrooms." {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="mustAvoids" render={({ field }) => (
+                <FormItem>
+                  <QLabel number={9} label="Must-avoids" hint="Things to stay away from" />
+                  <FormControl><Textarea rows={4} placeholder="e.g. No dark walls, no brass, avoid heavy drapes." {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+            <FormField control={form.control} name="inspirationNotes" render={({ field }) => (
+              <FormItem>
+                <QLabel number={10} label="Inspiration sources" hint="Hotels, Instagram handles, Pinterest boards, magazine references — links welcome." />
+                <FormControl><Textarea rows={2} placeholder="e.g. Soho House Mumbai, Studio Lotus projects, AD India Jan 2024." {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+          </div>
+
+          <Separator />
+
+          {/* D — Budget & timeline */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">D — Budget &amp; timeline</p>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField control={form.control} name="budgetMin" render={({ field }) => (
+                <FormItem><FormLabel>Budget from (₹)</FormLabel><FormControl><Input type="number" placeholder="e.g. 2000000" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="budgetMax" render={({ field }) => (
+                <FormItem><FormLabel>Budget up to (₹)</FormLabel><FormControl><Input type="number" placeholder="e.g. 5000000" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <FormField control={form.control} name="timeline" render={({ field }) => (
+              <FormItem><FormLabel>Preferred start / move-in date</FormLabel><FormControl><Input placeholder="e.g. March 2025, or 'ASAP'" {...field} /></FormControl><FormMessage /></FormItem>
+            )} />
+          </div>
+
+          <Button type="submit" disabled={saveMut.isPending} className="w-full">
+            {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+            Submit Brief
+          </Button>
+        </form>
+      </Form>
+    </div>
+  );
+}
+
+// ── Proposal Section ──────────────────────────────────────────────────────────
+function ProposalSection({ projectId, proposal, onAccepted }: { projectId: string; proposal: Proposal | null; onAccepted: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+
+  const acceptMut = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/client-portal/${projectId}/proposals/${proposal!.id}/accept`, {});
+      if (!res.ok) throw new Error("Failed to accept");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/client-portal", projectId, "brief-and-proposal"] });
+      toast({ title: "Proposal accepted", description: "Your project is now active. All sections are now available." });
+      setConfirming(false);
+      onAccepted();
+    },
+    onError: () => toast({ title: "Error", description: "Could not record acceptance. Please try again.", variant: "destructive" }),
+  });
+
+  if (!proposal) {
+    return (
+      <div className="max-w-2xl">
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold">Proposal</h2>
+          <p className="text-sm text-muted-foreground mt-1">Your designer's fee proposal will appear here once it's ready.</p>
+        </div>
+        <EmptyState
+          icon={FileText}
+          title="Proposal in progress"
+          description="Your designer is preparing a proposal for this project. You'll be able to review and accept it here."
+        />
+      </div>
+    );
+  }
+
+  const phases = (proposal.phases as ProposalPhase[]) ?? [];
+  const currency = proposal.currency ?? "INR";
+  const isAccepted = proposal.status === "accepted";
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold">Proposal</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          {isAccepted
+            ? `You accepted this proposal on ${proposal.acceptedAt ? format(new Date(proposal.acceptedAt), "dd MMM yyyy") : "—"}.`
+            : "Review your designer's proposal below. Accept to formally kick off the project."}
+        </p>
+      </div>
+
+      {/* Header card */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <CardTitle className="text-lg">{proposal.proposalTitle}</CardTitle>
+              <p className="text-sm text-muted-foreground mt-0.5">{proposal.clientName}</p>
+            </div>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${PROPOSAL_STATUS_COLOR[proposal.status] ?? "bg-muted text-muted-foreground"}`}>
+              {isAccepted ? "Accepted" : proposal.status === "sent" ? "Awaiting your acceptance" : proposal.status}
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0 space-y-2 text-sm">
+          {proposal.validityDays && !isAccepted && (
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              <span>Valid for {proposal.validityDays} days from issue</span>
+            </div>
+          )}
+          {isAccepted && proposal.acceptedAt && (
+            <div className="flex items-center gap-1.5 text-green-700 dark:text-green-400">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              <span>Accepted on {format(new Date(proposal.acceptedAt), "dd MMMM yyyy")}</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Phases */}
+      {phases.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold">Scope of Work &amp; Fee Breakdown</h3>
+          {phases.map((phase, i) => (
+            <Card key={phase.id}>
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <div>
+                    <span className="text-xs text-muted-foreground mr-2">Phase {i + 1}</span>
+                    <span className="font-medium">{phase.name}</span>
+                    {phase.timeline && <span className="ml-2 text-xs text-muted-foreground">· {phase.timeline}</span>}
+                  </div>
+                  <span className="font-semibold text-sm shrink-0">{fmtCurrency(phase.fee, currency)}</span>
+                </div>
+                {phase.description && <p className="text-sm text-muted-foreground mt-1">{phase.description}</p>}
+                {phase.deliverables?.length > 0 && (
+                  <ul className="mt-2 space-y-0.5">
+                    {phase.deliverables.filter(d => d.title).map(d => (
+                      <li key={d.id} className="text-sm flex items-center gap-1.5 text-muted-foreground">
+                        <CheckCircle className="h-3.5 w-3.5 text-primary shrink-0" />{d.title}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+          <div className="flex justify-end border-t pt-3">
+            <div className="text-right">
+              <span className="text-sm text-muted-foreground mr-3">Total Design Fee</span>
+              <span className="text-lg font-semibold">{fmtCurrency(proposal.totalFee, currency)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment schedule */}
+      {proposal.paymentSchedule && (
+        <div>
+          <h3 className="text-sm font-semibold mb-2">Payment Schedule</h3>
+          <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans">{proposal.paymentSchedule}</pre>
+        </div>
+      )}
+
+      {/* Terms */}
+      {proposal.termsAndConditions && (
+        <div>
+          <h3 className="text-sm font-semibold mb-2">Terms &amp; Conditions</h3>
+          <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans">{proposal.termsAndConditions}</pre>
+        </div>
+      )}
+
+      {/* Accept button */}
+      {!isAccepted && proposal.status === "sent" && (
+        <div className="border-t pt-4">
+          {!confirming ? (
+            <Button className="w-full" onClick={() => setConfirming(true)}>
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Accept Proposal
+            </Button>
+          ) : (
+            <div className="space-y-3 p-4 rounded-md border bg-muted/30">
+              <p className="text-sm font-medium">Confirm acceptance</p>
+              <p className="text-sm text-muted-foreground">
+                By accepting, you confirm that you have reviewed this proposal and agree to the scope and terms above. This action formally kicks off the project.
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setConfirming(false)} className="flex-1">Cancel</Button>
+                <Button onClick={() => acceptMut.mutate()} disabled={acceptMut.isPending} className="flex-1">
+                  {acceptMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                  Yes, Accept
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface ClientPaymentRequest {
   id: string;
@@ -1497,7 +2016,7 @@ export default function ClientPortalApp({
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get('tab');
-      if (tab && TABS.some(t => t.id === tab)) return tab;
+      if (tab && ALL_TABS.some(t => t.id === tab)) return tab;
     }
     return "overview";
   });
@@ -1552,9 +2071,41 @@ export default function ClientPortalApp({
     refetchOnMount: "always",
   });
 
+  const { data: briefAndProposal, isLoading: bapLoading } = useQuery<BriefAndProposalData>({
+    queryKey: ["/api/client-portal", effectiveProjectId, "brief-and-proposal"],
+    queryFn: async () => {
+      const res = await fetch(`/api/client-portal/${effectiveProjectId}/brief-and-proposal`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+    enabled: !!effectiveProjectId,
+    staleTime: 30 * 1000,
+  });
+
   const costQuotations = costQuotationsData?.quotations?.[effectiveProjectId] ?? [];
   const selectedProject = portalData?.project || projects.find(p => p.id === effectiveProjectId);
-  const activeTabMeta = TABS.find(t => t.id === activeTab) ?? TABS[0];
+
+  // Gate logic: unlocked if proposal is accepted, OR if no proposal exists AND project already has content
+  const proposalAccepted = briefAndProposal?.proposal?.status === "accepted";
+  const hasContent = !bapLoading && (
+    (portalData?.renders?.length ?? 0) > 0 ||
+    (portalData?.workingDrawings?.length ?? 0) > 0 ||
+    (portalData?.moodboards?.length ?? 0) > 0 ||
+    (portalData?.meetingMinutes?.length ?? 0) > 0 ||
+    (portalData?.specifications?.length ?? 0) > 0
+  );
+  const noProposal = !bapLoading && !briefAndProposal?.proposal;
+  const isUnlocked = proposalAccepted || (noProposal && hasContent);
+
+  const visibleTabs = isUnlocked ? ALL_TABS : ONBOARDING_TABS;
+  const activeTabMeta = ALL_TABS.find(t => t.id === activeTab) ?? ALL_TABS[0];
+
+  // Redirect to "brief" if current tab is not accessible in locked state
+  useEffect(() => {
+    if (!bapLoading && !isUnlocked && !ONBOARDING_TABS.some(t => t.id === activeTab)) {
+      setActiveTab("brief");
+    }
+  }, [isUnlocked, bapLoading, activeTab]);
 
   const sidebarStyle = {
     "--sidebar-width": "14rem",
@@ -1623,7 +2174,7 @@ export default function ClientPortalApp({
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {TABS.map(tab => (
+                  {visibleTabs.map(tab => (
                     <SidebarMenuItem key={tab.id}>
                       <SidebarMenuButton
                         isActive={activeTab === tab.id}
@@ -1636,6 +2187,15 @@ export default function ClientPortalApp({
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}
+                  {!isUnlocked && (
+                    <SidebarMenuItem>
+                      <div className="px-2 py-3 mt-2 border-t">
+                        <p className="text-xs text-muted-foreground leading-snug">
+                          All project sections unlock once your proposal is accepted.
+                        </p>
+                      </div>
+                    </SidebarMenuItem>
+                  )}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -1744,6 +2304,20 @@ export default function ClientPortalApp({
               </div>
             ) : (
               <>
+                {activeTab === "brief" && effectiveProjectId && (
+                  <BriefSection
+                    projectId={effectiveProjectId}
+                    brief={briefAndProposal?.brief ?? null}
+                    onSaved={() => {}}
+                  />
+                )}
+                {activeTab === "proposal" && effectiveProjectId && (
+                  <ProposalSection
+                    projectId={effectiveProjectId}
+                    proposal={briefAndProposal?.proposal ?? null}
+                    onAccepted={() => setActiveTab("overview")}
+                  />
+                )}
                 {activeTab === "overview" && (
                   <OverviewSection project={selectedProject} data={portalData} vendorAlerts={vendorAlertsData} />
                 )}
