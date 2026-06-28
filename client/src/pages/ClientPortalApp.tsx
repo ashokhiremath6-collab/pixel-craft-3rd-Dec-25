@@ -424,24 +424,6 @@ function BriefSection({ projectId, brief, onSaved }: { projectId: string; brief:
             )} />
           </div>
 
-          <Separator />
-
-          {/* D — Budget & timeline */}
-          <div className="space-y-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">D — Budget &amp; timeline</p>
-            <div className="grid grid-cols-2 gap-3">
-              <FormField control={form.control} name="budgetMin" render={({ field }) => (
-                <FormItem><FormLabel>Budget from (₹)</FormLabel><FormControl><Input type="number" placeholder="e.g. 2000000" {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="budgetMax" render={({ field }) => (
-                <FormItem><FormLabel>Budget up to (₹)</FormLabel><FormControl><Input type="number" placeholder="e.g. 5000000" {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-            </div>
-            <FormField control={form.control} name="timeline" render={({ field }) => (
-              <FormItem><FormLabel>Preferred start / move-in date</FormLabel><FormControl><Input placeholder="e.g. March 2025, or 'ASAP'" {...field} /></FormControl><FormMessage /></FormItem>
-            )} />
-          </div>
-
           <Button type="submit" disabled={saveMut.isPending} className="w-full">
             {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
             Submit Brief
