@@ -1853,8 +1853,8 @@ function PaymentsSummary() {
     return acc;
   }, {} as Record<string, { vendorName: string; payments: Array<VendorPayment & { vendorName: string }>; total: number }>);
 
-  // Convert to array and sort by total amount (descending)
-  const sortedVendors = Object.entries(vendorPayments).sort((a, b) => b[1].total - a[1].total);
+  // Convert to array and sort alphabetically by vendor name
+  const sortedVendors = Object.entries(vendorPayments).sort((a, b) => a[1].vendorName.localeCompare(b[1].vendorName));
 
   // Calculate totals
   const totalPayments = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
