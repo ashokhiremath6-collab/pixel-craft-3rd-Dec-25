@@ -119,7 +119,7 @@ export default function MoodboardsPage() {
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
   const [canvaLink, setCanvaLink] = useState("");
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(""); // For upload form
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [selectedFolder, setSelectedFolder] = useState<string>(""); // For working drawings folder
   const [selectedRoomType, setSelectedRoomType] = useState<string>(""); // For renders room type
   const [previewImage, setPreviewImage] = useState<Moodboard | null>(null);
@@ -269,6 +269,12 @@ export default function MoodboardsPage() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
   });
+
+  useEffect(() => {
+    if (!selectedProjectId && projects.length > 0) {
+      setSelectedProjectId(sortProjectsForDropdown(projects)[0]?.id ?? "");
+    }
+  }, [projects, selectedProjectId]);
 
   // Fetch users to display who saved each render — admin only (designers don't have access to the full user list)
   const { data: users = [] } = useQuery<User[]>({

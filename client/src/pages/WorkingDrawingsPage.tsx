@@ -1016,7 +1016,7 @@ export default function WorkingDrawingsPage({ drawingType = "working" }: { drawi
   const [customCategoryInput, setCustomCategoryInput] = useState("");
 
   const { data: projects = [] } = useQuery<Project[]>({ queryKey: ["/api/projects"] });
-  const activeProjectId = filterProjectId || (projects[0]?.id ?? "");
+  const activeProjectId = filterProjectId || (sortProjectsForDropdown(projects)[0]?.id ?? "");
 
   const roomsKey = ["/api/working-drawings/rooms", activeProjectId];
   const drawingsKey = ["/api/working-drawings", activeProjectId, searchText, drawingType];

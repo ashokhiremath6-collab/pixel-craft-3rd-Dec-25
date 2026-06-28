@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from "react";
 import { useSearch, useLocation } from "wouter";
+import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -174,6 +175,12 @@ export default function RendersPage() {
 
   // ── Queries ──────────────────────────────────────────────────────────────
   const { data: projects = [] } = useQuery<Project[]>({ queryKey: ["/api/projects"] });
+
+  useEffect(() => {
+    if (!activeProjectId && projects.length > 0) {
+      setActiveProjectId(sortProjectsForDropdown(projects)[0]?.id ?? "");
+    }
+  }, [projects, activeProjectId]);
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
