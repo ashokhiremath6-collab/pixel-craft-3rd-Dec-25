@@ -508,7 +508,7 @@ export interface IStorage {
 
   // Working Drawings
   getRoomsForProject(orgId: string, projectId: string): Promise<Array<Room & { drawingCount: number }>>;
-  getDrawingsForProject(orgId: string, projectId: string, search?: string, drawingType?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>>;
+  getDrawingsForProject(orgId: string | null, projectId: string, search?: string, drawingType?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>>;
   createRoom(orgId: string, projectId: string, data: { name: string; roomType: string }): Promise<Room>;
   updateRoom(id: string, orgId: string, data: { name: string; roomType: string }): Promise<Room | undefined>;
   deleteRoom(id: string, orgId: string, projectId: string): Promise<{ success: boolean; drawingCount: number }>;
@@ -3969,7 +3969,7 @@ export class DBStorage implements IStorage {
     return result;
   }
 
-  async getDrawingsForProject(orgId: string, projectId: string, search?: string, drawingType?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>> {
+  async getDrawingsForProject(orgId: string | null, projectId: string, search?: string, drawingType?: string): Promise<Array<Drawing & { latestRevision: DrawingRevision | null; room: Room | null }>> {
     const dr = drawingRevisions;
     const term = search ? '%' + search.toLowerCase() + '%' : null;
     const typeFilter = drawingType || 'working';
@@ -3982,7 +3982,7 @@ export class DBStorage implements IStorage {
       .leftJoin(rooms, eq(drawings.roomId, rooms.id))
       .where(
         and(
-          eq(drawings.orgId, orgId),
+          orgId ? eq(drawings.orgId, orgId) : undefined,
           eq(drawings.projectId, projectId),
           eq(drawings.drawingType, typeFilter),
           term ? or(

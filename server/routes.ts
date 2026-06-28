@@ -11086,7 +11086,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       const [renders, moodboardItems, workingDrawings, specs, minutes, tasks] = await Promise.all([
         storage.getMoodboardsByProject(projectId, 'render'),
         storage.getMoodboardsByProject(projectId, 'moodboard'),
-        storage.getDrawingsForProject(project.orgId || '', projectId, undefined, 'working'),
+        storage.getDrawingsForProject(null, projectId, undefined, 'working'),
         storage.getAllSpecifications(),
         storage.getMeetingMinutesByProject(projectId),
         storage.getTasksByProject(projectId),
