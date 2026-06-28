@@ -11129,20 +11129,21 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       const { db: reqDb } = await import("./db");
       const { clientBriefs, proposals } = await import("@shared/schema");
-      const { eq, desc } = await import("drizzle-orm");
+      const { eq, desc, and, inArray } = await import("drizzle-orm");
 
       const [brief] = await reqDb.select().from(clientBriefs)
         .where(eq(clientBriefs.projectId, projectId)).limit(1);
 
-      const allProposals = await reqDb.select().from(proposals)
-        .where(eq(proposals.projectId, projectId))
-        .orderBy(desc(proposals.createdAt));
+      // Return the most recent proposal that is either sent or accepted (latest first)
+      const [proposal] = await reqDb.select().from(proposals)
+        .where(and(
+          eq(proposals.projectId, projectId),
+          inArray(proposals.status, ['sent', 'accepted'])
+        ))
+        .orderBy(desc(proposals.createdAt))
+        .limit(1);
 
-      const proposal = allProposals.find((p: any) => p.status === 'accepted')
-        || allProposals.find((p: any) => p.status === 'sent')
-        || null;
-
-      res.json({ brief: brief || null, proposal });
+      res.json({ brief: brief || null, proposal: proposal || null });
     } catch (err) {
       console.error("GET brief-and-proposal error:", err);
       res.status(500).json({ error: "Failed to fetch brief and proposal" });
@@ -11152,8 +11153,12 @@ Return your response in the following JSON format only (no markdown, no code blo
   app.post("/api/client-portal/:projectId/brief", requireAuth, async (req: any, res) => {
     try {
       const userId = req.user?.id;
+      const userRole = req.user?.role;
+      // Only clients may submit a brief through the portal
+      if (userRole !== 'client') return res.status(403).json({ error: "Only client accounts may submit a brief" });
+
       const { projectId } = req.params;
-      const accessibleProjects = await storage.getProjectsForUser(userId, req.user?.role || 'client');
+      const accessibleProjects = await storage.getProjectsForUser(userId, userRole);
       const project = accessibleProjects.find((p: any) => p.id === projectId);
       if (!project) return res.status(403).json({ error: "Access denied" });
 
@@ -11196,8 +11201,12 @@ Return your response in the following JSON format only (no markdown, no code blo
   app.post("/api/client-portal/:projectId/proposals/:proposalId/accept", requireAuth, async (req: any, res) => {
     try {
       const userId = req.user?.id;
+      const userRole = req.user?.role;
+      // Only clients may accept a proposal
+      if (userRole !== 'client') return res.status(403).json({ error: "Only client accounts may accept a proposal" });
+
       const { projectId, proposalId } = req.params;
-      const accessibleProjects = await storage.getProjectsForUser(userId, req.user?.role || 'client');
+      const accessibleProjects = await storage.getProjectsForUser(userId, userRole);
       const project = accessibleProjects.find((p: any) => p.id === projectId);
       if (!project) return res.status(403).json({ error: "Access denied" });
 
@@ -11208,7 +11217,12 @@ Return your response in the following JSON format only (no markdown, no code blo
       const [existing] = await reqDb.select().from(proposals)
         .where(and(eq(proposals.id, proposalId), eq(proposals.projectId, projectId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Proposal not found" });
-      if (existing.status === 'accepted') return res.json(existing);
+
+      // Only allow accepting a proposal that has been explicitly sent to the client
+      if (existing.status !== 'sent') {
+        if (existing.status === 'accepted') return res.json(existing); // idempotent: already accepted
+        return res.status(400).json({ error: `Cannot accept a proposal with status '${existing.status}'` });
+      }
 
       const [updated] = await reqDb.update(proposals)
         .set({ status: 'accepted', acceptedAt: new Date(), updatedAt: new Date() })
