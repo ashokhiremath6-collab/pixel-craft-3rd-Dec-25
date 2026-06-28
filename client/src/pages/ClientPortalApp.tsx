@@ -659,6 +659,8 @@ function MediaSection({
 
 // ── WORKING DRAWINGS ──────────────────────────────────────────────────────────
 function DrawingsSection({ items }: { items: Moodboard[] }) {
+  const [viewer, setViewer] = useState<{ url: string; name: string; isImg: boolean } | null>(null);
+
   if (items.length === 0) {
     return <EmptyState icon={PenTool} title="No working drawings yet" description="Floor plans, elevations and other drawings will appear here." />;
   }
@@ -671,47 +673,99 @@ function DrawingsSection({ items }: { items: Moodboard[] }) {
   });
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <h2 className="text-lg font-semibold">Working Drawings</h2>
-      {Object.entries(grouped).map(([folder, drawings]) => (
-        <div key={folder}>
-          <h3 className="text-sm font-medium text-muted-foreground mb-2 uppercase tracking-wide">{folder}</h3>
-          <div className="space-y-2">
-            {drawings.map(item => {
-              const url = getFileUrl(item.filePath, item.fileName);
-              const isImg = isImageFile(item.fileName);
-              const ext = (item.fileName || "").split(".").pop()?.toUpperCase();
-              return (
-                <Card key={item.id}>
-                  <CardContent className="pt-3 pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center shrink-0">
-                        {isImg ? <FileImage className="h-4 w-4 text-muted-foreground" /> : <File className="h-4 w-4 text-muted-foreground" />}
+    <>
+      <div className="space-y-6 max-w-3xl">
+        {Object.entries(grouped).map(([folder, drawings]) => (
+          <div key={folder}>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2 uppercase tracking-wide">{folder}</h3>
+            <div className="space-y-2">
+              {drawings.map(item => {
+                const url = getFileUrl(item.filePath, item.fileName);
+                const isImg = isImageFile(item.fileName);
+                const ext = (item.fileName || "").split(".").pop()?.toUpperCase();
+                return (
+                  <Card
+                    key={item.id}
+                    className="hover-elevate cursor-pointer"
+                    onClick={() => url && setViewer({ url, name: item.name, isImg })}
+                  >
+                    <CardContent className="pt-3 pb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+                          {isImg ? <FileImage className="h-4 w-4 text-muted-foreground" /> : <File className="h-4 w-4 text-muted-foreground" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">{ext} · {formatDate(item.uploadedAt?.toString())}</p>
+                        </div>
+                        {url && (
+                          <a
+                            href={url}
+                            download={item.fileName || item.name}
+                            className="shrink-0"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <Button size="icon" variant="ghost">
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </a>
+                        )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{ext} · {formatDate(item.uploadedAt?.toString())}</p>
-                      </div>
-                      {url && (
-                        <a
-                          href={url}
-                          download={item.fileName || item.name}
-                          className="shrink-0"
-                        >
-                          <Button size="icon" variant="ghost">
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </a>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* In-app viewer modal */}
+      {viewer && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex flex-col"
+          onClick={() => setViewer(null)}
+        >
+          {/* Toolbar */}
+          <div
+            className="flex items-center justify-between px-4 py-2 bg-background/95 border-b shrink-0"
+            onClick={e => e.stopPropagation()}
+          >
+            <p className="text-sm font-medium truncate max-w-lg">{viewer.name}</p>
+            <div className="flex items-center gap-2 shrink-0">
+              <a href={viewer.url} download className="inline-flex">
+                <Button size="sm" variant="outline" className="gap-1.5">
+                  <Download className="h-3.5 w-3.5" />
+                  Download
+                </Button>
+              </a>
+              <Button size="icon" variant="ghost" onClick={() => setViewer(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-hidden" onClick={e => e.stopPropagation()}>
+            {viewer.isImg ? (
+              <div className="w-full h-full flex items-center justify-center p-4">
+                <img
+                  src={viewer.url}
+                  alt={viewer.name}
+                  className="max-w-full max-h-full object-contain rounded"
+                />
+              </div>
+            ) : (
+              <iframe
+                src={viewer.url}
+                className="w-full h-full border-0"
+                title={viewer.name}
+              />
+            )}
           </div>
         </div>
-      ))}
-    </div>
+      )}
+    </>
   );
 }
 
