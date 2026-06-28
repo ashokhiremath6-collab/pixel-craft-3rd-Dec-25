@@ -1177,16 +1177,16 @@ export default function Dashboard({
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {[
                 { label: "Vendors", value: vendors.length, sub: "in database", onClick: () => handleNavigate("/vendors"), testId: "stat-total-vendors", loading: false },
-                { label: "Active Projects", value: activeProjects, sub: `${completedProjects} completed`, onClick: () => handleNavigate("/projects"), testId: "stat-active-projects", loading: false },
+                { label: "Projects", value: activeProjects, sub: `${completedProjects} completed`, onClick: () => handleNavigate("/projects"), testId: "stat-active-projects", loading: false },
                 { label: "Active Tasks", value: totalActiveTasks, sub: "from schedules", onClick: () => handleNavigate("/gantt"), testId: "stat-active-tasks", loading: tasksLoading },
-                { label: "Selected Value", value: formatCurrencyCompact(totalQuotationValue), sub: "quotations", onClick: () => setIsQuotationDetailModalOpen(true), testId: "stat-total-quotations", loading: false },
+                { label: "Quoted Value", value: formatCurrencyCompact(totalQuotationValue), sub: "selected quotations", onClick: () => setIsQuotationDetailModalOpen(true), testId: "stat-total-quotations", loading: false },
                 { label: "Categories", value: Object.keys(vendorsByCategory).length, sub: "vendor types", onClick: () => handleNavigate("/vendors"), testId: "stat-categories", loading: false },
               ].map(s => (
                 <button
                   key={s.label}
                   onClick={s.onClick}
                   data-testid={s.testId}
-                  className="flex flex-col gap-1 p-4 rounded-[16px] text-left transition-shadow hover:shadow-md"
+                  className="flex flex-col gap-0.5 px-4 py-3 rounded-[16px] text-left transition-shadow hover:shadow-md"
                   style={{
                     background: "rgba(255,255,255,0.7)",
                     backdropFilter: "blur(12px)",
@@ -1194,13 +1194,13 @@ export default function Dashboard({
                     boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.05)",
                   }}
                 >
-                  <span className="text-[12px] font-medium" style={{ color: "#86868b" }}>{s.label}</span>
+                  <span className="text-[11px] font-medium whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: "#86868b" }}>{s.label}</span>
                   {s.loading ? (
-                    <span className="text-[26px] font-bold leading-none" style={{ color: "#d1d5db" }}>—</span>
+                    <span className="text-[22px] font-bold leading-tight" style={{ color: "#d1d5db" }}>—</span>
                   ) : (
-                    <span className="text-[26px] font-bold leading-none" style={{ color: "#111827" }}>{s.value}</span>
+                    <span className="text-[22px] font-bold leading-tight whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: "#111827" }}>{s.value}</span>
                   )}
-                  <span className="text-[11px]" style={{ color: "#9ca3af" }}>{s.sub}</span>
+                  <span className="text-[10px] whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: "#9ca3af" }}>{s.sub}</span>
                 </button>
               ))}
             </div>
