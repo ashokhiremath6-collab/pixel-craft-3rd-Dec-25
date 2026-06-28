@@ -232,20 +232,15 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
       );
     }
     if (fileType === "word" || fileType === "excel") {
+      const officeUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl)}`;
       return (
-        <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-            <Download className="w-8 h-8 text-primary" />
-          </div>
-          <div className="text-center">
-            <p className="font-medium mb-1">{fileName}</p>
-            <p className="text-sm text-muted-foreground">Click below to download and view this file</p>
-          </div>
-          <Button onClick={handleDownload} data-testid="button-download-office">
-            <Download className="w-4 h-4 mr-2" />
-            Download File
-          </Button>
-        </div>
+        <iframe
+          key={officeUrl}
+          src={officeUrl}
+          style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+          title={fileName || "Office viewer"}
+          data-testid="file-viewer-office"
+        />
       );
     }
     return (
