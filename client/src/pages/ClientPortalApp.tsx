@@ -927,6 +927,42 @@ function MediaSection({
 // ── WORKING DRAWINGS ──────────────────────────────────────────────────────────
 function DrawingsSection({ items }: { items: Moodboard[] }) {
   const [viewer, setViewer] = useState<{ url: string; name: string; isImg: boolean } | null>(null);
+  const [checking, setChecking] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const openFile = async (url: string, name: string, isImg: boolean, download = false) => {
+    if (!url) return;
+    setChecking(url);
+    try {
+      const res = await fetch(url, { method: 'HEAD', credentials: 'include' });
+      if (!res.ok) {
+        toast({
+          variant: "destructive",
+          title: "File unavailable",
+          description: "This file no longer exists in storage. Please ask your designer to re-upload it.",
+        });
+        return;
+      }
+      if (download) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.click();
+      } else if (isImg) {
+        setViewer({ url, name, isImg });
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "File unavailable",
+        description: "Could not reach the file. Please try again or ask your designer to re-upload it.",
+      });
+    } finally {
+      setChecking(null);
+    }
+  };
 
   if (items.length === 0) {
     return <EmptyState icon={PenTool} title="No working drawings yet" description="Floor plans, elevations and other drawings will appear here." />;
@@ -951,6 +987,7 @@ function DrawingsSection({ items }: { items: Moodboard[] }) {
                 const isImg = isImageFile(item.fileName);
                 const ext = (item.fileName || "").split(".").pop()?.toUpperCase() || "FILE";
                 const isPdf = ext === "PDF";
+                const isChecking = checking === url;
                 const extColor = isPdf
                   ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/50 dark:text-red-400 dark:border-red-800"
                   : isImg
@@ -959,15 +996,8 @@ function DrawingsSection({ items }: { items: Moodboard[] }) {
                 return (
                   <Card
                     key={item.id}
-                    className="hover-elevate cursor-pointer"
-                    onClick={() => {
-                      if (!url) return;
-                      if (isImg) {
-                        setViewer({ url, name: item.name, isImg });
-                      } else {
-                        window.open(url, '_blank', 'noopener,noreferrer');
-                      }
-                    }}
+                    className={`hover-elevate cursor-pointer ${isChecking ? 'opacity-60' : ''}`}
+                    onClick={() => { if (!url || isChecking) return; openFile(url, item.name, isImg); }}
                   >
                     <CardContent className="pt-3 pb-3">
                       <div className="flex items-center gap-3">
@@ -979,16 +1009,15 @@ function DrawingsSection({ items }: { items: Moodboard[] }) {
                           <p className="text-xs text-muted-foreground">{formatDate(item.uploadedAt?.toString())}</p>
                         </div>
                         {url && (
-                          <a
-                            href={url}
-                            download={item.fileName || item.name}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            disabled={isChecking}
                             className="shrink-0"
-                            onClick={e => e.stopPropagation()}
+                            onClick={e => { e.stopPropagation(); openFile(url, item.fileName || item.name, isImg, true); }}
                           >
-                            <Button size="icon" variant="ghost">
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </a>
+                            <Download className="h-4 w-4" />
+                          </Button>
                         )}
                       </div>
                     </CardContent>

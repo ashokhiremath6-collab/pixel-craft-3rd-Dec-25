@@ -231,17 +231,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: error?.constructor?.name
       });
       if (error instanceof ObjectNotFoundError) {
-        // File not found via exists() check — attempt signed-URL redirect as a
-        // fallback (covers cases where the GCS exists() call returns false but the
-        // object is actually present, e.g. after a bucket re-provision).
-        console.log("🔍 ObjectNotFoundError — trying signed-URL fallback");
-        try {
-          const signedUrl = await new ObjectStorageService().getObjectEntitySignedUrl(req.path);
-          console.log("🔗 Redirecting to signed URL fallback");
-          return res.redirect(signedUrl);
-        } catch (_) {
-          return res.status(404).send("File not found: This file may have been deleted or moved");
-        }
+        console.log("🔍 ObjectNotFoundError — returning 404");
+        return res.status(404).json({ error: "File not found. This file may have been deleted or needs to be re-uploaded." });
       }
       // Check for configuration errors
       if (error instanceof Error && error.message.includes('PRIVATE_OBJECT_DIR')) {
