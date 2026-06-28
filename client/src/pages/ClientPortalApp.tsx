@@ -576,6 +576,8 @@ function PaymentsSection({ projectId }: { projectId: string }) {
 function getFileUrl(filePath?: string | null, fileName?: string | null): string | null {
   if (!fileName) return null;
   if (filePath && filePath.startsWith('/objects/')) return filePath;
+  // Legacy files stored on disk are served at /uploads/moodboards/:filename
+  if (fileName) return `/uploads/moodboards/${encodeURIComponent(fileName)}`;
   return null;
 }
 
@@ -947,21 +949,34 @@ function DrawingsSection({ items }: { items: Moodboard[] }) {
               {drawings.map(item => {
                 const url = getFileUrl(item.filePath, item.fileName);
                 const isImg = isImageFile(item.fileName);
-                const ext = (item.fileName || "").split(".").pop()?.toUpperCase();
+                const ext = (item.fileName || "").split(".").pop()?.toUpperCase() || "FILE";
+                const isPdf = ext === "PDF";
+                const extColor = isPdf
+                  ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/50 dark:text-red-400 dark:border-red-800"
+                  : isImg
+                  ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800"
+                  : "bg-muted text-muted-foreground border-border";
                 return (
                   <Card
                     key={item.id}
                     className="hover-elevate cursor-pointer"
-                    onClick={() => url && setViewer({ url, name: item.name, isImg })}
+                    onClick={() => {
+                      if (!url) return;
+                      if (isImg) {
+                        setViewer({ url, name: item.name, isImg });
+                      } else {
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                      }
+                    }}
                   >
                     <CardContent className="pt-3 pb-3">
                       <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center shrink-0">
-                          {isImg ? <FileImage className="h-4 w-4 text-muted-foreground" /> : <File className="h-4 w-4 text-muted-foreground" />}
+                        <div className={`h-10 w-12 rounded-md border flex flex-col items-center justify-center shrink-0 ${extColor}`}>
+                          <span className="text-[10px] font-bold leading-none tracking-wide">{ext.slice(0, 4)}</span>
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm truncate">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">{ext} · {formatDate(item.uploadedAt?.toString())}</p>
+                          <p className="text-xs text-muted-foreground">{formatDate(item.uploadedAt?.toString())}</p>
                         </div>
                         {url && (
                           <a
