@@ -83,7 +83,7 @@ const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "timeline", label: "Timeline", icon: Clock },
   { id: "project-cost", label: "Project Cost", icon: Receipt },
-  { id: "payments", label: "Payments", icon: CreditCard },
+  { id: "payments", label: "Accounts", icon: CreditCard },
   { id: "renders", label: "Renders", icon: Sparkles },
   { id: "moodboards", label: "Moodboards", icon: Image },
   { id: "drawings", label: "Working Drawings", icon: PenTool },

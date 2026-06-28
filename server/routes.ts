@@ -13778,8 +13778,8 @@ Return your response in the following JSON format only (no markdown, no code blo
       const userId = req.user?.id;
       const orgId = req.user?.orgId;
       const { projectId } = req.params;
-      const { eq, and, inArray } = await import("drizzle-orm");
-      const { projectClients, vendors, projects, vendorInvoices, vendorPayments } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const { projectClients, vendors, projects } = await import("@shared/schema");
 
       const userRoleRow = await storage.getUserRole(userId);
       const role = userRoleRow?.role?.toLowerCase();
@@ -13800,15 +13800,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       const orgVendors = await db.select({ id: vendors.id, name: vendors.name })
         .from(vendors).where(eq(vendors.orgId, orgId)).orderBy(vendors.name);
 
-      if (orgVendors.length === 0) return res.json([]);
-
-      const ids = orgVendors.map(v => v.id);
-      const withInvoices = new Set((await db.selectDistinct({ vendorId: vendorInvoices.vendorId })
-        .from(vendorInvoices).where(inArray(vendorInvoices.vendorId, ids))).map(r => r.vendorId));
-      const withPayments = new Set((await db.selectDistinct({ vendorId: vendorPayments.vendorId })
-        .from(vendorPayments).where(inArray(vendorPayments.vendorId, ids))).map(r => r.vendorId));
-
-      res.json(orgVendors.filter(v => withInvoices.has(v.id) || withPayments.has(v.id)));
+      res.json(orgVendors);
     } catch (err) {
       console.error("GET /api/client-portal/:projectId/vendors-for-ledger error:", err);
       res.status(500).json({ error: "Failed to fetch vendors" });
