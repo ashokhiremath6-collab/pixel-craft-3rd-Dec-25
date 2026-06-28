@@ -5012,6 +5012,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.status(201).json(moodboard);
+
+      // Fire-and-forget: notify clients when a render is uploaded to their project
+      if (assetType === 'render' && validatedProjectId) {
+        Promise.resolve().then(async () => {
+          try {
+            const clients = await storage.getProjectClients(validatedProjectId);
+            const toEmails = clients.map((c: any) => c.clientEmail).filter(Boolean);
+            if (!toEmails.length) return;
+            const proj = await storage.getProject(validatedProjectId);
+            const { sendNewRenderEmail, getBaseUrl } = await import("./email");
+            await sendNewRenderEmail({
+              toEmails,
+              projectName: proj?.projectName || 'your project',
+              portalUrl: `${getBaseUrl()}/?tab=renders`,
+            });
+          } catch (e) {
+            console.error('[EMAIL] Render upload notification failed:', e);
+          }
+        });
+      }
     } catch (error: any) {
       if (handleLimitError(res, error)) return;
       console.error('Error creating moodboard:', error);
@@ -11289,7 +11309,7 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       // Load revision and verify it belongs to the project via its drawing
       const [revRow] = await reqDb
-        .select({ rev: dr, drawingProjectId: drawingsTable.projectId, drawingId: drawingsTable.id, orgId: drawingsTable.orgId })
+        .select({ rev: dr, drawingProjectId: drawingsTable.projectId, drawingId: drawingsTable.id, orgId: drawingsTable.orgId, drawingTitle: drawingsTable.title })
         .from(dr)
         .innerJoin(drawingsTable, eq(dr.drawingId, drawingsTable.id))
         .where(eq(dr.id, revisionId))
@@ -11344,6 +11364,44 @@ Return your response in the following JSON format only (no markdown, no code blo
       });
 
       res.json(updated);
+
+      // Fire-and-forget: notify designers/admins that client approved
+      Promise.resolve().then(async () => {
+        try {
+          const clientUser = await storage.getUser(userId);
+          const clientName = clientUser?.firstName && clientUser?.lastName
+            ? `${clientUser.firstName} ${clientUser.lastName}`
+            : clientUser?.email || 'Client';
+          const proj = await storage.getProject(projectId);
+          const orgUsers = await storage.getUsersByOrg(orgId);
+          const { userRoles: userRolesTable } = await import("@shared/schema");
+          const { db: emailDb } = await import("./db");
+          const { inArray: inArrayEml } = await import("drizzle-orm");
+          const orgUserIds = orgUsers.map(u => u.id);
+          const roleRows = orgUserIds.length
+            ? await emailDb.select({ userId: userRolesTable.userId, role: userRolesTable.role })
+                .from(userRolesTable)
+                .where(inArrayEml(userRolesTable.userId, orgUserIds))
+            : [];
+          const designerAdminIds = new Set(
+            roleRows.filter(r => r.role === 'admin' || r.role === 'designer').map(r => r.userId)
+          );
+          const toEmails = orgUsers
+            .filter(u => designerAdminIds.has(u.id) && u.email)
+            .map(u => u.email);
+          if (!toEmails.length) return;
+          const { sendDrawingApprovedEmail, getBaseUrl } = await import("./email");
+          await sendDrawingApprovedEmail({
+            toEmails,
+            drawingTitle: revRow.drawingTitle || 'Drawing',
+            clientName,
+            projectName: proj?.projectName || 'project',
+            adminUrl: `${getBaseUrl()}/`,
+          });
+        } catch (e) {
+          console.error('[EMAIL] Drawing approval notification failed:', e);
+        }
+      });
     } catch (err) {
       console.error("POST client-portal drawing approve error:", err);
       res.status(500).json({ error: "Failed to approve drawing" });
@@ -13306,6 +13364,41 @@ Return your response in the following JSON format only (no markdown, no code blo
       });
 
       res.json(updated);
+
+      // Fire-and-forget: notify clients when a drawing is issued for review
+      if (state === 'for_review') {
+        Promise.resolve().then(async () => {
+          try {
+            const { db: emailDb } = await import("./db");
+            const { drawings: drawingsTable2, projects: projectsTable } = await import("@shared/schema");
+            const { eq: eqD } = await import("drizzle-orm");
+            const [dwg] = await emailDb
+              .select({ title: drawingsTable2.title, projectId: drawingsTable2.projectId })
+              .from(drawingsTable2)
+              .where(eqD(drawingsTable2.id, drawingId))
+              .limit(1);
+            if (!dwg?.projectId) return;
+            const [proj] = await emailDb
+              .select({ projectName: projectsTable.projectName })
+              .from(projectsTable)
+              .where(eqD(projectsTable.id, dwg.projectId))
+              .limit(1);
+            const clients = await storage.getProjectClients(dwg.projectId);
+            const toEmails = clients.map((c: any) => c.clientEmail).filter(Boolean);
+            if (!toEmails.length) return;
+            const { sendDrawingForReviewEmail, getBaseUrl } = await import("./email");
+            await sendDrawingForReviewEmail({
+              toEmails,
+              drawingTitle: dwg.title,
+              revisionLetter: updated.revisionLetter,
+              projectName: proj?.projectName || 'your project',
+              portalUrl: `${getBaseUrl()}/?tab=drawings`,
+            });
+          } catch (e) {
+            console.error('[EMAIL] Drawing for_review notification failed:', e);
+          }
+        });
+      }
     } catch (err) {
       console.error("PATCH /api/working-drawings/:id/revisions/:revId/state error:", err);
       res.status(500).json({ error: "Failed to update state" });

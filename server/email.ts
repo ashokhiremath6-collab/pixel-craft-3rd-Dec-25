@@ -585,6 +585,118 @@ export async function sendPaymentRequestEmail(opts: {
   }
 }
 
+export async function sendDrawingForReviewEmail(opts: {
+  toEmails: string[];
+  drawingTitle: string;
+  revisionLetter: string;
+  projectName: string;
+  portalUrl: string;
+  baseUrl?: string;
+}): Promise<void> {
+  const base = opts.baseUrl || getBaseUrl();
+  const footer = buildEmailFooter({ baseUrl: base });
+  for (const to of opts.toEmails) {
+    console.info(`[EMAIL] Drawing for_review to ${to}: ${opts.drawingTitle} Rev ${opts.revisionLetter}`);
+    await sendEmail({
+      to,
+      subject: `New drawing ready for your review — ${opts.drawingTitle}, ${opts.projectName}`,
+      html: `
+        <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
+          <div style="text-align:center;margin-bottom:24px;">
+            <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
+          </div>
+          <div style="background:#fff;border-radius:12px;padding:28px;">
+            <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Drawing ready for review</h2>
+            <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 8px;">
+              A new revision of <strong>${opts.drawingTitle}</strong> (Revision ${opts.revisionLetter}) is ready for your review on <strong>${opts.projectName}</strong>.
+            </p>
+            <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
+              Please log in to your client portal to view and approve the drawing.
+            </p>
+            <a href="${opts.portalUrl}" style="display:inline-block;background:#0071e3;color:#fff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
+              View Drawing
+            </a>
+            ${footer.html}
+          </div>
+        </div>
+      `,
+      text: `New drawing ready for review\n\n${opts.drawingTitle} (Revision ${opts.revisionLetter}) is ready for your review on ${opts.projectName}.\n\nLog in to view and approve it here:\n${opts.portalUrl}${footer.text}`,
+    });
+  }
+}
+
+export async function sendNewRenderEmail(opts: {
+  toEmails: string[];
+  projectName: string;
+  portalUrl: string;
+  baseUrl?: string;
+}): Promise<void> {
+  const base = opts.baseUrl || getBaseUrl();
+  const footer = buildEmailFooter({ baseUrl: base });
+  for (const to of opts.toEmails) {
+    console.info(`[EMAIL] New render notification to ${to}: project ${opts.projectName}`);
+    await sendEmail({
+      to,
+      subject: `New render available — ${opts.projectName}`,
+      html: `
+        <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
+          <div style="text-align:center;margin-bottom:24px;">
+            <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
+          </div>
+          <div style="background:#fff;border-radius:12px;padding:28px;">
+            <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">New render available</h2>
+            <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
+              A new render has been added to your project <strong>${opts.projectName}</strong>. Log in to your client portal to view it.
+            </p>
+            <a href="${opts.portalUrl}" style="display:inline-block;background:#0071e3;color:#fff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
+              View Renders
+            </a>
+            ${footer.html}
+          </div>
+        </div>
+      `,
+      text: `New render available for ${opts.projectName}.\n\nA new render has been added to your project. View it here:\n${opts.portalUrl}${footer.text}`,
+    });
+  }
+}
+
+export async function sendDrawingApprovedEmail(opts: {
+  toEmails: string[];
+  drawingTitle: string;
+  clientName: string;
+  projectName: string;
+  adminUrl: string;
+  baseUrl?: string;
+}): Promise<void> {
+  const base = opts.baseUrl || getBaseUrl();
+  const footer = buildEmailFooter({ baseUrl: base });
+  for (const to of opts.toEmails) {
+    console.info(`[EMAIL] Drawing approved notification to ${to}: ${opts.drawingTitle} by ${opts.clientName}`);
+    await sendEmail({
+      to,
+      subject: `${opts.clientName} approved ${opts.drawingTitle}`,
+      html: `
+        <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
+          <div style="text-align:center;margin-bottom:24px;">
+            <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
+          </div>
+          <div style="background:#fff;border-radius:12px;padding:28px;">
+            <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">Drawing approved</h2>
+            <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
+              <strong>${opts.clientName}</strong> has approved <strong>${opts.drawingTitle}</strong> on project <strong>${opts.projectName}</strong>.
+            </p>
+            <a href="${opts.adminUrl}" style="display:inline-block;background:#0071e3;color:#fff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
+              View in Workspace
+            </a>
+            ${footer.html}
+          </div>
+        </div>
+      `,
+      text: `Drawing approved\n\n${opts.clientName} has approved ${opts.drawingTitle} on project ${opts.projectName}.\n\nView it here:\n${opts.adminUrl}${footer.text}`,
+    });
+  }
+}
+
 export async function sendVerificationEmail(
   email: string,
   token: string,
