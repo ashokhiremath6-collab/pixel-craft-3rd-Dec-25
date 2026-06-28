@@ -933,7 +933,7 @@ function DrawingsSection({ items }: { items: PortalDrawing[] }) {
   const [viewer, setViewer] = useState<{ url: string; name: string; isImg: boolean; downloadName: string } | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   const openFile = async (url: string, viewName: string, downloadName: string, isImg: boolean, download = false) => {
@@ -968,7 +968,7 @@ function DrawingsSection({ items }: { items: PortalDrawing[] }) {
     }
   };
 
-  const toggleRoom = (room: string) => setCollapsed(prev => ({ ...prev, [room]: !prev[room] }));
+  const toggleRoom = (room: string) => setExpanded(prev => ({ ...prev, [room]: !prev[room] }));
 
   if (items.length === 0) {
     return <EmptyState icon={PenTool} title="No working drawings yet" description="Floor plans, elevations and other drawings will appear here." />;
@@ -1005,7 +1005,7 @@ function DrawingsSection({ items }: { items: PortalDrawing[] }) {
 
       <div className="space-y-2 max-w-3xl">
         {Object.entries(grouped).map(([folder, drawings]) => {
-          const isOpen = !collapsed[folder];
+          const isOpen = !!expanded[folder];
           return (
             <Collapsible key={folder} open={isOpen} onOpenChange={() => toggleRoom(folder)}>
               <CollapsibleTrigger asChild>
