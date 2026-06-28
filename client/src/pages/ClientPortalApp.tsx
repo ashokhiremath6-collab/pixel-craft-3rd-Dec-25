@@ -65,14 +65,16 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { differenceInHours } from "date-fns";
 import { format, parseISO } from "date-fns";
-import type { Project, Moodboard, Specification, MeetingMinutes, Task, VendorCategory } from "@shared/schema";
+import type { Project, Moodboard, Specification, MeetingMinutes, Task, VendorCategory, Drawing, DrawingRevision, Room } from "@shared/schema";
 import { formatCurrencyCompact } from "@/lib/currencyUtils";
+
+type PortalDrawing = Drawing & { latestRevision: DrawingRevision | null; room: Room | null };
 
 interface PortalData {
   project: Project;
   renders: Moodboard[];
   moodboards: Moodboard[];
-  workingDrawings: Moodboard[];
+  workingDrawings: PortalDrawing[];
   specifications: Specification[];
   meetingMinutes: MeetingMinutes[];
   tasks: Task[];
@@ -925,7 +927,7 @@ function MediaSection({
 }
 
 // ── WORKING DRAWINGS ──────────────────────────────────────────────────────────
-function DrawingsSection({ items }: { items: Moodboard[] }) {
+function DrawingsSection({ items }: { items: PortalDrawing[] }) {
   const [viewer, setViewer] = useState<{ url: string; name: string; isImg: boolean } | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
   const { toast } = useToast();
@@ -968,9 +970,9 @@ function DrawingsSection({ items }: { items: Moodboard[] }) {
     return <EmptyState icon={PenTool} title="No working drawings yet" description="Floor plans, elevations and other drawings will appear here." />;
   }
 
-  const grouped: Record<string, Moodboard[]> = {};
+  const grouped: Record<string, PortalDrawing[]> = {};
   items.forEach(item => {
-    const folder = item.folder || "General";
+    const folder = item.room?.name || "General";
     if (!grouped[folder]) grouped[folder] = [];
     grouped[folder].push(item);
   });
@@ -983,30 +985,35 @@ function DrawingsSection({ items }: { items: Moodboard[] }) {
             <h3 className="text-sm font-medium text-muted-foreground mb-2 uppercase tracking-wide">{folder}</h3>
             <div className="space-y-2">
               {drawings.map(item => {
-                const url = getFileUrl(item.filePath, item.fileName);
-                const isImg = isImageFile(item.fileName);
-                const ext = (item.fileName || "").split(".").pop()?.toUpperCase() || "FILE";
+                const rev = item.latestRevision;
+                const url = getFileUrl(rev?.filePath, rev?.fileName);
+                const isImg = isImageFile(rev?.fileName);
+                const ext = (rev?.fileName || "").split(".").pop()?.toUpperCase() || "";
                 const isPdf = ext === "PDF";
                 const isChecking = checking === url;
                 const extColor = isPdf
                   ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/50 dark:text-red-400 dark:border-red-800"
                   : isImg
                   ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800"
-                  : "bg-muted text-muted-foreground border-border";
+                  : ext
+                  ? "bg-muted text-muted-foreground border-border"
+                  : "bg-muted/50 text-muted-foreground/50 border-border";
                 return (
                   <Card
                     key={item.id}
-                    className={`hover-elevate cursor-pointer ${isChecking ? 'opacity-60' : ''}`}
-                    onClick={() => { if (!url || isChecking) return; openFile(url, item.name, isImg); }}
+                    className={`${url ? 'hover-elevate cursor-pointer' : 'opacity-60'} ${isChecking ? 'opacity-60' : ''}`}
+                    onClick={() => { if (!url || isChecking) return; openFile(url, item.title, isImg); }}
                   >
                     <CardContent className="pt-3 pb-3">
                       <div className="flex items-center gap-3">
                         <div className={`h-10 w-12 rounded-md border flex flex-col items-center justify-center shrink-0 ${extColor}`}>
-                          <span className="text-[10px] font-bold leading-none tracking-wide">{ext.slice(0, 4)}</span>
+                          <span className="text-[10px] font-bold leading-none tracking-wide">{ext ? ext.slice(0, 4) : "—"}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">{formatDate(item.uploadedAt?.toString())}</p>
+                          <p className="font-medium text-sm truncate">{item.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.category}{rev ? ` · Rev ${rev.revisionLetter} · ${formatDate(rev.uploadedAt?.toString())}` : ' · No file yet'}
+                          </p>
                         </div>
                         {url && (
                           <Button
@@ -1014,7 +1021,7 @@ function DrawingsSection({ items }: { items: Moodboard[] }) {
                             variant="ghost"
                             disabled={isChecking}
                             className="shrink-0"
-                            onClick={e => { e.stopPropagation(); openFile(url, item.fileName || item.name, isImg, true); }}
+                            onClick={e => { e.stopPropagation(); openFile(url, rev?.fileName || item.title, isImg, true); }}
                           >
                             <Download className="h-4 w-4" />
                           </Button>
