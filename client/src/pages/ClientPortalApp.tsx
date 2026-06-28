@@ -1062,13 +1062,38 @@ export default function ClientPortalApp({
         <Sidebar collapsible="icon">
           <SidebarHeader className="px-3 py-3 border-b">
             <div className="flex items-center gap-2.5 min-w-0">
-              <img src="/logo.png" alt="Studio logo" className="h-7 w-7 object-contain shrink-0" />
-              <span
-                className="font-bold truncate group-data-[collapsible=icon]:hidden"
-                style={{ fontSize: "clamp(0.75rem,1.5vw,0.875rem)", letterSpacing: "-0.2px", lineHeight: 1.2 }}
-              >
-                {portalData?.orgName || selectedProject?.projectName || "Client Portal"}
-              </span>
+              {/* Studio initials avatar */}
+              {(() => {
+                const name = portalData?.orgName || "O";
+                const words = name.trim().split(/\s+/).filter(Boolean);
+                const initials = words.length >= 2
+                  ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
+                  : name.slice(0, 2).toUpperCase();
+                return (
+                  <div
+                    className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 text-white font-bold select-none"
+                    style={{
+                      background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
+                      fontSize: "0.65rem",
+                      letterSpacing: "0.04em",
+                    }}
+                    title={name}
+                  >
+                    {initials}
+                  </div>
+                );
+              })()}
+              <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
+                <span
+                  className="font-bold truncate leading-tight"
+                  style={{ fontSize: "0.78rem", letterSpacing: "-0.2px" }}
+                >
+                  {portalData?.orgName || selectedProject?.projectName || "Client Portal"}
+                </span>
+                <span className="text-muted-foreground truncate" style={{ fontSize: "0.65rem" }}>
+                  Client Portal
+                </span>
+              </div>
             </div>
           </SidebarHeader>
 
