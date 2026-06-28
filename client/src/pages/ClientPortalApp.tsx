@@ -205,6 +205,8 @@ function BriefSection({ projectId, brief, onSaved }: { projectId: string; brief:
   const [workType, setWorkType] = useState("");
   const [bedroomCount, setBedroomCount] = useState("");
   const [childBedroomCount, setChildBedroomCount] = useState("");
+  const [occupants, setOccupants] = useState("");
+  const [occupantAges, setOccupantAges] = useState("");
   const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set());
 
   const form = useForm<BriefFormValues>({
@@ -234,6 +236,8 @@ function BriefSection({ projectId, brief, onSaved }: { projectId: string; brief:
       if (selectedRooms.size > 0) scopeParts.push(`Rooms: ${Array.from(selectedRooms).join(", ")}`);
       if (bedroomCount.trim()) scopeParts.push(`Bedrooms: ${bedroomCount.trim()}`);
       if (childBedroomCount.trim()) scopeParts.push(`Children's bedrooms: ${childBedroomCount.trim()}`);
+      if (occupants.trim()) scopeParts.push(`Occupants: ${occupants.trim()}`);
+      if (occupantAges.trim()) scopeParts.push(`Ages: ${occupantAges.trim()}`);
       if (data.scopeOfWork?.trim()) scopeParts.push(data.scopeOfWork.trim());
 
       const styleParts: string[] = [];
@@ -370,9 +374,17 @@ function BriefSection({ projectId, brief, onSaved }: { projectId: string; brief:
                 <Input type="number" min={0} value={childBedroomCount} onChange={e => setChildBedroomCount(e.target.value)} placeholder="e.g. 1" />
               </div>
             </div>
+            <div>
+              <QLabel number={5} label="Who will be living in the home?" hint="e.g. Couple, 2 adults + 2 children, elderly parent" />
+              <Input value={occupants} onChange={e => setOccupants(e.target.value)} placeholder="e.g. Couple + 2 children + elderly parent" />
+            </div>
+            <div>
+              <QLabel number={6} label="Ages of the occupants" hint="Helps tailor storage, accessibility, and room design" />
+              <Input value={occupantAges} onChange={e => setOccupantAges(e.target.value)} placeholder="e.g. Adults: 38, 35 — Children: 9, 6 — Parent: 68" />
+            </div>
             <FormField control={form.control} name="scopeOfWork" render={({ field }) => (
               <FormItem>
-                <QLabel number={5} label="Additional scope details" hint="Size, special requirements, anything not listed above." />
+                <QLabel number={7} label="Additional scope details" hint="Size, special requirements, anything not listed above." />
                 <FormControl><Textarea rows={3} placeholder="e.g. 2,800 sq ft 3-BHK. Custom joinery throughout." {...field} /></FormControl>
                 <FormMessage />
               </FormItem>
@@ -385,7 +397,7 @@ function BriefSection({ projectId, brief, onSaved }: { projectId: string; brief:
           <div className="space-y-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">C — Design direction</p>
             <div>
-              <QLabel number={6} label="Which style directions resonate with you?" hint="Select one or more" />
+              <QLabel number={8} label="Which style directions resonate with you?" hint="Select one or more" />
               <div className="flex flex-wrap gap-2">
                 {STYLE_OPTIONS.map(s => (
                   <PillToggle key={s} label={s} selected={selectedStyles.has(s)} onToggle={() => setSelectedStyles(prev => { const n = new Set(prev); n.has(s) ? n.delete(s) : n.add(s); return n; })} />
@@ -394,7 +406,7 @@ function BriefSection({ projectId, brief, onSaved }: { projectId: string; brief:
             </div>
             <FormField control={form.control} name="stylePreferences" render={({ field }) => (
               <FormItem>
-                <QLabel number={7} label="Describe the feel in your own words" hint="Materials, colours, mood, lighting — anything goes." />
+                <QLabel number={9} label="Describe the feel in your own words" hint="Materials, colours, mood, lighting — anything goes." />
                 <FormControl><Textarea rows={3} placeholder="e.g. Warm and earthy — oak veneer, sage green accents. Natural light is a priority." {...field} /></FormControl>
                 <FormMessage />
               </FormItem>
@@ -402,14 +414,14 @@ function BriefSection({ projectId, brief, onSaved }: { projectId: string; brief:
             <div className="grid grid-cols-2 gap-3">
               <FormField control={form.control} name="mustHaves" render={({ field }) => (
                 <FormItem>
-                  <QLabel number={8} label="Must-haves" hint="Non-negotiables" />
+                  <QLabel number={10} label="Must-haves" hint="Non-negotiables" />
                   <FormControl><Textarea rows={4} placeholder="e.g. Walk-in wardrobe, home office nook, Italian marble in bathrooms." {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={form.control} name="mustAvoids" render={({ field }) => (
                 <FormItem>
-                  <QLabel number={9} label="Must-avoids" hint="Things to stay away from" />
+                  <QLabel number={11} label="Must-avoids" hint="Things to stay away from" />
                   <FormControl><Textarea rows={4} placeholder="e.g. No dark walls, no brass, avoid heavy drapes." {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -417,7 +429,7 @@ function BriefSection({ projectId, brief, onSaved }: { projectId: string; brief:
             </div>
             <FormField control={form.control} name="inspirationNotes" render={({ field }) => (
               <FormItem>
-                <QLabel number={10} label="Inspiration sources" hint="Hotels, Instagram handles, Pinterest boards, magazine references — links welcome." />
+                <QLabel number={12} label="Inspiration sources" hint="Hotels, Instagram handles, Pinterest boards, magazine references — links welcome." />
                 <FormControl><Textarea rows={2} placeholder="e.g. Soho House Mumbai, Studio Lotus projects, AD India Jan 2024." {...field} /></FormControl>
                 <FormMessage />
               </FormItem>
