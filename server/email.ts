@@ -46,12 +46,14 @@ async function sendEmail(opts: {
   subject: string;
   html: string;
   text: string;
+  fromName?: string;
 }): Promise<void> {
+  const senderName = opts.fromName || FROM_NAME;
   // 1. Try Resend first
   const resend = getResend();
   if (resend) {
     const { error } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM_ADDRESS}>`,
+      from: `${senderName} <${FROM_ADDRESS}>`,
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
@@ -65,7 +67,7 @@ async function sendEmail(opts: {
   const smtp = createSmtpTransport();
   if (smtp) {
     await smtp.sendMail({
-      from: `"${FROM_NAME}" <${FROM_ADDRESS}>`,
+      from: `"${senderName}" <${FROM_ADDRESS}>`,
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
@@ -171,7 +173,7 @@ export async function sendInvitationEmail(
 
   const isVendor = role === 'vendor';
   const subjectLine = isVendor
-    ? `Quote request from ${orgName} — Olympik Design`
+    ? `Quote request from ${orgName}`
     : `You've been invited to join ${orgName} on Olympik Design`;
 
   const messageBlock = isVendor && inviteMessage
@@ -182,7 +184,7 @@ export async function sendInvitationEmail(
     : '';
 
   const bodyIntro = isVendor
-    ? `<strong>${invitedBy}</strong> from <strong>${orgName}</strong> has invited you to submit a quote via Olympik Design.`
+    ? `<strong>${invitedBy}</strong> from <strong>${orgName}</strong> has sent you a quote request.`
     : `<strong>${invitedBy}</strong> has invited you to join <strong>${orgName}</strong> on Olympik Design as a <strong>${role}</strong>.`;
 
   const ctaLabel = isVendor
@@ -195,13 +197,20 @@ export async function sendInvitationEmail(
         : 'Click the button below to set up your account and submit your quote. This link expires in 48 hours.')
     : 'Click the button below to get started. This link expires in 48 hours.';
 
+  // For vendor emails, show the studio name prominently; for internal invites, show Olympik Design branding
+  const emailHeader = isVendor
+    ? `<h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0 0 4px;">${orgName}</h1>
+       <p style="font-size:12px;color:#6e6e73;margin:0;">Powered by Olympik Design</p>`
+    : `<h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>`;
+
   await sendEmail({
     to: email,
     subject: subjectLine,
+    fromName: isVendor ? orgName : FROM_NAME,
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#f5f5f7;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
-          <h1 style="font-size:22px;font-weight:700;color:#1d1d1f;margin:0;">Olympik Design</h1>
+          ${emailHeader}
         </div>
         <div style="background:#fff;border-radius:12px;padding:28px;">
           <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">${isVendor ? 'Quote request' : "You're invited!"}</h2>
@@ -220,7 +229,7 @@ export async function sendInvitationEmail(
       </div>
     `,
     text: isVendor
-      ? `Quote request from ${orgName}\n\n${invitedBy} has invited you to submit a quote via Olympik Design.${inviteMessage ? `\n\nDetails:\n${inviteMessage}` : ''}\n\n${alreadyHasAccount ? 'Enter your portal here' : 'Set up your account here'}:\n${inviteUrl}\n\nThis link expires in 48 hours.`
+      ? `Quote request from ${orgName}\n\n${invitedBy} from ${orgName} has sent you a quote request.${inviteMessage ? `\n\nDetails:\n${inviteMessage}` : ''}\n\n${alreadyHasAccount ? 'Enter your portal here' : 'Set up your account here'}:\n${inviteUrl}\n\nThis link expires in 48 hours.`
       : `You've been invited to join ${orgName} on Olympik Design!\n\n${invitedBy} has invited you as a ${role}.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in 48 hours.`,
   });
 }

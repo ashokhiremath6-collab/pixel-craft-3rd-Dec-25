@@ -118,16 +118,37 @@ export default function VendorPortalApp() {
       <header className="border-b bg-background shrink-0 sticky top-0 z-50">
         <div className="flex items-center justify-between px-4 sm:px-6 h-14 gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <Building2 className="h-5 w-5 text-primary shrink-0" />
             {studioRequest?.org_name ? (
-              <span
-                className="font-bold truncate"
-                style={{ fontSize: "clamp(0.8rem,1.5vw,1rem)", letterSpacing: "-0.2px" }}
-              >
-                {studioRequest.org_name}
-              </span>
+              <>
+                {/* Studio initials badge */}
+                <div
+                  className="shrink-0 rounded-md flex items-center justify-center text-white font-bold text-xs"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    background: "linear-gradient(135deg, #1a2e52 0%, #2d4a7a 100%)",
+                    letterSpacing: "0.03em",
+                  }}
+                >
+                  {studioRequest.org_name
+                    .split(" ")
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((w: string) => w[0].toUpperCase())
+                    .join("")}
+                </div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-sm leading-tight truncate">
+                    {studioRequest.org_name}
+                  </div>
+                  <div className="text-xs text-muted-foreground leading-tight">Vendor Portal</div>
+                </div>
+              </>
             ) : (
-              <span className="font-semibold text-sm">Vendor Portal</span>
+              <>
+                <Building2 className="h-5 w-5 text-primary shrink-0" />
+                <span className="font-semibold text-sm">Vendor Portal</span>
+              </>
             )}
             {vendorData?.name && (
               <>
