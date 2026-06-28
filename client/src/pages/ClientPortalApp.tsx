@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -11,6 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Sidebar,
   SidebarContent,
@@ -44,11 +47,15 @@ import {
   FileImage,
   File,
   ChevronRight,
+  ChevronDown,
   ArrowLeft,
   Receipt,
   SendHorizonal,
   CreditCard,
   Building2,
+  TrendingUp,
+  IndianRupee,
+  Banknote,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -99,7 +106,271 @@ interface ClientPaymentRequest {
   clientUtr?: string | null;
 }
 
-function PaymentsSection({ projectId }: { projectId: string }) {
+// ── Interfaces for ledger data ────────────────────────────────────────────────
+interface LedgerVendor { id: string; name: string; }
+interface LedgerInvoice { id: string; invoiceNumber: string; invoiceDate: string; description: string; amount: string; }
+interface LedgerPayment { id: string; paymentDate: string; paymentReference: string; amount: string; paymentMethod: string; notes?: string | null; }
+interface SummaryPayment { id: string; vendorId: string; vendorName: string; paymentDate: string; paymentReference: string; amount: string; paymentMethod: string; notes?: string | null; }
+
+const fmtInr = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// ── Vendor Ledger Tab ─────────────────────────────────────────────────────────
+function VendorLedgerTab({ projectId }: { projectId: string }) {
+  const [selectedVendorId, setSelectedVendorId] = useState("");
+
+  const { data: vendors = [], isLoading: vendorsLoading } = useQuery<LedgerVendor[]>({
+    queryKey: ['/api/client-portal', projectId, 'vendors-for-ledger'],
+    queryFn: () => fetch(`/api/client-portal/${projectId}/vendors-for-ledger`).then(r => r.json()),
+  });
+
+  const { data: ledgerData, isLoading: ledgerLoading } = useQuery<{ invoices: LedgerInvoice[]; payments: LedgerPayment[] }>({
+    queryKey: ['/api/client-portal', projectId, 'vendor-ledger', selectedVendorId],
+    queryFn: () => fetch(`/api/client-portal/${projectId}/vendor-ledger/${selectedVendorId}`).then(r => r.json()),
+    enabled: !!selectedVendorId,
+  });
+
+  const invoices: LedgerInvoice[] = ledgerData?.invoices ?? [];
+  const payments: LedgerPayment[] = ledgerData?.payments ?? [];
+
+  // Build running balance entries
+  type LedgerRow = { id: string; date: Date; type: 'invoice' | 'payment'; reference: string; description: string; debit: number; credit: number; balance: number; };
+  const entries: LedgerRow[] = [];
+  invoices.forEach(inv => entries.push({ id: inv.id, date: new Date(inv.invoiceDate), type: 'invoice', reference: inv.invoiceNumber, description: inv.description, debit: Number(inv.amount), credit: 0, balance: 0 }));
+  payments.forEach(pay => entries.push({ id: pay.id, date: new Date(pay.paymentDate), type: 'payment', reference: pay.paymentReference, description: pay.notes || 'Payment', debit: 0, credit: Number(pay.amount), balance: 0 }));
+  entries.sort((a, b) => a.date.getTime() - b.date.getTime());
+  let running = 0;
+  entries.forEach(e => { running += e.debit - e.credit; e.balance = running; });
+
+  const totalInvoices = invoices.reduce((s, i) => s + Number(i.amount), 0);
+  const totalPayments = payments.reduce((s, p) => s + Number(p.amount), 0);
+  const outstanding = totalInvoices - totalPayments;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="p-4 pb-3">
+          <CardTitle className="text-base">Select Vendor</CardTitle>
+          <CardDescription className="text-sm">Choose a vendor to view their ledger</CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          {vendorsLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading vendors…</div>
+          ) : vendors.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No vendor transactions recorded yet.</p>
+          ) : (
+            <Select value={selectedVendorId} onValueChange={setSelectedVendorId}>
+              <SelectTrigger><SelectValue placeholder="Select a vendor…" /></SelectTrigger>
+              <SelectContent>
+                {vendors.map(v => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+        </CardContent>
+      </Card>
+
+      {selectedVendorId && (
+        <>
+          {ledgerLoading ? (
+            <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <>
+              <div className="grid gap-3 md:grid-cols-3">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 p-3 pb-1.5">
+                    <CardTitle className="text-sm font-medium">Total Invoices</CardTitle>
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent className="p-3 pt-0">
+                    <div className="text-xl font-bold">{fmtInr(totalInvoices)}</div>
+                    <p className="text-xs text-muted-foreground">{invoices.length} invoice(s)</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 p-3 pb-1.5">
+                    <CardTitle className="text-sm font-medium">Total Payments</CardTitle>
+                    <IndianRupee className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent className="p-3 pt-0">
+                    <div className="text-xl font-bold">{fmtInr(totalPayments)}</div>
+                    <p className="text-xs text-muted-foreground">{payments.length} payment(s)</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 p-3 pb-1.5">
+                    <CardTitle className="text-sm font-medium">Outstanding Balance</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent className="p-3 pt-0">
+                    <div className={`text-xl font-bold ${outstanding > 0 ? 'text-destructive' : 'text-green-600'}`}>{fmtInr(Math.abs(outstanding))}</div>
+                    <p className="text-xs text-muted-foreground">{outstanding > 0 ? 'Pending' : outstanding < 0 ? 'Overpaid' : 'Settled'}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {entries.length === 0 ? (
+                <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">No transactions yet.</CardContent></Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Reference</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead className="text-right">Debit (₹)</TableHead>
+                            <TableHead className="text-right">Credit (₹)</TableHead>
+                            <TableHead className="text-right">Balance (₹)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {entries.map(e => (
+                            <TableRow key={e.id}>
+                              <TableCell className="whitespace-nowrap text-sm">{format(e.date, 'dd MMM yyyy')}</TableCell>
+                              <TableCell>
+                                <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${e.type === 'invoice' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>
+                                  {e.type === 'invoice' ? 'Invoice' : 'Payment'}
+                                </span>
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">{e.reference}</TableCell>
+                              <TableCell className="text-sm max-w-[200px] truncate">{e.description}</TableCell>
+                              <TableCell className="text-right text-sm">{e.debit > 0 ? fmtInr(e.debit) : '—'}</TableCell>
+                              <TableCell className="text-right text-sm text-green-600">{e.credit > 0 ? fmtInr(e.credit) : '—'}</TableCell>
+                              <TableCell className={`text-right text-sm font-medium ${e.balance > 0 ? 'text-destructive' : 'text-green-600'}`}>{fmtInr(Math.abs(e.balance))}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Payments Summary Tab ──────────────────────────────────────────────────────
+function PaymentsSummaryTab({ projectId }: { projectId: string }) {
+  const [openVendors, setOpenVendors] = useState<Set<string>>(new Set());
+
+  const { data: allPayments = [], isLoading } = useQuery<SummaryPayment[]>({
+    queryKey: ['/api/client-portal', projectId, 'payments-summary'],
+    queryFn: () => fetch(`/api/client-portal/${projectId}/payments-summary`).then(r => r.json()),
+  });
+
+  const vendorMap = allPayments.reduce((acc, p) => {
+    if (!acc[p.vendorId]) acc[p.vendorId] = { vendorName: p.vendorName, payments: [], total: 0 };
+    acc[p.vendorId].payments.push(p);
+    acc[p.vendorId].total += Number(p.amount);
+    return acc;
+  }, {} as Record<string, { vendorName: string; payments: SummaryPayment[]; total: number }>);
+
+  const sortedVendors = Object.entries(vendorMap).sort((a, b) => b[1].total - a[1].total);
+  const grandTotal = allPayments.reduce((s, p) => s + Number(p.amount), 0);
+
+  const toggle = (id: string) => setOpenVendors(prev => {
+    const s = new Set(prev);
+    s.has(id) ? s.delete(id) : s.add(id);
+    return s;
+  });
+
+  if (isLoading) return <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 p-3 pb-1.5">
+            <CardTitle className="text-sm font-medium">Total Payments</CardTitle>
+            <IndianRupee className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold">{fmtInr(grandTotal)}</div>
+            <p className="text-xs text-muted-foreground">{allPayments.length} transaction(s)</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 p-3 pb-1.5">
+            <CardTitle className="text-sm font-medium">Active Vendors</CardTitle>
+            <Banknote className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold">{sortedVendors.length}</div>
+            <p className="text-xs text-muted-foreground">Vendors with payments</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {sortedVendors.length === 0 ? (
+        <Card><CardContent className="p-4 text-center text-muted-foreground text-sm">No payment records yet.</CardContent></Card>
+      ) : (
+        <div className="space-y-2">
+          {sortedVendors.map(([vendorId, { vendorName, payments, total }]) => {
+            const isOpen = openVendors.has(vendorId);
+            return (
+              <Card key={vendorId}>
+                <Collapsible open={isOpen} onOpenChange={() => toggle(vendorId)}>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer hover-elevate p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                          <div>
+                            <CardTitle className="text-base">{vendorName}</CardTitle>
+                            <CardDescription className="text-sm">{payments.length} payment(s)</CardDescription>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-base font-bold">{fmtInr(total)}</div>
+                          <p className="text-xs text-muted-foreground">Total paid</p>
+                        </div>
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="p-3 pt-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Reference</TableHead>
+                            <TableHead>Method</TableHead>
+                            <TableHead>Notes</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {payments.map(p => (
+                            <TableRow key={p.id}>
+                              <TableCell className="text-sm whitespace-nowrap">{formatDate(p.paymentDate)}</TableCell>
+                              <TableCell className="font-mono text-xs">{p.paymentReference}</TableCell>
+                              <TableCell className="text-sm capitalize">{p.paymentMethod?.replace('_', ' ')}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{p.notes || '—'}</TableCell>
+                              <TableCell className="text-right text-sm font-medium">{fmtInr(Number(p.amount))}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Collapsible>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Payment Requests Tab ──────────────────────────────────────────────────────
+function PaymentRequestsTab({ projectId }: { projectId: string }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [markPaidId, setMarkPaidId] = useState<string | null>(null);
@@ -111,15 +382,12 @@ function PaymentsSection({ projectId }: { projectId: string }) {
   });
 
   const acknowledgeMutation = useMutation({
-    mutationFn: (id: string) =>
-      apiRequest('PATCH', `/api/payment-requests/${id}/client-acknowledge`, {}),
+    mutationFn: (id: string) => apiRequest('PATCH', `/api/payment-requests/${id}/client-acknowledge`, {}),
     onSuccess: () => {
       toast({ title: "Request acknowledged", description: "The designer has been notified." });
       queryClient.invalidateQueries({ queryKey: ['/api/client-portal', projectId, 'payment-requests'] });
     },
-    onError: () => {
-      toast({ variant: "destructive", title: "Failed to acknowledge" });
-    },
+    onError: () => { toast({ variant: "destructive", title: "Failed to acknowledge" }); },
   });
 
   const markPaidMutation = useMutation({
@@ -127,32 +395,26 @@ function PaymentsSection({ projectId }: { projectId: string }) {
       apiRequest('PATCH', `/api/payment-requests/${id}/client-confirm`, { clientUtr }),
     onSuccess: () => {
       toast({ title: "Payment submitted", description: "The designer has been alerted and will confirm receipt." });
-      setMarkPaidId(null);
-      setUtr("");
+      setMarkPaidId(null); setUtr("");
       queryClient.invalidateQueries({ queryKey: ['/api/client-portal', projectId, 'payment-requests'] });
     },
-    onError: () => {
-      toast({ variant: "destructive", title: "Failed to submit payment" });
-    },
+    onError: () => { toast({ variant: "destructive", title: "Failed to submit payment" }); },
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (isLoading) return <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
 
   const pending = requests.filter(r => r.status === 'pending');
   const acknowledged = requests.filter(r => r.status === 'acknowledged');
   const awaitingAction = [...pending, ...acknowledged];
   const clientPaid = requests.filter(r => r.status === 'client_paid');
   const confirmed = requests.filter(r => r.status === 'confirmed');
+  const totalRequested = requests.reduce((s, r) => s + Number(r.amount), 0);
+  const totalPaid = confirmed.reduce((s, r) => s + Number(r.amount), 0);
+  const totalPending = awaitingAction.reduce((s, r) => s + Number(r.amount), 0) + clientPaid.reduce((s, r) => s + Number(r.amount), 0);
 
   function PaymentCard({ pr, showAcknowledge }: { pr: ClientPaymentRequest; showAcknowledge: boolean }) {
     return (
-      <Card key={pr.id}>
+      <Card>
         <CardContent className="pt-5 space-y-4">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
@@ -160,17 +422,14 @@ function PaymentsSection({ projectId }: { projectId: string }) {
               <div className="text-sm text-muted-foreground mt-0.5">{pr.description}</div>
             </div>
             <div className="text-right flex-shrink-0">
-              <div className="text-lg font-bold">
-                ₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-              </div>
+              <div className="text-lg font-bold">₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
               <div className="text-xs text-muted-foreground">Requested {formatDate(pr.requestedAt)}</div>
             </div>
           </div>
           {(pr.bankName || pr.accountNumber || pr.ifscCode) && (
             <div className="rounded-md border bg-muted/30 p-3 space-y-1.5 text-sm">
               <div className="flex items-center gap-1.5 font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                <Building2 className="h-3.5 w-3.5" />
-                Bank Details
+                <Building2 className="h-3.5 w-3.5" /> Bank Details
               </div>
               {pr.bankName && <div className="flex justify-between"><span className="text-muted-foreground">Bank</span><span className="font-medium">{pr.bankName}</span></div>}
               {pr.accountNumber && <div className="flex justify-between"><span className="text-muted-foreground">Account No.</span><span className="font-mono font-medium">{pr.accountNumber}</span></div>}
@@ -180,22 +439,12 @@ function PaymentsSection({ projectId }: { projectId: string }) {
           )}
           <div className="flex gap-2">
             {showAcknowledge && (
-              <Button
-                variant="outline"
-                className="flex-1"
-                disabled={acknowledgeMutation.isPending}
-                onClick={() => acknowledgeMutation.mutate(pr.id)}
-              >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Acknowledge
+              <Button variant="outline" className="flex-1" disabled={acknowledgeMutation.isPending} onClick={() => acknowledgeMutation.mutate(pr.id)}>
+                <CheckCircle2 className="h-4 w-4 mr-2" /> Acknowledge
               </Button>
             )}
-            <Button
-              className="flex-1"
-              onClick={() => { setMarkPaidId(pr.id); setUtr(""); }}
-            >
-              <CreditCard className="h-4 w-4 mr-2" />
-              Made Payment
+            <Button className="flex-1" onClick={() => { setMarkPaidId(pr.id); setUtr(""); }}>
+              <CreditCard className="h-4 w-4 mr-2" /> Made Payment
             </Button>
           </div>
         </CardContent>
@@ -203,48 +452,27 @@ function PaymentsSection({ projectId }: { projectId: string }) {
     );
   }
 
-  const fmt = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const totalRequested = requests.reduce((s, r) => s + Number(r.amount), 0);
-  const totalPaid = confirmed.reduce((s, r) => s + Number(r.amount), 0);
-  const totalPending = awaitingAction.reduce((s, r) => s + Number(r.amount), 0) + clientPaid.reduce((s, r) => s + Number(r.amount), 0);
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold mb-1">Accounts</h2>
-        <p className="text-sm text-muted-foreground">Payment requests from your designer. Acknowledge each request and click "Made Payment" once you have transferred the amount.</p>
-      </div>
-
-      {/* Summary cards */}
+    <div className="space-y-5">
       {requests.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Total Requested</p>
-              <p className="text-lg font-bold">{fmt(totalRequested)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Total Paid</p>
-              <p className="text-lg font-bold text-green-600 dark:text-green-400">{fmt(totalPaid)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Outstanding</p>
-              <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{fmt(totalPending)}</p>
-            </CardContent>
-          </Card>
+          <Card><CardContent className="pt-4 pb-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Total Requested</p>
+            <p className="text-lg font-bold">{fmtInr(totalRequested)}</p>
+          </CardContent></Card>
+          <Card><CardContent className="pt-4 pb-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Total Paid</p>
+            <p className="text-lg font-bold text-green-600 dark:text-green-400">{fmtInr(totalPaid)}</p>
+          </CardContent></Card>
+          <Card><CardContent className="pt-4 pb-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Outstanding</p>
+            <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{fmtInr(totalPending)}</p>
+          </CardContent></Card>
         </div>
       )}
 
       {requests.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            No payment requests yet.
-          </CardContent>
-        </Card>
+        <Card><CardContent className="py-12 text-center text-muted-foreground">No payment requests yet.</CardContent></Card>
       )}
 
       {awaitingAction.length > 0 && (
@@ -269,10 +497,7 @@ function PaymentsSection({ projectId }: { projectId: string }) {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="font-bold">₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-                    <div className="flex items-center gap-1 text-xs text-orange-600 mt-1">
-                      <Clock className="h-3 w-3" />
-                      Payment submitted — awaiting confirmation
-                    </div>
+                    <div className="flex items-center gap-1 text-xs text-orange-600 mt-1"><Clock className="h-3 w-3" /> Payment submitted — awaiting confirmation</div>
                   </div>
                 </div>
               </CardContent>
@@ -295,10 +520,7 @@ function PaymentsSection({ projectId }: { projectId: string }) {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="font-bold">₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-                    <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 mt-1">
-                      <CheckCircle2 className="h-3 w-3" />
-                      Paid
-                    </div>
+                    <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 mt-1"><CheckCircle2 className="h-3 w-3" /> Paid</div>
                   </div>
                 </div>
               </CardContent>
@@ -307,7 +529,6 @@ function PaymentsSection({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      {/* Made Payment Dialog */}
       <Dialog open={!!markPaidId} onOpenChange={open => !open && setMarkPaidId(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -316,24 +537,38 @@ function PaymentsSection({ projectId }: { projectId: string }) {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <Label htmlFor="utr-input">UTR / Reference Number</Label>
-            <Input
-              id="utr-input"
-              value={utr}
-              onChange={e => setUtr(e.target.value)}
-              placeholder="e.g. HDFC000123456789"
-            />
+            <Input id="utr-input" value={utr} onChange={e => setUtr(e.target.value)} placeholder="e.g. HDFC000123456789" />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setMarkPaidId(null)}>Cancel</Button>
-            <Button
-              onClick={() => markPaidId && markPaidMutation.mutate({ id: markPaidId, clientUtr: utr })}
-              disabled={markPaidMutation.isPending || !utr.trim()}
-            >
-              {markPaidMutation.isPending ? "Submitting..." : "Submit Payment"}
+            <Button onClick={() => markPaidId && markPaidMutation.mutate({ id: markPaidId, clientUtr: utr })} disabled={markPaidMutation.isPending || !utr.trim()}>
+              {markPaidMutation.isPending ? "Submitting…" : "Submit Payment"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ── Main Payments Section (3 tabs) ────────────────────────────────────────────
+function PaymentsSection({ projectId }: { projectId: string }) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold mb-1">Accounts</h2>
+        <p className="text-sm text-muted-foreground">View vendor ledgers, payment history, and manage payment requests to your designer.</p>
+      </div>
+      <Tabs defaultValue="ledger" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="ledger">Vendor Ledger</TabsTrigger>
+          <TabsTrigger value="summary">Payments Summary</TabsTrigger>
+          <TabsTrigger value="requests">Payment Requests</TabsTrigger>
+        </TabsList>
+        <TabsContent value="ledger"><VendorLedgerTab projectId={projectId} /></TabsContent>
+        <TabsContent value="summary"><PaymentsSummaryTab projectId={projectId} /></TabsContent>
+        <TabsContent value="requests"><PaymentRequestsTab projectId={projectId} /></TabsContent>
+      </Tabs>
     </div>
   );
 }

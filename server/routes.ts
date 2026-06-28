@@ -13769,6 +13769,137 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // ── Client Portal: Vendor Ledger & Payments Summary ──────────────────────────
+
+  // GET /api/client-portal/:projectId/vendors-for-ledger
+  // Returns vendors in this org that have at least one invoice or payment (read-only, client-accessible)
+  app.get("/api/client-portal/:projectId/vendors-for-ledger", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const orgId = req.user?.orgId;
+      const { projectId } = req.params;
+      const { eq, and, inArray } = await import("drizzle-orm");
+      const { projectClients, vendors, projects, vendorInvoices, vendorPayments } = await import("@shared/schema");
+
+      const userRoleRow = await storage.getUserRole(userId);
+      const role = userRoleRow?.role?.toLowerCase();
+      const isStaff = ["admin","designer","project_manager"].includes(role ?? "");
+
+      const [proj] = await db.select().from(projects).where(and(eq(projects.id, projectId), eq(projects.orgId, orgId))).limit(1);
+      if (!proj) return res.status(403).json({ error: "Access denied" });
+
+      if (!isStaff) {
+        const userEmail = req.user?.email;
+        if (!userEmail) return res.status(403).json({ error: "Access denied" });
+        const hasAccess = await db.select().from(projectClients)
+          .where(and(eq(projectClients.projectId, projectId), eq(projectClients.clientEmail, userEmail)))
+          .limit(1);
+        if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
+      }
+
+      const orgVendors = await db.select({ id: vendors.id, name: vendors.name })
+        .from(vendors).where(eq(vendors.orgId, orgId)).orderBy(vendors.name);
+
+      if (orgVendors.length === 0) return res.json([]);
+
+      const ids = orgVendors.map(v => v.id);
+      const withInvoices = new Set((await db.selectDistinct({ vendorId: vendorInvoices.vendorId })
+        .from(vendorInvoices).where(inArray(vendorInvoices.vendorId, ids))).map(r => r.vendorId));
+      const withPayments = new Set((await db.selectDistinct({ vendorId: vendorPayments.vendorId })
+        .from(vendorPayments).where(inArray(vendorPayments.vendorId, ids))).map(r => r.vendorId));
+
+      res.json(orgVendors.filter(v => withInvoices.has(v.id) || withPayments.has(v.id)));
+    } catch (err) {
+      console.error("GET /api/client-portal/:projectId/vendors-for-ledger error:", err);
+      res.status(500).json({ error: "Failed to fetch vendors" });
+    }
+  });
+
+  // GET /api/client-portal/:projectId/vendor-ledger/:vendorId
+  // Returns invoices + payments for a specific vendor (org-scoped, read-only)
+  app.get("/api/client-portal/:projectId/vendor-ledger/:vendorId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const orgId = req.user?.orgId;
+      const { projectId, vendorId } = req.params;
+      const { eq, and } = await import("drizzle-orm");
+      const { projectClients, vendors, projects } = await import("@shared/schema");
+
+      const userRoleRow = await storage.getUserRole(userId);
+      const role = userRoleRow?.role?.toLowerCase();
+      const isStaff = ["admin","designer","project_manager"].includes(role ?? "");
+
+      const [proj] = await db.select().from(projects).where(and(eq(projects.id, projectId), eq(projects.orgId, orgId))).limit(1);
+      if (!proj) return res.status(403).json({ error: "Access denied" });
+
+      if (!isStaff) {
+        const userEmail = req.user?.email;
+        if (!userEmail) return res.status(403).json({ error: "Access denied" });
+        const hasAccess = await db.select().from(projectClients)
+          .where(and(eq(projectClients.projectId, projectId), eq(projectClients.clientEmail, userEmail)))
+          .limit(1);
+        if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
+      }
+
+      const [vendor] = await db.select().from(vendors).where(and(eq(vendors.id, vendorId), eq(vendors.orgId, orgId))).limit(1);
+      if (!vendor) return res.status(403).json({ error: "Access denied" });
+
+      const invoices = await storage.getVendorInvoices(vendorId);
+      const payments = await storage.getVendorPayments(vendorId);
+      res.json({ invoices, payments });
+    } catch (err) {
+      console.error("GET /api/client-portal/:projectId/vendor-ledger/:vendorId error:", err);
+      res.status(500).json({ error: "Failed to fetch vendor ledger" });
+    }
+  });
+
+  // GET /api/client-portal/:projectId/payments-summary
+  // Returns all vendor payments (with vendor names) for this org, for the Payments Summary tab
+  app.get("/api/client-portal/:projectId/payments-summary", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const orgId = req.user?.orgId;
+      const { projectId } = req.params;
+      const { eq, and, desc } = await import("drizzle-orm");
+      const { projectClients, vendors, projects, vendorPayments } = await import("@shared/schema");
+
+      const userRoleRow = await storage.getUserRole(userId);
+      const role = userRoleRow?.role?.toLowerCase();
+      const isStaff = ["admin","designer","project_manager"].includes(role ?? "");
+
+      const [proj] = await db.select().from(projects).where(and(eq(projects.id, projectId), eq(projects.orgId, orgId))).limit(1);
+      if (!proj) return res.status(403).json({ error: "Access denied" });
+
+      if (!isStaff) {
+        const userEmail = req.user?.email;
+        if (!userEmail) return res.status(403).json({ error: "Access denied" });
+        const hasAccess = await db.select().from(projectClients)
+          .where(and(eq(projectClients.projectId, projectId), eq(projectClients.clientEmail, userEmail)))
+          .limit(1);
+        if (hasAccess.length === 0) return res.status(403).json({ error: "Access denied" });
+      }
+
+      const rows = await db.select({
+        id: vendorPayments.id,
+        vendorId: vendorPayments.vendorId,
+        vendorName: vendors.name,
+        paymentDate: vendorPayments.paymentDate,
+        paymentReference: vendorPayments.paymentReference,
+        amount: vendorPayments.amount,
+        paymentMethod: vendorPayments.paymentMethod,
+        notes: vendorPayments.notes,
+      })
+      .from(vendorPayments)
+      .innerJoin(vendors, and(eq(vendorPayments.vendorId, vendors.id), eq(vendors.orgId, orgId)))
+      .orderBy(desc(vendorPayments.paymentDate));
+
+      res.json(rows);
+    } catch (err) {
+      console.error("GET /api/client-portal/:projectId/payments-summary error:", err);
+      res.status(500).json({ error: "Failed to fetch payments summary" });
+    }
+  });
+
   // Run immediately on startup, then every 24 hours
   runTrialExpiryWarnings();
   setInterval(runTrialExpiryWarnings, 24 * 60 * 60 * 1000);
