@@ -125,6 +125,8 @@ type FullRevision = DrawingRevision & {
   supersededAt: string | null;
   issuedAt: string | null;
   uploaderName: string | null;
+  approverName: string | null;
+  approvalComment: string | null;
 };
 
 type DrawingCategory = { id: string; name: string };
@@ -319,6 +321,8 @@ function RevisionSheet({ drawing, onClose, onViewRevision }: {
                   {rev.approvedAt && (
                     <p className="text-green-700 dark:text-green-400">
                       Approved {format(new Date(rev.approvedAt), "dd MMM yyyy")}
+                      {rev.approverName ? ` by ${rev.approverName}` : ""}
+                      {rev.approvalComment ? ` — "${rev.approvalComment}"` : ""}
                     </p>
                   )}
                 </div>

@@ -76,6 +76,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { differenceInHours } from "date-fns";
 import { format, parseISO } from "date-fns";
@@ -1449,12 +1450,35 @@ function MediaSection({
 }
 
 // ── WORKING DRAWINGS ──────────────────────────────────────────────────────────
-function DrawingsSection({ items }: { items: PortalDrawing[] }) {
+function DrawingsSection({ items, projectId }: { items: PortalDrawing[]; projectId: string }) {
   const [viewer, setViewer] = useState<{ url: string; name: string; isImg: boolean; downloadName: string } | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [approvalTarget, setApprovalTarget] = useState<{ revId: string; revLetter: string; drawingTitle: string } | null>(null);
+  const [approvalComment, setApprovalComment] = useState("");
+  const [approvalConfirmed, setApprovalConfirmed] = useState(false);
   const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const approveMutation = useMutation({
+    mutationFn: async ({ revId, comment }: { revId: string; comment: string }) => {
+      const res = await apiRequest("POST", `/api/client-portal/${projectId}/drawings/${revId}/approve`, { comment });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to approve");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/client-portal", projectId, "summary"] });
+      toast({ title: "Drawing approved", description: "Your approval has been recorded." });
+      setApprovalTarget(null);
+      setApprovalComment("");
+      setApprovalConfirmed(false);
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
 
   const openFile = async (url: string, viewName: string, downloadName: string, isImg: boolean, download = false) => {
     if (!url) return;
@@ -1568,6 +1592,26 @@ function DrawingsSection({ items }: { items: PortalDrawing[] }) {
                             {item.category}{rev ? ` · Rev ${rev.revisionLetter} · ${formatDate(rev.uploadedAt?.toString())}` : ' · No file yet'}
                           </p>
                         </div>
+                        {rev?.state === 'approved' && (
+                          <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 shrink-0">
+                            <CheckCircle2 className="h-3 w-3" /> Approved
+                          </span>
+                        )}
+                        {rev?.state === 'for_review' && rev.id && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0 text-xs"
+                            onClick={e => {
+                              e.stopPropagation();
+                              setApprovalTarget({ revId: rev.id, revLetter: rev.revisionLetter, drawingTitle: item.title });
+                              setApprovalComment("");
+                              setApprovalConfirmed(false);
+                            }}
+                          >
+                            Approve
+                          </Button>
+                        )}
                         {url && (
                           <Button
                             size="icon"
@@ -1588,6 +1632,52 @@ function DrawingsSection({ items }: { items: PortalDrawing[] }) {
           );
         })}
       </div>
+
+      {/* Approval confirmation dialog */}
+      <Dialog open={!!approvalTarget} onOpenChange={open => { if (!open) { setApprovalTarget(null); setApprovalComment(""); setApprovalConfirmed(false); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Approve Drawing</DialogTitle>
+            <DialogDescription>
+              You are approving <strong>{approvalTarget?.drawingTitle}</strong> Rev {approvalTarget?.revLetter} for production. This action is permanent.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="approval-comment">Comment (optional)</Label>
+              <Textarea
+                id="approval-comment"
+                value={approvalComment}
+                onChange={e => setApprovalComment(e.target.value)}
+                placeholder="Any notes for the designer…"
+                className="resize-none"
+                rows={3}
+              />
+            </div>
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="approval-confirm"
+                checked={approvalConfirmed}
+                onCheckedChange={v => setApprovalConfirmed(!!v)}
+              />
+              <Label htmlFor="approval-confirm" className="text-sm leading-snug cursor-pointer">
+                I confirm I have reviewed this drawing and approve it for production.
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setApprovalTarget(null); setApprovalComment(""); setApprovalConfirmed(false); }}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!approvalConfirmed || approveMutation.isPending}
+              onClick={() => approvalTarget && approveMutation.mutate({ revId: approvalTarget.revId, comment: approvalComment })}
+            >
+              {approveMutation.isPending ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Approving…</> : <><CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Confirm Approval</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* In-app viewer modal — all file types (PDFs via iframe, images inline) */}
       {viewer && (
@@ -2345,7 +2435,7 @@ export default function ClientPortalApp({
                   <MediaSection title="Moodboards" items={portalData?.moodboards || []} />
                 )}
                 {isUnlocked && activeTab === "drawings" && (
-                  <DrawingsSection items={portalData?.workingDrawings || []} />
+                  <DrawingsSection items={portalData?.workingDrawings || []} projectId={effectiveProjectId} />
                 )}
                 {isUnlocked && activeTab === "minutes" && (
                   <MinutesSection items={portalData?.meetingMinutes || []} />

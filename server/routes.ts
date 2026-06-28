@@ -11266,6 +11266,90 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // POST /api/client-portal/:projectId/drawings/:revisionId/approve
+  // Client-only: creates a drawing_approvals audit row + transitions revision state to approved
+  app.post("/api/client-portal/:projectId/drawings/:revisionId/approve", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const userRoleRow = await storage.getUserRole(userId);
+      const role = userRoleRow?.role || 'client';
+      if (role !== 'client') return res.status(403).json({ error: "Only client accounts may approve drawings" });
+
+      const { projectId, revisionId } = req.params;
+      const { comment } = req.body;
+
+      // Verify the client has access to this project
+      const accessibleProjects = await storage.getProjectsForUser(userId, role);
+      const project = accessibleProjects.find((p: any) => p.id === projectId);
+      if (!project) return res.status(403).json({ error: "Access denied" });
+
+      const { db: reqDb } = await import("./db");
+      const { drawingRevisions: dr, drawings: drawingsTable, drawingApprovals, revisionEvents } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      // Load revision and verify it belongs to the project via its drawing
+      const [revRow] = await reqDb
+        .select({ rev: dr, drawingProjectId: drawingsTable.projectId, drawingId: drawingsTable.id, orgId: drawingsTable.orgId })
+        .from(dr)
+        .innerJoin(drawingsTable, eq(dr.drawingId, drawingsTable.id))
+        .where(eq(dr.id, revisionId))
+        .limit(1);
+
+      if (!revRow) return res.status(404).json({ error: "Revision not found" });
+      if (revRow.drawingProjectId !== projectId) return res.status(403).json({ error: "Revision does not belong to this project" });
+
+      const rev = revRow.rev;
+      const orgId = revRow.orgId;
+
+      if (rev.state === 'approved') {
+        // Idempotent: already approved — return current state
+        return res.json(rev);
+      }
+      if (rev.state !== 'for_review') {
+        return res.status(400).json({ error: `Cannot approve a revision with state '${rev.state}'` });
+      }
+
+      // Capture client IP and user-agent for the audit log
+      const approverIp = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim()
+        || req.socket?.remoteAddress
+        || null;
+      const approverUserAgent = req.headers['user-agent'] || null;
+
+      // Insert immutable approval record
+      await reqDb.insert(drawingApprovals).values({
+        id: randomUUID(),
+        orgId,
+        revisionId,
+        approvedBy: userId,
+        approvedAt: new Date(),
+        approverIp,
+        approverUserAgent: approverUserAgent as string | null,
+        approvalComment: comment || null,
+      });
+
+      // Update revision state
+      const [updated] = await reqDb.update(dr)
+        .set({ state: 'approved', approvedAt: new Date() })
+        .where(and(eq(dr.id, revisionId), eq(dr.orgId, orgId)))
+        .returning();
+
+      // Sync drawing.status
+      await reqDb.update(drawingsTable)
+        .set({ status: 'approved', updatedAt: new Date() })
+        .where(and(eq(drawingsTable.id, revRow.drawingId), eq(drawingsTable.orgId, orgId)));
+
+      // Audit event
+      await reqDb.insert(revisionEvents).values({
+        id: randomUUID(), orgId, revisionId, eventType: 'approved', actorId: userId, createdAt: new Date(),
+      });
+
+      res.json(updated);
+    } catch (err) {
+      console.error("POST client-portal drawing approve error:", err);
+      res.status(500).json({ error: "Failed to approve drawing" });
+    }
+  });
+
   // =============================================
   // VENDOR PORTAL ROUTES
   // =============================================
@@ -13065,20 +13149,35 @@ Return your response in the following JSON format only (no markdown, no code blo
       const { drawingId } = req.params;
       if (!orgId) return res.status(403).json({ error: "Forbidden" });
       const { db: reqDb } = await import("./db");
-      const { drawingRevisions: dr, drawings: drawingsTable, users } = await import("@shared/schema");
+      const { drawingRevisions: dr, drawings: drawingsTable, users, drawingApprovals } = await import("@shared/schema");
       const { eq, and, desc } = await import("drizzle-orm");
+      const uploaders = users as typeof users;
+      const approvers = users as typeof users;
       const [drawing] = await reqDb.select().from(drawingsTable)
         .where(and(eq(drawingsTable.id, drawingId), eq(drawingsTable.orgId, orgId)));
       if (!drawing) return res.status(404).json({ error: "Drawing not found" });
       const rows = await reqDb
-        .select({ rev: dr, uploaderName: users.name, uploaderFirst: users.firstName, uploaderLast: users.lastName })
+        .select({
+          rev: dr,
+          uploaderName: uploaders.name,
+          uploaderFirst: uploaders.firstName,
+          uploaderLast: uploaders.lastName,
+          approverName: approvers.name,
+          approverFirst: approvers.firstName,
+          approverLast: approvers.lastName,
+          approvalComment: drawingApprovals.approvalComment,
+        })
         .from(dr)
-        .leftJoin(users, eq(dr.uploadedBy, users.id))
+        .leftJoin(uploaders, eq(dr.uploadedBy, uploaders.id))
+        .leftJoin(drawingApprovals, eq(drawingApprovals.revisionId, dr.id))
+        .leftJoin(approvers, eq(drawingApprovals.approvedBy, approvers.id))
         .where(and(eq(dr.drawingId, drawingId), eq(dr.orgId, orgId)))
         .orderBy(desc(dr.revisionLetter));
       res.json(rows.map(r => ({
         ...r.rev,
         uploaderName: r.uploaderName || [r.uploaderFirst, r.uploaderLast].filter(Boolean).join(" ") || null,
+        approverName: r.approverName || [r.approverFirst, r.approverLast].filter(Boolean).join(" ") || null,
+        approvalComment: r.approvalComment || null,
       })));
     } catch (err) {
       console.error("GET /api/working-drawings/:id/revisions error:", err);
