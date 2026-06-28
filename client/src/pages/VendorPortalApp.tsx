@@ -120,23 +120,14 @@ export default function VendorPortalApp() {
           <div className="flex items-center gap-3 min-w-0">
             {studioRequest?.org_name ? (
               <>
-                {/* Studio initials badge */}
-                <div
-                  className="shrink-0 rounded-md flex items-center justify-center text-white font-bold text-xs"
-                  style={{
-                    width: 32,
-                    height: 32,
-                    background: "linear-gradient(135deg, #1a2e52 0%, #2d4a7a 100%)",
-                    letterSpacing: "0.03em",
-                  }}
-                >
-                  {studioRequest.org_name
-                    .split(" ")
-                    .filter(Boolean)
-                    .slice(0, 2)
-                    .map((w: string) => w[0].toUpperCase())
-                    .join("")}
-                </div>
+                {/* Studio logo */}
+                <img
+                  src="/studio-logo.png"
+                  alt={studioRequest.org_name}
+                  title={studioRequest.org_name}
+                  className="shrink-0 rounded-sm bg-white object-contain"
+                  style={{ width: 32, height: 32 }}
+                />
                 <div className="min-w-0">
                   <div className="font-semibold text-sm leading-tight truncate">
                     {studioRequest.org_name}

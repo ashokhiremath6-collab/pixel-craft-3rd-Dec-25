@@ -937,26 +937,13 @@ export default function Dashboard({
 
         {/* ── Page Header ── */}
         <div className="flex items-center gap-4">
-          {(() => {
-            const name = org?.name || "Studio";
-            const words = name.trim().split(/\s+/).filter(Boolean);
-            const initials = words.length >= 2
-              ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
-              : name.slice(0, 2).toUpperCase();
-            return (
-              <div
-                className="h-14 w-14 rounded-xl flex items-center justify-center shrink-0 text-white font-bold select-none"
-                style={{
-                  background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
-                  fontSize: "1rem",
-                  letterSpacing: "0.04em",
-                }}
-                title={name}
-              >
-                {initials}
-              </div>
-            );
-          })()}
+          <img
+            src="/studio-logo.png"
+            alt={org?.name || "Studio"}
+            title={org?.name || "Studio"}
+            className="shrink-0 rounded-md bg-white object-contain"
+            style={{ height: 56, width: 56 }}
+          />
           <div className="flex flex-col gap-0.5">
             <h1
               className="font-semibold leading-tight text-foreground"

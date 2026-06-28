@@ -139,26 +139,13 @@ export function AppSidebar() {
     <Sidebar data-testid="sidebar-main">
       <SidebarHeader className="px-3 py-3 border-b">
         <div className="flex items-center gap-2.5">
-          {(() => {
-            const name = org?.name || "Studio";
-            const words = name.trim().split(/\s+/).filter(Boolean);
-            const initials = words.length >= 2
-              ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
-              : name.slice(0, 2).toUpperCase();
-            return (
-              <div
-                className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 text-white font-bold select-none"
-                style={{
-                  background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
-                  fontSize: "0.62rem",
-                  letterSpacing: "0.04em",
-                }}
-                title={name}
-              >
-                {initials}
-              </div>
-            );
-          })()}
+          <img
+            src="/studio-logo.png"
+            alt={org?.name || "Studio"}
+            title={org?.name || "Studio"}
+            className="shrink-0 rounded-sm bg-white object-contain"
+            style={{ height: 32, width: 32 }}
+          />
           <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
             <span className="font-semibold leading-snug" style={{ fontSize: "0.72rem" }}>
               {org?.name || "Studio"}
