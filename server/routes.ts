@@ -939,6 +939,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ─── Invitations ──────────────────────────────────────────────────────────
 
+  // POST /api/rfq-documents — designer/admin uploads an instructions document for an RFQ
+  const rfqDocUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const allowed = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/csv', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+      ];
+      const ext = path.extname(file.originalname).toLowerCase();
+      const allowedExts = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.jpg', '.jpeg', '.png', '.webp'];
+      if (allowed.includes(file.mimetype) || allowedExts.includes(ext)) return cb(null, true);
+      cb(new Error('Unsupported file type. PDF, Word, Excel, CSV, and images are accepted.'));
+    },
+  });
+
+  app.post("/api/rfq-documents", requireAdmin, rfqDocUpload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+      const userId = req.user.id;
+      const orgId = req.user?.orgId;
+      const objectPath = await uploadToObjectStorage(req.file.buffer, req.file.originalname, userId, req.file.mimetype, orgId);
+      res.json({ path: objectPath, name: req.file.originalname });
+    } catch (err: any) {
+      console.error("RFQ document upload error:", err);
+      res.status(500).json({ error: err.message || "Failed to upload document" });
+    }
+  });
+
+  // GET /api/invite/:token/rfq-document — serve the RFQ instructions document using the invitation token (no login required)
+  app.get("/api/invite/:token/rfq-document", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const row = await db.execute(sql`
+        SELECT rfq_document_path, rfq_document_name FROM invitations WHERE token = ${token} LIMIT 1
+      `);
+      if (!row.rows.length) return res.status(404).json({ error: "Invitation not found" });
+      const { rfq_document_path, rfq_document_name } = row.rows[0] as any;
+      if (!rfq_document_path) return res.status(404).json({ error: "No document attached to this invitation" });
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(rfq_document_path);
+      const safeName = (rfq_document_name as string || "instructions").replace(/[^\w.\-]/g, "_");
+      res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+      return objectStorageService.downloadObject(objectFile, res);
+    } catch (err) {
+      console.error("RFQ document serve error:", err);
+      res.status(500).json({ error: "Failed to download document" });
+    }
+  });
+
   // GET /api/invitations — list pending invitations for caller's org (admin + designer)
   app.get("/api/invitations", requireAdmin, async (req, res) => {
     try {
@@ -1003,7 +1057,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = randomUUID();
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
 
-      const { linkedVendorId, inviteMessage } = req.body;
+      const { linkedVendorId, inviteMessage, rfqDocumentPath, rfqDocumentName } = req.body;
 
       const invitation = await storage.createInvitation({
         orgId: callerUser.orgId,
@@ -1014,6 +1068,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expiresAt,
         ...(role === 'vendor' && linkedVendorId ? { linkedVendorId } : {}),
         ...(inviteMessage ? { inviteMessage } : {}),
+        ...(rfqDocumentPath ? { rfqDocumentPath } : {}),
+        ...(rfqDocumentName ? { rfqDocumentName } : {}),
       });
 
       const domains = process.env.REPLIT_DOMAINS;
@@ -1026,7 +1082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let emailSent = true;
       try {
         const { sendInvitationEmail } = await import("./email");
-        await sendInvitationEmail(normalizedEmail, inviterName, org.name, role, token, baseUrl, inviteMessage ?? undefined, alreadyHasAccount);
+        await sendInvitationEmail(normalizedEmail, inviterName, org.name, role, token, baseUrl, inviteMessage ?? undefined, alreadyHasAccount, rfqDocumentName ?? undefined, rfqDocumentPath ? `${baseUrl}/api/invite/${token}/rfq-document` : undefined);
       } catch (emailErr) {
         console.error("[INVITE] Failed to send invitation email:", emailErr);
         emailSent = false;
@@ -11773,12 +11829,12 @@ Return your response in the following JSON format only (no markdown, no code blo
       const userRow = await storage.getUser(userId);
       if (!userRow?.email) return res.json(null);
       const row = await db.execute(sql`
-        SELECT i.invite_message, i.created_at, o.name AS org_name
+        SELECT i.invite_message, i.rfq_document_path, i.rfq_document_name, i.token, i.created_at, o.name AS org_name
         FROM invitations i
         LEFT JOIN organisations o ON i.org_id = o.id
         WHERE lower(i.email) = lower(${userRow.email})
           AND i.accepted_at IS NOT NULL
-          AND i.invite_message IS NOT NULL
+          AND (i.invite_message IS NOT NULL OR i.rfq_document_path IS NOT NULL)
         ORDER BY i.accepted_at DESC
         LIMIT 1
       `);

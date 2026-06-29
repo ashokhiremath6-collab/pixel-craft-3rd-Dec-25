@@ -1010,6 +1010,8 @@ export const invitations = pgTable("invitations", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   linkedVendorId: varchar("linked_vendor_id").references(() => vendors.id), // Only set for vendor-role invitations
   inviteMessage: text("invite_message"), // Optional quote-request context sent with vendor invitations
+  rfqDocumentPath: text("rfq_document_path"), // Object storage path of uploaded instructions document
+  rfqDocumentName: text("rfq_document_name"), // Original file name for display/download
 });
 
 export const insertInvitationSchema = createInsertSchema(invitations).omit({

@@ -48,7 +48,10 @@ const TABS = [
 ];
 
 interface StudioRequest {
-  invite_message: string;
+  invite_message: string | null;
+  rfq_document_path: string | null;
+  rfq_document_name: string | null;
+  token: string | null;
   org_name: string;
   created_at: string;
 }
@@ -365,9 +368,30 @@ function InstructionsTab({ studioRequest, loading }: { studioRequest: StudioRequ
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="bg-muted/50 rounded-md p-4 text-sm">
-            <p className="whitespace-pre-wrap leading-relaxed">{studioRequest.invite_message}</p>
-          </div>
+          {studioRequest.invite_message && (
+            <div className="bg-muted/50 rounded-md p-4 text-sm">
+              <p className="whitespace-pre-wrap leading-relaxed">{studioRequest.invite_message}</p>
+            </div>
+          )}
+          {studioRequest.rfq_document_path && studioRequest.rfq_document_name && studioRequest.token && (
+            <div className="flex items-center gap-3 rounded-md border bg-muted/30 px-3 py-2.5">
+              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-foreground truncate">{studioRequest.rfq_document_name}</p>
+                <p className="text-xs text-muted-foreground">Instructions document</p>
+              </div>
+              <a
+                href={`/api/invite/${studioRequest.token}/rfq-document`}
+                download={studioRequest.rfq_document_name}
+                className="shrink-0"
+              >
+                <Button type="button" size="sm" variant="outline">
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  Download
+                </Button>
+              </a>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
             Received {format(new Date(studioRequest.created_at), "d MMM yyyy")} · Go to the <strong>Upload Quote</strong> tab to submit your documents.
           </p>

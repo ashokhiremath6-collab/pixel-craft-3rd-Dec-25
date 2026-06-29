@@ -166,7 +166,9 @@ export async function sendInvitationEmail(
   token: string,
   baseUrl?: string,
   inviteMessage?: string,
-  alreadyHasAccount?: boolean
+  alreadyHasAccount?: boolean,
+  rfqDocumentName?: string,
+  rfqDocumentUrl?: string
 ): Promise<void> {
   const inviteUrl = `${baseUrl || getBaseUrl()}/invite/${token}`;
   console.info(`[EMAIL] Invitation link for ${email}: ${inviteUrl}`);
@@ -180,6 +182,17 @@ export async function sendInvitationEmail(
     ? `<div style="background:#f0f4ff;border-left:4px solid #0071e3;border-radius:0 8px 8px 0;padding:16px 20px;margin:16px 0;">
         <p style="color:#1d1d1f;font-size:14px;font-weight:600;margin:0 0 6px;">Quote request details</p>
         <p style="color:#3d3d3d;font-size:14px;line-height:1.6;margin:0;white-space:pre-line;">${inviteMessage}</p>
+      </div>`
+    : '';
+
+  const documentBlock = isVendor && rfqDocumentUrl && rfqDocumentName
+    ? `<div style="background:#f5f5f7;border-radius:8px;padding:12px 16px;margin:16px 0;display:flex;align-items:center;gap:12px;">
+        <span style="font-size:20px;">📎</span>
+        <div style="flex:1;min-width:0;">
+          <p style="color:#1d1d1f;font-size:13px;font-weight:600;margin:0 0 2px;">Instructions document attached</p>
+          <p style="color:#6e6e73;font-size:12px;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${rfqDocumentName}</p>
+        </div>
+        <a href="${rfqDocumentUrl}" style="flex-shrink:0;background:#0071e3;color:#fff;font-size:12px;font-weight:600;padding:6px 14px;border-radius:6px;text-decoration:none;">Download</a>
       </div>`
     : '';
 
@@ -216,6 +229,7 @@ export async function sendInvitationEmail(
           <h2 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:0 0 12px;">${isVendor ? 'Quote request' : "You're invited!"}</h2>
           <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 8px;">${bodyIntro}</p>
           ${messageBlock}
+          ${documentBlock}
           <p style="color:#3d3d3d;font-size:15px;line-height:1.6;margin:0 0 20px;">
             ${actionLine}
           </p>

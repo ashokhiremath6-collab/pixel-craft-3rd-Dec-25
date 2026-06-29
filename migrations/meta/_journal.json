@@ -246,6 +246,13 @@
       "when": 1782700000000,
       "tag": "0034_vendor_account_holder_name",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1782736000000,
+      "tag": "0035_rfq_document",
+      "breakpoints": true
     }
   ]
 }

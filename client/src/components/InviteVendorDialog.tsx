@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Send, FileText, FolderOpen } from "lucide-react";
+import { Mail, Send, FileText, FolderOpen, Paperclip, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Vendor } from "@shared/schema";
@@ -40,6 +40,10 @@ function flattenCategories(cats: VendorCategory[]): VendorCategory[] {
 
 export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props) {
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [uploadedDoc, setUploadedDoc] = useState<{ path: string; name: string } | null>(null);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
 
   const { data: templates } = useQuery<QuoteTemplate[]>({
     queryKey: ["/api/quote-templates"],
@@ -78,8 +82,45 @@ export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props
         inviteMessage: "",
         quoteTemplateId: "",
       });
+      setAttachedFile(null);
+      setUploadedDoc(null);
     }
   }, [open, vendor]);
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAttachedFile(file);
+    setIsUploadingDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/rfq-documents", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Upload failed");
+      }
+      const data = await res.json();
+      setUploadedDoc({ path: data.path, name: data.name });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+      setAttachedFile(null);
+      setUploadedDoc(null);
+    } finally {
+      setIsUploadingDoc(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function removeAttachment() {
+    setAttachedFile(null);
+    setUploadedDoc(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
 
   const inviteMutation = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -91,6 +132,8 @@ export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props
         linkedVendorId: vendor.id,
         inviteMessage: values.inviteMessage || undefined,
         quoteTemplateId: values.quoteTemplateId || undefined,
+        rfqDocumentPath: uploadedDoc?.path || undefined,
+        rfqDocumentName: uploadedDoc?.name || undefined,
       });
 
       await apiRequest("POST", "/api/project-vendors/upsert", {
@@ -242,6 +285,49 @@ export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props
               )}
             />
 
+            {/* Instructions document upload */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Instructions document</span>
+                <Badge variant="secondary" className="text-xs">Optional</Badge>
+              </div>
+              {attachedFile ? (
+                <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
+                  <Paperclip className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="text-sm flex-1 truncate">
+                    {isUploadingDoc ? (
+                      <span className="text-muted-foreground">Uploading {attachedFile.name}…</span>
+                    ) : (
+                      uploadedDoc ? attachedFile.name : <span className="text-destructive">Upload failed</span>
+                    )}
+                  </span>
+                  {!isUploadingDoc && (
+                    <Button type="button" size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={removeAttachment}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Paperclip className="h-3.5 w-3.5 mr-1.5" />
+                  Attach document
+                </Button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp"
+                onChange={handleFileSelect}
+              />
+              <p className="text-xs text-muted-foreground">PDF, Word, Excel, CSV, or image. The vendor will see a download link in the email and in their portal.</p>
+            </div>
+
             {templates && templates.length > 0 && (
               <FormField
                 control={form.control}
@@ -275,7 +361,7 @@ export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={inviteMutation.isPending || !form.watch("projectId")}>
+              <Button type="submit" disabled={inviteMutation.isPending || !form.watch("projectId") || isUploadingDoc}>
                 {inviteMutation.isPending ? "Sending…" : (
                   <><Send className="h-4 w-4 mr-2" />Send RFQ</>
                 )}
