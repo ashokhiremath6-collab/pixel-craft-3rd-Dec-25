@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from "react";
-import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PlanLimitBanner } from "@/components/PlanLimitBanner";
@@ -8,7 +7,7 @@ import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertCatalogueItemSchema } from "@shared/schema";
-import type { InsertCatalogueItem, CatalogueItem, Project } from "@shared/schema";
+import type { InsertCatalogueItem, CatalogueItem } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
@@ -62,7 +61,6 @@ export default function CataloguePage() {
   const { user } = useAuth();
   const [location, setLocation] = useLocation();
   const search = useSearch();
-  const filterProjectId = new URLSearchParams(search).get("projectId") || "";
   const initialItemId = new URLSearchParams(search).get("item") || null;
 
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(initialItemId);
@@ -72,17 +70,6 @@ export default function CataloguePage() {
   const isImageFile = (fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase();
     return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff'].includes(ext ?? '');
-  };
-
-  const handleProjectChange = (value: string) => {
-    const params = new URLSearchParams(search);
-    if (value && value !== "all") {
-      params.set("projectId", value);
-    } else {
-      params.delete("projectId");
-    }
-    const qs = params.toString();
-    setLocation(qs ? `${location}?${qs}` : location);
   };
 
   const [mainCategory, setMainCategory] = useState<string>("all");
@@ -114,11 +101,6 @@ export default function CataloguePage() {
       catalogueUrl: "",
       attributes: "",
     },
-  });
-
-  // Fetch catalogue items
-  const { data: projects = [] } = useQuery<Project[]>({
-    queryKey: ["/api/projects"],
   });
 
   const { data: items = [], isLoading, error: itemsError } = useQuery<CatalogueItem[]>({
@@ -491,27 +473,7 @@ export default function CataloguePage() {
             <CardTitle className="text-base">Filter Products</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 p-4 pt-0">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Project</label>
-                <Select
-                  value={filterProjectId || "all"}
-                  onValueChange={handleProjectChange}
-                  data-testid="select-project"
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Projects" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    <SelectItem value="all">All Projects</SelectItem>
-                    {sortProjectsForDropdown(projects).map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.projectName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Main Category</label>
                 <Select
