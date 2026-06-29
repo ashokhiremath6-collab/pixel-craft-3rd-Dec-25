@@ -13760,7 +13760,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       const requestedBy = req.user?.id;
       const { sendPaymentRequestEmail, getBaseUrl } = await import("./email");
       const { eq, and } = await import("drizzle-orm");
-      const { projects, vendors, projectClients } = await import("@shared/schema");
+      const { projects, vendors, projectClients, organisations } = await import("@shared/schema");
 
       const body = insertPaymentRequestSchema.parse({ ...req.body, orgId, requestedBy, status: "pending" });
 
