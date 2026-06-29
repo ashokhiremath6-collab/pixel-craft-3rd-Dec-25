@@ -69,12 +69,12 @@ const projectManagerItems: NavigationItem[] = [
   { title: "Meeting Minutes", url: "/meeting-minutes", icon: Calendar },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
   const [location] = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
   const { user } = useAuth();
 
-  const role = (user as any)?.role as string | undefined;
+  const role = previewRole || ((user as any)?.role as string | undefined);
   const orgId = (user as any)?.orgId as string | undefined;
 
   const { data: org } = useQuery<{ name: string }>({

@@ -51,7 +51,7 @@ import OnboardingWizard from "@/components/OnboardingWizard";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Shield, User, Crown, Eye, AlertTriangle, X, ChevronDown } from "lucide-react";
+import { LogOut, Shield, User, Crown, Eye, AlertTriangle, X, ChevronDown, Briefcase } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -114,7 +114,7 @@ interface BillingStatus {
   hasStripeCustomer: boolean;
 }
 
-function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: () => void }) {
+function AuthenticatedApp({ onPreviewClientPortal, onPreviewAsPM, onExitPMPreview, previewRole }: { onPreviewClientPortal: () => void; onPreviewAsPM: () => void; onExitPMPreview: () => void; previewRole?: string }) {
   const { logout, user } = useAuth();
   const [, navigate] = useLocation();
 
@@ -123,10 +123,12 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
     "--sidebar-width-icon": "3rem",
   };
 
+  const effectiveRole = previewRole || user?.role || '';
   const canPreviewPortal = ELEVATED_ROLES.includes(user?.role || '');
-  const isProjectManager = user?.role === 'project_manager';
+  const canPreviewAsPM = (user?.role === 'admin' || user?.role === 'designer') && !previewRole;
+  const isProjectManager = effectiveRole === 'project_manager';
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = effectiveRole === 'admin';
   const canSeeBilling = (BILLING_VISIBLE_ROLES as readonly string[]).includes(user?.role || '');
   const { data: billingStatus } = useQuery<BillingStatus>({
     queryKey: ["/api/billing/status"],
@@ -225,7 +227,7 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <div className="flex h-screen w-full overflow-hidden">
-        <AppSidebar />
+        <AppSidebar previewRole={previewRole} />
         <div className="flex flex-col flex-1 min-w-0">
           <header className="flex items-center justify-between p-2 sm:p-4 border-b bg-background shrink-0 gap-2">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -290,6 +292,17 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
                   <Eye className="h-4 w-4" />
                 </Button>
               )}
+              {canPreviewAsPM && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onPreviewAsPM}
+                  title="Preview as Project Manager"
+                  data-testid="button-preview-pm"
+                >
+                  <Briefcase className="h-4 w-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -302,6 +315,18 @@ function AuthenticatedApp({ onPreviewClientPortal }: { onPreviewClientPortal: ()
               <ThemeToggle />
             </div>
           </header>
+          {/* PM preview banner */}
+          {previewRole === 'project_manager' && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm shrink-0 bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-300 border-b border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2">
+                <Briefcase className="h-4 w-4 shrink-0" />
+                <span>Previewing as <strong>Project Manager</strong> — this is what a project manager sees.</span>
+              </div>
+              <Button size="sm" variant="outline" onClick={onExitPMPreview}>
+                Exit preview
+              </Button>
+            </div>
+          )}
           {/* Impersonation banner — shown when a super-admin is acting as another user */}
           {user?._impersonating && (
             <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm shrink-0 bg-orange-100 dark:bg-orange-950/40 text-orange-900 dark:text-orange-300 border-b border-orange-200 dark:border-orange-800">
@@ -415,6 +440,7 @@ function AppContent() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [location] = useLocation();
   const [previewingPortal, setPreviewingPortal] = useState(false);
+  const [previewingAsPM, setPreviewingAsPM] = useState(false);
 
   // Public routes — always accessible regardless of auth state
   if (location === "/forgot-password") return <ForgotPasswordPage />;
@@ -489,7 +515,12 @@ function AppContent() {
 
     return (
       <>
-        <AuthenticatedApp onPreviewClientPortal={() => setPreviewingPortal(true)} />
+        <AuthenticatedApp
+          onPreviewClientPortal={() => setPreviewingPortal(true)}
+          onPreviewAsPM={() => setPreviewingAsPM(true)}
+          onExitPMPreview={() => setPreviewingAsPM(false)}
+          previewRole={previewingAsPM ? 'project_manager' : undefined}
+        />
         {showOnboarding && (
           <OnboardingWizard orgId={user.orgId!} />
         )}
