@@ -515,6 +515,7 @@ export async function sendPaymentRequestEmail(opts: {
   amount: number;
   description: string;
   bankName?: string | null;
+  accountHolderName?: string | null;
   accountNumber?: string | null;
   ifscCode?: string | null;
   branch?: string | null;
@@ -528,13 +529,14 @@ export async function sendPaymentRequestEmail(opts: {
   const bankBlock = hasBankDetails ? `
     <div style="background:#f5f5f7;border-radius:10px;padding:16px 20px;margin:16px 0;">
       <p style="font-size:13px;font-weight:600;color:#6e6e73;text-transform:uppercase;letter-spacing:.5px;margin:0 0 10px;">Bank Details</p>
+      ${opts.accountHolderName ? `<p style="margin:0 0 5px;font-size:14px;color:#1d1d1f;"><strong>Account Holder:</strong> ${opts.accountHolderName}</p>` : ""}
       ${opts.bankName ? `<p style="margin:0 0 5px;font-size:14px;color:#1d1d1f;"><strong>Bank:</strong> ${opts.bankName}</p>` : ""}
       ${opts.accountNumber ? `<p style="margin:0 0 5px;font-size:14px;color:#1d1d1f;"><strong>Account No:</strong> ${opts.accountNumber}</p>` : ""}
       ${opts.ifscCode ? `<p style="margin:0 0 5px;font-size:14px;color:#1d1d1f;"><strong>IFSC:</strong> ${opts.ifscCode}</p>` : ""}
       ${opts.branch ? `<p style="margin:0;font-size:14px;color:#1d1d1f;"><strong>Branch:</strong> ${opts.branch}</p>` : ""}
     </div>` : "";
 
-  const bankTextBlock = hasBankDetails ? `\nBank Details:\n${opts.bankName ? `Bank: ${opts.bankName}\n` : ""}${opts.accountNumber ? `Account No: ${opts.accountNumber}\n` : ""}${opts.ifscCode ? `IFSC: ${opts.ifscCode}\n` : ""}${opts.branch ? `Branch: ${opts.branch}\n` : ""}` : "";
+  const bankTextBlock = hasBankDetails ? `\nBank Details:\n${opts.accountHolderName ? `Account Holder: ${opts.accountHolderName}\n` : ""}${opts.bankName ? `Bank: ${opts.bankName}\n` : ""}${opts.accountNumber ? `Account No: ${opts.accountNumber}\n` : ""}${opts.ifscCode ? `IFSC: ${opts.ifscCode}\n` : ""}${opts.branch ? `Branch: ${opts.branch}\n` : ""}` : "";
 
   const studioLabel = opts.studioName || "Your Designer";
   const subject = `Payment request from ${studioLabel} — ${amountFormatted}`;

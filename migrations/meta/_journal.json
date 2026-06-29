@@ -239,6 +239,13 @@
       "when": 1782582600000,
       "tag": "0033_payment_request_token",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1782700000000,
+      "tag": "0034_vendor_account_holder_name",
+      "breakpoints": true
     }
   ]
 }

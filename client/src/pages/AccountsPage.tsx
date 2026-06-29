@@ -137,6 +137,7 @@ type PaymentRequestFormData = z.infer<typeof paymentRequestFormSchema>;
 
 const bankDetailsSchema = z.object({
   bankName: z.string().optional(),
+  accountHolderName: z.string().optional(),
   accountNumber: z.string().optional(),
   ifscCode: z.string().optional(),
   branch: z.string().optional(),
@@ -851,6 +852,7 @@ export default function AccountsPage() {
                     setBankDetailsVendorId(selectedVendorId);
                     bankDetailsForm.reset({
                       bankName: (v as any)?.bankName || "",
+                      accountHolderName: (v as any)?.accountHolderName || "",
                       accountNumber: (v as any)?.accountNumber || "",
                       ifscCode: (v as any)?.ifscCode || "",
                       branch: (v as any)?.branch || "",
@@ -1746,6 +1748,12 @@ export default function AccountsPage() {
                 <FormItem>
                   <FormLabel>Bank Name</FormLabel>
                   <FormControl><BankNameField field={field} /></FormControl>
+                </FormItem>
+              )} />
+              <FormField control={bankDetailsForm.control} name="accountHolderName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Account Holder Name</FormLabel>
+                  <FormControl><Input {...field} value={field.value || ""} placeholder="e.g. Rajesh Kumar" /></FormControl>
                 </FormItem>
               )} />
               <FormField control={bankDetailsForm.control} name="accountNumber" render={({ field }) => (

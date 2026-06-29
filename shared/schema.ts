@@ -24,6 +24,7 @@ export const vendors = pgTable("vendors", {
   notes: text("notes"),
   orgId: varchar("org_id"),
   bankName: text("bank_name"),
+  accountHolderName: text("account_holder_name"),
   accountNumber: text("account_number"),
   ifscCode: text("ifsc_code"),
   branch: text("branch"),
