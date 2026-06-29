@@ -222,6 +222,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       email: "",
       notes: "",
       bankName: "",
+      accountHolderName: "",
       accountNumber: "",
       ifscCode: "",
       branch: "",
@@ -445,6 +446,7 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
       email: vendor.email || "",
       notes: vendor.notes || "",
       bankName: (vendor as any).bankName || "",
+      accountHolderName: (vendor as any).accountHolderName || "",
       accountNumber: (vendor as any).accountNumber || "",
       ifscCode: (vendor as any).ifscCode || "",
       branch: (vendor as any).branch || "",
@@ -1279,6 +1281,18 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
                             <FormLabel>Bank Name</FormLabel>
                             <FormControl>
                               <BankNameField field={field} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={editVendorForm.control}
+                        name="accountHolderName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Account Holder Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g. Rajesh Kumar" {...field} value={field.value || ""} />
                             </FormControl>
                           </FormItem>
                         )}
