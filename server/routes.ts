@@ -13748,8 +13748,10 @@ Return your response in the following JSON format only (no markdown, no code blo
       const [row] = await db
         .select({
           id: paymentRequests.id,
+          invoiceValue: paymentRequests.invoiceValue,
           amount: paymentRequests.amount,
           description: paymentRequests.description,
+          remarks: paymentRequests.remarks,
           status: paymentRequests.status,
           requestedAt: paymentRequests.requestedAt,
           clientPaidAt: paymentRequests.clientPaidAt,
@@ -13907,8 +13909,10 @@ Return your response in the following JSON format only (no markdown, no code blo
           branch: vendors.branch,
           projectId: paymentRequests.projectId,
           projectName: projects.projectName,
+          invoiceValue: paymentRequests.invoiceValue,
           amount: paymentRequests.amount,
           description: paymentRequests.description,
+          remarks: paymentRequests.remarks,
           status: paymentRequests.status,
           requestedBy: paymentRequests.requestedBy,
           requestedAt: paymentRequests.requestedAt,

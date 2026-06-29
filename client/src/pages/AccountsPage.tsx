@@ -118,8 +118,10 @@ interface PaymentRequestRow {
   branch?: string | null;
   projectId?: string | null;
   projectName?: string | null;
+  invoiceValue?: string | null;
   amount: string;
   description: string;
+  remarks?: string | null;
   status: string;
   requestedAt: string;
   clientPaidAt?: string | null;
@@ -130,8 +132,10 @@ interface PaymentRequestRow {
 const paymentRequestFormSchema = z.object({
   vendorId: z.string().min(1, "Select a vendor"),
   projectId: z.string().min(1, "Select a project"),
+  invoiceValue: z.coerce.number().positive("Must be greater than 0").optional().or(z.literal("")).transform(v => v === "" ? undefined : v),
   amount: z.coerce.number().positive("Amount must be greater than 0"),
   description: z.string().min(1, "Description is required"),
+  remarks: z.string().optional(),
 });
 type PaymentRequestFormData = z.infer<typeof paymentRequestFormSchema>;
 
@@ -235,7 +239,9 @@ export default function AccountsPage() {
     defaultValues: {
       vendorId: selectedVendorId || "",
       projectId: "",
+      invoiceValue: undefined,
       description: "",
+      remarks: "",
     },
   });
 
@@ -1573,9 +1579,15 @@ export default function AccountsPage() {
                               </span>
                             </div>
                             <p className="text-xs text-muted-foreground">{pr.description}</p>
+                            {pr.remarks && (
+                              <p className="text-xs text-muted-foreground italic">{pr.remarks}</p>
+                            )}
                             <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
+                              {pr.invoiceValue && (
+                                <span>Invoice: <span className="font-medium text-foreground">₹{Number(pr.invoiceValue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></span>
+                              )}
                               <span className="font-semibold text-foreground">
-                                ₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                To pay: ₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                               </span>
                               <span>Requested {format(new Date(pr.requestedAt), 'dd MMM yyyy')}</span>
                               {pr.clientPaidAt && (
@@ -1696,19 +1708,34 @@ export default function AccountsPage() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={paymentRequestForm.control}
-                name="amount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Amount (₹)</FormLabel>
-                    <FormControl>
-                      <Input {...field} type="number" step="0.01" placeholder="0.00" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={paymentRequestForm.control}
+                  name="invoiceValue"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Invoice Value (₹)</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ""} type="number" step="0.01" placeholder="0.00" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={paymentRequestForm.control}
+                  name="amount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Amount to be Paid (₹)</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="number" step="0.01" placeholder="0.00" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={paymentRequestForm.control}
                 name="description"
@@ -1717,6 +1744,19 @@ export default function AccountsPage() {
                     <FormLabel>Description</FormLabel>
                     <FormControl>
                       <Textarea {...field} placeholder="Payment for furniture supply — Phase 1" rows={2} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={paymentRequestForm.control}
+                name="remarks"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Remarks</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} placeholder="Any additional notes or instructions" rows={2} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

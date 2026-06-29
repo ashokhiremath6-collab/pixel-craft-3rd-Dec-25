@@ -1328,8 +1328,10 @@ export const paymentRequests = pgTable("payment_requests", {
   orgId: varchar("org_id"),
   vendorId: varchar("vendor_id").notNull().references(() => vendors.id),
   projectId: varchar("project_id").references(() => projects.id),
+  invoiceValue: numeric("invoice_value", { precision: 12, scale: 2 }),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   description: text("description").notNull(),
+  remarks: text("remarks"),
   status: text("status").notNull().default("pending"), // pending | acknowledged | client_paid | confirmed
   requestedBy: varchar("requested_by").notNull().references(() => users.id),
   requestedAt: timestamp("requested_at").notNull().default(sql`now()`),
@@ -1352,8 +1354,10 @@ export const insertPaymentRequestSchema = createInsertSchema(paymentRequests).om
   confirmedAt: true,
   confirmedBy: true,
 }).extend({
+  invoiceValue: z.coerce.number().positive("Invoice value must be greater than zero").optional().or(z.literal("")).transform(v => v === "" ? undefined : v),
   amount: z.coerce.number().positive("Amount must be greater than zero"),
   description: z.string().min(1, "Description is required"),
+  remarks: z.string().optional(),
 });
 
 export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;

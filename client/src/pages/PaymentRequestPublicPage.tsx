@@ -8,8 +8,10 @@ import { CheckCircle2, AlertCircle, Building2 } from "lucide-react";
 
 interface PublicPaymentRequest {
   id: string;
+  invoiceValue: string | null;
   amount: string;
   description: string;
+  remarks: string | null;
   status: string;
   requestedAt: string;
   clientPaidAt: string | null;
@@ -89,7 +91,12 @@ export default function PaymentRequestPublicPage() {
           {pr && !confirmed && (
             <>
               <div className="bg-[#0071e3] px-6 py-5">
-                <p className="text-xs font-semibold text-blue-200 uppercase tracking-wide mb-1">Amount due</p>
+                {pr.invoiceValue && (
+                  <p className="text-xs font-semibold text-blue-200 uppercase tracking-wide mb-0.5">
+                    Invoice value: ₹{Number(pr.invoiceValue).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                )}
+                <p className="text-xs font-semibold text-blue-200 uppercase tracking-wide mb-1">Amount to be paid</p>
                 <p className="text-3xl font-bold text-white">{amount}</p>
                 {pr.projectName && (
                   <p className="text-sm text-blue-200 mt-1">{pr.projectName}</p>
@@ -101,6 +108,9 @@ export default function PaymentRequestPublicPage() {
                   <p className="text-xs font-semibold text-[#6e6e73] uppercase tracking-wide">For</p>
                   <p className="text-[#1d1d1f] font-medium">{pr.vendorName}</p>
                   <p className="text-sm text-[#6e6e73]">{pr.description}</p>
+                  {pr.remarks && (
+                    <p className="text-sm text-[#6e6e73] italic">{pr.remarks}</p>
+                  )}
                 </div>
 
                 {(pr.bankName || pr.accountNumber || pr.ifscCode) && (

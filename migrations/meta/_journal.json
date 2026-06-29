@@ -253,6 +253,13 @@
       "when": 1782736000000,
       "tag": "0035_rfq_document",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1782750000000,
+      "tag": "0036_payment_request_fields",
+      "breakpoints": true
     }
   ]
 }
