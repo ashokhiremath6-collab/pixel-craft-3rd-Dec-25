@@ -14,10 +14,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ChevronDown, ChevronRight, Plus, Pencil, Trash2, Loader2,
-  PackageCheck, AlertCircle, ListChecks,
+  PackageCheck, ListChecks,
 } from "lucide-react";
 import { format } from "date-fns";
-import type { Project } from "@shared/schema";
 
 interface HandoverItem {
   id: string;
@@ -85,7 +84,6 @@ export default function AccessoriesChecklistPage() {
 
   const canEdit = role === "admin" || role === "designer" || role === "project_manager";
 
-  const [activeProjectId, setActiveProjectId] = useState<string>("");
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [addCategory, setAddCategory] = useState("");
   const [editItem, setEditItem] = useState<HandoverItem | null>(null);
@@ -98,18 +96,9 @@ export default function AccessoriesChecklistPage() {
   const [formStatus, setFormStatus] = useState<"pending" | "sourced" | "installed">("pending");
   const [formNotes, setFormNotes] = useState("");
 
-  const { data: projects = [] } = useQuery<Project[]>({ queryKey: ["/api/projects"] });
-
-  const itemsKey = ["/api/handover-items", activeProjectId];
+  const itemsKey = ["/api/handover-items"];
   const { data: items = [], isLoading } = useQuery<HandoverItem[]>({
     queryKey: itemsKey,
-    queryFn: async () => {
-      if (!activeProjectId) return [];
-      const res = await fetch(`/api/handover-items?projectId=${activeProjectId}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch");
-      return res.json();
-    },
-    enabled: !!activeProjectId,
     staleTime: 0,
   });
 
@@ -117,7 +106,7 @@ export default function AccessoriesChecklistPage() {
 
   // Populate with defaults
   const populateMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/handover-items/populate", { projectId: activeProjectId }),
+    mutationFn: () => apiRequest("POST", "/api/handover-items/populate", {}),
     onSuccess: () => { invalidate(); toast({ title: "Standard items loaded" }); },
     onError: () => toast({ variant: "destructive", title: "Failed to load standard items" }),
   });
@@ -187,7 +176,6 @@ export default function AccessoriesChecklistPage() {
 
   const handleSave = () => {
     const data = {
-      projectId: activeProjectId,
       name: formName.trim(),
       category: formCategory.trim(),
       quantity: parseInt(formQty, 10) || 1,
@@ -218,7 +206,6 @@ export default function AccessoriesChecklistPage() {
   }, [items]);
 
   const totalInstalled = items.filter((i) => i.status === "installed").length;
-  const activeProject = projects.find((p) => p.id === activeProjectId);
 
   // Unique categories for form dropdown
   const existingCategories = useMemo(() => Array.from(new Set(items.map((i) => i.category))), [items]);
@@ -235,24 +222,9 @@ export default function AccessoriesChecklistPage() {
               <PackageCheck className="h-5 w-5 text-muted-foreground" />
               Accessories Checklist
             </h1>
-            {activeProject && (
-              <p className="text-sm text-muted-foreground mt-0.5">{activeProject.projectName}</p>
-            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <Select value={activeProjectId} onValueChange={setActiveProjectId}>
-              <SelectTrigger className="w-60">
-                <SelectValue placeholder="Select project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.projectName} — {p.clientName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {canEdit && activeProjectId && (
+            {canEdit && (
               <Button onClick={() => { resetForm(); setAddItemOpen(true); }}>
                 <Plus className="h-4 w-4 mr-2" />Add Item
               </Button>
@@ -261,7 +233,7 @@ export default function AccessoriesChecklistPage() {
         </div>
 
         {/* Progress summary */}
-        {activeProjectId && !isLoading && items.length > 0 && (
+        {!isLoading && items.length > 0 && (
           <div className="mt-3 flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2 min-w-48">
               <span className="text-sm text-muted-foreground shrink-0">Overall progress</span>
@@ -288,23 +260,15 @@ export default function AccessoriesChecklistPage() {
       {/* ── Body ───────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
 
-        {/* No project */}
-        {!activeProjectId && (
-          <div className="flex flex-col items-center justify-center h-64 gap-2 text-center">
-            <AlertCircle className="h-8 w-8 text-muted-foreground" />
-            <p className="text-muted-foreground">Select a project to view its accessories checklist.</p>
-          </div>
-        )}
-
         {/* Loading */}
-        {activeProjectId && isLoading && (
+        {isLoading && (
           <div className="flex items-center justify-center h-48">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
 
         {/* Empty state */}
-        {activeProjectId && !isLoading && items.length === 0 && canEdit && (
+        {!isLoading && items.length === 0 && canEdit && (
           <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
             <ListChecks className="h-10 w-10 text-muted-foreground" />
             <p className="font-medium">No items yet</p>
@@ -327,7 +291,7 @@ export default function AccessoriesChecklistPage() {
         )}
 
         {/* Groups */}
-        {activeProjectId && !isLoading && groups.length > 0 && (
+        {!isLoading && groups.length > 0 && (
           <div className="space-y-2">
             {groups.map((group) => (
               <CategorySection

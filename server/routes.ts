@@ -9492,9 +9492,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/handover-items", requireAuth, async (req: any, res) => {
     try {
       const orgId = req.user?.orgId;
-      const { projectId } = req.query;
-      if (!orgId || !projectId) return res.status(400).json({ error: "projectId required" });
-      const items = await storage.getHandoverItems(orgId, projectId as string);
+      if (!orgId) return res.status(400).json({ error: "orgId required" });
+      const items = await storage.getHandoverItems(orgId);
       res.json(items);
     } catch (err) {
       console.error("GET /api/handover-items error:", err);
@@ -9505,10 +9504,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/handover-items/populate", requireAuth, async (req: any, res) => {
     try {
       const orgId = req.user?.orgId;
-      const { projectId } = req.body;
-      if (!orgId || !projectId) return res.status(400).json({ error: "projectId required" });
-      // Only populate if project has no items yet
-      const existing = await storage.getHandoverItems(orgId, projectId);
+      if (!orgId) return res.status(400).json({ error: "orgId required" });
+      // Only populate if org has no items yet
+      const existing = await storage.getHandoverItems(orgId);
       if (existing.length > 0) return res.json({ skipped: true, count: existing.length });
       const DEFAULTS: { name: string; category: string; quantity: number; unit: string }[] = [
         // Kitchen
@@ -9557,7 +9555,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ];
       const items = DEFAULTS.map((d, i) => ({
         orgId,
-        projectId,
         name: d.name,
         category: d.category,
         quantity: d.quantity,
@@ -9576,12 +9573,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/handover-items", requireAuth, async (req: any, res) => {
     try {
       const orgId = req.user?.orgId;
-      const { projectId, name, category, quantity, unit, status, notes, sortOrder } = req.body;
-      if (!orgId || !projectId || !name?.trim() || !category?.trim()) {
-        return res.status(400).json({ error: "projectId, name and category are required" });
+      const { name, category, quantity, unit, status, notes, sortOrder } = req.body;
+      if (!orgId || !name?.trim() || !category?.trim()) {
+        return res.status(400).json({ error: "name and category are required" });
       }
       const item = await storage.createHandoverItem({
-        orgId, projectId,
+        orgId,
         name: name.trim(),
         category: category.trim(),
         quantity: quantity ?? 1,

@@ -404,7 +404,7 @@ export interface IStorage {
   deleteProjectCostItem(id: string): Promise<boolean>;
 
   // Accessories Checklist (Handover Items)
-  getHandoverItems(orgId: string, projectId: string): Promise<HandoverItem[]>;
+  getHandoverItems(orgId: string): Promise<HandoverItem[]>;
   createHandoverItem(item: InsertHandoverItem): Promise<HandoverItem>;
   updateHandoverItem(id: string, orgId: string, updates: Partial<InsertHandoverItem>): Promise<HandoverItem | undefined>;
   deleteHandoverItem(id: string, orgId: string): Promise<boolean>;
@@ -3559,9 +3559,9 @@ export class DBStorage implements IStorage {
   }
 
   // Accessories Checklist (Handover Items)
-  async getHandoverItems(orgId: string, projectId: string): Promise<HandoverItem[]> {
+  async getHandoverItems(orgId: string): Promise<HandoverItem[]> {
     return await db.select().from(handoverItems)
-      .where(and(eq(handoverItems.orgId, orgId), eq(handoverItems.projectId, projectId)))
+      .where(eq(handoverItems.orgId, orgId))
       .orderBy(asc(handoverItems.category), asc(handoverItems.sortOrder), asc(handoverItems.createdAt));
   }
 
