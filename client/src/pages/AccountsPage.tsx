@@ -1672,6 +1672,7 @@ export default function AccountsPage() {
                     <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Vendor — bank details that will be sent to client</p>
                     <p className="font-medium text-sm">{v.name}</p>
                     {(v as any).bankName && <p><span className="text-muted-foreground">Bank:</span> {(v as any).bankName}{(v as any).branch ? ` — ${(v as any).branch}` : ""}</p>}
+                    {(v as any).accountHolderName && <p><span className="text-muted-foreground">Account Holder:</span> {(v as any).accountHolderName}</p>}
                     {(v as any).accountNumber && <p><span className="text-muted-foreground">Account:</span> {(v as any).accountNumber}</p>}
                     {(v as any).ifscCode && <p><span className="text-muted-foreground">IFSC:</span> {(v as any).ifscCode}</p>}
                   </div>
