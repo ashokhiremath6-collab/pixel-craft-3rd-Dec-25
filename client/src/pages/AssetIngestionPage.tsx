@@ -399,7 +399,7 @@ export default function AssetIngestionPage() {
             <p className="text-sm">Upload a photo to get started</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="flex flex-col gap-2">
             {filteredAssets.map(asset => (
               <Card 
                 key={asset.id} 
@@ -410,28 +410,13 @@ export default function AssetIngestionPage() {
                 }}
                 data-testid={`card-asset-${asset.id}`}
               >
-                <CardContent className="p-4">
-                  <div className="aspect-square w-full rounded-lg mb-3 bg-muted overflow-hidden relative group">
-                    {asset.originalFilePath ? (
-                      <img 
-                        src={asset.originalFilePath}
-                        alt={asset.originalFileName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : asset.thumbnailPath || asset.processedFilePath ? (
-                      <img 
-                        src={asset.thumbnailPath || asset.processedFilePath || ''}
-                        alt={asset.originalFileName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ImageIcon className="w-8 h-8 text-muted-foreground" />
-                      </div>
-                    )}
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3 mb-2">
+                    {getObjectTypeIcon(asset.objectType)}
+                    <span className="text-sm font-medium truncate flex-1">{asset.originalFileName}</span>
                     {(asset.originalFilePath || asset.thumbnailPath || asset.processedFilePath) && (
                       <button
-                        className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors duration-200"
+                        className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
                           const idx = lightboxAssets.findIndex(a => a.id === asset.id);
@@ -439,13 +424,9 @@ export default function AssetIngestionPage() {
                         }}
                         aria-label="View fullscreen"
                       >
-                        <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg" />
+                        <Maximize2 className="w-4 h-4" />
                       </button>
                     )}
-                  </div>
-                  <div className="flex items-center gap-2 mb-2">
-                    {getObjectTypeIcon(asset.objectType)}
-                    <span className="text-sm font-medium truncate">{asset.originalFileName}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     {getStatusBadge(asset.processingStatus)}
