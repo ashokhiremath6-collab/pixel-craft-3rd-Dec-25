@@ -169,6 +169,9 @@ export default function AccountsPage() {
   const [deletingEntry, setDeletingEntry] = useState<{ id: string; type: 'invoice' | 'payment' } | null>(null);
   const [deletePrDialogOpen, setDeletePrDialogOpen] = useState(false);
   const [deletingPr, setDeletingPr] = useState<PaymentRequestRow | null>(null);
+  const [addLedgerDialog, setAddLedgerDialog] = useState<PaymentRequestRow | null>(null);
+  const [addLedgerDate, setAddLedgerDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [addLedgerNotes, setAddLedgerNotes] = useState("");
   const [requestsTabVendorId, setRequestsTabVendorId] = useState<string>("");
   const [paymentRequestVendorId, setPaymentRequestVendorId] = useState<string>("");
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
@@ -319,6 +322,29 @@ export default function AccountsPage() {
     },
     onError: () => {
       toast({ variant: "destructive", title: "Failed to save to accounts" });
+    },
+  });
+
+  // Add to Ledger: retroactively create a payment entry for an already-confirmed payment request
+  const addToLedgerMutation = useMutation({
+    mutationFn: async ({ pr, date, notes }: { pr: PaymentRequestRow; date: string; notes: string }) => {
+      await apiRequest('POST', `/api/vendors/${pr.vendorId}/payments`, {
+        paymentDate: date,
+        amount: String(pr.amount),
+        paymentMethod: 'bank_transfer',
+        paymentReference: pr.clientUtr || `PR-${pr.id.substring(0, 8).toUpperCase()}`,
+        notes: notes || `Payment received from client. UTR: ${pr.clientUtr || "N/A"}. ${pr.description}`,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Added to ledger", description: "Payment entry has been recorded in the vendor ledger." });
+      setAddLedgerDialog(null);
+      setAddLedgerNotes("");
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
+      if (addLedgerDialog) queryClient.invalidateQueries({ queryKey: ['/api/vendors', addLedgerDialog.vendorId, 'payments'] });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Failed to add to ledger" });
     },
   });
 
@@ -1573,7 +1599,21 @@ export default function AccountsPage() {
                               </Button>
                             )}
                             {pr.status === 'confirmed' && (
-                              <CheckCircle2 className="h-5 w-5 text-green-600" />
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setAddLedgerDialog(pr);
+                                    setAddLedgerDate(pr.clientPaidAt ? format(new Date(pr.clientPaidAt), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
+                                    setAddLedgerNotes("");
+                                  }}
+                                >
+                                  <IndianRupee className="h-4 w-4 mr-1.5" />
+                                  Add to Ledger
+                                </Button>
+                                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                              </div>
                             )}
                             {pr.status === 'pending' && (
                               <Clock className="h-5 w-5 text-blue-400" />
@@ -1817,6 +1857,61 @@ export default function AccountsPage() {
                 disabled={saveToAccountsMutation.isPending}
               >
                 {saveToAccountsMutation.isPending ? "Saving..." : "Save to Accounts"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Add to Ledger dialog for already-confirmed payment requests */}
+      {addLedgerDialog && (
+        <Dialog open={!!addLedgerDialog} onOpenChange={open => !open && setAddLedgerDialog(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Add to Ledger</DialogTitle>
+              <DialogDescription>
+                Record the payment from <strong>{addLedgerDialog.vendorName}</strong> in the vendor ledger.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Amount</span>
+                <span className="font-bold text-base">
+                  ₹{Number(addLedgerDialog.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              {addLedgerDialog.clientUtr && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">UTR / Reference</span>
+                  <span className="font-mono">{addLedgerDialog.clientUtr}</span>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="add-ledger-date">Payment Date</Label>
+                <Input
+                  id="add-ledger-date"
+                  type="date"
+                  value={addLedgerDate}
+                  onChange={e => setAddLedgerDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="add-ledger-notes">Notes (optional)</Label>
+                <Input
+                  id="add-ledger-notes"
+                  value={addLedgerNotes}
+                  onChange={e => setAddLedgerNotes(e.target.value)}
+                  placeholder="Additional notes for the ledger entry"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAddLedgerDialog(null)}>Cancel</Button>
+              <Button
+                onClick={() => addToLedgerMutation.mutate({ pr: addLedgerDialog, date: addLedgerDate, notes: addLedgerNotes })}
+                disabled={addToLedgerMutation.isPending}
+              >
+                {addToLedgerMutation.isPending ? "Adding..." : "Add to Ledger"}
               </Button>
             </DialogFooter>
           </DialogContent>
