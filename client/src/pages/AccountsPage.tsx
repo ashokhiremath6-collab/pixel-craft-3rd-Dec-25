@@ -300,17 +300,13 @@ export default function AccountsPage() {
     },
   });
 
-  // Save to Accounts: record vendor payment in ledger then confirm the payment request
+  // Save to Accounts: confirm the payment request (backend atomically creates the ledger entry)
   const saveToAccountsMutation = useMutation({
     mutationFn: async ({ pr, date, notes }: { pr: PaymentRequestRow; date: string; notes: string }) => {
-      await apiRequest('POST', `/api/vendors/${pr.vendorId}/payments`, {
+      await apiRequest('PATCH', `/api/payment-requests/${pr.id}/confirm`, {
         paymentDate: date,
-        amount: String(pr.amount),
-        paymentMethod: 'bank_transfer',
-        paymentReference: pr.clientUtr || undefined,
         notes: notes || `Payment received from client. UTR: ${pr.clientUtr || "N/A"}. ${pr.description}`,
       });
-      await apiRequest('PATCH', `/api/payment-requests/${pr.id}/confirm`, {});
     },
     onSuccess: () => {
       toast({ title: "Saved to accounts and confirmed" });

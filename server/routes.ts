@@ -14027,6 +14027,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       const confirmedBy = req.user?.id;
       const orgId = req.user?.orgId;
       const { eq, and } = await import("drizzle-orm");
+      const { paymentDate, notes } = req.body || {};
 
       // Enforce state machine: only client_paid -> confirmed is valid; scope to org
       const [pr] = await db.update(paymentRequests)
@@ -14039,6 +14040,29 @@ Return your response in the following JSON format only (no markdown, no code blo
         .returning();
 
       if (!pr) return res.status(404).json({ error: "Not found or not in client_paid state" });
+
+      // Atomically create a vendor payment ledger entry so the ledger always reflects confirmed payments
+      try {
+        const resolvedDate = paymentDate
+          || (pr.clientPaidAt ? pr.clientPaidAt.toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10));
+        const resolvedReference = pr.clientUtr || `PR-${pr.id.substring(0, 8).toUpperCase()}`;
+        const resolvedNotes = notes || `Payment received from client. UTR: ${pr.clientUtr || "N/A"}. ${pr.description}`;
+        await storage.createVendorPayment({
+          vendorId: pr.vendorId,
+          paymentDate: resolvedDate,
+          amount: pr.amount,
+          paymentReference: resolvedReference,
+          paymentMethod: "bank_transfer",
+          notes: resolvedNotes,
+          createdBy: confirmedBy,
+          orgId: pr.orgId || orgId,
+          ...(pr.projectId ? { projectId: pr.projectId } : {}),
+        });
+      } catch (payErr) {
+        console.error("PATCH /api/payment-requests/:id/confirm — vendor payment creation error:", payErr);
+        // Non-fatal: PR is already confirmed; ledger entry can be added manually
+      }
+
       res.json(pr);
     } catch (err) {
       console.error("PATCH /api/payment-requests/:id/confirm error:", err);
