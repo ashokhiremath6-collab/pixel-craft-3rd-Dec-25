@@ -51,8 +51,8 @@ const mainItems: NavigationItem[] = [
 // Reduced nav for project managers — only what pertains to their role
 const projectManagerMainItems: NavigationItem[] = [
   { title: "Dashboard", url: "/", icon: Home },
-  { title: "Projects", url: "/projects", icon: Building2 },
   { title: "Project scheduling", url: "/gantt-chart", icon: GanttChart },
+  { title: "Working Drawings", url: "/working-drawings", icon: PenTool },
   { title: "SOPs", url: "/sops", icon: BookOpen },
 ];
 
