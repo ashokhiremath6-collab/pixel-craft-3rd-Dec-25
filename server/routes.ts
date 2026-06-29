@@ -939,8 +939,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ─── Invitations ──────────────────────────────────────────────────────────
 
-  // GET /api/invitations — list pending invitations for caller's org (admin only)
-  app.get("/api/invitations", requireAdminOnly, async (req, res) => {
+  // GET /api/invitations — list pending invitations for caller's org (admin + designer)
+  app.get("/api/invitations", requireAdmin, async (req, res) => {
     try {
       const user = await storage.getUser((req.user as any).id);
       if (!user?.orgId) return res.json([]);
