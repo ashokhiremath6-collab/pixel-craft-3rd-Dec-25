@@ -598,7 +598,7 @@ export default function RendersPage() {
               };
 
               return (
-                <GroupSection key={group.room} label={group.room} count={group.total} defaultOpen={group.total > 0}>
+                <GroupSection key={group.room} label={group.room} count={group.total} defaultOpen={false}>
                   {group.total === 0 ? (
                     <p className="px-4 py-3 text-sm text-muted-foreground italic ml-4">
                       No renders in this room yet. Edit a render and assign it here.
