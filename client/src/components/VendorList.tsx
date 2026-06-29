@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -157,6 +158,8 @@ function CategorySection({ label, count, children }: { label: string; count: num
 }
 
 export default function VendorList({ vendors, categories, onAddVendor, onEditVendor, onUpdateVendor, onDeleteVendor }: VendorListProps) {
+  const { user } = useAuth();
+  const canSeeRfqStatus = user?.role === 'admin' || user?.role === 'designer';
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isMainCategoryDialogOpen, setIsMainCategoryDialogOpen] = useState(false);
@@ -249,9 +252,10 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
     enabled: !!selectedVendorForContacts,
   });
 
-  // Fetch invitations to show RFQ-sent status per vendor
+  // Fetch invitations to show RFQ-sent status per vendor (admin + designer only)
   const { data: invitations = [] } = useQuery<any[]>({
     queryKey: ['/api/invitations'],
+    enabled: canSeeRfqStatus,
   });
 
   // Map linkedVendorId → invitation status
