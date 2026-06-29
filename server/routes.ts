@@ -2262,17 +2262,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const project = projectMap.get(pv.projectId);
         
         // For comparative statements, vendor is null and category comes from pv.category
-        // For regular quotes, vendor should exist and category comes from vendor
+        // For regular quotes, vendor should exist; category comes from vendor OR from pv.categoryId/pv.category (portal RFQs)
         const isComparativeStatement = pv.unitRateSubtype === 'comparative';
         const vendor = pv.vendorId ? vendorMap.get(pv.vendorId) : null;
         const categoryFromVendor = vendor ? categoryMap.get(vendor.categoryId) : null;
-        const categoryName = isComparativeStatement ? pv.category : categoryFromVendor?.name;
+        // Portal RFQs store the chosen category on pv.categoryId — use it as fallback
+        const categoryFromPV = pv.categoryId ? categoryMap.get(pv.categoryId) : null;
+        const resolvedCategory = categoryFromVendor || categoryFromPV;
+        const categoryName = isComparativeStatement ? pv.category : (resolvedCategory?.name || pv.category || null);
         
         // Only include project vendors for projects the user has access to
         // For comparative statements: project and categoryName must exist
-        // For regular quotes: project, vendor, and category must exist
+        // For regular quotes: project and vendor must exist; category is resolved from vendor or pv
         const isValid = project && projects.some(p => p.id === project.id) &&
-          (isComparativeStatement ? !!categoryName : !!(vendor && categoryFromVendor));
+          (isComparativeStatement ? !!categoryName : !!(vendor && (resolvedCategory || pv.category)));
         
         if (isValid) {
           if (!quotationsByProject[pv.projectId]) {
