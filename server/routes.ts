@@ -11950,7 +11950,7 @@ Return your response in the following JSON format only (no markdown, no code blo
             qf.quoted_amount,
             CASE
               WHEN COUNT(qf.id) OVER (PARTITION BY pv.id) <= 1
-                OR ROW_NUMBER() OVER (PARTITION BY pv.id ORDER BY qf.created_at NULLS LAST) = 1
+                OR ROW_NUMBER() OVER (PARTITION BY pv.id ORDER BY qf.uploaded_at NULLS LAST) = 1
               THEN pv.quotation_value
               ELSE NULL
             END
