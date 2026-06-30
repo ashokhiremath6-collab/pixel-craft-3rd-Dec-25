@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Send, FileText, FolderOpen, Paperclip, X } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Mail, Send, FileText, FolderOpen, Paperclip, X, Copy, Check, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Vendor } from "@shared/schema";
@@ -44,6 +45,8 @@ export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [uploadedDoc, setUploadedDoc] = useState<{ path: string; name: string } | null>(null);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [sentResult, setSentResult] = useState<{ inviteUrl: string; emailSent: boolean; email: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const { data: templates } = useQuery<QuoteTemplate[]>({
     queryKey: ["/api/quote-templates"],
@@ -84,6 +87,8 @@ export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props
       });
       setAttachedFile(null);
       setUploadedDoc(null);
+      setSentResult(null);
+      setCopied(false);
     }
   }, [open, vendor]);
 
@@ -122,11 +127,18 @@ export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  function copyLink(url: string) {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   const inviteMutation = useMutation({
     mutationFn: async (values: FormValues) => {
       const selectedCategory = allCategories.find(c => c.id === values.categoryId);
 
-      await apiRequest("POST", "/api/invitations", {
+      const result = await apiRequest("POST", "/api/invitations", {
         email: values.email,
         role: "vendor",
         linkedVendorId: vendor.id,
@@ -134,7 +146,7 @@ export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props
         quoteTemplateId: values.quoteTemplateId || undefined,
         rfqDocumentPath: uploadedDoc?.path || undefined,
         rfqDocumentName: uploadedDoc?.name || undefined,
-      });
+      }) as any;
 
       await apiRequest("POST", "/api/project-vendors/upsert", {
         projectId: values.projectId,
@@ -145,17 +157,19 @@ export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props
         quotationType: "item",
         status: "Quoted",
       });
+
+      return { ...result, email: values.email };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/invitations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/quotations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/vendors-with-projects"] });
-      toast({
-        title: "RFQ sent",
-        description: `Invitation sent to ${form.getValues("email")} and quote slot created.`,
+
+      setSentResult({
+        inviteUrl: data.inviteUrl,
+        emailSent: data.emailSent !== false,
+        email: data.email,
       });
-      form.reset();
-      onOpenChange(false);
     },
     onError: (error: Error) => {
       const raw = error.message ?? "";
@@ -176,6 +190,69 @@ export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props
   const onSubmit = (values: FormValues) => {
     inviteMutation.mutate(values);
   };
+
+  // ── Success state: show portal link after sending ──
+  if (sentResult) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {sentResult.emailSent ? (
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+              )}
+              {sentResult.emailSent ? "RFQ sent" : "RFQ created — email not delivered"}
+            </DialogTitle>
+            <DialogDescription>
+              {sentResult.emailSent
+                ? `An invitation email has been sent to ${sentResult.email}. Share the portal link below as a backup in case it lands in spam.`
+                : `The system could not deliver the email to ${sentResult.email}. Share the portal link below directly with the vendor via WhatsApp or any other channel.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-1">
+            {!sentResult.emailSent && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Email delivery failed. The vendor will not receive an automated email. Please share the link below with them directly.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Vendor portal link</p>
+              <p className="text-xs text-muted-foreground">
+                This link lets {vendor.name} access the vendor portal to submit their quote. It expires in 48 hours.
+              </p>
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  value={sentResult.inviteUrl}
+                  className="font-mono text-xs"
+                  onClick={e => (e.target as HTMLInputElement).select()}
+                />
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => copyLink(sentResult.inviteUrl)}
+                  title="Copy link"
+                >
+                  {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => onOpenChange(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
