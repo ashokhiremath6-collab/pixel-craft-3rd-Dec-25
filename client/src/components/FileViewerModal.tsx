@@ -58,7 +58,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
     if (!isOpen || !fileUrl) return;
     setFileType("detecting");
     setTextContent(null);
-    setZoom(100);
+    setZoom(50);
     setBlobUrl(null);
     setBlobError(false);
     setSheetHtml(null);
@@ -79,10 +79,10 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
       .catch(() => setFileType("pdf"));
   }, [isOpen, fileUrl, fileName]);
 
-  // Fetch blob for PDF and image types
+  // Fetch blob for image types only; PDFs stream directly via their URL
   useEffect(() => {
     if (!isOpen || !fileUrl) return;
-    if (fileType !== "pdf" && fileType !== "image") return;
+    if (fileType !== "image") return;
 
     revokePrev();
     setBlobUrl(null);
@@ -166,7 +166,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   };
 
   const handleClose = () => {
-    setZoom(100);
+    setZoom(50);
     onClose();
   };
 
@@ -188,29 +188,10 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
       );
     }
     if (fileType === "pdf") {
-      if (blobLoading) {
-        return (
-          <div className="flex flex-col items-center justify-center h-full gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Loading document…</p>
-          </div>
-        );
-      }
-      if (blobError || !blobUrl) {
-        return (
-          <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-            <p className="text-sm text-muted-foreground">Could not display inline. Open in a new tab instead.</p>
-            <Button onClick={handleOpenExternal}>
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Open PDF
-            </Button>
-          </div>
-        );
-      }
       return (
         <iframe
-          key={`${blobUrl}-${zoom}`}
-          src={`${blobUrl}#toolbar=0&navpanes=0&scrollbar=1&zoom=${zoom}`}
+          key={`${fileUrl}-${zoom}`}
+          src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&zoom=${zoom}`}
           style={{ width: "100%", height: "100%", border: "none", display: "block" }}
           title={fileName || "PDF viewer"}
           data-testid="file-viewer-pdf"
