@@ -191,7 +191,7 @@ export default function MoodboardsPage() {
         invalidFileTypeTitle: "Invalid file type",
         invalidFileTypeDescription: "Please upload images (JPEG, PNG, SVG, WebP), PDFs, or CAD files (DXF, DWG).",
         fileTooLargeTitle: "File too large",
-        fileTooLargeDescription: "Please select a file smaller than 21MB.",
+        fileTooLargeDescription: "Please select a file smaller than 500MB.",
         descriptionPlaceholder: "Describe this working drawing...",
       };
     }
@@ -226,7 +226,7 @@ export default function MoodboardsPage() {
         invalidFileTypeTitle: "Invalid file type",
         invalidFileTypeDescription: "Please upload images (JPEG, PNG, SVG, WebP) or PDFs.",
         fileTooLargeTitle: "File too large",
-        fileTooLargeDescription: "Please select a file smaller than 21MB.",
+        fileTooLargeDescription: "Please select a file smaller than 500MB.",
         descriptionPlaceholder: "Describe this render...",
       };
     }
@@ -260,7 +260,7 @@ export default function MoodboardsPage() {
       invalidFileTypeTitle: "Invalid file type",
       invalidFileTypeDescription: "Please upload images (JPEG, PNG, SVG, WebP) or PDFs from Canva.",
       fileTooLargeTitle: "File too large",
-      fileTooLargeDescription: "Please select a file smaller than 21MB.",
+      fileTooLargeDescription: "Please select a file smaller than 500MB.",
       descriptionPlaceholder: "Describe this moodboard...",
     };
   }, [assetType]);
@@ -783,8 +783,8 @@ export default function MoodboardsPage() {
       return;
     }
     
-    // Validate file size (max 21MB)
-    if (file.size > 21 * 1024 * 1024) {
+    // Validate file size (max 500MB)
+    if (file.size > 500 * 1024 * 1024) {
       toast({
         variant: "destructive", 
         title: labels.fileTooLargeTitle,
@@ -1847,10 +1847,10 @@ export default function MoodboardsPage() {
             </p>
             <p className="text-sm text-muted-foreground">
               {assetType === 'working_drawing'
-                ? 'Support for JPEG, PNG, SVG, WebP, PDF, DXF, and DWG files up to 21MB'
+                ? 'Support for JPEG, PNG, SVG, WebP, PDF, DXF, and DWG files up to 500MB'
                 : assetType === 'render'
-                  ? 'Support for JPEG, PNG, SVG, WebP, PDF, and SketchUp (.skp) files up to 21MB'
-                  : 'Support for JPEG, PNG, SVG, WebP, and PDF files up to 21MB'}
+                  ? 'Support for JPEG, PNG, SVG, WebP, PDF, and SketchUp (.skp) files up to 500MB'
+                  : 'Support for JPEG, PNG, SVG, WebP, and PDF files up to 500MB'}
             </p>
             
             <input
