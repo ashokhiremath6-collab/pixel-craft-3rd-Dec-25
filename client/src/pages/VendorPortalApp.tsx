@@ -31,7 +31,6 @@ import {
   Download,
   FileIcon,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
@@ -564,7 +563,6 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
-  const [open, setOpen] = useState(false);
 
   const statusClass = STATUS_CLASSES[quote.status] ?? STATUS_CLASSES.Quoted;
   const value = quote.quotation_value
@@ -761,10 +759,13 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
             <Button
               className="w-full"
               variant="default"
-              onClick={() => setOpen(true)}
+              onClick={() => submitMutation.mutate()}
+              disabled={submitMutation.isPending}
             >
-              <Send className="h-4 w-4 mr-2" />
-              Submit Quotation
+              {submitMutation.isPending
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Submitting…</>
+                : <><Send className="h-4 w-4 mr-2" />Submit Quotation</>
+              }
             </Button>
             {alreadySubmitted && quote.submitted_at && (
               <p className="text-xs text-center text-muted-foreground mt-2">
@@ -774,40 +775,6 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
           </div>
         </CardContent>
       </Card>
-
-      {/* Submit dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Submit Quotation</DialogTitle>
-          </DialogHeader>
-          <div className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{quote.project_name}</span>
-            {" · "}{quote.category_name || "—"}
-          </div>
-          <div className="pt-1 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              The studio will receive all your uploaded documents. The quoted amount and details will be read directly from your files.
-            </p>
-            {files.length > 0 ? (
-              <p className="text-sm font-medium">
-                {files.length} document{files.length !== 1 ? "s" : ""} attached to this quote.
-              </p>
-            ) : (
-              <p className="text-sm text-amber-600 dark:text-amber-400">
-                No documents uploaded yet. Please upload your quote documents before submitting.
-              </p>
-            )}
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
-              {submitMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Send to studio
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
