@@ -207,44 +207,43 @@ export default function InviteVendorDialog({ vendor, open, onOpenChange }: Props
             </DialogTitle>
             <DialogDescription>
               {sentResult.emailSent
-                ? `An invitation email has been sent to ${sentResult.email}. Share the portal link below as a backup in case it lands in spam.`
-                : `The system could not deliver the email to ${sentResult.email}. Share the portal link below directly with the vendor via WhatsApp or any other channel.`}
+                ? `An invitation email has been sent to ${sentResult.email}.`
+                : `The system could not deliver the email to ${sentResult.email}. Share the portal link below directly with the vendor.`}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 py-1">
-            {!sentResult.emailSent && (
+          {!sentResult.emailSent && (
+            <div className="space-y-3 py-1">
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  Email delivery failed. The vendor will not receive an automated email. Please share the link below with them directly.
+                  Email delivery failed. Please share the link below with the vendor directly.
                 </AlertDescription>
               </Alert>
-            )}
-
-            <div className="space-y-1.5">
-              <p className="text-sm font-medium">Vendor portal link</p>
-              <p className="text-xs text-muted-foreground">
-                This link lets {vendor.name} access the vendor portal to submit their quote. It expires in 48 hours.
-              </p>
-              <div className="flex items-center gap-2">
-                <Input
-                  readOnly
-                  value={sentResult.inviteUrl}
-                  className="font-mono text-xs"
-                  onClick={e => (e.target as HTMLInputElement).select()}
-                />
-                <Button
-                  size="icon"
-                  variant="outline"
-                  onClick={() => copyLink(sentResult.inviteUrl)}
-                  title="Copy link"
-                >
-                  {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                </Button>
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">Vendor portal link</p>
+                <p className="text-xs text-muted-foreground">
+                  This link lets {vendor.name} access the vendor portal to submit their quote. It expires in 48 hours.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={sentResult.inviteUrl}
+                    className="font-mono text-xs"
+                    onClick={e => (e.target as HTMLInputElement).select()}
+                  />
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={() => copyLink(sentResult.inviteUrl)}
+                    title="Copy link"
+                  >
+                    {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <DialogFooter>
             <Button onClick={() => onOpenChange(false)}>Done</Button>
