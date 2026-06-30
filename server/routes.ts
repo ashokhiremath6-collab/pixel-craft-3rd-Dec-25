@@ -11772,13 +11772,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       await db.execute(sql`
         UPDATE project_vendors
         SET
-          quotation_value = CASE
-            WHEN quotation_value IS NOT NULL
-              AND quotation_value != ''
-              AND quotation_value ~ '^[1-9][0-9]*(\.[0-9]+)?$'
-            THEN quotation_value
-            ELSE ${resolvedAmount}
-          END,
+          quotation_value = COALESCE(${resolvedAmount !== null ? resolvedAmount : null}::numeric, quotation_value),
           notes = CASE
             WHEN ${notes || null} IS NOT NULL THEN ${notes || null}
             ELSE notes
