@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee, Edit, Trash2, MoreVertical, Upload, Eye, ChevronDown, ChevronRight, SendHorizonal, Building2, CreditCard, CheckCircle2, Clock } from "lucide-react";
+import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee, Edit, Trash2, MoreVertical, Upload, Eye, ChevronDown, ChevronRight, SendHorizonal, Building2, CreditCard, CheckCircle2, Clock, Archive } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -215,6 +215,16 @@ export default function AccountsPage() {
     queryKey: ['/api/payment-requests'],
     enabled: canManageAccounts,
   });
+
+  // Split into recent (last 7 days or not yet confirmed) vs history (confirmed + older than 7 days)
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const recentRequests = paymentRequestsList.filter(pr =>
+    pr.status !== 'confirmed' || new Date(pr.requestedAt) >= sevenDaysAgo
+  );
+  const historyRequests = paymentRequestsList.filter(pr =>
+    pr.status === 'confirmed' && new Date(pr.requestedAt) < sevenDaysAgo
+  );
 
   // Invoice form
   const invoiceForm = useForm<InvoiceFormData>({
@@ -745,7 +755,20 @@ export default function AccountsPage() {
           <TabsTrigger value="ledger" data-testid="tab-vendor-ledger">Vendor Ledger</TabsTrigger>
           <TabsTrigger value="summary" data-testid="tab-payments-summary">Payments Summary</TabsTrigger>
           {canManageAccounts && (
-            <TabsTrigger value="requests">Payment Requests</TabsTrigger>
+            <TabsTrigger value="requests">
+              Payment Requests
+              {recentRequests.length > 0 && (
+                <span className="ml-1.5 text-[10px] font-semibold bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 leading-none">
+                  {recentRequests.length}
+                </span>
+              )}
+            </TabsTrigger>
+          )}
+          {canManageAccounts && historyRequests.length > 0 && (
+            <TabsTrigger value="history">
+              <Archive className="h-3.5 w-3.5 mr-1.5" />
+              History
+            </TabsTrigger>
           )}
         </TabsList>
 
@@ -1548,13 +1571,13 @@ export default function AccountsPage() {
                 <CardDescription>All payment requests sent to clients. Track status and confirm once the client marks as paid.</CardDescription>
               </CardHeader>
               <CardContent>
-                {paymentRequestsList.length === 0 ? (
+                {recentRequests.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     No payment requests yet. Select a vendor above and click "Request Payment" to get started.
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {paymentRequestsList.map(pr => {
+                    {recentRequests.map(pr => {
                       const statusColor = pr.status === 'confirmed'
                         ? { bg: '#dcfce7', text: '#166534' }
                         : pr.status === 'client_paid'
@@ -1656,6 +1679,61 @@ export default function AccountsPage() {
                     })}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {canManageAccounts && historyRequests.length > 0 && (
+          <TabsContent value="history" className="space-y-3">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Archive className="h-5 w-5" />
+                  Payment Request History
+                </CardTitle>
+                <CardDescription>
+                  Confirmed payment requests older than 7 days. {historyRequests.length} record{historyRequests.length !== 1 ? 's' : ''}.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {historyRequests.map(pr => (
+                    <div key={pr.id} className="flex items-start justify-between gap-4 p-4 rounded-md border">
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm">{pr.vendorName}</span>
+                          {pr.projectName && (
+                            <span className="text-xs text-muted-foreground">· {pr.projectName}</span>
+                          )}
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#dcfce7', color: '#166534' }}>
+                            Confirmed
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{pr.description}</p>
+                        {pr.remarks && (
+                          <p className="text-xs text-muted-foreground italic">{pr.remarks}</p>
+                        )}
+                        <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
+                          {pr.invoiceValue && (
+                            <span>Invoice: <span className="font-medium text-foreground">₹{Number(pr.invoiceValue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></span>
+                          )}
+                          <span className="font-semibold text-foreground">
+                            ₹{Number(pr.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </span>
+                          <span>Requested {format(new Date(pr.requestedAt), 'dd MMM yyyy')}</span>
+                          {pr.clientPaidAt && (
+                            <span>Paid {format(new Date(pr.clientPaidAt), 'dd MMM yyyy')}</span>
+                          )}
+                          {pr.clientUtr && (
+                            <span>UTR: <span className="font-mono">{pr.clientUtr}</span></span>
+                          )}
+                        </div>
+                      </div>
+                      <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
