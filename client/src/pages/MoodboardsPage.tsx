@@ -2156,6 +2156,7 @@ export default function MoodboardsPage() {
           onClose={() => setPreviewImage(null)}
           fileUrl={getPreviewUrl(previewImage) || ''}
           fileName={previewImage.description || previewImage.fileName || "Preview"}
+          defaultZoom={50}
         />
       )}
 
@@ -2165,6 +2166,7 @@ export default function MoodboardsPage() {
           onClose={() => setFloorPlanViewer(null)}
           fileUrl={floorPlanViewer.url}
           fileName={floorPlanViewer.name}
+          defaultZoom={50}
         />
       )}
 

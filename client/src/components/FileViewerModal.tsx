@@ -10,6 +10,7 @@ interface FileViewerModalProps {
   onClose: () => void;
   fileUrl: string;
   fileName?: string;
+  defaultZoom?: number;
 }
 
 type FileType = "pdf" | "image" | "text" | "word" | "excel" | "cad-dxf" | "cad-dwg" | "detecting";
@@ -35,8 +36,8 @@ function contentTypeToFileType(ct: string): FileType {
   return "pdf";
 }
 
-export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileViewerModalProps) {
-  const [zoom, setZoom] = useState(50);
+export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, defaultZoom = 100 }: FileViewerModalProps) {
+  const [zoom, setZoom] = useState(defaultZoom);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [fileType, setFileType] = useState<FileType>("detecting");
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -58,7 +59,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
     if (!isOpen || !fileUrl) return;
     setFileType("detecting");
     setTextContent(null);
-    setZoom(50);
+    setZoom(defaultZoom);
     setBlobUrl(null);
     setBlobError(false);
     setSheetHtml(null);
@@ -166,7 +167,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileView
   };
 
   const handleClose = () => {
-    setZoom(50);
+    setZoom(defaultZoom);
     onClose();
   };
 
