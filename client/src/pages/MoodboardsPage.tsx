@@ -114,6 +114,7 @@ export default function MoodboardsPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cadFileInputRef = useRef<HTMLInputElement>(null);
+  const dropJustFiredRef = useRef(false);
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [description, setDescription] = useState("");
@@ -762,6 +763,10 @@ export default function MoodboardsPage() {
     },
   });
 
+  const moveMoodboardToFolder = (id: string, folder: string) => {
+    moveFolderMutation.mutate({ id, folder });
+  };
+
   // Handle file selection
   const handleFileSelect = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -826,6 +831,10 @@ export default function MoodboardsPage() {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
+    // Guard: some browsers fire a click event immediately after a drop on the same element.
+    // Setting this flag prevents the onClick handler from opening the file picker again.
+    dropJustFiredRef.current = true;
+    setTimeout(() => { dropJustFiredRef.current = false; }, 200);
     
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFileSelect(e.dataTransfer.files);
@@ -1870,7 +1879,7 @@ export default function MoodboardsPage() {
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => { if (!dropJustFiredRef.current) fileInputRef.current?.click(); }}
             data-testid="dropzone-moodboard"
           >
             <p className="text-lg font-medium mb-2">
@@ -1888,7 +1897,6 @@ export default function MoodboardsPage() {
               ref={fileInputRef}
               type="file"
               className="hidden"
-              multiple
               accept={assetType === 'working_drawing'
                 ? "image/*,application/pdf,.dxf,.dwg"
                 : assetType === 'render'
