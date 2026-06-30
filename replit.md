@@ -1,8 +1,8 @@
-# Olympik Design
+# Pixelcraft Designs
 
 ## Overview
 
-Olympik Design is a public SaaS platform for interior design studios. It provides comprehensive studio management — project tracking, vendor quotes, AI design intelligence, render generation, client portals, Gantt scheduling, catalogues, SOPs, and meeting minutes — all under one roof. It is sold under the brand name "Olympik Design" at olymikdesign.com and targets interior designers as its primary customer. The platform supports multi-tenant organisations with role-based access control (Admin, Designer, Project Manager, Client).
+Pixelcraft Designs is a public SaaS platform for interior design studios. It provides comprehensive studio management — project tracking, vendor quotes, AI design intelligence, render generation, client portals, Gantt scheduling, catalogues, SOPs, and meeting minutes — all under one roof. It is sold under the brand name "Pixelcraft Designs" at olymikdesign.com and targets interior designers as its primary customer. The platform supports multi-tenant organisations with role-based access control (Admin, Designer, Project Manager, Client).
 
 **Public landing page**: Unauthenticated visitors at `/` see the public marketing page (LandingPage.tsx). `/login` shows the login form. `/signup` shows registration.
 

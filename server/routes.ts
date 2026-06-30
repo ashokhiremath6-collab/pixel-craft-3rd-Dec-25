@@ -2493,7 +2493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create Excel workbook
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'Olympik Design';
+      workbook.creator = 'Pixelcraft Designs';
       workbook.created = new Date();
 
       const worksheet = workbook.addWorksheet('Project Cost Breakdown');
@@ -6404,7 +6404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create Instructions sheet
       const instructions = [
-        ['Olympik Design - Project Schedule Export'],
+        ['Pixelcraft Designs - Project Schedule Export'],
         [''],
         [`Project: ${project.projectName}`],
         [`Exported: ${new Date().toISOString().split('T')[0]}`],
@@ -7124,7 +7124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create a new workbook with ExcelJS
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'Olympik Design';
+      workbook.creator = 'Pixelcraft Designs';
       workbook.created = new Date();
       
       // Add Designer Schedule sheet FIRST (so it's the active sheet when opened)
@@ -13064,7 +13064,7 @@ Return your response in the following JSON format only (no markdown, no code blo
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Unsubscribe — Olympik Design</title>
+  <title>Unsubscribe — Pixelcraft Designs</title>
   <style>
     body { font-family: Inter, sans-serif; background: #f5f5f7; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
     .card { background: #fff; border-radius: 16px; padding: 40px 32px; max-width: 420px; width: 100%; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,.06); }
@@ -13078,7 +13078,7 @@ Return your response in the following JSON format only (no markdown, no code blo
 <body>
   <div class="card">
     <div class="icon">${icon}</div>
-    <h1>Olympik Design</h1>
+    <h1>Pixelcraft Designs</h1>
     <p>${message}</p>
     ${settingsUrl ? `<a class="btn" href="${settingsUrl}">Manage all preferences</a>` : ""}
     <div class="footer">You can always update your notification preferences from your account settings.</div>
@@ -13881,7 +13881,7 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       if (!row) return res.status(404).json({ error: "Payment request not found" });
 
-      let orgName = "Olympik Design";
+      let orgName = "Pixelcraft Designs";
       if (row.orgId) {
         const [org] = await db.select({ name: organisations.name })
           .from(organisations).where(eq(organisations.id, row.orgId)).limit(1);

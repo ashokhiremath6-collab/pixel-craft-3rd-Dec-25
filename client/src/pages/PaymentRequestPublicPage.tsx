@@ -192,7 +192,7 @@ export default function PaymentRequestPublicPage() {
         </div>
 
         <p className="text-center text-xs text-[#a1a1a6] mt-5">
-          {pr?.orgName ? `Powered by ${pr.orgName}` : "Powered by Olympik Design"}
+          {pr?.orgName ? `Powered by ${pr.orgName}` : "Powered by Pixelcraft Designs"}
         </p>
       </div>
     </div>

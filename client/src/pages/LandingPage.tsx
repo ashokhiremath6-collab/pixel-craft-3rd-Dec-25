@@ -101,9 +101,9 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           {/* Logo */}
           <div className="flex items-center gap-3 shrink-0">
-            <img src="/logo.png" alt="Olympik Design" className="h-8 w-8 object-contain" />
+            <img src="/logo.png" alt="Pixelcraft Designs" className="h-8 w-8 object-contain" />
             <span className="text-lg font-semibold tracking-tight text-gray-900">
-              Olympik Design
+              Pixelcraft Designs
             </span>
           </div>
 
@@ -183,7 +183,7 @@ export default function LandingPage() {
             <span className="text-blue-300">Every render. One place.</span>
           </h1>
           <p className="text-lg sm:text-xl text-blue-100 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Olympik Design is the all-in-one studio management platform for interior designers —
+            Pixelcraft Designs is the all-in-one studio management platform for interior designers —
             combining project tracking, AI design tools, vendor management, and client portals
             under a single roof.
           </p>
@@ -226,7 +226,7 @@ export default function LandingPage() {
               Your entire studio, organised
             </h2>
             <p className="text-gray-500 text-lg max-w-2xl mx-auto">
-              From the first vendor quote to the final client handover — Olympik Design handles every step of the interior design workflow.
+              From the first vendor quote to the final client handover — Pixelcraft Designs handles every step of the interior design workflow.
             </p>
           </div>
 
@@ -400,7 +400,7 @@ export default function LandingPage() {
             Ready to run your studio smarter?
           </h2>
           <p className="text-blue-100 text-lg mb-10">
-            Join interior designers who manage their projects, vendors, and clients with Olympik Design.
+            Join interior designers who manage their projects, vendors, and clients with Pixelcraft Designs.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
@@ -419,8 +419,8 @@ export default function LandingPage() {
       <footer className="bg-gray-900 text-gray-400 py-12 px-6">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Olympik Design" className="h-7 w-7 object-contain opacity-80" />
-            <span className="text-white font-semibold">Olympik Design</span>
+            <img src="/logo.png" alt="Pixelcraft Designs" className="h-7 w-7 object-contain opacity-80" />
+            <span className="text-white font-semibold">Pixelcraft Designs</span>
           </div>
           <div className="flex flex-wrap gap-6 text-sm">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -428,7 +428,7 @@ export default function LandingPage() {
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
           </div>
           <p className="text-xs text-gray-600">
-            &copy; {new Date().getFullYear()} Olympik Design. All rights reserved.
+            &copy; {new Date().getFullYear()} Pixelcraft Designs. All rights reserved.
           </p>
         </div>
       </footer>

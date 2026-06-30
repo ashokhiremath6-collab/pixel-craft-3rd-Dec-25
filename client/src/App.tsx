@@ -233,9 +233,9 @@ function AuthenticatedApp({ onPreviewClientPortal, onPreviewAsPM, onExitPMPrevie
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
               <div className="flex items-center gap-2 min-w-0">
-                <img src="/logo.png" alt="Olympik Design" className="h-7 w-7 object-contain shrink-0" />
+                <img src="/logo.png" alt="Pixelcraft Designs" className="h-7 w-7 object-contain shrink-0" />
                 <h1 className="text-sm sm:text-base font-semibold truncate hidden sm:block" data-testid="heading-app-title">
-                  Olympik Design
+                  Pixelcraft Designs
                 </h1>
               </div>
             </div>
@@ -452,8 +452,8 @@ function AppContent() {
         <p className="text-muted-foreground">
           Sign-up is currently invitation-only. If you've been invited, please use the link in
           your invitation email. To request access, contact us at{" "}
-          <a href="mailto:hello@olympikdesign.com" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline font-medium">
-            hello@olympikdesign.com
+          <a href="mailto:hello@pixelcraftdesigns.com" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline font-medium">
+            hello@pixelcraftdesigns.com
           </a>.
         </p>
         <p className="text-sm text-muted-foreground/60 pt-2">

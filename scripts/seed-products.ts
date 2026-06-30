@@ -1,5 +1,5 @@
 /**
- * Seed Stripe products for Olympik Design subscription plans.
+ * Seed Stripe products for Pixelcraft Designs subscription plans.
  * Run with: npx tsx scripts/seed-products.ts
  *
  * This script is idempotent — safe to run multiple times.
