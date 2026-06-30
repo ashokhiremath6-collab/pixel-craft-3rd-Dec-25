@@ -11660,7 +11660,8 @@ Return your response in the following JSON format only (no markdown, no code blo
       if (row.rows[0].vendor_id !== userRole.linkedVendorId) return res.status(403).json({ error: "Access denied" });
 
       // Parse each uploaded PDF individually — extract both the quote total and the subject/product name
-      const NUM_AFTER_LABEL = /(?:grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|total\s*value|total)[^\n\d₹Rs$]*[₹Rs$.\s]*([1-9][0-9,]{3,}(?:\.[0-9]{1,2})?)/gi;
+      // Covers: standard quotations, works orders, contracts, and BOQ summaries
+      const NUM_AFTER_LABEL = /(?:grand\s*total|net\s*total|total\s*amount|final\s*total|amount\s*due|total\s*payable|balance\s*due|total\s*value|order\s*value|works?\s*order\s*value|contract\s*value|contract\s*amount|order\s*amount|estimated\s*(?:cost|amount|value)|project\s*value|bill\s*amount|invoice\s*(?:total|amount)|subtotal|sub[\s-]?total|total)[^\n\d₹Rs$]*[₹Rs$.\s]*([1-9][0-9,]{3,}(?:\.[0-9]{1,2})?)/gi;
 
       // Extract the subject/product name from PDF text.
       // Tries (in order): Subject/Sub line → Quotation-for line → product keyword line → null
@@ -11771,11 +11772,20 @@ Return your response in the following JSON format only (no markdown, no code blo
       await db.execute(sql`
         UPDATE project_vendors
         SET
-          quotation_value = ${resolvedAmount},
-          notes = ${notes || null},
+          quotation_value = CASE
+            WHEN quotation_value IS NOT NULL
+              AND quotation_value != ''
+              AND quotation_value ~ '^[1-9][0-9]*(\.[0-9]+)?$'
+            THEN quotation_value
+            ELSE ${resolvedAmount}
+          END,
+          notes = CASE
+            WHEN ${notes || null} IS NOT NULL THEN ${notes || null}
+            ELSE notes
+          END,
           portal_submitted_at = now(),
           portal_acknowledged_at = NULL,
-          date_of_quotation = CURRENT_DATE
+          date_of_quotation = COALESCE(date_of_quotation, CURRENT_DATE)
         WHERE id = ${pvId}
       `);
 
