@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/Logo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -62,7 +63,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-3 pb-4">
           <div className="flex justify-center">
-            <img src="/logo.png" alt="Pixelcraft Designs" className="h-14 w-14 object-contain" />
+            <Logo className="h-14 w-14 text-primary" />
           </div>
           <CardTitle className="text-2xl">Pixelcraft Designs</CardTitle>
         </CardHeader>

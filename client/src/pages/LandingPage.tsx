@@ -1,4 +1,5 @@
 import { useLocation } from "wouter";
+import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -101,7 +102,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           {/* Logo */}
           <div className="flex items-center gap-3 shrink-0">
-            <img src="/logo.png" alt="Pixelcraft Designs" className="h-8 w-8 object-contain" />
+            <Logo className="h-8 w-8 text-primary" />
             <span className="text-lg font-semibold tracking-tight text-gray-900">
               Pixelcraft Designs
             </span>
@@ -419,7 +420,7 @@ export default function LandingPage() {
       <footer className="bg-gray-900 text-gray-400 py-12 px-6">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Pixelcraft Designs" className="h-7 w-7 object-contain opacity-80" />
+            <Logo className="h-7 w-7 text-white opacity-80" />
             <span className="text-white font-semibold">Pixelcraft Designs</span>
           </div>
           <div className="flex flex-wrap gap-6 text-sm">

@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { Logo } from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import NotFound from "@/pages/not-found";
 import DashboardPage from "@/pages/DashboardPage";
@@ -233,7 +234,7 @@ function AuthenticatedApp({ onPreviewClientPortal, onPreviewAsPM, onExitPMPrevie
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
               <div className="flex items-center gap-2 min-w-0">
-                <img src="/logo.png" alt="Pixelcraft Designs" className="h-7 w-7 object-contain shrink-0" />
+                <Logo className="h-7 w-7 shrink-0 text-primary" />
                 <h1 className="text-sm sm:text-base font-semibold truncate hidden sm:block" data-testid="heading-app-title">
                   Pixelcraft Designs
                 </h1>
