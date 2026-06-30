@@ -2741,7 +2741,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const uploadMoodboard = multer({
     storage: multer.memoryStorage(), // Store in memory, then upload to object storage
     limits: {
-      fileSize: 100 * 1024 * 1024, // 100MB limit (CAD/DWG files can be large)
+      fileSize: 500 * 1024 * 1024, // 500MB limit
       files: 1, // Only allow single file upload
     },
   });
@@ -4962,7 +4962,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload new moodboard
-  app.post("/api/moodboards", requireAdmin, uploadMoodboard.single('moodboard'), async (req, res) => {
+  app.post("/api/moodboards", requireAdmin, (req: any, res: any, next: any) => {
+    uploadMoodboard.single('moodboard')(req, res, (err: any) => {
+      if (err) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(413).json({ error: "File too large. Maximum size is 500 MB." });
+        }
+        return res.status(400).json({ error: err.message || "Upload error" });
+      }
+      next();
+    });
+  }, async (req, res) => {
     try {
       const { description, tags, projectId, canvaLink, linkOnly, assetType, folder } = req.body;
       
