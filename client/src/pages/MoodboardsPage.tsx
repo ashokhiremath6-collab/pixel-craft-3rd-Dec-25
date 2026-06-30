@@ -616,7 +616,7 @@ export default function MoodboardsPage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards/by-type"] });
       // Reset form
       setSelectedFile(null);
       setDescription("");
@@ -648,7 +648,7 @@ export default function MoodboardsPage() {
       return await apiRequest("DELETE", `/api/moodboards/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards/by-type"] });
       toast({
         title: labels.deleteTitle,
         description: labels.deleteDescription,
@@ -669,7 +669,7 @@ export default function MoodboardsPage() {
       return await apiRequest("PUT", `/api/moodboards/${id}`, { name: name.trim(), roomType });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards/by-type"] });
       setEditingRender(null);
       toast({ title: "Render updated", description: "Name and room type saved." });
     },
@@ -684,7 +684,7 @@ export default function MoodboardsPage() {
       return await apiRequest("PUT", `/api/moodboards/${id}`, { isLatestVersion });
     },
     onSuccess: (_data, { isLatestVersion }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards/by-type"] });
       toast({
         title: isLatestVersion ? "Marked as Latest Version" : "Label removed",
         description: isLatestVersion
@@ -741,7 +741,7 @@ export default function MoodboardsPage() {
       return await apiRequest("PUT", `/api/moodboards/${id}`, { folder });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards/by-type"] });
       toast({
         title: "Moved",
         description: "Drawing moved to folder successfully",
@@ -881,7 +881,7 @@ export default function MoodboardsPage() {
       return apiRequest('PUT', `/api/moodboards/${data.id}`, { canvaLink: data.canvaLink });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards/by-type"] });
       setCanvaLink("");
       toast({
         title: labels.linkAddedTitle,
@@ -1066,7 +1066,7 @@ export default function MoodboardsPage() {
       resetCadForm();
       setCadImportOpen(false);
       setCadUploadProgress(0);
-      queryClient.invalidateQueries({ queryKey: ["/api/moodboards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards/by-type"] });
     },
     onError: (e: any) => {
       toast({ variant: "destructive", title: "Import failed", description: e.message });
