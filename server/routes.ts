@@ -1154,7 +1154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const invite = await storage.getInvitationByToken(req.params.token);
       if (!invite) return res.status(404).json({ error: "Invitation not found or already used." });
-      if (invite.acceptedAt) return res.status(410).json({ error: "This invitation has already been accepted." });
+      if (invite.acceptedAt) return res.status(410).json({ error: "This invitation has already been accepted.", email: invite.email, alreadyAccepted: true });
       if (invite.expiresAt < new Date()) return res.status(410).json({ error: "This invitation link has expired. Please ask your admin to resend it." });
 
       const org = await storage.getOrganisation(invite.orgId);

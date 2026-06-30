@@ -22,7 +22,13 @@ const newAccountSchema = z.object({
   path: ["confirmPassword"],
 });
 
+const loginSchema = z.object({
+  email: z.string().email("Invalid email"),
+  password: z.string().min(1, "Password is required"),
+});
+
 type NewAccountValues = z.infer<typeof newAccountSchema>;
+type LoginValues = z.infer<typeof loginSchema>;
 
 interface InviteDetails {
   email: string;
@@ -30,6 +36,10 @@ interface InviteDetails {
   orgName: string;
   invitedBy: string;
   accountExists: boolean;
+}
+
+interface AlreadyAcceptedState {
+  email: string;
 }
 
 export default function InviteAcceptPage() {
@@ -40,6 +50,7 @@ export default function InviteAcceptPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [inviteDetails, setInviteDetails] = useState<InviteDetails | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [alreadyAccepted, setAlreadyAccepted] = useState<AlreadyAcceptedState | null>(null);
   const [fetchingInvite, setFetchingInvite] = useState(true);
 
   const form = useForm<NewAccountValues>({
@@ -47,11 +58,21 @@ export default function InviteAcceptPage() {
     defaultValues: { firstName: "", lastName: "", password: "", confirmPassword: "" },
   });
 
+  const loginForm = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "" },
+  });
+
   useEffect(() => {
     if (!token) return;
     fetch(`/api/invitations/token/${token}`)
       .then(async (res) => {
         const data = await res.json();
+        if (res.status === 410 && data.alreadyAccepted) {
+          setAlreadyAccepted({ email: data.email || "" });
+          loginForm.setValue("email", data.email || "");
+          return;
+        }
         if (!res.ok) throw new Error(data.error || "Invalid invitation");
         setInviteDetails(data);
       })
@@ -105,10 +126,104 @@ export default function InviteAcceptPage() {
     }
   }
 
+  async function handleLoginSubmit(values: LoginValues) {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: values.email, password: values.password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Invalid email or password");
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      navigate("/");
+    } catch (err: any) {
+      toast({ title: "Sign in failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   if (fetchingInvite) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (alreadyAccepted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center space-y-3 pb-4">
+            <div className="flex justify-center">
+              <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <LogIn className="h-7 w-7 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Sign in to your portal</CardTitle>
+            <CardDescription>
+              Your account is already set up. Sign in below to access your vendor portal.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...loginForm}>
+              <form onSubmit={loginForm.handleSubmit(handleLoginSubmit)} className="space-y-4">
+                <FormField
+                  control={loginForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" autoComplete="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={loginForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Your password"
+                            autoComplete="current-password"
+                            {...field}
+                          />
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            onClick={() => setShowPassword(v => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Signing in…</>
+                  ) : (
+                    <><LogIn className="h-4 w-4 mr-2" />Sign in</>
+                  )}
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -161,10 +276,9 @@ export default function InviteAcceptPage() {
 
         <CardContent>
           {inviteDetails?.accountExists ? (
-            /* Existing account — just link to org, no new password needed */
             <div className="space-y-4">
               <p className="text-sm text-center text-muted-foreground">
-                You already have an Pixelcraft Designs account. Click below to join{" "}
+                You already have a Pixelcraft Designs account. Click below to join{" "}
                 <strong>{inviteDetails.orgName}</strong> using your existing account.
               </p>
               <Button className="w-full" onClick={acceptAsExistingUser} disabled={isLoading}>
@@ -186,7 +300,6 @@ export default function InviteAcceptPage() {
               </p>
             </div>
           ) : (
-            /* New account — collect name + password */
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleNewAccountSubmit)} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
