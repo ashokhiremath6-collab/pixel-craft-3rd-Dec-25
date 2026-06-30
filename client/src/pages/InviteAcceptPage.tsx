@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
@@ -264,8 +263,7 @@ export default function InviteAcceptPage() {
             {inviteDetails?.accountExists ? "Join workspace" : "Accept invitation"}
           </CardTitle>
           <CardDescription>
-            You've been invited to join <strong>{inviteDetails?.orgName}</strong> as a{" "}
-            <Badge variant="default" className="text-xs">{inviteDetails?.role}</Badge>
+            You've been invited to join <strong>{inviteDetails?.orgName}</strong> as a {inviteDetails?.role}.
           </CardDescription>
           {inviteDetails && (
             <p className="text-sm text-muted-foreground">
