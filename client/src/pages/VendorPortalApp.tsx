@@ -32,9 +32,7 @@ import {
   FileIcon,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
@@ -568,8 +566,6 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
   const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
   const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState("");
-  const [submitNotes, setSubmitNotes] = useState("");
 
   const statusClass = STATUS_CLASSES[quote.status] ?? STATUS_CLASSES.Quoted;
   const value = quote.quotation_value
@@ -605,10 +601,7 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", `/api/vendor-portal/quotes/${quote.id}/submit`, {
-        quotedAmount: amount ? parseFloat(amount) : null,
-        notes: submitNotes || null,
-      });
+      await apiRequest("POST", `/api/vendor-portal/quotes/${quote.id}/submit`, {});
     },
     onSuccess: () => {
       toast({ title: "Quote submitted", description: "The studio has been notified." });
@@ -769,7 +762,7 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
             <Button
               className="w-full"
               variant="default"
-              onClick={() => { setAmount(quote.quotation_value ? String(quote.quotation_value) : ""); setSubmitNotes(quote.notes || ""); setOpen(true); }}
+              onClick={() => setOpen(true)}
             >
               <Send className="h-4 w-4 mr-2" />
               Submit Quotation
@@ -793,41 +786,17 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
             <span className="font-medium text-foreground">{quote.project_name}</span>
             {" · "}{quote.category_name || "—"}
           </div>
-          <div className="space-y-4 pt-1">
-            <div className="space-y-1">
-              <Label htmlFor="quote-amount">
-                Quoted amount <span className="text-muted-foreground font-normal">(optional)</span>
-              </Label>
-              <Input
-                id="quote-amount"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="e.g. 125000"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="quote-notes">
-                Notes <span className="text-muted-foreground font-normal">(optional)</span>
-              </Label>
-              <Textarea
-                id="quote-notes"
-                placeholder="Scope, materials, lead time, assumptions, validity period…"
-                rows={4}
-                value={submitNotes}
-                onChange={(e) => setSubmitNotes(e.target.value)}
-              />
-            </div>
-            {files.length > 0 && (
-              <p className="text-xs text-muted-foreground">
+          <div className="pt-1 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              The studio will receive all your uploaded documents. The quoted amount and details will be read directly from your files.
+            </p>
+            {files.length > 0 ? (
+              <p className="text-sm font-medium">
                 {files.length} document{files.length !== 1 ? "s" : ""} attached to this quote.
               </p>
-            )}
-            {files.length === 0 && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Tip: upload your quote documents before submitting.
+            ) : (
+              <p className="text-sm text-amber-600 dark:text-amber-400">
+                No documents uploaded yet. Please upload your quote documents before submitting.
               </p>
             )}
           </div>
