@@ -4961,6 +4961,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate signed URL for direct moodboard upload (browser → GCS, bypasses server memory)
+  app.post("/api/moodboards/upload-url", requireAdmin, async (req: any, res) => {
+    try {
+      const { fileName } = req.body;
+      if (!fileName) return res.status(400).json({ error: "fileName is required" });
+      const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+      if (!privateObjectDir) return res.status(500).json({ error: "Object storage not configured" });
+      const objectId = randomUUID();
+      const objectPath = `${privateObjectDir}/uploads/${objectId}`;
+      const { bucketName, objectName } = parseObjectPath(objectPath);
+      const signedUrl = await signObjectURL({ bucketName, objectName, method: 'PUT', ttlSec: 3600 });
+      res.json({ uploadUrl: signedUrl, objectPath: `/objects/uploads/${objectId}`, userId: (req.user as any).id });
+    } catch (err) {
+      console.error("POST /api/moodboards/upload-url error:", err);
+      res.status(500).json({ error: "Failed to generate upload URL" });
+    }
+  });
+
+  // Register moodboard metadata after direct upload (no file body needed)
+  app.post("/api/moodboards/register", requireAdmin, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const userId = (req.user as any).id;
+      const { objectPath, fileName, fileSize, description, tags, projectId, canvaLink, assetType, folder, roomType } = req.body;
+      if (!objectPath || !fileName) return res.status(400).json({ error: "objectPath and fileName are required" });
+
+      // Set ACL
+      try {
+        const objectStorageService = new ObjectStorageService();
+        await objectStorageService.trySetObjectEntityAclPolicy(objectPath, { owner: userId, visibility: "private" });
+      } catch (aclErr) {
+        console.warn("ACL set failed (non-fatal):", aclErr);
+      }
+
+      let parsedTags = null;
+      if (tags && typeof tags === 'string') {
+        parsedTags = tags.split(',').map((t: string) => t.trim()).filter((t: string) => t.length > 0);
+        if (parsedTags.length === 0) parsedTags = null;
+      }
+
+      let validatedProjectId = null;
+      if (projectId && typeof projectId === 'string' && projectId !== 'general') {
+        const project = await storage.getProject(projectId);
+        if (!project) return res.status(400).json({ error: "Project not found" });
+        validatedProjectId = projectId;
+      }
+
+      const ext = path.extname(fileName).toLowerCase().substring(1);
+      const moodboardData = {
+        projectId: validatedProjectId,
+        assetType: assetType || 'moodboard',
+        name: fileName,
+        description: description || null,
+        folder: folder && typeof folder === 'string' ? folder.trim() : null,
+        fileName,
+        filePath: objectPath,
+        fileType: ext,
+        fileSize: fileSize ? String(fileSize) : null,
+        tags: parsedTags,
+        canvaLink: canvaLink && typeof canvaLink === 'string' ? canvaLink.trim() : null,
+        savedBy: userId,
+        roomType: roomType || null,
+      };
+
+      const validatedData = insertMoodboardSchema.parse(moodboardData);
+      const moodboard = await storage.createMoodboard(validatedData);
+
+      // Log activity
+      const user = await storage.getUser(userId);
+      if (user) {
+        const userName = user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email || 'Unknown';
+        const moodboardUploadProject = validatedProjectId ? await storage.getProject(validatedProjectId) : null;
+        await storage.createActivity({
+          userId: user.id, userName, userEmail: user.email || '',
+          activityType: (assetType === 'render' ? 'render_upload' : assetType === 'working_drawing' ? 'working_drawing_upload' : 'moodboard_upload') as any,
+          orgId,
+          description: `uploaded ${assetType === 'render' ? 'render' : assetType === 'working_drawing' ? 'working drawing' : 'moodboard'}: ${fileName}`,
+          metadata: { moodboardId: moodboard.id, assetType: moodboard.assetType, projectName: moodboardUploadProject?.projectName ?? null }
+        });
+      }
+
+      res.status(201).json(moodboard);
+    } catch (err) {
+      console.error("POST /api/moodboards/register error:", err);
+      res.status(500).json({ error: "Failed to register moodboard" });
+    }
+  });
+
   // Upload new moodboard
   app.post("/api/moodboards", requireAdmin, (req: any, res: any, next: any) => {
     uploadMoodboard.single('moodboard')(req, res, (err: any) => {

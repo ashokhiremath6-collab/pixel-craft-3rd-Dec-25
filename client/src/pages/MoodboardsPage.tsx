@@ -128,6 +128,8 @@ export default function MoodboardsPage() {
   const [deletingFpId, setDeletingFpId] = useState<string | null>(null);
 
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0); // 0-100
+  const [isUploading, setIsUploading] = useState(false);
 
   // Edit render state
   const [editingRender, setEditingRender] = useState<Moodboard | null>(null);
@@ -602,7 +604,7 @@ export default function MoodboardsPage() {
     return groups;
   }, [moodboards, projects, assetType, allFloorPlans, filterProjectId]);
 
-  // Upload moodboard mutation
+  // Link-only mutation (no file upload, still uses multipart)
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
       const response = await fetch("/api/moodboards", {
@@ -617,7 +619,6 @@ export default function MoodboardsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/moodboards/by-type"] });
-      // Reset form
       setSelectedFile(null);
       setDescription("");
       setTags("");
@@ -625,22 +626,27 @@ export default function MoodboardsPage() {
       setSelectedProjectId("");
       setSelectedFolder("");
       setSelectedRoomType("");
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-      toast({
-        title: labels.successTitle,
-        description: labels.successDescription,
-      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      toast({ title: labels.successTitle, description: labels.successDescription });
     },
     onError: (error: Error) => {
-      toast({
-        variant: "destructive",
-        title: labels.uploadFailedTitle,
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: labels.uploadFailedTitle, description: error.message });
     },
   });
+
+  // Helper: upload file directly to GCS via signed URL with progress tracking
+  const uploadFileDirect = (file: File, signedUrl: string): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", signedUrl);
+      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 90));
+      };
+      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Storage upload failed: ${xhr.status}`)));
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.send(file);
+    });
 
   // Delete moodboard mutation
   const deleteMutation = useMutation({
@@ -826,53 +832,78 @@ export default function MoodboardsPage() {
     }
   };
 
-  // Upload moodboard
+  // Upload moodboard — direct-to-storage path (bypasses server memory)
   const handleUpload = async () => {
     if (!selectedFile) return;
-    
-    // Validate that a project is selected
+
     if (!selectedProjectId || selectedProjectId === "general") {
-      toast({
-        variant: "destructive",
-        title: "Project Required",
-        description: "Please select a project before uploading.",
-      });
+      toast({ variant: "destructive", title: "Project Required", description: "Please select a project before uploading." });
       return;
     }
-    
-    // Validate folder selection for working drawings
+
     if (assetType === "working_drawing" && !selectedFolder) {
-      toast({
-        variant: "destructive",
-        title: "Folder Required",
-        description: "Please select a folder for the working drawing.",
-      });
+      toast({ variant: "destructive", title: "Folder Required", description: "Please select a folder for the working drawing." });
       return;
     }
-    
-    const formData = new FormData();
-    formData.append("moodboard", selectedFile);
-    formData.append("assetType", assetType); // Add asset type
-    if (description.trim()) {
-      formData.append("description", description.trim());
+
+    try {
+      setIsUploading(true);
+      setUploadProgress(0);
+
+      // Step 1: Get a signed PUT URL from the server
+      const urlRes = await fetch("/api/moodboards/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ fileName: selectedFile.name }),
+      });
+      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadUrl, objectPath } = await urlRes.json();
+
+      // Step 2: Stream the file directly to GCS (with progress)
+      await uploadFileDirect(selectedFile, uploadUrl);
+      setUploadProgress(95);
+
+      // Step 3: Register metadata in the database
+      const regRes = await fetch("/api/moodboards/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          objectPath,
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size,
+          description: description.trim() || undefined,
+          tags: tags.trim() || undefined,
+          projectId: selectedProjectId,
+          canvaLink: canvaLink.trim() || undefined,
+          assetType,
+          folder: assetType === "working_drawing" ? selectedFolder : undefined,
+          roomType: assetType === "render" ? selectedRoomType : undefined,
+        }),
+      });
+      if (!regRes.ok) {
+        const err = await regRes.json();
+        throw new Error(err.error || "Failed to register upload");
+      }
+
+      setUploadProgress(100);
+      queryClient.invalidateQueries({ queryKey: ["/api/moodboards/by-type"] });
+      setSelectedFile(null);
+      setDescription("");
+      setTags("");
+      setCanvaLink("");
+      setSelectedProjectId("");
+      setSelectedFolder("");
+      setSelectedRoomType("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      toast({ title: labels.successTitle, description: labels.successDescription });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: labels.uploadFailedTitle, description: err.message || "Upload failed" });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
     }
-    if (tags.trim()) {
-      formData.append("tags", tags.trim());
-    }
-    formData.append("projectId", selectedProjectId);
-    if (canvaLink.trim()) {
-      formData.append("canvaLink", canvaLink.trim());
-    }
-    // Include folder for working drawings
-    if (assetType === "working_drawing" && selectedFolder) {
-      formData.append("folder", selectedFolder);
-    }
-    // Include room type for renders
-    if (assetType === "render" && selectedRoomType) {
-      formData.append("roomType", selectedRoomType);
-    }
-    
-    uploadMutation.mutate(formData);
   };
 
   // Update moodboard with Canva link
@@ -2068,16 +2099,30 @@ export default function MoodboardsPage() {
               </div>
 
               {/* Upload Button */}
+              {isUploading && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Uploading…</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-300 rounded-full"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
               <Button 
                 onClick={handleUpload}
-                disabled={uploadMutation.isPending}
+                disabled={isUploading || uploadMutation.isPending}
                 className="w-full"
                 data-testid="button-upload-moodboard"
               >
-                {uploadMutation.isPending ? (
+                {isUploading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading...
+                    Uploading…
                   </>
                 ) : (
                   labels.uploadButton
