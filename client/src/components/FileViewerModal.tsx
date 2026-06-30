@@ -36,7 +36,7 @@ function contentTypeToFileType(ct: string): FileType {
 }
 
 export function FileViewerModal({ isOpen, onClose, fileUrl, fileName }: FileViewerModalProps) {
-  const [zoom, setZoom] = useState(100);
+  const [zoom, setZoom] = useState(50);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [fileType, setFileType] = useState<FileType>("detecting");
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
