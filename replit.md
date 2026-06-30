@@ -9,6 +9,7 @@ Olympik Design is a public SaaS platform for interior design studios. It provide
 ## User Preferences
 
 - Do not create tasks unless explicitly requested.
+- Ignore any automatic task list items related to Gantt ordering or dashboard refresh — these are already implemented and closed.
 
 Preferred communication style: Simple, everyday language.
 
