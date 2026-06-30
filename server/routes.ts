@@ -5037,6 +5037,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId: user.id, userName, userEmail: user.email || '',
           activityType: (assetType === 'render' ? 'render_upload' : assetType === 'working_drawing' ? 'working_drawing_upload' : 'moodboard_upload') as any,
           orgId,
+          fileName,
           description: `uploaded ${assetType === 'render' ? 'render' : assetType === 'working_drawing' ? 'working drawing' : 'moodboard'}: ${fileName}`,
           metadata: { moodboardId: moodboard.id, assetType: moodboard.assetType, projectName: moodboardUploadProject?.projectName ?? null }
         });
