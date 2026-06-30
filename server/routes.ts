@@ -11773,10 +11773,7 @@ Return your response in the following JSON format only (no markdown, no code blo
         UPDATE project_vendors
         SET
           quotation_value = COALESCE(${resolvedAmount !== null ? resolvedAmount : null}::numeric, quotation_value),
-          notes = CASE
-            WHEN ${notes || null} IS NOT NULL THEN ${notes || null}
-            ELSE notes
-          END,
+          notes = COALESCE(${notes || null}::text, notes),
           portal_submitted_at = now(),
           portal_acknowledged_at = NULL,
           date_of_quotation = COALESCE(date_of_quotation, CURRENT_DATE)
