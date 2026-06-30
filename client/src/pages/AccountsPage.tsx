@@ -1633,14 +1633,22 @@ export default function AccountsPage() {
                               <Clock className="h-5 w-5 text-blue-400" />
                             )}
                             {pr.status !== 'confirmed' && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="text-muted-foreground"
-                                onClick={() => { setDeletingPr(pr); setDeletePrDialogOpen(true); }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button size="icon" variant="ghost" className="text-muted-foreground">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => { setDeletingPr(pr); setDeletePrDialogOpen(true); }}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
                           </div>
                         </div>

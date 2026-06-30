@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette, ArrowUpDown, MessageSquare, History, X, BellRing, ClipboardCheck } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Upload, Edit, Trash2, ChevronDown, ChevronRight, Download, FileText, ExternalLink, Activity, TrendingUp, Search, Eye, EyeOff, AlertTriangle, CheckCircle2, Clock, XCircle, Filter, Palette, ArrowUpDown, MessageSquare, History, X, BellRing, ClipboardCheck, MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useForm } from "react-hook-form";
@@ -1329,19 +1330,28 @@ export default function GanttChartPage() {
                               <Upload className="h-4 w-4 mr-1" />
                               {reimportMutation.isPending && reimportScheduleId === schedule.id ? 'Updating...' : 'Re-import'}
                             </Button>
-                            <Button 
-                              size="sm" 
-                              variant="ghost"
-                              onClick={() => {
-                                if (confirm(`Delete schedule "${schedule.fileName}"? This will remove all associated tasks.`)) {
-                                  deleteScheduleMutation.mutate(schedule.id);
-                                }
-                              }}
-                              disabled={deleteScheduleMutation.isPending}
-                              data-testid={`button-delete-schedule-${schedule.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="sm" variant="ghost" data-testid={`button-menu-schedule-${schedule.id}`}>
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => {
+                                    if (confirm(`Delete schedule "${schedule.fileName}"? This will remove all associated tasks.`)) {
+                                      deleteScheduleMutation.mutate(schedule.id);
+                                    }
+                                  }}
+                                  disabled={deleteScheduleMutation.isPending}
+                                  data-testid={`button-delete-schedule-${schedule.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Schedule
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
 
@@ -2185,18 +2195,31 @@ export default function GanttChartPage() {
 
                                         {/* Delete — admin only */}
                                         {isAdmin && (
-                                          <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-7 w-7 opacity-40 hover:opacity-100"
-                                            onClick={() => {
-                                              setDeleteTaskTarget(task);
-                                              setDeleteReason('');
-                                            }}
-                                            data-testid={`button-delete-task-row-${task.id}`}
-                                          >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                          </Button>
+                                          <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                              <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-7 w-7 opacity-40 hover:opacity-100"
+                                                data-testid={`button-menu-task-${task.id}`}
+                                              >
+                                                <MoreVertical className="h-3.5 w-3.5" />
+                                              </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                              <DropdownMenuItem
+                                                className="text-destructive focus:text-destructive"
+                                                onClick={() => {
+                                                  setDeleteTaskTarget(task);
+                                                  setDeleteReason('');
+                                                }}
+                                                data-testid={`button-delete-task-row-${task.id}`}
+                                              >
+                                                <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                                Delete Task
+                                              </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                          </DropdownMenu>
                                         )}
                                       </div>
                                     </td>

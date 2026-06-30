@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, Mail, User, FileText, Edit, Trash2, Building2, Send } from "lucide-react";
+import { Phone, Mail, User, FileText, Edit, Trash2, Building2, Send, MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { Vendor, VendorCategory } from "@shared/schema";
 import { formatVendorNameWithCategory } from "@/lib/currencyUtils";
 import InviteVendorDialog from "./InviteVendorDialog";
@@ -56,14 +57,23 @@ export default function VendorCard({ vendor, categoryName, onEdit, onDelete }: V
           >
             <Edit className="h-4 w-4" />
           </Button>
-          <Button 
-            size="icon" 
-            variant="ghost" 
-            onClick={handleDelete}
-            data-testid="button-delete-vendor"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" data-testid="button-menu-vendor">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={handleDelete}
+                data-testid="button-delete-vendor"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

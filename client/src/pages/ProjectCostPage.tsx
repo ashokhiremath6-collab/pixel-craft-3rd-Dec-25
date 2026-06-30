@@ -3,7 +3,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2, MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { VendorCategory, Project, ProjectCostItem } from "@shared/schema";
 import { formatCurrencyCompact } from "@/lib/currencyUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -60,14 +61,22 @@ function SavedItemRow({ item, onSave, onDelete, canEdit }: EditableRowProps) {
     <tr className="border-b last:border-b-0 hover:bg-muted/20">
       <td className="px-3 py-1.5 text-muted-foreground text-xs align-middle">
         {canEdit && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={() => onDelete(item.id)}
-          >
-            <Trash2 className="h-3 w-3 text-destructive" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" className="h-6 w-6">
+                <MoreVertical className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => onDelete(item.id)}
+              >
+                <Trash2 className="h-3 w-3 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </td>
       <td className="px-1 py-1.5 align-middle">
