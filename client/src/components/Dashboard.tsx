@@ -1172,16 +1172,16 @@ export default function Dashboard({
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {[
                 { label: "Vendors", value: vendors.length, sub: "in database", onClick: () => handleNavigate("/vendors"), testId: "stat-total-vendors", loading: false },
-                { label: "Projects", value: activeProjects, sub: `${completedProjects} completed`, onClick: () => handleNavigate("/projects"), testId: "stat-active-projects", loading: false },
+                { label: "Active Projects", value: activeProjects, sub: `${completedProjects} completed`, onClick: () => handleNavigate("/projects"), testId: "stat-active-projects", loading: false },
                 { label: "Active Tasks", value: totalActiveTasks, sub: "from schedules", onClick: () => handleNavigate("/gantt"), testId: "stat-active-tasks", loading: tasksLoading },
-                { label: "Quoted Value", value: formatCurrencyCompact(totalQuotationValue), sub: "selected quotations", onClick: () => setIsQuotationDetailModalOpen(true), testId: "stat-total-quotations", loading: false },
+                { label: "Quoted Value", value: formatCurrencyCompact(totalQuotationValue), sub: "selected quotes", onClick: () => setIsQuotationDetailModalOpen(true), testId: "stat-total-quotations", loading: false },
                 { label: "Categories", value: Object.keys(vendorsByCategory).length, sub: "vendor types", onClick: () => handleNavigate("/vendors"), testId: "stat-categories", loading: false },
               ].map(s => (
                 <button
                   key={s.label}
                   onClick={s.onClick}
                   data-testid={s.testId}
-                  className="flex flex-col gap-0.5 px-4 py-3 rounded-[16px] text-left transition-shadow hover:shadow-md"
+                  className="flex flex-col gap-1 px-4 py-3 rounded-[16px] text-left transition-shadow hover:shadow-md"
                   style={{
                     background: "rgba(255,255,255,0.7)",
                     backdropFilter: "blur(12px)",
@@ -1189,14 +1189,14 @@ export default function Dashboard({
                     boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.05)",
                   }}
                 >
-                  <span className="text-[11px] font-medium leading-snug" style={{ color: "#86868b" }}>
-                    {s.label} <span style={{ color: "#c4c4c8" }}>· {s.sub}</span>
-                  </span>
                   {s.loading ? (
                     <span className="text-[22px] font-bold leading-tight" style={{ color: "#d1d5db" }}>—</span>
                   ) : (
                     <span className="text-[22px] font-bold leading-tight" style={{ color: "#111827" }}>{s.value}</span>
                   )}
+                  <span className="text-[11px] font-medium leading-none whitespace-nowrap" style={{ color: "#86868b" }}>
+                    {s.label} <span style={{ color: "#c4c4c8" }}>· {s.sub}</span>
+                  </span>
                 </button>
               ))}
             </div>
