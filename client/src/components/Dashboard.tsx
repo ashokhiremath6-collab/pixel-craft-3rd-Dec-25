@@ -1171,11 +1171,11 @@ export default function Dashboard({
             {/* Summary stat strip */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {[
-                { label: "Vendors", value: vendors.length, sub: "in database", onClick: () => handleNavigate("/vendors"), testId: "stat-total-vendors", loading: false },
-                { label: "Active Projects", value: activeProjects, sub: `${completedProjects} completed`, onClick: () => handleNavigate("/projects"), testId: "stat-active-projects", loading: false },
-                { label: "Active Tasks", value: totalActiveTasks, sub: "from schedules", onClick: () => handleNavigate("/gantt"), testId: "stat-active-tasks", loading: tasksLoading },
-                { label: "Quoted Value", value: formatCurrencyCompact(totalQuotationValue), sub: "selected quotes", onClick: () => setIsQuotationDetailModalOpen(true), testId: "stat-total-quotations", loading: false },
-                { label: "Categories", value: Object.keys(vendorsByCategory).length, sub: "vendor types", onClick: () => handleNavigate("/vendors"), testId: "stat-categories", loading: false },
+                { label: "Vendors", value: vendors.length, onClick: () => handleNavigate("/vendors"), testId: "stat-total-vendors", loading: false },
+                { label: "Projects", value: activeProjects, onClick: () => handleNavigate("/projects"), testId: "stat-active-projects", loading: false },
+                { label: "Active Tasks", value: totalActiveTasks, onClick: () => handleNavigate("/gantt"), testId: "stat-active-tasks", loading: tasksLoading },
+                { label: "Quoted Value", value: formatCurrencyCompact(totalQuotationValue), onClick: () => setIsQuotationDetailModalOpen(true), testId: "stat-total-quotations", loading: false },
+                { label: "Categories", value: Object.keys(vendorsByCategory).length, onClick: () => handleNavigate("/vendors"), testId: "stat-categories", loading: false },
               ].map(s => (
                 <button
                   key={s.label}
@@ -1194,9 +1194,7 @@ export default function Dashboard({
                   ) : (
                     <span className="text-[22px] font-bold leading-tight" style={{ color: "#111827" }}>{s.value}</span>
                   )}
-                  <span className="text-[11px] font-medium leading-none whitespace-nowrap" style={{ color: "#86868b" }}>
-                    {s.label} <span style={{ color: "#c4c4c8" }}>· {s.sub}</span>
-                  </span>
+                  <span className="text-[11px] font-medium leading-none" style={{ color: "#86868b" }}>{s.label}</span>
                 </button>
               ))}
             </div>
