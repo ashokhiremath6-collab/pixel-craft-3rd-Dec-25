@@ -1169,34 +1169,54 @@ export default function Dashboard({
             </ContentCard>
 
             {/* Summary stat strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              {[
-                { label: "Vendors", value: vendors.length, onClick: () => handleNavigate("/vendors"), testId: "stat-total-vendors", loading: false },
-                { label: "Projects", value: activeProjects, onClick: () => handleNavigate("/projects"), testId: "stat-active-projects", loading: false },
-                { label: "Active Tasks", value: totalActiveTasks, onClick: () => handleNavigate("/gantt"), testId: "stat-active-tasks", loading: tasksLoading },
-                { label: "Quoted Value", value: formatCurrencyCompact(totalQuotationValue), onClick: () => setIsQuotationDetailModalOpen(true), testId: "stat-total-quotations", loading: false },
-                { label: "Categories", value: Object.keys(vendorsByCategory).length, onClick: () => handleNavigate("/vendors"), testId: "stat-categories", loading: false },
-              ].map(s => (
-                <button
-                  key={s.label}
-                  onClick={s.onClick}
-                  data-testid={s.testId}
-                  className="flex flex-col gap-2 px-4 py-4 rounded-[16px] text-left transition-shadow hover:shadow-md"
-                  style={{
-                    background: "rgba(255,255,255,0.7)",
-                    backdropFilter: "blur(12px)",
-                    border: "1px solid rgba(255,255,255,0.5)",
-                    boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.05)",
-                  }}
-                >
-                  {s.loading ? (
-                    <span className="text-[22px] font-bold leading-tight" style={{ color: "#d1d5db" }}>—</span>
-                  ) : (
-                    <span className="text-[22px] font-bold leading-tight" style={{ color: "#111827" }}>{s.value}</span>
-                  )}
-                  <span className="text-[11px] font-medium leading-none" style={{ color: "#86868b" }}>{s.label}</span>
-                </button>
-              ))}
+            <div className="flex flex-col gap-3">
+              {/* Row 1: Quoted Value — full width hero stat */}
+              <button
+                onClick={() => setIsQuotationDetailModalOpen(true)}
+                data-testid="stat-total-quotations"
+                className="flex items-center justify-between px-6 py-4 rounded-[16px] text-left transition-shadow hover:shadow-md w-full"
+                style={{
+                  background: "rgba(255,255,255,0.7)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid rgba(255,255,255,0.5)",
+                  boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.05)",
+                }}
+              >
+                <span className="text-[13px] font-medium" style={{ color: "#86868b" }}>Quoted Value</span>
+                <span className="text-[26px] font-bold leading-tight" style={{ color: "#111827" }}>
+                  Rs {formatCurrencyCompact(totalQuotationValue)}
+                </span>
+              </button>
+
+              {/* Row 2: Four secondary stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: "Vendors", value: vendors.length, onClick: () => handleNavigate("/vendors"), testId: "stat-total-vendors", loading: false },
+                  { label: "Active Projects", value: activeProjects, onClick: () => handleNavigate("/projects"), testId: "stat-active-projects", loading: false },
+                  { label: "Active Tasks", value: totalActiveTasks, onClick: () => handleNavigate("/gantt"), testId: "stat-active-tasks", loading: tasksLoading },
+                  { label: "Categories", value: Object.keys(vendorsByCategory).length, onClick: () => handleNavigate("/vendors"), testId: "stat-categories", loading: false },
+                ].map(s => (
+                  <button
+                    key={s.label}
+                    onClick={s.onClick}
+                    data-testid={s.testId}
+                    className="flex items-center justify-between px-4 py-3 rounded-[16px] text-left transition-shadow hover:shadow-md"
+                    style={{
+                      background: "rgba(255,255,255,0.7)",
+                      backdropFilter: "blur(12px)",
+                      border: "1px solid rgba(255,255,255,0.5)",
+                      boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.05)",
+                    }}
+                  >
+                    <span className="text-[11px] font-medium" style={{ color: "#86868b" }}>{s.label}</span>
+                    {s.loading ? (
+                      <span className="text-[20px] font-bold leading-tight" style={{ color: "#d1d5db" }}>—</span>
+                    ) : (
+                      <span className="text-[20px] font-bold leading-tight" style={{ color: "#111827" }}>{s.value}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Project Task Breakdown */}
