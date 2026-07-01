@@ -625,16 +625,11 @@ function PaymentAlertsPanel() {
 
   const saveToAccountsMutation = useMutation({
     mutationFn: async ({ alert, date, notes }: { alert: PaymentAlert; date: string; notes: string }) => {
-      // 1. Record the vendor payment in the ledger
-      await apiRequest('POST', `/api/vendors/${alert.vendorId}/payments`, {
+      // Single call: /confirm atomically marks confirmed + creates ledger entries
+      await apiRequest('PATCH', `/api/payment-requests/${alert.id}/confirm`, {
         paymentDate: date,
-        amount: String(alert.amount),
-        paymentMethod: 'bank_transfer',
-        paymentReference: alert.clientUtr || undefined,
         notes: notes || `Payment received from client. UTR: ${alert.clientUtr || "N/A"}. ${alert.description}`,
       });
-      // 2. Mark the payment request as confirmed
-      await apiRequest('PATCH', `/api/payment-requests/${alert.id}/confirm`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/payment-alerts"] });
