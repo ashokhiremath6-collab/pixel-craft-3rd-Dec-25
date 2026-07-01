@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FileViewerModal } from "@/components/FileViewerModal";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import {
   Trash2,
   Download,
   FileIcon,
+  Eye,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -563,6 +565,15 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerUrl, setViewerUrl] = useState("");
+  const [viewerName, setViewerName] = useState("");
+
+  const openViewer = (url: string, name: string) => {
+    setViewerUrl(url);
+    setViewerName(name);
+    setViewerOpen(true);
+  };
 
   const statusClass = STATUS_CLASSES[quote.status] ?? STATUS_CLASSES.Quoted;
   const value = quote.quotation_value
@@ -733,7 +744,10 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
                         </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <a href={filePath} download={f.file_name} target="_blank" rel="noreferrer">
+                        <Button size="icon" variant="ghost" onClick={() => openViewer(filePath, f.file_name)}>
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                        <a href={filePath} download={f.file_name}>
                           <Button size="icon" variant="ghost">
                             <Download className="h-3.5 w-3.5" />
                           </Button>
@@ -775,6 +789,12 @@ function QuoteCard({ quote }: { quote: VendorQuote }) {
           </div>
         </CardContent>
       </Card>
+      <FileViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        fileUrl={viewerUrl}
+        fileName={viewerName}
+      />
     </>
   );
 }
