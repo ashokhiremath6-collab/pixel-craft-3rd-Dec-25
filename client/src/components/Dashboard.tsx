@@ -1181,7 +1181,7 @@ export default function Dashboard({
                   key={s.label}
                   onClick={s.onClick}
                   data-testid={s.testId}
-                  className="flex flex-col gap-1 px-4 py-3 rounded-[16px] text-left transition-shadow hover:shadow-md"
+                  className="flex flex-col gap-2 px-4 py-4 rounded-[16px] text-left transition-shadow hover:shadow-md"
                   style={{
                     background: "rgba(255,255,255,0.7)",
                     backdropFilter: "blur(12px)",
