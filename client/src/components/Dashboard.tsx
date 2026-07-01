@@ -1189,13 +1189,14 @@ export default function Dashboard({
                     boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.05)",
                   }}
                 >
-                  <span className="text-[11px] font-medium leading-snug" style={{ color: "#86868b" }}>{s.label}</span>
+                  <span className="text-[11px] font-medium leading-snug" style={{ color: "#86868b" }}>
+                    {s.label} <span style={{ color: "#c4c4c8" }}>· {s.sub}</span>
+                  </span>
                   {s.loading ? (
                     <span className="text-[22px] font-bold leading-tight" style={{ color: "#d1d5db" }}>—</span>
                   ) : (
                     <span className="text-[22px] font-bold leading-tight" style={{ color: "#111827" }}>{s.value}</span>
                   )}
-                  <span className="text-[10px] leading-snug" style={{ color: "#9ca3af" }}>{s.sub}</span>
                 </button>
               ))}
             </div>
