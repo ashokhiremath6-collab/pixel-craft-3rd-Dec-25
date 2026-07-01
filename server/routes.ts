@@ -14268,6 +14268,90 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // Direct confirm: designer marks a pending/acknowledged request as paid without client portal
+  app.patch("/api/payment-requests/:id/direct-confirm", requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const confirmedBy = req.user?.id;
+      const orgId = req.user?.orgId;
+      const { eq, and, inArray } = await import("drizzle-orm");
+      const { paymentDate, utr, notes } = req.body || {};
+
+      const resolvedDate = paymentDate || new Date().toISOString().substring(0, 10);
+
+      const [pr] = await db.update(paymentRequests)
+        .set({
+          status: "confirmed",
+          confirmedAt: new Date(),
+          confirmedBy,
+          ...(utr ? { clientUtr: utr } : {}),
+          clientPaidAt: new Date(resolvedDate),
+        })
+        .where(and(
+          eq(paymentRequests.id, id),
+          eq(paymentRequests.orgId, orgId),
+          inArray(paymentRequests.status, ["pending", "acknowledged", "client_paid"])
+        ))
+        .returning();
+
+      if (!pr) return res.status(404).json({ error: "Not found or already confirmed" });
+
+      try {
+        const resolvedReference = utr || pr.clientUtr || `PR-${pr.id.substring(0, 8).toUpperCase()}`;
+        const resolvedNotes = notes || `Payment recorded directly by studio. UTR: ${utr || "N/A"}. ${pr.description}`;
+        const invoiceNumber = `PR-${pr.id.substring(0, 8).toUpperCase()}`;
+
+        const { vendorInvoices: vendorInvoicesTable } = await import("@shared/schema");
+        const { vendorPayments: vendorPaymentsTable } = await import("@shared/schema");
+        const { eq: eqInv } = await import("drizzle-orm");
+
+        const existingInvoices = await db.select({ id: vendorInvoicesTable.id })
+          .from(vendorInvoicesTable)
+          .where(eqInv(vendorInvoicesTable.invoiceNumber, invoiceNumber))
+          .limit(1);
+
+        if (existingInvoices.length === 0) {
+          await storage.createVendorInvoice({
+            vendorId: pr.vendorId,
+            invoiceNumber,
+            invoiceDate: resolvedDate,
+            description: pr.description || resolvedNotes,
+            amount: pr.amount,
+            createdBy: confirmedBy,
+            orgId: pr.orgId || orgId,
+            ...(pr.projectId ? { projectId: pr.projectId } : {}),
+          });
+        }
+
+        const existingPayments = await db.select({ id: vendorPaymentsTable.id })
+          .from(vendorPaymentsTable)
+          .where(eqInv(vendorPaymentsTable.paymentReference, resolvedReference))
+          .limit(1);
+
+        if (existingPayments.length === 0) {
+          await storage.createVendorPayment({
+            vendorId: pr.vendorId,
+            paymentDate: resolvedDate,
+            amount: pr.amount,
+            paymentReference: resolvedReference,
+            paymentMethod: "bank_transfer",
+            notes: resolvedNotes,
+            createdBy: confirmedBy,
+            orgId: pr.orgId || orgId,
+            ...(pr.projectId ? { projectId: pr.projectId } : {}),
+          });
+        }
+      } catch (payErr) {
+        console.error("PATCH /api/payment-requests/:id/direct-confirm — ledger error:", payErr);
+      }
+
+      res.json(pr);
+    } catch (err) {
+      console.error("PATCH /api/payment-requests/:id/direct-confirm error:", err);
+      res.status(500).json({ error: "Failed to confirm payment request" });
+    }
+  });
+
   // Delete a payment request (admin only)
   app.delete("/api/payment-requests/:id", requireAdmin, async (req: any, res) => {
     try {

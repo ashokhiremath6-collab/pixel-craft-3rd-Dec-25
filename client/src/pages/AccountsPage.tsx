@@ -177,6 +177,10 @@ export default function AccountsPage() {
   const [addLedgerDialog, setAddLedgerDialog] = useState<PaymentRequestRow | null>(null);
   const [addLedgerDate, setAddLedgerDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [addLedgerNotes, setAddLedgerNotes] = useState("");
+  const [directConfirmDialog, setDirectConfirmDialog] = useState<PaymentRequestRow | null>(null);
+  const [directConfirmDate, setDirectConfirmDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [directConfirmUtr, setDirectConfirmUtr] = useState("");
+  const [directConfirmNotes, setDirectConfirmNotes] = useState("");
   const [requestsTabVendorId, setRequestsTabVendorId] = useState<string>("");
   const [paymentRequestVendorId, setPaymentRequestVendorId] = useState<string>("");
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
@@ -363,6 +367,28 @@ export default function AccountsPage() {
     onError: () => {
       toast({ variant: "destructive", title: "Failed to add to ledger" });
     },
+  });
+
+  // Direct confirm: designer marks pending/acknowledged request as paid and saves to ledger in one step
+  const directConfirmMutation = useMutation({
+    mutationFn: async ({ pr, date, utr, notes }: { pr: PaymentRequestRow; date: string; utr: string; notes: string }) => {
+      await apiRequest('PATCH', `/api/payment-requests/${pr.id}/direct-confirm`, {
+        paymentDate: date,
+        utr: utr || undefined,
+        notes: notes || undefined,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Payment confirmed and saved to accounts" });
+      queryClient.invalidateQueries({ queryKey: ['/api/payment-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/payment-alerts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
+      if (directConfirmDialog) queryClient.invalidateQueries({ queryKey: ['/api/vendors', directConfirmDialog.vendorId, 'payments'] });
+      setDirectConfirmDialog(null);
+      setDirectConfirmUtr("");
+      setDirectConfirmNotes("");
+    },
+    onError: () => toast({ variant: "destructive", title: "Failed to confirm payment" }),
   });
 
   // Add invoice mutation
@@ -1652,8 +1678,20 @@ export default function AccountsPage() {
                                 <CheckCircle2 className="h-5 w-5 text-green-600" />
                               </div>
                             )}
-                            {pr.status === 'pending' && (
-                              <Clock className="h-5 w-5 text-blue-400" />
+                            {(pr.status === 'pending' || pr.status === 'acknowledged') && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setDirectConfirmDialog(pr);
+                                  setDirectConfirmDate(format(new Date(), 'yyyy-MM-dd'));
+                                  setDirectConfirmUtr("");
+                                  setDirectConfirmNotes("");
+                                }}
+                              >
+                                <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                                Mark as Paid
+                              </Button>
                             )}
                             {pr.status !== 'confirmed' && (
                               <DropdownMenu>
@@ -2047,6 +2085,66 @@ export default function AccountsPage() {
                 disabled={addToLedgerMutation.isPending}
               >
                 {addToLedgerMutation.isPending ? "Adding..." : "Add to Ledger"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Mark as Paid: designer directly confirms a pending/acknowledged request */}
+      {directConfirmDialog && (
+        <Dialog open={!!directConfirmDialog} onOpenChange={open => !open && setDirectConfirmDialog(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Mark as Paid & Save to Accounts</DialogTitle>
+              <DialogDescription>
+                Record this payment directly in the vendor ledger for <strong>{directConfirmDialog.vendorName}</strong>. Use this when the client has forwarded the payment advice without going through the portal.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Amount</span>
+                <span className="font-semibold">₹{Number(directConfirmDialog.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Description</span>
+                <span className="text-right max-w-[60%]">{directConfirmDialog.description}</span>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="direct-confirm-date">Payment Date</Label>
+                <Input
+                  id="direct-confirm-date"
+                  type="date"
+                  value={directConfirmDate}
+                  onChange={e => setDirectConfirmDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="direct-confirm-utr">UTR / Reference Number (optional)</Label>
+                <Input
+                  id="direct-confirm-utr"
+                  value={directConfirmUtr}
+                  onChange={e => setDirectConfirmUtr(e.target.value)}
+                  placeholder="e.g. KKBKR52026..."
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="direct-confirm-notes">Notes (optional)</Label>
+                <Input
+                  id="direct-confirm-notes"
+                  value={directConfirmNotes}
+                  onChange={e => setDirectConfirmNotes(e.target.value)}
+                  placeholder="Additional notes for the ledger entry"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDirectConfirmDialog(null)}>Cancel</Button>
+              <Button
+                onClick={() => directConfirmMutation.mutate({ pr: directConfirmDialog, date: directConfirmDate, utr: directConfirmUtr, notes: directConfirmNotes })}
+                disabled={directConfirmMutation.isPending}
+              >
+                {directConfirmMutation.isPending ? "Saving..." : "Confirm & Save to Accounts"}
               </Button>
             </DialogFooter>
           </DialogContent>
