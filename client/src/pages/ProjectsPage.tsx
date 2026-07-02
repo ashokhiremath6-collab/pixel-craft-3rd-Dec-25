@@ -306,31 +306,21 @@ export default function ProjectsPage() {
                 </FormControl><FormMessage /></FormItem>
               )} />
 
-              {/* Restricted access toggle — admin only */}
+              {/* Team members + restricted access — admin only */}
               {isAdmin && (
                 <div className="rounded-md border p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <Lock className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">Restrict Access</p>
-                        <p className="text-xs text-muted-foreground">Only listed members can see this project</p>
-                      </div>
-                    </div>
-                    <Switch checked={isRestricted} onCheckedChange={setIsRestricted} />
-                  </div>
-
-                  {isRestricted && (
-                    <div className="space-y-3 pt-1">
-                      {/* Current members — shown first so they're always visible */}
+                  {/* Team members section — always visible */}
+                  <div className="space-y-3">
+                      {/* Current members — shown first */}
                       <div className="space-y-1">
                         <p className="text-xs font-medium text-muted-foreground">
-                          Current members ({members.length})
+                          Team members ({members.length})
                         </p>
-                        {members.length === 0 ? (
-                          <p className="text-xs text-muted-foreground italic">No members yet.</p>
-                        ) : (
-                          <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">
+                          Assigned members see only their projects. Unassigned designers see all projects.
+                        </p>
+                        {members.length > 0 && (
+                          <div className="space-y-1 pt-1">
                             {members.map(m => (
                               <div key={m.userId} className="flex items-center justify-between gap-2 py-1 px-2 rounded-md bg-muted/40">
                                 <div className="flex items-center gap-2 min-w-0">
@@ -354,7 +344,7 @@ export default function ProjectsPage() {
 
                       {/* Add new members */}
                       <div className="space-y-2">
-                        <p className="text-xs font-medium text-muted-foreground">Add members</p>
+                        <p className="text-xs font-medium text-muted-foreground">Add member</p>
                         {memberRows.map((row, idx) => (
                           <div key={idx} className="flex gap-2 items-center">
                             <Input
@@ -420,8 +410,22 @@ export default function ProjectsPage() {
                           </Button>
                         </div>
                       </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t pt-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Lock className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">Restrict Access</p>
+                          <p className="text-xs text-muted-foreground">Hide this project from everyone except members above</p>
+                        </div>
+                      </div>
+                      <Switch checked={isRestricted} onCheckedChange={setIsRestricted} />
                     </div>
-                  )}
+                  </div>
+
                 </div>
               )}
 

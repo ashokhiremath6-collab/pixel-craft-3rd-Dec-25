@@ -2042,10 +2042,21 @@ export class DBStorage implements IStorage {
     const assignments = await this.getUserProjectAssignments(userId);
     const assignedProjectIds = new Set(assignments.map(a => a.projectId));
 
-    // Admins and designers see all projects, EXCEPT restricted ones they're not a member of
-    if (role === 'admin' || role === 'designer') {
+    // Admins see all projects
+    if (role === 'admin') {
+      return await db.select().from(projects);
+    }
+
+    // Designers: if they have any explicit project assignments, show ONLY those projects.
+    // This allows the admin to scope a designer to specific projects (e.g. Shamrock-only).
+    // If a designer has no assignments at all, fall back to showing all unrestricted projects
+    // (preserves existing behaviour for designers who haven't been assigned to anything yet).
+    if (role === 'designer') {
       const allProjects = await db.select().from(projects);
-      return allProjects.filter(p => !p.isRestricted || assignedProjectIds.has(p.id));
+      if (assignedProjectIds.size > 0) {
+        return allProjects.filter(p => assignedProjectIds.has(p.id));
+      }
+      return allProjects.filter(p => !p.isRestricted);
     }
     
     // Project managers can only access assigned projects (restricted or not)
