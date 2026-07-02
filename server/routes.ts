@@ -1226,7 +1226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const org = await storage.getOrganisation(invite.orgId);
                 const domains = process.env.REPLIT_DOMAINS;
                 const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
-                await sendInvitationAcceptedEmail(inviter.email, inviteeName, org?.name || "your workspace", {
+                await sendInvitationAcceptedEmail(inviter.notificationEmail || inviter.email, inviteeName, org?.name || "your workspace", {
                   unsubscribeToken,
                   baseUrl,
                 });
@@ -1275,7 +1275,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const org = await storage.getOrganisation(invite.orgId);
               const domains = process.env.REPLIT_DOMAINS;
               const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
-              await sendInvitationAcceptedEmail(inviter.email, inviteeName, org?.name || "your workspace", {
+              await sendInvitationAcceptedEmail(inviter.notificationEmail || inviter.email, inviteeName, org?.name || "your workspace", {
                 unsubscribeToken,
                 baseUrl,
               });
@@ -1359,7 +1359,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(userId);
                 const domains = process.env.REPLIT_DOMAINS;
                 const baseUrl = process.env.APP_URL || (domains ? `https://${domains.split(",")[0]}` : `${req.protocol}://${req.hostname}`);
-                await sendProjectUpdateEmail(assignedUser.email, project.projectName, assignerName, { unsubscribeToken, baseUrl });
+                await sendProjectUpdateEmail(assignedUser.notificationEmail || assignedUser.email, project.projectName, assignerName, { unsubscribeToken, baseUrl });
               }
             }
           }
@@ -1886,7 +1886,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const prefs = await storage.getNotificationPreferences(assignment.userId);
             if (!prefs.projectUpdates) continue;
             const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(assignment.userId);
-            await sendProjectUpdateEmail(assignedUser.email, project.projectName, updaterName, { unsubscribeToken, baseUrl });
+            await sendProjectUpdateEmail(assignedUser.notificationEmail || assignedUser.email, project.projectName, updaterName, { unsubscribeToken, baseUrl });
           }
         } catch (emailErr) {
           console.error("Failed to send project update notifications:", emailErr);
@@ -1962,7 +1962,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const prefs = await storage.getNotificationPreferences(assignment.userId);
             if (!prefs.projectUpdates) continue;
             const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(assignment.userId);
-            await sendProjectUpdateEmail(assignedUser.email, project.projectName, updaterName, { unsubscribeToken, baseUrl });
+            await sendProjectUpdateEmail(assignedUser.notificationEmail || assignedUser.email, project.projectName, updaterName, { unsubscribeToken, baseUrl });
           }
         } catch (emailErr) {
           console.error("Failed to send project update notifications:", emailErr);
@@ -12662,7 +12662,7 @@ Return your response in the following JSON format only (no markdown, no code blo
               continue;
             }
             const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(u.id).catch(() => undefined);
-            await sendPlanChangedEmail(u.email, org.name, previousPlan, plan, { unsubscribeToken });
+            await sendPlanChangedEmail(u.notificationEmail || u.email, org.name, previousPlan, plan, { unsubscribeToken });
             notifiedEmails.push(u.email);
           } catch (emailErr) {
             console.error(`[PLAN_CHANGE] Failed to notify ${u.email}:`, emailErr);
@@ -12722,7 +12722,7 @@ Return your response in the following JSON format only (no markdown, no code blo
             continue;
           }
           const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(u.id).catch(() => undefined);
-          await sendTrialExpiryEmail(u.email, org.name, Number(daysRemaining), { unsubscribeToken });
+          await sendTrialExpiryEmail(u.notificationEmail || u.email, org.name, Number(daysRemaining), { unsubscribeToken });
           notifiedEmails.push(u.email);
         } catch (emailErr) {
           console.error(`[TRIAL_EXPIRY] Failed to notify ${u.email}:`, emailErr);
@@ -13018,7 +13018,7 @@ Return your response in the following JSON format only (no markdown, no code blo
               continue;
             }
             const unsubscribeToken = await storage.getOrCreateUnsubscribeToken(u.id).catch(() => undefined);
-            await sendTrialExpiryWarningEmail(u.email, org.name, daysRemaining, { unsubscribeToken });
+            await sendTrialExpiryWarningEmail(u.notificationEmail || u.email, org.name, daysRemaining, { unsubscribeToken });
             notifiedEmails.push(u.email);
           } catch (emailErr) {
             console.error(`[TRIAL_EXPIRY_JOB] Failed to email ${u.email} for org ${org.id}:`, emailErr);
@@ -13074,6 +13074,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       const schema = z.object({
         firstName: z.string().min(1).max(100).optional(),
         lastName: z.string().max(100).optional(),
+        notificationEmail: z.string().email("Please enter a valid email address").nullable().optional(),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {

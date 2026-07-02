@@ -926,6 +926,7 @@ export const users = pgTable("users", {
   isSuperAdmin: boolean("is_super_admin").notNull().default(false), // system-level super-admin flag
   notificationPreferences: jsonb("notification_preferences"), // NotificationPreferences; null = all enabled
   unsubscribeToken: varchar("unsubscribe_token").unique(), // token for one-click email unsubscribe (no login required)
+  notificationEmail: text("notification_email"), // optional alternative email for correspondence; if set, system emails go here instead of login email
   trialBannerSnoozedUntil: timestamp("trial_banner_snoozed_until"), // server-side snooze preference for trial expiry banner; null = not snoozed
   trialBannerSnoozeDuration: text("trial_banner_snooze_duration"), // "1", "3", or "forever"
   createdAt: timestamp("created_at").notNull().defaultNow(),

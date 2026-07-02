@@ -17,6 +17,7 @@ import { useNotifPrefBatcher } from "@/hooks/useNotifPrefBatcher";
 const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required").max(100),
   lastName: z.string().max(100).optional().or(z.literal("")),
+  notificationEmail: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -30,6 +31,7 @@ export default function AccountPage() {
     defaultValues: {
       firstName: "",
       lastName: "",
+      notificationEmail: "",
     },
   });
 
@@ -38,13 +40,18 @@ export default function AccountPage() {
       profileForm.reset({
         firstName: currentUser.firstName ?? "",
         lastName: currentUser.lastName ?? "",
+        notificationEmail: (currentUser as any).notificationEmail ?? "",
       });
     }
   }, [currentUser?.firstName, currentUser?.lastName]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (values: ProfileFormValues) => {
-      const res = await apiRequest("PATCH", "/api/user/profile", values);
+      const payload = {
+        ...values,
+        notificationEmail: values.notificationEmail?.trim() || null,
+      };
+      const res = await apiRequest("PATCH", "/api/user/profile", payload);
       return res.json();
     },
     onSuccess: () => {
@@ -169,9 +176,23 @@ export default function AccountPage() {
                 />
               </div>
               <div>
-                <FormLabel className="text-muted-foreground text-sm">Email</FormLabel>
+                <FormLabel className="text-muted-foreground text-sm">Login email</FormLabel>
                 <p className="text-sm mt-1">{currentUser?.email}</p>
               </div>
+              <FormField
+                control={profileForm.control}
+                name="notificationEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Correspondence email <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. yourname@gmail.com" {...field} />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">System emails (project updates, invitations, billing) will be sent here instead of your login email. Leave blank to use your login email.</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <Button type="submit" disabled={updateProfileMutation.isPending}>
                 {updateProfileMutation.isPending ? "Saving…" : "Save changes"}
               </Button>
