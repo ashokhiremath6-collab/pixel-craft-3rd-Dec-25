@@ -379,7 +379,7 @@ export default function SettingsPage() {
     }
   };
 
-  const projectManagers = users?.filter(u => u.role === 'project_manager') || [];
+  const assignableUsers = users?.filter(u => ['project_manager', 'designer', 'architect'].includes(u.role ?? '')) || [];
   const pendingInvitations = invitations?.filter(i => !i.acceptedAt) || [];
 
   const isExpired = (expiresAt: string) => new Date(expiresAt) < new Date();
@@ -943,68 +943,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Project Assignments overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Briefcase className="h-5 w-5" />
-            Project Assignments
-          </CardTitle>
-          <CardDescription>
-            All projects and their assigned team members. Designers with at least one assignment only see their assigned projects.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {projectsLoading || assignmentsLoading ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
-          ) : !projects || projects.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">No projects found.</p>
-          ) : (
-            <div className="space-y-3">
-              {projects.map(project => {
-                const projectAssignments = allAssignments?.filter(a => a.projectId === project.id) || [];
-                const assignedMembers = projectAssignments
-                  .map(a => users?.find(u => u.id === a.userId))
-                  .filter((u): u is UserWithRole => !!u);
-                return (
-                  <div key={project.id} className="p-3 rounded-md border space-y-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm">{project.projectName}</span>
-                      {project.clientName && (
-                        <span className="text-xs text-muted-foreground">({project.clientName})</span>
-                      )}
-                      {project.isRestricted && (
-                        <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                          <Lock className="h-3 w-3" />
-                          Restricted
-                        </Badge>
-                      )}
-                    </div>
-                    {assignedMembers.length === 0 ? (
-                      <p className="text-xs text-muted-foreground italic">No team members assigned — visible to all designers</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {assignedMembers.map(u => (
-                          <div key={u.id} className="flex items-center gap-1.5 text-xs bg-muted/50 rounded-md px-2 py-1">
-                            <Users className="h-3 w-3 text-muted-foreground" />
-                            <span>{u.firstName} {u.lastName}</span>
-                            {u.role && (
-                              <Badge variant={getRoleBadgeVariant(u.role)} className="text-xs">
-                                {u.role}
-                              </Badge>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Vendors — separate from internal team */}
       <Card>
         <CardHeader>
@@ -1142,7 +1080,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {projectManagers.length > 0 && (
+      {assignableUsers.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -1150,7 +1088,7 @@ export default function SettingsPage() {
               Project Assignments
             </CardTitle>
             <CardDescription>
-              Assign projects to project managers. Project managers only have access to their assigned projects.
+              Assign projects to designers, architects, and project managers. Once assigned to at least one project, they will only see their assigned projects.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1163,7 +1101,7 @@ export default function SettingsPage() {
               </div>
             ) : (
               <div className="space-y-6">
-                {projectManagers.map((pm) => (
+                {assignableUsers.map((pm) => (
                   <div key={pm.id} className="space-y-3">
                     <div className="flex items-center gap-2 pb-2 border-b">
                       <Badge variant={getRoleBadgeVariant(pm.role)} className="flex items-center gap-1">
