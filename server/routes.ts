@@ -13989,6 +13989,16 @@ Return your response in the following JSON format only (no markdown, no code blo
         .limit(1);
       if (!project) return res.status(400).json({ error: "Project not found." });
 
+      // For designers: confirm they have access to this project (respects restricted-project rules)
+      const userRoleRow = await storage.getUserRole(requestedBy);
+      const userRoleName = userRoleRow?.role?.toLowerCase();
+      if (userRoleName === 'designer') {
+        const accessible = await storage.getProjectsForUser(requestedBy, 'designer');
+        if (!accessible.some(p => p.id === body.projectId)) {
+          return res.status(403).json({ error: "You do not have access to this project." });
+        }
+      }
+
       const pcs = await db.select().from(projectClients).where(eq(projectClients.projectId, body.projectId));
       let clientEmails: string[] = pcs.map(pc => pc.clientEmail).filter(Boolean) as string[];
       if (clientEmails.length === 0 && project.clientEmail) clientEmails = [project.clientEmail];
@@ -14041,12 +14051,19 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  // List payment requests (designer/admin view)
+  // List payment requests (designer/admin view) — filtered to accessible projects
   app.get("/api/payment-requests", requireAdmin, async (req: any, res) => {
     try {
       const orgId = req.user?.orgId;
-      const { eq, and, desc } = await import("drizzle-orm");
+      const userId = req.user?.id;
+      const { eq, and, desc, inArray } = await import("drizzle-orm");
       const { vendors, projects } = await import("@shared/schema");
+
+      // Determine which projects this user can see (respects restricted-project rules)
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role?.toLowerCase() || 'designer';
+      const accessibleProjects = await storage.getProjectsForUser(userId, role);
+      const accessibleProjectIds = accessibleProjects.map(p => p.id);
 
       const rows = await db
         .select({
@@ -14076,7 +14093,14 @@ Return your response in the following JSON format only (no markdown, no code blo
         .from(paymentRequests)
         .leftJoin(vendors, eq(vendors.id, paymentRequests.vendorId))
         .leftJoin(projects, eq(projects.id, paymentRequests.projectId))
-        .where(eq(paymentRequests.orgId, orgId))
+        .where(
+          accessibleProjectIds.length > 0
+            ? and(
+                eq(paymentRequests.orgId, orgId),
+                inArray(paymentRequests.projectId, accessibleProjectIds)
+              )
+            : eq(paymentRequests.orgId, orgId)
+        )
         .orderBy(desc(paymentRequests.requestedAt));
 
       res.json(rows);
