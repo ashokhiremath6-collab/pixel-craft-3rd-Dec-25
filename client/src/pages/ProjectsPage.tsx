@@ -322,8 +322,39 @@ export default function ProjectsPage() {
 
                   {isRestricted && (
                     <div className="space-y-3 pt-1">
-                      <p className="text-xs font-medium text-muted-foreground">Add members</p>
+                      {/* Current members — shown first so they're always visible */}
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Current members ({members.length})
+                        </p>
+                        {members.length === 0 ? (
+                          <p className="text-xs text-muted-foreground italic">No members yet.</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {members.map(m => (
+                              <div key={m.userId} className="flex items-center justify-between gap-2 py-1 px-2 rounded-md bg-muted/40">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="text-sm truncate">{m.name || m.email}</span>
+                                  <Badge variant={roleBadgeVariant(m.role)} className="text-xs shrink-0">
+                                    {roleLabel(m.role)}
+                                  </Badge>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeMemberMutation.mutate(m.userId)}
+                                  className="text-muted-foreground hover:text-destructive shrink-0"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Add new members */}
                       <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">Add members</p>
                         {memberRows.map((row, idx) => (
                           <div key={idx} className="flex gap-2 items-center">
                             <Input
@@ -389,34 +420,6 @@ export default function ProjectsPage() {
                           </Button>
                         </div>
                       </div>
-
-                      {members.length > 0 && (
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground">Current members</p>
-                          <div className="space-y-1">
-                            {members.map(m => (
-                              <div key={m.userId} className="flex items-center justify-between gap-2 py-1">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="text-sm truncate">{m.name || m.email}</span>
-                                  <Badge variant={roleBadgeVariant(m.role)} className="text-xs shrink-0">
-                                    {roleLabel(m.role)}
-                                  </Badge>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => removeMemberMutation.mutate(m.userId)}
-                                  className="text-muted-foreground hover:text-destructive shrink-0"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {members.length === 0 && (
-                        <p className="text-xs text-muted-foreground italic">No members yet — fill in emails above and click Add.</p>
-                      )}
                     </div>
                   )}
                 </div>
