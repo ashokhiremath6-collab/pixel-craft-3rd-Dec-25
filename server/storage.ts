@@ -366,6 +366,8 @@ export interface IStorage {
   createVendorPayment(payment: InsertVendorPayment): Promise<VendorPayment>;
   updateVendorPayment(id: string, payment: Partial<InsertVendorPayment>): Promise<VendorPayment | undefined>;
   deleteVendorPayment(id: string): Promise<boolean>;
+  /** Returns null for admin (unrestricted). For others: Set of vendor IDs linked to accessible projects; vendors with no project links are included. */
+  getAccessibleVendorIds(userId: string, role: string): Promise<Set<string> | null>;
   
   // Catalogue Items
   getAllCatalogueItems(): Promise<CatalogueItem[]>;
@@ -1539,6 +1541,10 @@ export class MemStorage implements IStorage {
 
   async deleteVendorPayment(id: string): Promise<boolean> {
     return false;
+  }
+
+  async getAccessibleVendorIds(_userId: string, _role: string): Promise<Set<string> | null> {
+    return null; // MemStorage: no restrictions
   }
 
   async getVendorsForUser(userId: string, role: string): Promise<Vendor[]> {
@@ -2949,6 +2955,37 @@ export class DBStorage implements IStorage {
   async deleteVendorPayment(id: string): Promise<boolean> {
     const result = await db.delete(vendorPayments).where(eq(vendorPayments.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async getAccessibleVendorIds(userId: string, role: string): Promise<Set<string> | null> {
+    if (role === 'admin') return null; // no restriction for admins
+
+    const accessibleProjects = await this.getProjectsForUser(userId, role);
+    if (accessibleProjects.length === 0) return new Set(); // no projects → no vendors
+
+    const accessibleProjectIds = accessibleProjects.map(p => p.id);
+
+    // Vendors that are linked to at least one accessible project
+    const linkedRows = await db
+      .selectDistinct({ vendorId: projectVendors.vendorId })
+      .from(projectVendors)
+      .where(inArray(projectVendors.projectId, accessibleProjectIds));
+
+    const accessibleVendorIds = new Set(
+      linkedRows.map(r => r.vendorId).filter(Boolean) as string[]
+    );
+
+    // Also include vendors that have NO project_vendors rows at all (unlinked/global vendors)
+    const allVendorIds = (await db.select({ id: vendors.id }).from(vendors)).map(v => v.id);
+    const linkedVendorIds = new Set(
+      (await db.selectDistinct({ vendorId: projectVendors.vendorId }).from(projectVendors))
+        .map(r => r.vendorId).filter(Boolean) as string[]
+    );
+    for (const vid of allVendorIds) {
+      if (!linkedVendorIds.has(vid)) accessibleVendorIds.add(vid);
+    }
+
+    return accessibleVendorIds;
   }
 
   // Catalogue Items

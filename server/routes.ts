@@ -8151,13 +8151,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as any).id;
       const role = (req.user as any).role;
       const payments = await storage.getVendorPayments(vendorId);
-      if (role === 'admin') {
+      const accessibleVendorIds = await storage.getAccessibleVendorIds(userId, role);
+      if (accessibleVendorIds === null) {
+        // admin — no restriction
         return res.json(payments);
       }
-      const accessibleProjects = await storage.getProjectsForUser(userId, role);
-      const accessibleIds = new Set(accessibleProjects.map((p: any) => p.id));
-      const filtered = payments.filter((pay: any) => !pay.projectId || accessibleIds.has(pay.projectId));
-      res.json(filtered);
+      if (!accessibleVendorIds.has(vendorId)) {
+        return res.json([]);
+      }
+      res.json(payments);
     } catch (error) {
       console.error('Error fetching vendor payments:', error);
       res.status(500).json({ error: "Failed to fetch payments" });
@@ -8169,12 +8171,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as any).id;
       const role = (req.user as any).role;
       const payments = await storage.getAllPaymentsWithVendors();
-      if (role === 'admin') {
+      const accessibleVendorIds = await storage.getAccessibleVendorIds(userId, role);
+      if (accessibleVendorIds === null) {
         return res.json(payments);
       }
-      const accessibleProjects = await storage.getProjectsForUser(userId, role);
-      const accessibleIds = new Set(accessibleProjects.map((p: any) => p.id));
-      const filtered = payments.filter((pay: any) => !pay.projectId || accessibleIds.has(pay.projectId));
+      const filtered = payments.filter((pay: any) => accessibleVendorIds.has(pay.vendorId));
       res.json(filtered);
     } catch (error) {
       console.error('Error fetching all payments:', error);
