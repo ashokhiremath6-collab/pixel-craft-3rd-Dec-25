@@ -320,7 +320,6 @@ export const vendorInvoices = pgTable("vendor_invoices", {
 export const vendorPayments = pgTable("vendor_payments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   vendorId: varchar("vendor_id").notNull().references(() => vendors.id),
-  projectId: varchar("project_id").references(() => projects.id), // Optional - links payment to a project
   paymentDate: date("payment_date").notNull(),
   paymentReference: varchar("payment_reference").notNull(), // Payment reference number
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
@@ -332,7 +331,6 @@ export const vendorPayments = pgTable("vendor_payments", {
   orgId: varchar("org_id"),
 }, (table) => ({
   vendorIdIdx: index("idx_vendor_payments_vendor_id").on(table.vendorId),
-  projectIdIdx: index("idx_vendor_payments_project_id").on(table.projectId),
 }));
 
 // Catalogue Items table for interior design product taxonomy

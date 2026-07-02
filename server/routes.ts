@@ -14327,7 +14327,6 @@ Return your response in the following JSON format only (no markdown, no code blo
             notes: resolvedNotes,
             createdBy: confirmedBy,
             orgId: pr.orgId || orgId,
-            ...(pr.projectId ? { projectId: pr.projectId } : {}),
           });
         }
       } catch (payErr) {
@@ -14386,7 +14385,6 @@ Return your response in the following JSON format only (no markdown, no code blo
             notes: resolvedNotes,
             createdBy: confirmedBy,
             orgId: pr.orgId || orgId,
-            ...(pr.projectId ? { projectId: pr.projectId } : {}),
           });
         }
       } catch (payErr) {
