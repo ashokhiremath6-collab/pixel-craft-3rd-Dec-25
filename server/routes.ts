@@ -2083,7 +2083,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!email) return res.status(400).json({ error: "email required" });
       const adminUser = req.user as any;
       // Find user by email within org
-      const allUsers = await storage.getOrgUsers(adminUser.orgId);
+      const allUsers = await storage.getUsersByOrg(adminUser.orgId);
       const target = allUsers.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
       if (!target) return res.status(404).json({ error: "No user with that email found in your organisation" });
       await storage.assignUserToProject({ userId: target.id, projectId: req.params.projectId, assignedBy: adminUser.id, orgId: adminUser.orgId });

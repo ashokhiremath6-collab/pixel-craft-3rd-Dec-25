@@ -63,7 +63,7 @@ export default function ProjectsPage() {
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [isRestricted, setIsRestricted] = useState(false);
-  const [memberEmail, setMemberEmail] = useState("");
+  const [memberEmails, setMemberEmails] = useState<string[]>([""]);
 
   const { user } = useAuth();
   const isDesigner = user?.role === 'designer' || user?.role === 'admin';
@@ -96,7 +96,7 @@ export default function ProjectsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', editingProject?.id, 'members'] });
-      setMemberEmail("");
+      setMemberEmails([""]);
       toast({ title: "Member added" });
     },
     onError: (err: any) => {
@@ -199,6 +199,7 @@ export default function ProjectsPage() {
   const handleEditProject = (project: Project) => {
     setEditingProject(project);
     setIsRestricted(project.isRestricted ?? false);
+    setMemberEmails([""]);
     form.reset({
       projectName: project.projectName,
       clientName: project.clientName,
@@ -301,42 +302,80 @@ export default function ProjectsPage() {
                   </div>
 
                   {isRestricted && (
-                    <div className="space-y-2 pt-1">
-                      <p className="text-xs font-medium text-muted-foreground">Members with access</p>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Add by email address"
-                          value={memberEmail}
-                          onChange={e => setMemberEmail(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (memberEmail.trim()) addMemberMutation.mutate(memberEmail.trim()); } }}
-                          className="text-sm"
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={!memberEmail.trim() || addMemberMutation.isPending}
-                          onClick={() => { if (memberEmail.trim()) addMemberMutation.mutate(memberEmail.trim()); }}
-                        >
-                          <UserPlus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {members.map(m => (
-                          <Badge key={m.userId} variant="secondary" className="gap-1 pr-1">
-                            {m.name || m.email}
-                            <button
-                              type="button"
-                              onClick={() => removeMemberMutation.mutate(m.userId)}
-                              className="ml-1 rounded-full hover:bg-muted p-0.5"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </Badge>
+                    <div className="space-y-3 pt-1">
+                      <p className="text-xs font-medium text-muted-foreground">Add members by email</p>
+                      <div className="space-y-2">
+                        {memberEmails.map((email, idx) => (
+                          <div key={idx} className="flex gap-2">
+                            <Input
+                              placeholder="Email address"
+                              value={email}
+                              onChange={e => {
+                                const next = [...memberEmails];
+                                next[idx] = e.target.value;
+                                setMemberEmails(next);
+                              }}
+                              className="text-sm"
+                            />
+                            {memberEmails.length > 1 && (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => setMemberEmails(memberEmails.filter((_, i) => i !== idx))}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         ))}
-                        {members.length === 0 && (
-                          <p className="text-xs text-muted-foreground italic">No members added yet — add yourself and your team.</p>
-                        )}
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setMemberEmails([...memberEmails, ""])}
+                            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                          >
+                            + Add another email
+                          </button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={memberEmails.every(e => !e.trim()) || addMemberMutation.isPending}
+                            onClick={async () => {
+                              const toAdd = memberEmails.filter(e => e.trim());
+                              for (const e of toAdd) {
+                                await addMemberMutation.mutateAsync(e.trim()).catch(() => {});
+                              }
+                            }}
+                          >
+                            <UserPlus className="h-4 w-4 mr-1" />
+                            Add
+                          </Button>
+                        </div>
                       </div>
+
+                      {members.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground">Current members</p>
+                          <div className="flex flex-wrap gap-2">
+                            {members.map(m => (
+                              <Badge key={m.userId} variant="secondary" className="gap-1 pr-1">
+                                {m.name || m.email}
+                                <button
+                                  type="button"
+                                  onClick={() => removeMemberMutation.mutate(m.userId)}
+                                  className="ml-1 rounded-full hover:bg-muted p-0.5"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {members.length === 0 && (
+                        <p className="text-xs text-muted-foreground italic">No members yet — add emails above and click Add.</p>
+                      )}
                     </div>
                   )}
                 </div>
