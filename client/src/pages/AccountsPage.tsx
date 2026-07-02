@@ -1,5 +1,5 @@
 import { FileViewerModal } from "@/components/FileViewerModal";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -201,6 +201,22 @@ export default function AccountsPage() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
   });
+
+  // Fetch projects linked to the selected vendor (for payment project scoping)
+  const { data: vendorProjects = [] } = useQuery<Project[]>({
+    queryKey: ['/api/vendors', selectedVendorId, 'projects'],
+    enabled: !!selectedVendorId,
+  });
+
+  // Auto-select project in payment form when vendor has exactly one linked project
+  useEffect(() => {
+    if (vendorProjects.length === 1) {
+      paymentForm.setValue('projectId', vendorProjects[0].id);
+    } else if (vendorProjects.length === 0) {
+      paymentForm.setValue('projectId', undefined);
+    }
+    // If multiple projects, leave as-is so user must choose
+  }, [selectedVendorId, vendorProjects.length]);
 
   // Fetch invoices for selected vendor
   const { data: invoices = [] } = useQuery<VendorInvoice[]>({
@@ -1156,21 +1172,25 @@ export default function AccountsPage() {
                       )}
                     />
 
+                    {/* Only show project selector if vendor is linked to projects */}
+                    {vendorProjects.length > 0 && (
                     <FormField
                       control={paymentForm.control}
                       name="projectId"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Project (Optional)</FormLabel>
-                          <Select onValueChange={v => field.onChange(v === "__none__" ? undefined : v)} value={field.value ?? "__none__"}>
+                          <FormLabel>
+                            Project{vendorProjects.length > 1 ? " — select for tracking" : ""}
+                          </FormLabel>
+                          <Select onValueChange={v => field.onChange(v === "__none__" ? undefined : v)} value={field.value ?? "__none__"} disabled={vendorProjects.length === 1}>
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="No project" />
+                                <SelectValue placeholder="Select project" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="__none__">No project</SelectItem>
-                              {projects.map(p => (
+                              {vendorProjects.length > 1 && <SelectItem value="__none__">No project</SelectItem>}
+                              {vendorProjects.map(p => (
                                 <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                               ))}
                             </SelectContent>
@@ -1179,6 +1199,7 @@ export default function AccountsPage() {
                         </FormItem>
                       )}
                     />
+                    )}
 
                     <FormField
                       control={paymentForm.control}
@@ -1393,21 +1414,24 @@ export default function AccountsPage() {
                       )}
                     />
 
+                    {vendorProjects.length > 0 && (
                     <FormField
                       control={paymentForm.control}
                       name="projectId"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Project (Optional)</FormLabel>
-                          <Select onValueChange={v => field.onChange(v === "__none__" ? undefined : v)} value={field.value ?? "__none__"}>
+                          <FormLabel>
+                            Project{vendorProjects.length > 1 ? " — select for tracking" : ""}
+                          </FormLabel>
+                          <Select onValueChange={v => field.onChange(v === "__none__" ? undefined : v)} value={field.value ?? "__none__"} disabled={vendorProjects.length === 1}>
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="No project" />
+                                <SelectValue placeholder="Select project" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="__none__">No project</SelectItem>
-                              {projects.map(p => (
+                              {vendorProjects.length > 1 && <SelectItem value="__none__">No project</SelectItem>}
+                              {vendorProjects.map(p => (
                                 <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                               ))}
                             </SelectContent>
@@ -1416,6 +1440,7 @@ export default function AccountsPage() {
                         </FormItem>
                       )}
                     />
+                    )}
 
                     <FormField
                       control={paymentForm.control}
