@@ -22,7 +22,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertVendorInvoiceSchema, insertVendorPaymentSchema } from "@shared/schema";
-import type { Vendor, VendorInvoice, VendorPayment, Project, PaymentRequest } from "@shared/schema";
+import type { Vendor, VendorInvoice, VendorPayment, Project, PaymentRequest, ProjectVendor } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -203,9 +203,16 @@ export default function AccountsPage() {
     queryKey: ['/api/projects'],
   });
 
-  // All payments fetched at page level so both Summary tab and vendor filter can use it
+  // All payments fetched at page level so both Summary tab can use it
   const { data: allPayments = [] } = useQuery<Array<VendorPayment & { vendorName: string }>>({
     queryKey: ['/api/payments/all'],
+  });
+
+  // Fetch project-vendor links for the selected project (so Vendor Ledger dropdown
+  // shows vendors quoted/linked to this project, not just those with a payment.projectId set)
+  const { data: projectVendorLinks = [] } = useQuery<ProjectVendor[]>({
+    queryKey: ['/api/project-vendors/project', selectedProjectId],
+    enabled: selectedProjectId !== "__all__",
   });
 
   // Build project name lookup
@@ -214,10 +221,10 @@ export default function AccountsPage() {
     return acc;
   }, {} as Record<string, string>);
 
-  // Which vendor IDs have payments for the selected project (null = all)
+  // Vendor IDs linked to the selected project via the project-vendor junction table
   const projectVendorIds: Set<string> | null = selectedProjectId === "__all__"
     ? null
-    : new Set(allPayments.filter(p => p.projectId === selectedProjectId).map(p => p.vendorId));
+    : new Set(projectVendorLinks.map(pv => pv.vendorId).filter((id): id is string => !!id));
 
   // Vendor list for the Ledger dropdown, filtered to current project
   const ledgerVendors = projectVendorIds === null
