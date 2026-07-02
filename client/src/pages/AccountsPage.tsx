@@ -210,7 +210,7 @@ export default function AccountsPage() {
 
   // Build project name lookup
   const projectNameMap = projects.reduce((acc, p) => {
-    acc[p.id] = p.name;
+    acc[p.id] = p.projectName;
     return acc;
   }, {} as Record<string, string>);
 
@@ -838,9 +838,9 @@ export default function AccountsPage() {
                 <SelectItem value="__all__">All Projects</SelectItem>
                 {projects
                   .slice()
-                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .sort((a, b) => a.projectName.localeCompare(b.projectName))
                   .map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>
                   ))}
               </SelectContent>
             </Select>
@@ -2310,7 +2310,7 @@ function PaymentsSummary({ projectId, allPayments, projects }: PaymentsSummaryPr
 
   // Build project name lookup
   const projectNameMap = projects.reduce((acc, p) => {
-    acc[p.id] = p.name;
+    acc[p.id] = p.projectName;
     return acc;
   }, {} as Record<string, string>);
 
