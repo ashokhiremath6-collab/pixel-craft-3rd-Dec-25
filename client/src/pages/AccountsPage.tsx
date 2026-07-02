@@ -244,6 +244,7 @@ export default function AccountsPage() {
     defaultValues: {
       paymentDate: format(new Date(), 'yyyy-MM-dd'),
       paymentMethod: 'bank_transfer',
+      projectId: undefined,
     },
   });
 
@@ -593,6 +594,7 @@ export default function AccountsPage() {
         amount: payment.amount,
         paymentMethod: payment.paymentMethod as "cash" | "cheque" | "upi" | "bank_transfer",
         notes: payment.notes ?? undefined,
+        projectId: (payment as any).projectId ?? undefined,
       });
       setEditPaymentDialogOpen(true);
     }
@@ -1156,6 +1158,30 @@ export default function AccountsPage() {
 
                     <FormField
                       control={paymentForm.control}
+                      name="projectId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Project (Optional)</FormLabel>
+                          <Select onValueChange={v => field.onChange(v === "__none__" ? undefined : v)} value={field.value ?? "__none__"}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="No project" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="__none__">No project</SelectItem>
+                              {projects.map(p => (
+                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={paymentForm.control}
                       name="notes"
                       render={({ field }) => (
                         <FormItem>
@@ -1360,6 +1386,30 @@ export default function AccountsPage() {
                               <SelectItem value="cheque">Cheque</SelectItem>
                               <SelectItem value="upi">UPI</SelectItem>
                               <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={paymentForm.control}
+                      name="projectId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Project (Optional)</FormLabel>
+                          <Select onValueChange={v => field.onChange(v === "__none__" ? undefined : v)} value={field.value ?? "__none__"}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="No project" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="__none__">No project</SelectItem>
+                              {projects.map(p => (
+                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                           <FormMessage />
