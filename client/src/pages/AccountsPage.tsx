@@ -2232,14 +2232,33 @@ export default function AccountsPage() {
 function PaymentsSummary() {
   const { toast } = useToast();
   const [openVendors, setOpenVendors] = useState<Set<string>>(new Set());
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("__all__");
 
   // Fetch all payments with vendor information
-  const { data: allPayments = [], isLoading } = useQuery<Array<VendorPayment & { vendorName: string }>>({
+  const { data: allPayments = [], isLoading: paymentsLoading } = useQuery<Array<VendorPayment & { vendorName: string }>>({
     queryKey: ['/api/payments/all'],
   });
 
-  // Group payments by vendor
-  const vendorPayments = allPayments.reduce((acc, payment) => {
+  // Fetch projects (already scoped to user's assigned projects for designers)
+  const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
+    queryKey: ['/api/projects'],
+  });
+
+  const isLoading = paymentsLoading || projectsLoading;
+
+  // Build project name lookup
+  const projectNameMap = projects.reduce((acc, p) => {
+    acc[p.id] = p.name;
+    return acc;
+  }, {} as Record<string, string>);
+
+  // Filter payments by selected project
+  const filteredPayments = selectedProjectId === "__all__"
+    ? allPayments
+    : allPayments.filter(p => p.projectId === selectedProjectId);
+
+  // Group filtered payments by vendor
+  const vendorPayments = filteredPayments.reduce((acc, payment) => {
     if (!acc[payment.vendorId]) {
       acc[payment.vendorId] = {
         vendorName: payment.vendorName,
@@ -2255,10 +2274,10 @@ function PaymentsSummary() {
   // Convert to array and sort alphabetically by vendor name
   const sortedVendors = Object.entries(vendorPayments).sort((a, b) => a[1].vendorName.localeCompare(b[1].vendorName));
 
-  // Calculate totals
-  const totalPayments = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  // Calculate totals from filtered payments
+  const totalPayments = filteredPayments.reduce((sum, p) => sum + Number(p.amount), 0);
   const totalVendors = sortedVendors.length;
-  const totalTransactions = allPayments.length;
+  const totalTransactions = filteredPayments.length;
 
   const toggleVendor = (vendorId: string) => {
     setOpenVendors(prev => {
@@ -2273,7 +2292,7 @@ function PaymentsSummary() {
   };
 
   const handleExportAll = () => {
-    if (allPayments.length === 0) {
+    if (filteredPayments.length === 0) {
       toast({
         variant: "destructive",
         title: "Cannot export",
@@ -2282,8 +2301,13 @@ function PaymentsSummary() {
       return;
     }
 
+    const selectedProjectName = selectedProjectId === "__all__"
+      ? null
+      : projectNameMap[selectedProjectId] || selectedProjectId;
+
     // Prepare data for Excel
-    const exportData = allPayments.map((payment) => ({
+    const exportData = filteredPayments.map((payment) => ({
+      Project: payment.projectId ? (projectNameMap[payment.projectId] || 'Unknown') : '-',
       Vendor: payment.vendorName,
       Date: format(new Date(payment.paymentDate), 'dd-MMM-yyyy'),
       Reference: payment.paymentReference,
@@ -2292,8 +2316,8 @@ function PaymentsSummary() {
       Notes: payment.notes || '',
     }));
 
-    // Add summary row
     exportData.push({
+      Project: '',
       Vendor: '',
       Date: '',
       Reference: '',
@@ -2302,6 +2326,7 @@ function PaymentsSummary() {
       Notes: '',
     });
     exportData.push({
+      Project: selectedProjectName ? `Project: ${selectedProjectName}` : 'All Projects',
       Vendor: 'Total Payments',
       Date: '',
       Reference: '',
@@ -2310,12 +2335,10 @@ function PaymentsSummary() {
       Notes: '',
     });
 
-    // Create workbook and worksheet
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(exportData);
-
-    // Set column widths
     ws['!cols'] = [
+      { wch: 25 }, // Project
       { wch: 25 }, // Vendor
       { wch: 12 }, // Date
       { wch: 15 }, // Reference
@@ -2324,12 +2347,12 @@ function PaymentsSummary() {
       { wch: 30 }, // Notes
     ];
 
-    XLSX.utils.book_append_sheet(wb, ws, 'All Payments');
+    XLSX.utils.book_append_sheet(wb, ws, 'Payments');
 
-    // Generate filename
-    const filename = `All_Payments_Summary_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
-    
-    // Download file
+    const suffix = selectedProjectName
+      ? `_${selectedProjectName.replace(/[^a-z0-9]/gi, '_')}`
+      : '';
+    const filename = `Payments_Summary${suffix}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
     XLSX.writeFile(wb, filename);
 
     toast({
@@ -2344,6 +2367,40 @@ function PaymentsSummary() {
 
   return (
     <div className="space-y-3">
+      {/* Project Filter */}
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Label className="text-sm font-medium shrink-0">Filter by Project</Label>
+            <Select value={selectedProjectId} onValueChange={(val) => {
+              setSelectedProjectId(val);
+              setOpenVendors(new Set());
+            }}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Select project..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All Projects</SelectItem>
+                {projects
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            {selectedProjectId !== "__all__" && (
+              <Button variant="ghost" size="sm" onClick={() => {
+                setSelectedProjectId("__all__");
+                setOpenVendors(new Set());
+              }}>
+                Clear filter
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Summary Cards and Export */}
       <div className="flex items-end justify-between gap-3">
         <div className="grid gap-3 md:grid-cols-2 flex-1">
@@ -2374,7 +2431,6 @@ function PaymentsSummary() {
           </Card>
         </div>
 
-        {/* Export Button */}
         <Button onClick={handleExportAll} variant="outline" size="sm" data-testid="button-export-all-payments">
           <Download className="h-4 w-4 mr-2" />
           Export to Excel
@@ -2387,7 +2443,11 @@ function PaymentsSummary() {
           <CardContent className="p-4">
             <div className="text-center text-muted-foreground">
               <Banknote className="h-10 w-10 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No payment records found</p>
+              <p className="text-sm">
+                {selectedProjectId === "__all__"
+                  ? "No payment records found"
+                  : "No payments recorded for this project"}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -2395,7 +2455,6 @@ function PaymentsSummary() {
         <div className="space-y-2">
           {sortedVendors.map(([vendorId, { vendorName, payments, total }]) => {
             const isOpen = openVendors.has(vendorId);
-            
             return (
               <Card key={vendorId}>
                 <Collapsible open={isOpen} onOpenChange={() => toggleVendor(vendorId)}>
@@ -2433,6 +2492,7 @@ function PaymentsSummary() {
                           <TableRow>
                             <TableHead>Date</TableHead>
                             <TableHead>Reference</TableHead>
+                            {selectedProjectId === "__all__" && <TableHead>Project</TableHead>}
                             <TableHead>Method</TableHead>
                             <TableHead>Notes</TableHead>
                             <TableHead className="text-right">Amount</TableHead>
@@ -2443,6 +2503,11 @@ function PaymentsSummary() {
                             <TableRow key={payment.id} data-testid={`row-payment-${payment.id}`}>
                               <TableCell>{format(new Date(payment.paymentDate), 'dd-MMM-yyyy')}</TableCell>
                               <TableCell>{payment.paymentReference}</TableCell>
+                              {selectedProjectId === "__all__" && (
+                                <TableCell className="text-muted-foreground text-sm">
+                                  {payment.projectId ? (projectNameMap[payment.projectId] || '—') : '—'}
+                                </TableCell>
+                              )}
                               <TableCell className="capitalize">{payment.paymentMethod.replace('_', ' ')}</TableCell>
                               <TableCell className="text-muted-foreground">{payment.notes || '-'}</TableCell>
                               <TableCell className="text-right font-semibold">
