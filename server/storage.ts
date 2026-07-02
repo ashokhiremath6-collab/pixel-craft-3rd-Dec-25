@@ -2088,69 +2088,58 @@ export class DBStorage implements IStorage {
   }
 
   async getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]> {
-    // Admins and designers can access all project vendors
-    if (role === 'admin' || role === 'designer') {
+    if (role === 'admin') {
       if (projectId) {
         return await db.select().from(projectVendors).where(eq(projectVendors.projectId, projectId));
       }
       return await db.select().from(projectVendors);
     }
-    
-    // Project managers and clients can only access project vendors for their accessible projects
+
+    // Designers, project managers, and clients are all filtered through getProjectsForUser
+    // which handles assignment-based scoping for designers and project managers
     const accessibleProjects = await this.getProjectsForUser(userId, role);
     const accessibleProjectIds = accessibleProjects.map(p => p.id);
-    
+
     if (accessibleProjectIds.length === 0) return [];
-    
+
     if (projectId) {
-      // Check if user has access to the specified project
       if (!accessibleProjectIds.includes(projectId)) return [];
       return await db.select().from(projectVendors).where(eq(projectVendors.projectId, projectId));
     }
-    
+
     return await db.select().from(projectVendors).where(inArray(projectVendors.projectId, accessibleProjectIds));
   }
 
   async getBOQForUser(userId: string, role: string, projectVendorId: string): Promise<Boq[]> {
-    // Admins and designers can access all BOQ data
-    if (role === 'admin' || role === 'designer') {
+    if (role === 'admin') {
       return await db.select().from(boq).where(eq(boq.projectVendorId, projectVendorId));
     }
-    
-    // Project managers and clients can only access BOQ for project vendors in their accessible projects
-    const projectVendor = await db.select().from(projectVendors).where(eq(projectVendors.id, projectVendorId));
-    if (projectVendor.length === 0) {
-      return [];
-    }
-    
+
+    const pvRow = await db.select().from(projectVendors).where(eq(projectVendors.id, projectVendorId));
+    if (pvRow.length === 0) return [];
+
     const accessibleProjects = await this.getProjectsForUser(userId, role);
     const accessibleProjectIds = accessibleProjects.map(p => p.id);
-    
-    if (!accessibleProjectIds.includes(projectVendor[0].projectId)) {
-      return [];
-    }
-    
+
+    if (!accessibleProjectIds.includes(pvRow[0].projectId)) return [];
+
     return await db.select().from(boq).where(eq(boq.projectVendorId, projectVendorId));
   }
 
   async getQuoteFilesForUser(userId: string, role: string, projectVendorId: string): Promise<QuoteFile[]> {
-    if (role === 'admin' || role === 'designer') {
-      // Admins and designers can access all quote files
-      return await db.select().from(quoteFiles).where(eq(quoteFiles.projectVendorId, projectVendorId));
-    } else {
-      // Clients can only access quote files for project vendors in their accessible projects
-      const projectVendor = await db.select().from(projectVendors).where(eq(projectVendors.id, projectVendorId));
-      if (projectVendor.length === 0) {
-        return [];
-      }
-      
-      const accessibleProjectIds = await this.getUserAccessibleProjects(userId);
-      if (!accessibleProjectIds.includes(projectVendor[0].projectId)) {
-        return [];
-      }
-      
+    if (role === 'admin') {
       return await db.select().from(quoteFiles).where(eq(quoteFiles.projectVendorId, projectVendorId));
     }
+
+    const pvRow = await db.select().from(projectVendors).where(eq(projectVendors.id, projectVendorId));
+    if (pvRow.length === 0) return [];
+
+    const accessibleProjects = await this.getProjectsForUser(userId, role);
+    const accessibleProjectIds = accessibleProjects.map(p => p.id);
+
+    if (!accessibleProjectIds.includes(pvRow[0].projectId)) return [];
+
+    return await db.select().from(quoteFiles).where(eq(quoteFiles.projectVendorId, projectVendorId));
   }
 
   async getFloorPlansForUser(userId: string, role: string, projectId?: string): Promise<FloorPlan[]> {
