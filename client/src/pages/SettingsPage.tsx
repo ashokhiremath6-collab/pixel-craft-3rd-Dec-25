@@ -1108,7 +1108,9 @@ export default function SettingsPage() {
                         {getRoleIcon(pm.role)}
                         {pm.role}
                       </Badge>
-                      <p className="font-medium">{pm.firstName} {pm.lastName}</p>
+                      <p className="font-medium">
+                        {(pm.firstName || pm.lastName) ? `${pm.firstName ?? ''} ${pm.lastName ?? ''}`.trim() : (pm.email ?? pm.id)}
+                      </p>
                       <p className="text-sm text-muted-foreground">
                         ({allAssignments?.filter(a => a.userId === pm.id).length || 0} projects)
                       </p>
