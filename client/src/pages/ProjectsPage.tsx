@@ -83,18 +83,19 @@ export default function ProjectsPage() {
     queryKey: ['/api/quotations'],
   });
 
-  // Members for the project being edited
-  const { data: members = [], refetch: refetchMembers } = useQuery<ProjectMember[]>({
+  // Members for the project being edited (default fetcher joins queryKey with "/" → correct URL)
+  const { data: members = [] } = useQuery<ProjectMember[]>({
     queryKey: ['/api/projects', editingProject?.id, 'members'],
-    queryFn: () => apiRequest('GET', `/api/projects/${editingProject!.id}/members`),
     enabled: !!editingProject && isAdmin,
   });
 
   const addMemberMutation = useMutation({
-    mutationFn: (email: string) =>
-      apiRequest('POST', `/api/projects/${editingProject!.id}/members`, { email }),
+    mutationFn: async (email: string) => {
+      const res = await apiRequest('POST', `/api/projects/${editingProject!.id}/members`, { email });
+      return res.json();
+    },
     onSuccess: () => {
-      refetchMembers();
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', editingProject?.id, 'members'] });
       setMemberEmail("");
       toast({ title: "Member added" });
     },
@@ -104,10 +105,12 @@ export default function ProjectsPage() {
   });
 
   const removeMemberMutation = useMutation({
-    mutationFn: (userId: string) =>
-      apiRequest('DELETE', `/api/projects/${editingProject!.id}/members/${userId}`),
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest('DELETE', `/api/projects/${editingProject!.id}/members/${userId}`);
+      return res.json();
+    },
     onSuccess: () => {
-      refetchMembers();
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', editingProject?.id, 'members'] });
       toast({ title: "Member removed" });
     },
   });
