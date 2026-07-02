@@ -185,7 +185,7 @@ export default function AccountsPage() {
   const [paymentRequestVendorId, setPaymentRequestVendorId] = useState<string>("");
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("__all__");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -203,6 +203,14 @@ export default function AccountsPage() {
     queryKey: ['/api/projects'],
   });
 
+  // Auto-select the first (alphabetically sorted) project once projects load
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProjectId) {
+      const sorted = projects.slice().sort((a, b) => a.projectName.localeCompare(b.projectName));
+      setSelectedProjectId(sorted[0].id);
+    }
+  }, [projects, selectedProjectId]);
+
   // All payments fetched at page level so both Summary tab can use it
   const { data: allPayments = [] } = useQuery<Array<VendorPayment & { vendorName: string }>>({
     queryKey: ['/api/payments/all'],
@@ -212,7 +220,7 @@ export default function AccountsPage() {
   // shows vendors quoted/linked to this project, not just those with a payment.projectId set)
   const { data: projectVendorLinks = [] } = useQuery<ProjectVendor[]>({
     queryKey: ['/api/project-vendors/project', selectedProjectId],
-    enabled: selectedProjectId !== "__all__",
+    enabled: !!selectedProjectId,
   });
 
   // Build project name lookup
@@ -222,9 +230,9 @@ export default function AccountsPage() {
   }, {} as Record<string, string>);
 
   // Vendor IDs linked to the selected project via the project-vendor junction table
-  const projectVendorIds: Set<string> | null = selectedProjectId === "__all__"
-    ? null
-    : new Set(projectVendorLinks.map(pv => pv.vendorId).filter((id): id is string => !!id));
+  const projectVendorIds: Set<string> | null = selectedProjectId
+    ? new Set(projectVendorLinks.map(pv => pv.vendorId).filter((id): id is string => !!id))
+    : null;
 
   // Vendor list for the Ledger dropdown, filtered to current project
   const ledgerVendors = projectVendorIds === null
@@ -268,9 +276,9 @@ export default function AccountsPage() {
   // Filter payment requests by selected project, then split recent vs history
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const scopedRequests = selectedProjectId === "__all__"
-    ? paymentRequestsList
-    : paymentRequestsList.filter(pr => pr.projectId === selectedProjectId);
+  const scopedRequests = selectedProjectId
+    ? paymentRequestsList.filter(pr => pr.projectId === selectedProjectId)
+    : paymentRequestsList;
   const recentRequests = scopedRequests.filter(pr =>
     pr.status !== 'confirmed' || new Date(pr.requestedAt) >= sevenDaysAgo
   );
@@ -842,7 +850,6 @@ export default function AccountsPage() {
                 <SelectValue placeholder="All projects" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__all__">All Projects</SelectItem>
                 {projects
                   .slice()
                   .sort((a, b) => a.projectName.localeCompare(b.projectName))
@@ -851,14 +858,6 @@ export default function AccountsPage() {
                   ))}
               </SelectContent>
             </Select>
-            {selectedProjectId !== "__all__" && (
-              <Button variant="ghost" size="sm" onClick={() => {
-                setSelectedProjectId("__all__");
-                setSelectedVendorId("");
-              }}>
-                Clear filter
-              </Button>
-            )}
           </div>
         </CardContent>
       </Card>
@@ -908,8 +907,8 @@ export default function AccountsPage() {
                 ))}
             </SelectContent>
           </Select>
-          {ledgerVendors.length === 0 && selectedProjectId !== "__all__" && (
-            <p className="text-sm text-muted-foreground mt-2">No vendors with recorded payments for this project yet.</p>
+          {ledgerVendors.length === 0 && selectedProjectId && (
+            <p className="text-sm text-muted-foreground mt-2">No vendors linked to this project yet.</p>
           )}
         </CardContent>
       </Card>
@@ -1696,6 +1695,7 @@ export default function AccountsPage() {
         <TabsContent value="summary" className="space-y-3">
           <PaymentsSummary
             projectId={selectedProjectId}
+            projectVendorIds={projectVendorIds}
             allPayments={allPayments}
             projects={projects}
           />
@@ -2307,11 +2307,12 @@ export default function AccountsPage() {
 
 interface PaymentsSummaryProps {
   projectId: string;
+  projectVendorIds: Set<string> | null;
   allPayments: Array<VendorPayment & { vendorName: string }>;
   projects: Project[];
 }
 
-function PaymentsSummary({ projectId, allPayments, projects }: PaymentsSummaryProps) {
+function PaymentsSummary({ projectId, projectVendorIds, allPayments, projects }: PaymentsSummaryProps) {
   const { toast } = useToast();
   const [openVendors, setOpenVendors] = useState<Set<string>>(new Set());
 
@@ -2321,10 +2322,10 @@ function PaymentsSummary({ projectId, allPayments, projects }: PaymentsSummaryPr
     return acc;
   }, {} as Record<string, string>);
 
-  // Filter payments by selected project
-  const filteredPayments = projectId === "__all__"
+  // Filter payments by project-linked vendors (junction table, not payment.projectId which is often NULL)
+  const filteredPayments = projectVendorIds === null
     ? allPayments
-    : allPayments.filter(p => p.projectId === projectId);
+    : allPayments.filter(p => projectVendorIds.has(p.vendorId));
 
   // Group filtered payments by vendor
   const vendorPayments = filteredPayments.reduce((acc, payment) => {
@@ -2354,7 +2355,7 @@ function PaymentsSummary({ projectId, allPayments, projects }: PaymentsSummaryPr
       toast({ variant: "destructive", title: "Cannot export", description: "No payment data to export" });
       return;
     }
-    const projectName = projectId === "__all__" ? null : (projectNameMap[projectId] || projectId);
+    const projectName = projectId ? (projectNameMap[projectId] || projectId) : null;
     const rows = filteredPayments.map(payment => ({
       Project: payment.projectId ? (projectNameMap[payment.projectId] || 'Unknown') : '-',
       Vendor: payment.vendorName,
@@ -2366,7 +2367,7 @@ function PaymentsSummary({ projectId, allPayments, projects }: PaymentsSummaryPr
     }));
     rows.push({ Project: '', Vendor: '', Date: '', Reference: '', 'Amount (₹)': '', Method: '', Notes: '' });
     rows.push({
-      Project: projectName ? `Project: ${projectName}` : 'All Projects',
+      Project: projectName ? `Project: ${projectName}` : 'All',
       Vendor: 'Total Payments',
       Date: '',
       Reference: '',
@@ -2424,7 +2425,7 @@ function PaymentsSummary({ projectId, allPayments, projects }: PaymentsSummaryPr
             <div className="text-center text-muted-foreground">
               <Banknote className="h-10 w-10 mx-auto mb-2 opacity-50" />
               <p className="text-sm">
-                {projectId === "__all__" ? "No payment records found" : "No payments recorded for this project"}
+                {projectId ? "No payments recorded for this project" : "No payment records found"}
               </p>
             </div>
           </CardContent>
@@ -2464,7 +2465,7 @@ function PaymentsSummary({ projectId, allPayments, projects }: PaymentsSummaryPr
                           <TableRow>
                             <TableHead>Date</TableHead>
                             <TableHead>Reference</TableHead>
-                            {projectId === "__all__" && <TableHead>Project</TableHead>}
+                            {!projectId && <TableHead>Project</TableHead>}
                             <TableHead>Method</TableHead>
                             <TableHead>Notes</TableHead>
                             <TableHead className="text-right">Amount</TableHead>
@@ -2475,7 +2476,7 @@ function PaymentsSummary({ projectId, allPayments, projects }: PaymentsSummaryPr
                             <TableRow key={payment.id} data-testid={`row-payment-${payment.id}`}>
                               <TableCell>{format(new Date(payment.paymentDate), 'dd-MMM-yyyy')}</TableCell>
                               <TableCell>{payment.paymentReference}</TableCell>
-                              {projectId === "__all__" && (
+                              {!projectId && (
                                 <TableCell className="text-muted-foreground text-sm">
                                   {payment.projectId ? (projectNameMap[payment.projectId] || '—') : '—'}
                                 </TableCell>
