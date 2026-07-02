@@ -1182,7 +1182,7 @@ export default function Dashboard({
                   boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.05)",
                 }}
               >
-                <span className="text-[13px] font-medium" style={{ color: "#86868b" }}>Quoted Value</span>
+                <span className="text-[13px] font-medium" style={{ color: "#86868b" }}>Orders placed</span>
                 <span className="text-[26px] font-bold leading-tight" style={{ color: "#111827" }}>
                   Rs {formatCurrencyCompact(totalQuotationValue)}
                 </span>

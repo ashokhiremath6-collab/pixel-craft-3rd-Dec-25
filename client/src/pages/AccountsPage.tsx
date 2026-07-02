@@ -185,6 +185,7 @@ export default function AccountsPage() {
   const [paymentRequestVendorId, setPaymentRequestVendorId] = useState<string>("");
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("__all__");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -201,9 +202,6 @@ export default function AccountsPage() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
   });
-
-  // Page-level project filter — all three tabs respect this
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("__all__");
 
   // All payments fetched at page level so both Summary tab and vendor filter can use it
   const { data: allPayments = [] } = useQuery<Array<VendorPayment & { vendorName: string }>>({
