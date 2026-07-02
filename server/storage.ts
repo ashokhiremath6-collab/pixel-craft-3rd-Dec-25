@@ -2871,30 +2871,46 @@ export class DBStorage implements IStorage {
 
   // Vendor Payments
   async getVendorPayments(vendorId: string): Promise<VendorPayment[]> {
-    return await db.select()
-      .from(vendorPayments)
-      .where(eq(vendorPayments.vendorId, vendorId))
-      .orderBy(desc(vendorPayments.paymentDate));
+    try {
+      return await db.select()
+        .from(vendorPayments)
+        .where(eq(vendorPayments.vendorId, vendorId))
+        .orderBy(desc(vendorPayments.paymentDate));
+    } catch (err: any) {
+      if (err.message?.includes('column') && err.message?.includes('project_id')) {
+        const rows = await db.execute(sql`SELECT id, vendor_id as "vendorId", payment_date as "paymentDate", payment_reference as "paymentReference", amount, payment_method as "paymentMethod", notes, created_by as "createdBy", created_at as "createdAt", attachment_path as "attachmentPath", org_id as "orgId" FROM vendor_payments WHERE vendor_id = ${vendorId} ORDER BY payment_date DESC`);
+        return rows.rows as unknown as VendorPayment[];
+      }
+      throw err;
+    }
   }
 
   async getAllPaymentsWithVendors(): Promise<Array<VendorPayment & { vendorName: string }>> {
-    const results = await db.select({
-      id: vendorPayments.id,
-      vendorId: vendorPayments.vendorId,
-      paymentDate: vendorPayments.paymentDate,
-      paymentReference: vendorPayments.paymentReference,
-      amount: vendorPayments.amount,
-      paymentMethod: vendorPayments.paymentMethod,
-      notes: vendorPayments.notes,
-      createdBy: vendorPayments.createdBy,
-      createdAt: vendorPayments.createdAt,
-      vendorName: vendors.name,
-    })
-    .from(vendorPayments)
-    .innerJoin(vendors, eq(vendorPayments.vendorId, vendors.id))
-    .orderBy(desc(vendorPayments.paymentDate));
-    
-    return results;
+    try {
+      const results = await db.select({
+        id: vendorPayments.id,
+        vendorId: vendorPayments.vendorId,
+        projectId: vendorPayments.projectId,
+        paymentDate: vendorPayments.paymentDate,
+        paymentReference: vendorPayments.paymentReference,
+        amount: vendorPayments.amount,
+        paymentMethod: vendorPayments.paymentMethod,
+        notes: vendorPayments.notes,
+        createdBy: vendorPayments.createdBy,
+        createdAt: vendorPayments.createdAt,
+        vendorName: vendors.name,
+      })
+      .from(vendorPayments)
+      .innerJoin(vendors, eq(vendorPayments.vendorId, vendors.id))
+      .orderBy(desc(vendorPayments.paymentDate));
+      return results;
+    } catch (err: any) {
+      if (err.message?.includes('column') && err.message?.includes('project_id')) {
+        const rows = await db.execute(sql`SELECT vp.id, vp.vendor_id as "vendorId", vp.payment_date as "paymentDate", vp.payment_reference as "paymentReference", vp.amount, vp.payment_method as "paymentMethod", vp.notes, vp.created_by as "createdBy", vp.created_at as "createdAt", vp.attachment_path as "attachmentPath", vp.org_id as "orgId", v.name as "vendorName" FROM vendor_payments vp INNER JOIN vendors v ON vp.vendor_id = v.id ORDER BY vp.payment_date DESC`);
+        return rows.rows as unknown as Array<VendorPayment & { vendorName: string }>;
+      }
+      throw err;
+    }
   }
 
   async getVendorPayment(id: string): Promise<VendorPayment | undefined> {
@@ -2903,13 +2919,31 @@ export class DBStorage implements IStorage {
   }
 
   async createVendorPayment(payment: InsertVendorPayment): Promise<VendorPayment> {
-    const result = await db.insert(vendorPayments).values(payment).returning();
-    return result[0];
+    try {
+      const result = await db.insert(vendorPayments).values(payment).returning();
+      return result[0];
+    } catch (err: any) {
+      if (err.message?.includes('column') && err.message?.includes('project_id')) {
+        const { projectId, ...paymentWithoutProject } = payment as any;
+        const result = await db.insert(vendorPayments).values(paymentWithoutProject).returning();
+        return result[0];
+      }
+      throw err;
+    }
   }
 
   async updateVendorPayment(id: string, payment: Partial<InsertVendorPayment>): Promise<VendorPayment | undefined> {
-    const result = await db.update(vendorPayments).set(payment).where(eq(vendorPayments.id, id)).returning();
-    return result[0];
+    try {
+      const result = await db.update(vendorPayments).set(payment).where(eq(vendorPayments.id, id)).returning();
+      return result[0];
+    } catch (err: any) {
+      if (err.message?.includes('column') && err.message?.includes('project_id')) {
+        const { projectId, ...paymentWithoutProject } = payment as any;
+        const result = await db.update(vendorPayments).set(paymentWithoutProject).where(eq(vendorPayments.id, id)).returning();
+        return result[0];
+      }
+      throw err;
+    }
   }
 
   async deleteVendorPayment(id: string): Promise<boolean> {
