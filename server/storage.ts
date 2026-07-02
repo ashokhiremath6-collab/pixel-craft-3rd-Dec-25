@@ -2038,17 +2038,20 @@ export class DBStorage implements IStorage {
   }
 
   async getProjectsForUser(userId: string, role: string): Promise<Project[]> {
-    // Admins and designers can access all projects
+    // Get all assignments for this user (used for restricted project access)
+    const assignments = await this.getUserProjectAssignments(userId);
+    const assignedProjectIds = new Set(assignments.map(a => a.projectId));
+
+    // Admins and designers see all projects, EXCEPT restricted ones they're not a member of
     if (role === 'admin' || role === 'designer') {
-      return await db.select().from(projects);
+      const allProjects = await db.select().from(projects);
+      return allProjects.filter(p => !p.isRestricted || assignedProjectIds.has(p.id));
     }
     
-    // Project managers can only access assigned projects
+    // Project managers can only access assigned projects (restricted or not)
     if (role === 'project_manager') {
-      const assignments = await this.getUserProjectAssignments(userId);
-      const projectIds = assignments.map(a => a.projectId);
-      if (projectIds.length === 0) return [];
-      return await db.select().from(projects).where(inArray(projects.id, projectIds));
+      if (assignedProjectIds.size === 0) return [];
+      return await db.select().from(projects).where(inArray(projects.id, Array.from(assignedProjectIds)));
     }
     
     // Clients can only access projects where they're the client

@@ -2062,6 +2062,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Project Clients Routes (Admin/Designer only)
+  // Project member management (for restricted projects)
+  app.get("/api/projects/:projectId/members", requireAdmin, async (req, res) => {
+    try {
+      const assignments = await storage.getUsersAssignedToProject(req.params.projectId);
+      // Enrich with user details
+      const members = await Promise.all(assignments.map(async (a) => {
+        const u = await storage.getUser(a.userId);
+        return { userId: a.userId, email: u?.email ?? '', name: [u?.firstName, u?.lastName].filter(Boolean).join(' ') || u?.email || a.userId, assignedAt: a.assignedAt };
+      }));
+      res.json(members);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch project members" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/members", requireAdmin, async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ error: "email required" });
+      const adminUser = req.user as any;
+      // Find user by email within org
+      const allUsers = await storage.getOrgUsers(adminUser.orgId);
+      const target = allUsers.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+      if (!target) return res.status(404).json({ error: "No user with that email found in your organisation" });
+      await storage.assignUserToProject({ userId: target.id, projectId: req.params.projectId, assignedBy: adminUser.id, orgId: adminUser.orgId });
+      res.status(201).json({ userId: target.id, email: target.email });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to add member" });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/members/:userId", requireAdmin, async (req, res) => {
+    try {
+      await storage.removeUserFromProject(req.params.userId, req.params.projectId);
+      res.json({ message: "Member removed" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to remove member" });
+    }
+  });
+
   app.get("/api/projects/:projectId/clients", requireAdmin, async (req, res) => {
     try {
       const clients = await storage.getProjectClients(req.params.projectId);

@@ -55,6 +55,7 @@ export const projects = pgTable("projects", {
   ganttChartLink: text("gantt_chart_link"), // External Gantt chart link (e.g., Google Sheets, MS Project Online)
   foyrNeoLink: text("foyr_neo_link"), // Foyr Neo 3D design project link
   orgId: varchar("org_id"), // org that owns this project (nullable for legacy projects)
+  isRestricted: boolean("is_restricted").notNull().default(false), // if true, only assigned members can see it regardless of role
 }, (table) => ({
   orgIdIdx: index("projects_org_id_idx").on(table.orgId),
 }));

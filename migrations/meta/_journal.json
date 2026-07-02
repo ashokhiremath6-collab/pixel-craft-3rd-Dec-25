@@ -267,6 +267,13 @@
       "when": 1782760000000,
       "tag": "0037_handover_global",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1782930000000,
+      "tag": "0038_project_restricted",
+      "breakpoints": true
     }
   ]
 }
