@@ -18,7 +18,7 @@ import mammoth from "mammoth";
 import libre from "libreoffice-convert";
 import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
-import { sql } from "drizzle-orm";
+import { sql, and } from "drizzle-orm";
 import { storage } from "./storage";
 import { getPlanLimits, UNLIMITED } from "./planLimits";
 import { setupAuth, isAuthenticated, requireAuth, requireAdmin, requireAdminOnly, requireProjectManagerOrAdmin, requireSuperAdmin, isSuperAdminUser } from "./localAuth";
@@ -55,6 +55,7 @@ import {
   BILLING_VISIBLE_ROLES,
   paymentRequests,
   insertPaymentRequestSchema,
+  vendorInvoices,
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -7981,7 +7982,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         vendorId,
         createdBy: userId,
       });
-      
+
+      // Duplicate guard: reject if same invoice number already exists for this vendor
+      if (invoiceData.invoiceNumber) {
+        const existing = await db
+          .select({ id: vendorInvoices.id })
+          .from(vendorInvoices)
+          .where(
+            and(
+              eq(vendorInvoices.vendorId, vendorId),
+              eq(vendorInvoices.invoiceNumber, invoiceData.invoiceNumber)
+            )
+          )
+          .limit(1);
+        if (existing.length > 0) {
+          return res.status(409).json({
+            error: `Invoice number "${invoiceData.invoiceNumber}" already exists for this vendor. Please use a different invoice number or edit the existing one.`
+          });
+        }
+      }
+
       const invoice = await storage.createVendorInvoice(invoiceData);
       
       // Log activity
