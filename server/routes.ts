@@ -14308,45 +14308,22 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       if (!pr) return res.status(404).json({ error: "Not found or not in client_paid state" });
 
-      // Atomically create a vendor invoice + payment ledger entry so the ledger always reflects confirmed payments
+      // Only create the payment (credit) entry — invoices are entered manually by the studio
       try {
         const resolvedDate = paymentDate
           || (pr.clientPaidAt ? pr.clientPaidAt.toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10));
         const resolvedReference = pr.clientUtr || `PR-${pr.id.substring(0, 8).toUpperCase()}`;
         const resolvedNotes = notes || `Payment received from client. UTR: ${pr.clientUtr || "N/A"}. ${pr.description}`;
-        const invoiceNumber = `PR-${pr.id.substring(0, 8).toUpperCase()}`;
-
-        // Check if a vendor invoice with this PR-derived number already exists (idempotency guard)
-        const { vendorInvoices: vendorInvoicesTable } = await import("@shared/schema");
-        const { eq: eqInv } = await import("drizzle-orm");
-        const existingInvoices = await db.select({ id: vendorInvoicesTable.id })
-          .from(vendorInvoicesTable)
-          .where(eqInv(vendorInvoicesTable.invoiceNumber, invoiceNumber))
-          .limit(1);
-
-        if (existingInvoices.length === 0) {
-          // Create the invoice (debit side of the ledger entry)
-          await storage.createVendorInvoice({
-            vendorId: pr.vendorId,
-            invoiceNumber,
-            invoiceDate: resolvedDate,
-            description: pr.description || resolvedNotes,
-            amount: pr.amount,
-            createdBy: confirmedBy,
-            orgId: pr.orgId || orgId,
-            ...(pr.projectId ? { projectId: pr.projectId } : {}),
-          });
-        }
 
         // Check if a payment with this PR reference already exists (idempotency guard)
         const { vendorPayments: vendorPaymentsTable } = await import("@shared/schema");
+        const { eq: eqPay } = await import("drizzle-orm");
         const existingPayments = await db.select({ id: vendorPaymentsTable.id })
           .from(vendorPaymentsTable)
-          .where(eqInv(vendorPaymentsTable.paymentReference, resolvedReference))
+          .where(eqPay(vendorPaymentsTable.paymentReference, resolvedReference))
           .limit(1);
 
         if (existingPayments.length === 0) {
-          // Create the payment (credit side of the ledger entry)
           await storage.createVendorPayment({
             vendorId: pr.vendorId,
             paymentDate: resolvedDate,
@@ -14360,8 +14337,8 @@ Return your response in the following JSON format only (no markdown, no code blo
           });
         }
       } catch (payErr) {
-        console.error("PATCH /api/payment-requests/:id/confirm — ledger entry creation error:", payErr);
-        // Non-fatal: PR is already confirmed; ledger entries can be added manually
+        console.error("PATCH /api/payment-requests/:id/confirm — payment entry creation error:", payErr);
+        // Non-fatal: PR is already confirmed; payment entry can be added manually via Add to Ledger
       }
 
       res.json(pr);
@@ -14402,33 +14379,14 @@ Return your response in the following JSON format only (no markdown, no code blo
       try {
         const resolvedReference = utr || pr.clientUtr || `PR-${pr.id.substring(0, 8).toUpperCase()}`;
         const resolvedNotes = notes || `Payment recorded directly by studio. UTR: ${utr || "N/A"}. ${pr.description}`;
-        const invoiceNumber = `PR-${pr.id.substring(0, 8).toUpperCase()}`;
 
-        const { vendorInvoices: vendorInvoicesTable } = await import("@shared/schema");
+        // Only create the payment (credit) entry — invoices are entered manually by the studio
         const { vendorPayments: vendorPaymentsTable } = await import("@shared/schema");
-        const { eq: eqInv } = await import("drizzle-orm");
-
-        const existingInvoices = await db.select({ id: vendorInvoicesTable.id })
-          .from(vendorInvoicesTable)
-          .where(eqInv(vendorInvoicesTable.invoiceNumber, invoiceNumber))
-          .limit(1);
-
-        if (existingInvoices.length === 0) {
-          await storage.createVendorInvoice({
-            vendorId: pr.vendorId,
-            invoiceNumber,
-            invoiceDate: resolvedDate,
-            description: pr.description || resolvedNotes,
-            amount: pr.amount,
-            createdBy: confirmedBy,
-            orgId: pr.orgId || orgId,
-            ...(pr.projectId ? { projectId: pr.projectId } : {}),
-          });
-        }
+        const { eq: eqPay } = await import("drizzle-orm");
 
         const existingPayments = await db.select({ id: vendorPaymentsTable.id })
           .from(vendorPaymentsTable)
-          .where(eqInv(vendorPaymentsTable.paymentReference, resolvedReference))
+          .where(eqPay(vendorPaymentsTable.paymentReference, resolvedReference))
           .limit(1);
 
         if (existingPayments.length === 0) {
