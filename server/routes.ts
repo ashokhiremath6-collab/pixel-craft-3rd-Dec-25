@@ -14308,39 +14308,7 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       if (!pr) return res.status(404).json({ error: "Not found or not in client_paid state" });
 
-      // Only create the payment (credit) entry — invoices are entered manually by the studio
-      try {
-        const resolvedDate = paymentDate
-          || (pr.clientPaidAt ? pr.clientPaidAt.toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10));
-        const resolvedReference = pr.clientUtr || `PR-${pr.id.substring(0, 8).toUpperCase()}`;
-        const resolvedNotes = notes || `Payment received from client. UTR: ${pr.clientUtr || "N/A"}. ${pr.description}`;
-
-        // Check if a payment with this PR reference already exists (idempotency guard)
-        const { vendorPayments: vendorPaymentsTable } = await import("@shared/schema");
-        const { eq: eqPay } = await import("drizzle-orm");
-        const existingPayments = await db.select({ id: vendorPaymentsTable.id })
-          .from(vendorPaymentsTable)
-          .where(eqPay(vendorPaymentsTable.paymentReference, resolvedReference))
-          .limit(1);
-
-        if (existingPayments.length === 0) {
-          await storage.createVendorPayment({
-            vendorId: pr.vendorId,
-            paymentDate: resolvedDate,
-            amount: pr.amount,
-            paymentReference: resolvedReference,
-            paymentMethod: "bank_transfer",
-            notes: resolvedNotes,
-            createdBy: confirmedBy,
-            orgId: pr.orgId || orgId,
-            ...(pr.projectId ? { projectId: pr.projectId } : {}),
-          });
-        }
-      } catch (payErr) {
-        console.error("PATCH /api/payment-requests/:id/confirm — payment entry creation error:", payErr);
-        // Non-fatal: PR is already confirmed; payment entry can be added manually via Add to Ledger
-      }
-
+      // No automatic ledger entries — invoices and payments are recorded manually by the studio
       res.json(pr);
     } catch (err) {
       console.error("PATCH /api/payment-requests/:id/confirm error:", err);
@@ -14376,36 +14344,7 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       if (!pr) return res.status(404).json({ error: "Not found or already confirmed" });
 
-      try {
-        const resolvedReference = utr || pr.clientUtr || `PR-${pr.id.substring(0, 8).toUpperCase()}`;
-        const resolvedNotes = notes || `Payment recorded directly by studio. UTR: ${utr || "N/A"}. ${pr.description}`;
-
-        // Only create the payment (credit) entry — invoices are entered manually by the studio
-        const { vendorPayments: vendorPaymentsTable } = await import("@shared/schema");
-        const { eq: eqPay } = await import("drizzle-orm");
-
-        const existingPayments = await db.select({ id: vendorPaymentsTable.id })
-          .from(vendorPaymentsTable)
-          .where(eqPay(vendorPaymentsTable.paymentReference, resolvedReference))
-          .limit(1);
-
-        if (existingPayments.length === 0) {
-          await storage.createVendorPayment({
-            vendorId: pr.vendorId,
-            paymentDate: resolvedDate,
-            amount: pr.amount,
-            paymentReference: resolvedReference,
-            paymentMethod: "bank_transfer",
-            notes: resolvedNotes,
-            createdBy: confirmedBy,
-            orgId: pr.orgId || orgId,
-            ...(pr.projectId ? { projectId: pr.projectId } : {}),
-          });
-        }
-      } catch (payErr) {
-        console.error("PATCH /api/payment-requests/:id/direct-confirm — ledger error:", payErr);
-      }
-
+      // No automatic ledger entries — invoices and payments are recorded manually by the studio
       res.json(pr);
     } catch (err) {
       console.error("PATCH /api/payment-requests/:id/direct-confirm error:", err);
