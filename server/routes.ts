@@ -8145,6 +8145,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Vendor Payments Routes
+  // Returns distinct projects this vendor is linked to (for payment project scoping)
+  app.get("/api/vendors/:vendorId/projects", requireAuth, async (req, res) => {
+    try {
+      const { vendorId } = req.params;
+      const { projectVendors: pv } = await import("@shared/schema");
+      const { eq: eqPV, inArray: inArr } = await import("drizzle-orm");
+      const rows = await db
+        .selectDistinct({ projectId: pv.projectId })
+        .from(pv)
+        .where(eqPV(pv.vendorId, vendorId));
+      if (rows.length === 0) return res.json([]);
+      const projectIds = rows.map(r => r.projectId);
+      const projectRows = await db.select().from(projects).where(inArr(projects.id, projectIds));
+      res.json(projectRows);
+    } catch (error) {
+      console.error('Error fetching vendor projects:', error);
+      res.status(500).json({ error: "Failed to fetch vendor projects" });
+    }
+  });
+
   app.get("/api/vendors/:vendorId/payments", requireAuth, async (req, res) => {
     try {
       const { vendorId } = req.params;
