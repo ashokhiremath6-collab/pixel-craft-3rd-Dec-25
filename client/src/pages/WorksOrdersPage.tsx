@@ -102,7 +102,7 @@ export default function WorksOrdersPage() {
     setViewerOpen(true);
   };
   const [activeTab, setActiveTab] = useState("orders");
-  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const [projectFilter, setProjectFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
@@ -179,6 +179,14 @@ export default function WorksOrdersPage() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
   });
+
+  // Auto-select the first project alphabetically when projects load
+  useEffect(() => {
+    if (projects.length > 0 && !projectFilter) {
+      const sorted = sortProjectsForDropdown(projects);
+      if (sorted.length > 0) setProjectFilter(sorted[0].id);
+    }
+  }, [projects, projectFilter]);
 
   // Fetch project vendors (quotations)
   const { data: projectVendors = [] } = useQuery<ProjectVendor[]>({
@@ -535,7 +543,7 @@ export default function WorksOrdersPage() {
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       // Project filter
-      if (projectFilter !== "all") {
+      if (projectFilter) {
         const pv = projectVendors.find(v => v.id === order.projectVendorId);
         if (!pv || pv.projectId !== projectFilter) return false;
       }
@@ -887,7 +895,6 @@ export default function WorksOrdersPage() {
                     <SelectValue placeholder="All Projects" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Projects</SelectItem>
                     {sortProjectsForDropdown(projects).map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.projectName}

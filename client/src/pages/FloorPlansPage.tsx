@@ -1,5 +1,5 @@
 import { sortProjectsForDropdown } from "@/lib/projectSort";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -86,14 +86,6 @@ export default function FloorPlansPage() {
     queryKey: ['/api/floor-plans/project', selectedProjectId],
     enabled: !!selectedProjectId,
     queryFn: async () => {
-      // Fetch all floor plans when "all" is selected
-      if (selectedProjectId === 'all') {
-        const response = await fetch(`/api/floor-plans`, {
-          credentials: 'include',
-        });
-        if (!response.ok) throw new Error('Failed to fetch floor plans');
-        return response.json();
-      }
       // Fetch specific project's floor plans
       const response = await fetch(`/api/floor-plans/project/${selectedProjectId}`, {
         credentials: 'include',
@@ -107,6 +99,14 @@ export default function FloorPlansPage() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
   });
+
+  // Auto-select the first project alphabetically when projects load
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProjectId) {
+      const sorted = sortProjectsForDropdown(projects);
+      if (sorted.length > 0) setSelectedProjectId(sorted[0].id);
+    }
+  }, [projects, selectedProjectId]);
 
   // Upload form
   const uploadForm = useForm<UploadFormData>({
@@ -477,7 +477,6 @@ export default function FloorPlansPage() {
 
   // Get current project name
   const getCurrentProjectName = () => {
-    if (selectedProjectId === 'all') return 'All Projects';
     const project = projects.find(p => p.id === selectedProjectId);
     return project?.projectName || 'Unknown Project';
   };
@@ -691,7 +690,6 @@ export default function FloorPlansPage() {
                     {project.projectName} - {project.clientName}
                   </SelectItem>
                 ))}
-                <SelectItem value="all">All Projects</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -44,7 +44,7 @@ export default function SpecificationsPage() {
 
   const handleProjectChange = (value: string) => {
     const params = new URLSearchParams(search);
-    if (value && value !== "all") {
+    if (value) {
       params.set("projectId", value);
     } else {
       params.delete("projectId");
@@ -69,6 +69,14 @@ export default function SpecificationsPage() {
   const { data: projects = [] } = useQuery<{ id: string; projectName: string }[]>({
     queryKey: ["/api/projects"],
   });
+
+  // Auto-select the first project alphabetically when projects load
+  useEffect(() => {
+    if (projects.length > 0 && !filterProjectId) {
+      const sorted = sortProjectsForDropdown(projects);
+      if (sorted.length > 0) handleProjectChange(sorted[0].id);
+    }
+  }, [projects, filterProjectId]);
 
   const { data: specs = [], isLoading } = useQuery<Specification[]>({
     queryKey: ["/api/specifications", category],
@@ -286,7 +294,7 @@ export default function SpecificationsPage() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Project</label>
                 <Select
-                  value={filterProjectId || "all"}
+                  value={filterProjectId || ""}
                   onValueChange={handleProjectChange}
                   data-testid="select-project"
                 >
@@ -294,7 +302,6 @@ export default function SpecificationsPage() {
                     <SelectValue placeholder="All Projects" />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
-                    <SelectItem value="all">All Projects</SelectItem>
                     {sortProjectsForDropdown(projects).map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.projectName}

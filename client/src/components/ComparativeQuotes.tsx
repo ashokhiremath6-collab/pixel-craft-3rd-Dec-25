@@ -86,6 +86,14 @@ function QuoteGroupSection({ label, count, children, open, onOpenChange }: { lab
 
 export default function ComparativeQuotes({ projects, categories, quotations, onStatusChange, hideValueColumns = false, initialProject, initialCategory, initialQuoteId }: ComparativeQuotesProps) {
   const [selectedProject, setSelectedProject] = useState<string>(initialProject ?? "");
+
+  // Auto-select the first project alphabetically when projects load
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProject && !initialProject) {
+      const sorted = sortProjectsForDropdown(projects);
+      if (sorted.length > 0) setSelectedProject(sorted[0].id);
+    }
+  }, [projects, selectedProject, initialProject]);
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory ?? "all");
   const [isExporting, setIsExporting] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
@@ -437,7 +445,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
 
   // Filter quotations with hierarchical category support
   const filteredQuotations = allQuotations.filter(quotation => {
-    const matchesProject = !selectedProject || selectedProject === "all" || quotation.projectId === selectedProject;
+    const matchesProject = !selectedProject || quotation.projectId === selectedProject;
     
     // For hierarchical filtering, include quotations from selected category and all its descendants
     let matchesCategory = selectedCategory === "all";
@@ -702,7 +710,6 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                       {project.projectName}
                     </SelectItem>
                   ))}
-                  <SelectItem value="all">All Projects</SelectItem>
                 </SelectContent>
               </Select>
             </div>

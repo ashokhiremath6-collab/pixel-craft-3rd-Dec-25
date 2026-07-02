@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -75,7 +75,7 @@ const LOCATIONS = [
 
 export default function MeetingMinutesPage() {
   const { toast } = useToast();
-  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const [projectFilter, setProjectFilter] = useState<string>("");
   const [meetingTypeFilter, setMeetingTypeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [meetingDateFilter, setMeetingDateFilter] = useState<string>("");
@@ -136,7 +136,7 @@ export default function MeetingMinutesPage() {
       if (meetingDateFilter && mom.meetingDate !== meetingDateFilter) return false;
       
       // Project filter
-      if (projectFilter !== "all") {
+      if (projectFilter) {
         if (projectFilter === "general" && mom.projectId !== null) return false;
         if (projectFilter !== "general" && mom.projectId !== projectFilter) return false;
       }
@@ -558,7 +558,7 @@ export default function MeetingMinutesPage() {
     } else {
       setEditingMOM(null);
       setFormData({
-        projectId: projectFilter !== "all" && projectFilter !== "general" ? projectFilter : "general",
+        projectId: projectFilter && projectFilter !== "general" ? projectFilter : "general",
         meetingDate: new Date().toISOString().split('T')[0],
         meetingTitle: "",
         meetingType: meetingTypeFilter !== "all" ? meetingTypeFilter : "",
@@ -701,7 +701,6 @@ export default function MeetingMinutesPage() {
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Projects</SelectItem>
                   <SelectItem value="general">General/Company Meetings</SelectItem>
                   {sortProjectsForDropdown(projects).map((project) => (
                     <SelectItem key={project.id} value={project.id}>
