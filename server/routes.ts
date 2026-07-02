@@ -2066,10 +2066,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/projects/:projectId/members", requireAdmin, async (req, res) => {
     try {
       const assignments = await storage.getUsersAssignedToProject(req.params.projectId);
-      // Enrich with user details
       const members = await Promise.all(assignments.map(async (a) => {
         const u = await storage.getUser(a.userId);
-        return { userId: a.userId, email: u?.email ?? '', name: [u?.firstName, u?.lastName].filter(Boolean).join(' ') || u?.email || a.userId, assignedAt: a.assignedAt };
+        const roleRecord = await storage.getUserRole(a.userId);
+        return {
+          userId: a.userId,
+          email: u?.email ?? '',
+          name: [u?.firstName, u?.lastName].filter(Boolean).join(' ') || u?.email || a.userId,
+          role: roleRecord?.role ?? 'client',
+          assignedAt: a.assignedAt,
+        };
       }));
       res.json(members);
     } catch (error) {
@@ -2079,15 +2085,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/projects/:projectId/members", requireAdmin, async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email, role } = req.body;
       if (!email) return res.status(400).json({ error: "email required" });
       const adminUser = req.user as any;
-      // Find user by email within org
       const allUsers = await storage.getUsersByOrg(adminUser.orgId);
       const target = allUsers.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
       if (!target) return res.status(404).json({ error: "No user with that email found in your organisation" });
       await storage.assignUserToProject({ userId: target.id, projectId: req.params.projectId, assignedBy: adminUser.id, orgId: adminUser.orgId });
-      res.status(201).json({ userId: target.id, email: target.email });
+      // Optionally update the user's org-level role if one was specified
+      if (role && ['admin', 'designer', 'project_manager', 'client'].includes(role)) {
+        const existing = await storage.getUserRole(target.id);
+        if (existing) {
+          await storage.updateUserRole(target.id, role);
+        } else {
+          await storage.createUserRole({ userId: target.id, role, assignedBy: adminUser.id, orgId: adminUser.orgId });
+        }
+      }
+      const roleRecord = await storage.getUserRole(target.id);
+      res.status(201).json({ userId: target.id, email: target.email, role: roleRecord?.role ?? role ?? 'client' });
     } catch (error: any) {
       res.status(400).json({ error: error.message || "Failed to add member" });
     }

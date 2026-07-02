@@ -11,6 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { Project, InsertProject } from "@shared/schema";
@@ -50,6 +51,24 @@ interface ProjectMember {
   userId: string;
   email: string;
   name: string;
+  role: string;
+}
+
+const ROLE_OPTIONS = [
+  { value: 'designer', label: 'Designer' },
+  { value: 'project_manager', label: 'Project Manager' },
+  { value: 'client', label: 'Client' },
+  { value: 'admin', label: 'Admin' },
+];
+
+function roleBadgeVariant(role: string): "secondary" | "outline" | "default" {
+  if (role === 'admin') return 'default';
+  if (role === 'designer') return 'secondary';
+  return 'outline';
+}
+
+function roleLabel(role: string) {
+  return ROLE_OPTIONS.find(r => r.value === role)?.label ?? role;
 }
 
 const UNLIMITED = 999_999;
@@ -63,7 +82,7 @@ export default function ProjectsPage() {
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [isRestricted, setIsRestricted] = useState(false);
-  const [memberEmails, setMemberEmails] = useState<string[]>([""]);
+  const [memberRows, setMemberRows] = useState<{ email: string; role: string }[]>([{ email: "", role: "designer" }]);
 
   const { user } = useAuth();
   const isDesigner = user?.role === 'designer' || user?.role === 'admin';
@@ -90,13 +109,13 @@ export default function ProjectsPage() {
   });
 
   const addMemberMutation = useMutation({
-    mutationFn: async (email: string) => {
-      const res = await apiRequest('POST', `/api/projects/${editingProject!.id}/members`, { email });
+    mutationFn: async ({ email, role }: { email: string; role: string }) => {
+      const res = await apiRequest('POST', `/api/projects/${editingProject!.id}/members`, { email, role });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', editingProject?.id, 'members'] });
-      setMemberEmails([""]);
+      setMemberRows([{ email: "", role: "designer" }]);
       toast({ title: "Member added" });
     },
     onError: (err: any) => {
@@ -199,7 +218,7 @@ export default function ProjectsPage() {
   const handleEditProject = (project: Project) => {
     setEditingProject(project);
     setIsRestricted(project.isRestricted ?? false);
-    setMemberEmails([""]);
+    setMemberRows([{ email: "", role: "designer" }]);
     form.reset({
       projectName: project.projectName,
       clientName: project.clientName,
@@ -303,26 +322,43 @@ export default function ProjectsPage() {
 
                   {isRestricted && (
                     <div className="space-y-3 pt-1">
-                      <p className="text-xs font-medium text-muted-foreground">Add members by email</p>
+                      <p className="text-xs font-medium text-muted-foreground">Add members</p>
                       <div className="space-y-2">
-                        {memberEmails.map((email, idx) => (
-                          <div key={idx} className="flex gap-2">
+                        {memberRows.map((row, idx) => (
+                          <div key={idx} className="flex gap-2 items-center">
                             <Input
                               placeholder="Email address"
-                              value={email}
+                              value={row.email}
                               onChange={e => {
-                                const next = [...memberEmails];
-                                next[idx] = e.target.value;
-                                setMemberEmails(next);
+                                const next = [...memberRows];
+                                next[idx] = { ...next[idx], email: e.target.value };
+                                setMemberRows(next);
                               }}
-                              className="text-sm"
+                              className="text-sm flex-1"
                             />
-                            {memberEmails.length > 1 && (
+                            <Select
+                              value={row.role}
+                              onValueChange={val => {
+                                const next = [...memberRows];
+                                next[idx] = { ...next[idx], role: val };
+                                setMemberRows(next);
+                              }}
+                            >
+                              <SelectTrigger className="w-36 text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ROLE_OPTIONS.map(r => (
+                                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {memberRows.length > 1 && (
                               <Button
                                 type="button"
                                 size="icon"
                                 variant="ghost"
-                                onClick={() => setMemberEmails(memberEmails.filter((_, i) => i !== idx))}
+                                onClick={() => setMemberRows(memberRows.filter((_, i) => i !== idx))}
                               >
                                 <X className="h-4 w-4" />
                               </Button>
@@ -332,24 +368,24 @@ export default function ProjectsPage() {
                         <div className="flex items-center justify-between gap-2">
                           <button
                             type="button"
-                            onClick={() => setMemberEmails([...memberEmails, ""])}
+                            onClick={() => setMemberRows([...memberRows, { email: "", role: "designer" }])}
                             className="text-xs text-muted-foreground underline-offset-2 hover:underline"
                           >
-                            + Add another email
+                            + Add another
                           </button>
                           <Button
                             type="button"
                             size="sm"
-                            disabled={memberEmails.every(e => !e.trim()) || addMemberMutation.isPending}
+                            disabled={memberRows.every(r => !r.email.trim()) || addMemberMutation.isPending}
                             onClick={async () => {
-                              const toAdd = memberEmails.filter(e => e.trim());
-                              for (const e of toAdd) {
-                                await addMemberMutation.mutateAsync(e.trim()).catch(() => {});
+                              const toAdd = memberRows.filter(r => r.email.trim());
+                              for (const r of toAdd) {
+                                await addMemberMutation.mutateAsync({ email: r.email.trim(), role: r.role }).catch(() => {});
                               }
                             }}
                           >
                             <UserPlus className="h-4 w-4 mr-1" />
-                            Add
+                            {addMemberMutation.isPending ? "Adding..." : "Add"}
                           </Button>
                         </div>
                       </div>
@@ -357,24 +393,29 @@ export default function ProjectsPage() {
                       {members.length > 0 && (
                         <div className="space-y-1">
                           <p className="text-xs font-medium text-muted-foreground">Current members</p>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="space-y-1">
                             {members.map(m => (
-                              <Badge key={m.userId} variant="secondary" className="gap-1 pr-1">
-                                {m.name || m.email}
+                              <div key={m.userId} className="flex items-center justify-between gap-2 py-1">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="text-sm truncate">{m.name || m.email}</span>
+                                  <Badge variant={roleBadgeVariant(m.role)} className="text-xs shrink-0">
+                                    {roleLabel(m.role)}
+                                  </Badge>
+                                </div>
                                 <button
                                   type="button"
                                   onClick={() => removeMemberMutation.mutate(m.userId)}
-                                  className="ml-1 rounded-full hover:bg-muted p-0.5"
+                                  className="text-muted-foreground hover:text-destructive shrink-0"
                                 >
-                                  <X className="h-3 w-3" />
+                                  <X className="h-3.5 w-3.5" />
                                 </button>
-                              </Badge>
+                              </div>
                             ))}
                           </div>
                         </div>
                       )}
                       {members.length === 0 && (
-                        <p className="text-xs text-muted-foreground italic">No members yet — add emails above and click Add.</p>
+                        <p className="text-xs text-muted-foreground italic">No members yet — fill in emails above and click Add.</p>
                       )}
                     </div>
                   )}
