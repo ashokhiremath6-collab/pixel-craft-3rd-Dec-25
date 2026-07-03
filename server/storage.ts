@@ -126,6 +126,7 @@ import {
   handoverItems,
   type HandoverItem,
   type InsertHandoverItem,
+  paymentRequests,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -1988,8 +1989,53 @@ export class DBStorage implements IStorage {
   }
 
   async deleteProject(id: string): Promise<boolean> {
-    const result = await db.delete(projects).where(eq(projects.id, id));
-    return result.rowCount !== null && result.rowCount > 0;
+    return await db.transaction(async (tx) => {
+      // 1. Gather IDs we'll need for sub-deletes
+      const pvRows = await tx.select({ id: projectVendors.id })
+        .from(projectVendors).where(eq(projectVendors.projectId, id));
+      const pvIds = pvRows.map(r => r.id);
+
+      const taskRows = await tx.select({ id: tasks.id })
+        .from(tasks).where(eq(tasks.projectId, id));
+      const taskIds = taskRows.map(r => r.id);
+
+      // 2. Delete works_orders for these project_vendors
+      //    (works_order_signatures, works_order_items, works_order_files cascade via worksOrderId)
+      if (pvIds.length > 0) {
+        await tx.delete(worksOrders).where(inArray(worksOrders.projectVendorId, pvIds));
+        await tx.delete(boq).where(inArray(boq.projectVendorId, pvIds));
+        await tx.delete(quoteFiles).where(inArray(quoteFiles.projectVendorId, pvIds));
+      }
+
+      // 3. Delete project_vendors
+      await tx.delete(projectVendors).where(eq(projectVendors.projectId, id));
+
+      // 4. Delete task dependents, then tasks
+      if (taskIds.length > 0) {
+        await tx.delete(taskDependencies).where(
+          or(inArray(taskDependencies.fromTaskId, taskIds), inArray(taskDependencies.toTaskId, taskIds))
+        );
+        await tx.delete(taskAlerts).where(inArray(taskAlerts.taskId, taskIds));
+        await tx.delete(approvals).where(inArray(approvals.taskId, taskIds));
+      }
+      await tx.delete(tasks).where(eq(tasks.projectId, id));
+      await tx.delete(projectSchedules).where(eq(projectSchedules.projectId, id));
+
+      // 5. Delete floor plans
+      await tx.delete(floorPlans).where(eq(floorPlans.projectId, id));
+
+      // 6. Nullify nullable FK references so they stay intact as historical records
+      await tx.update(moodboards).set({ projectId: null }).where(eq(moodboards.projectId, id));
+      await tx.update(activityLog).set({ projectId: null }).where(eq(activityLog.projectId, id));
+      await tx.update(vendorInvoices).set({ projectId: null }).where(eq(vendorInvoices.projectId, id));
+      await tx.update(vendorPayments).set({ projectId: null }).where(eq(vendorPayments.projectId, id));
+      await tx.update(meetingMinutes).set({ projectId: null }).where(eq(meetingMinutes.projectId, id));
+      await tx.update(paymentRequests).set({ projectId: null }).where(eq(paymentRequests.projectId, id));
+
+      // 7. Finally delete the project (project_clients + user_project_assignments cascade)
+      const result = await tx.delete(projects).where(eq(projects.id, id));
+      return result.rowCount !== null && result.rowCount > 0;
+    });
   }
 
   // Project Clients
