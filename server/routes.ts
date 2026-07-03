@@ -978,14 +978,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /api/organisations/:id/logo — serve org logo (public, no auth required)
+  // GET /api/organisations/:id/logo — serve org logo via signed URL redirect (public, no auth required)
   app.get("/api/organisations/:id/logo", async (req, res) => {
     try {
       const org = await storage.getOrganisation(req.params.id);
       if (!org?.logoUrl) return res.status(404).send("No logo");
       const svc = new ObjectStorageService();
-      const file = await svc.getObjectEntityFile(org.logoUrl);
-      svc.downloadObject(file, res);
+      const signedUrl = await svc.getObjectEntitySignedUrl(org.logoUrl);
+      // Short cache: logo changes rarely but we don't want stale logos forever
+      res.set("Cache-Control", "public, max-age=300");
+      res.redirect(302, signedUrl);
     } catch {
       res.status(404).send("Logo not found");
     }

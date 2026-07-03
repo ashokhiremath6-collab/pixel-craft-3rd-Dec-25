@@ -125,6 +125,7 @@ export default function SettingsPage() {
   const [editingOrgName, setEditingOrgName] = useState(false);
   const [orgNameInput, setOrgNameInput] = useState("");
   const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
   const updateOrgNameMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -470,12 +471,13 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4 flex-wrap">
-              {orgData?.logoUrl ? (
+              {orgData?.logoUrl && !logoError ? (
                 <img
                   src={`/api/organisations/${currentUser.orgId}/logo`}
                   alt="Studio logo"
                   className="h-16 rounded-md border object-contain bg-white"
                   style={{ maxWidth: 200 }}
+                  onError={() => setLogoError(true)}
                 />
               ) : (
                 <div className="h-16 w-16 rounded-md bg-muted flex items-center justify-center text-muted-foreground font-bold text-2xl border">
@@ -511,6 +513,7 @@ export default function SettingsPage() {
                         credentials: "include",
                       });
                       if (!res.ok) throw new Error(await res.text());
+                      setLogoError(false);
                       queryClient.invalidateQueries({ queryKey: ["/api/organisations", currentUser.orgId] });
                       toast({ title: "Logo updated successfully" });
                     } catch (err: any) {
