@@ -7964,11 +7964,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { vendorId } = req.params;
       const userId = (req.user as any).id;
-      const role = (req.user as any).role;
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role?.toLowerCase() || 'client';
       const invoices = await storage.getVendorInvoices(vendorId);
-      if (role === 'admin') {
+      // Admins and designers can see all invoices for any vendor
+      if (role === 'admin' || role === 'designer') {
         return res.json(invoices);
       }
+      // Project managers and clients are filtered to their accessible projects
       const accessibleProjects = await storage.getProjectsForUser(userId, role);
       const accessibleIds = new Set(accessibleProjects.map((p: any) => p.id));
       const filtered = invoices.filter(inv => !inv.projectId || accessibleIds.has(inv.projectId));
@@ -8196,7 +8199,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { vendorId } = req.params;
       const userId = (req.user as any).id;
-      const role = (req.user as any).role;
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role?.toLowerCase() || 'client';
       const payments = await storage.getVendorPayments(vendorId);
       const accessibleVendorIds = await storage.getAccessibleVendorIds(userId, role);
       if (accessibleVendorIds === null) {
@@ -8216,7 +8220,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/payments/all", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
-      const role = (req.user as any).role;
+      const userRole = await storage.getUserRole(userId);
+      const role = userRole?.role?.toLowerCase() || 'client';
       const payments = await storage.getAllPaymentsWithVendors();
       const accessibleVendorIds = await storage.getAccessibleVendorIds(userId, role);
       if (accessibleVendorIds === null) {
