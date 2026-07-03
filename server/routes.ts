@@ -7939,12 +7939,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { limit = '20', projectId } = req.query;
       const limitNum = parseInt(limit as string, 10);
-      
-      const activities = await storage.getRecentActivities(
-        limitNum, 
-        projectId as string | undefined
-      );
-      
+      const orgId = (req.user as any).orgId;
+
+      let activities;
+      if (projectId) {
+        activities = await storage.getRecentActivities(limitNum, projectId as string);
+        // Filter by org via userId join to prevent cross-org leakage
+        const orgUsers = await storage.getUsersByOrg(orgId);
+        const orgUserIds = new Set(orgUsers.map((u: any) => u.id));
+        activities = activities.filter((a: any) => orgUserIds.has(a.userId));
+      } else {
+        activities = await storage.getRecentActivitiesByOrg(orgId, limitNum);
+      }
+
       res.json(activities);
     } catch (error) {
       console.error('Error fetching activities:', error);
