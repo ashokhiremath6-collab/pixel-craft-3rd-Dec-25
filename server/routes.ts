@@ -906,6 +906,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // ─── Organisations ────────────────────────────────────────────────────────
 
+  // Public endpoint — returns org name/id for org-specific entry page (no auth needed)
+  app.get("/api/orgs/by-slug/:slug", async (req, res) => {
+    try {
+      const org = await storage.getOrganisationBySlug(req.params.slug);
+      if (!org) return res.status(404).json({ error: "Organisation not found" });
+      res.json({ id: org.id, name: org.name, slug: org.slug });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to look up organisation" });
+    }
+  });
+
   app.get("/api/organisations/:id", isAuthenticated, async (req, res) => {
     try {
       const callerUser = await storage.getUser((req.user as any).id);

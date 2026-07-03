@@ -116,7 +116,7 @@ export default function SettingsPage() {
     enabled: isAdmin,
   });
 
-  const { data: orgData } = useQuery<{ id: string; name: string; logoUrl?: string | null }>({
+  const { data: orgData } = useQuery<{ id: string; name: string; slug?: string | null; logoUrl?: string | null }>({
     queryKey: ["/api/organisations", currentUser?.orgId],
     queryFn: () => fetch(`/api/organisations/${currentUser?.orgId}`).then(r => r.json()),
     enabled: isAdmin && !!currentUser?.orgId,
@@ -262,6 +262,7 @@ export default function SettingsPage() {
   });
 
   const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
+  const [copiedWorkspaceLink, setCopiedWorkspaceLink] = useState(false);
 
   const copyInviteLink = async (url: string, id: string) => {
     try {
@@ -526,6 +527,53 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Workspace Entry Link */}
+      {isAdmin && orgData?.slug && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5" />
+              Workspace Link
+            </CardTitle>
+            <CardDescription>
+              Save this link as a dock shortcut to go directly to your workspace login. Each organisation has its own unique link.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-sm bg-muted px-3 py-2 rounded-md font-mono truncate text-muted-foreground">
+                {`${window.location.origin}/org/${orgData.slug}`}
+              </code>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(`${window.location.origin}/org/${orgData.slug}`);
+                    setCopiedWorkspaceLink(true);
+                    setTimeout(() => setCopiedWorkspaceLink(false), 2500);
+                  } catch {
+                    toast({ title: "Could not copy", description: "Please copy the URL manually.", variant: "destructive" });
+                  }
+                }}
+              >
+                {copiedWorkspaceLink ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => window.open(`${window.location.origin}/org/${orgData.slug}`, "_blank")}
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Tip: open the link, then use your browser's "Add to Dock" or "Add to Home Screen" option to create a one-tap shortcut for this workspace.
+            </p>
           </CardContent>
         </Card>
       )}

@@ -48,6 +48,7 @@ import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import SignUpPage from "@/pages/SignUpPage";
 import InviteAcceptPage from "@/pages/InviteAcceptPage";
+import OrgEntryPage from "@/pages/OrgEntryPage";
 import OnboardingWizard from "@/components/OnboardingWizard";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -450,6 +451,7 @@ function AppContent() {
   if (location === "/login") return <LoginPage />;
   if (location.startsWith("/invite/")) return <InviteAcceptPage />;
   if (location.startsWith("/pay/")) return <PaymentRequestPublicPage />;
+  if (location.startsWith("/org/")) return <OrgEntryPage />;
 
   if (isLoading) {
     return (
