@@ -69,6 +69,7 @@ export default function VendorPortalApp() {
   const { user, logout } = useAuth();
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("overview");
+  const [logoError, setLogoError] = useState(false);
 
   const { data: vendorData, isLoading: vendorLoading } = useQuery<{
     id: string;
@@ -124,13 +125,14 @@ export default function VendorPortalApp() {
             {studioRequest?.org_name ? (
               <>
                 {/* Studio logo */}
-                {studioRequest.org_logo_url && studioRequest.org_id ? (
+                {studioRequest.org_logo_url && studioRequest.org_id && !logoError ? (
                   <img
                     src={`/api/organisations/${studioRequest.org_id}/logo`}
                     alt={studioRequest.org_name}
                     title={studioRequest.org_name}
                     className="shrink-0 rounded-sm bg-white object-contain"
                     style={{ height: 40, width: "auto", maxWidth: 160 }}
+                    onError={() => setLogoError(true)}
                   />
                 ) : (
                   <div

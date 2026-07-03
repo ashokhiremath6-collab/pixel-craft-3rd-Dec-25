@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList, Lightbulb, PackageCheck } from "lucide-react";
 import {
   Sidebar,
@@ -73,6 +74,7 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
   const [location] = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
   const { user } = useAuth();
+  const [logoError, setLogoError] = useState(false);
 
   const role = previewRole || ((user as any)?.role as string | undefined);
   const orgId = (user as any)?.orgId as string | undefined;
@@ -139,13 +141,14 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
     <Sidebar data-testid="sidebar-main">
       <SidebarHeader className="px-3 py-3 border-b">
         <div className="flex items-center gap-2.5">
-          {org?.logoUrl ? (
+          {org?.logoUrl && !logoError ? (
             <img
               src={`/api/organisations/${orgId}/logo`}
               alt={org.name}
               title={org.name}
               className="shrink-0 rounded-sm bg-white object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
               style={{ height: 44, width: "auto", maxWidth: 150 }}
+              onError={() => setLogoError(true)}
             />
           ) : (
             <div

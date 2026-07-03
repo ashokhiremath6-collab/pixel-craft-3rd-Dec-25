@@ -2091,6 +2091,7 @@ export default function ClientPortalApp({
   onExitPreview?: () => void;
 } = {}) {
   const { user, logout } = useAuth();
+  const [logoError, setLogoError] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string>(() => {
     if (previewMode && typeof window !== 'undefined') {
       return localStorage.getItem('_portal_preview_project') || "";
@@ -2235,13 +2236,14 @@ export default function ClientPortalApp({
           <SidebarHeader className="px-3 py-3 border-b">
             <div className="flex items-center gap-2.5 min-w-0">
               {/* Studio logo */}
-              {orgData?.logoUrl ? (
+              {orgData?.logoUrl && !logoError ? (
                 <img
                   src={`/api/organisations/${(user as any)?.orgId}/logo`}
                   alt={studioName || "Studio"}
                   title={studioName || "Studio"}
                   className="shrink-0 rounded-sm bg-white object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
                   style={{ height: 44, width: "auto", maxWidth: 150 }}
+                  onError={() => setLogoError(true)}
                 />
               ) : (
                 <div

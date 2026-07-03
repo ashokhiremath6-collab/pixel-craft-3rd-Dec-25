@@ -828,6 +828,7 @@ export default function Dashboard({
     enabled: !!user?.orgId,
     staleTime: 5 * 60 * 1000,
   });
+  const [logoError, setLogoError] = useState(false);
 
   const [isQuotationDetailModalOpen, setIsQuotationDetailModalOpen] = useState(false);
   const [showAllProjects, setShowAllProjects] = useState(() => localStorage.getItem('dashboard_show_all_projects') === 'true');
@@ -932,13 +933,14 @@ export default function Dashboard({
 
         {/* ── Page Header ── */}
         <div className="flex items-center gap-4">
-          {org?.logoUrl ? (
+          {org?.logoUrl && !logoError ? (
             <img
               src={`/api/organisations/${org.id}/logo`}
               alt={org.name}
               title={org.name}
               className="shrink-0 rounded-md bg-white object-contain"
               style={{ height: 72, width: "auto", maxWidth: 220 }}
+              onError={() => setLogoError(true)}
             />
           ) : (
             <div
