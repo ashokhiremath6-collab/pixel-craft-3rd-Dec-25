@@ -634,9 +634,13 @@ export default function GanttChartPage() {
         <Card>
           <CardContent className="text-center py-12">
             <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground mb-4">
               No projects found. Create a project to start managing tasks.
             </p>
+            <Button onClick={() => setLocation("/projects")}>
+              <Plus className="h-4 w-4 mr-2" />
+              Go to Projects
+            </Button>
           </CardContent>
         </Card>
       </div>
