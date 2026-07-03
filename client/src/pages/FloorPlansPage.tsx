@@ -541,7 +541,7 @@ export default function FloorPlansPage() {
                         <SelectContent>
                           {sortProjectsForDropdown(projects).map((project) => (
                             <SelectItem key={project.id} value={project.id}>
-                              {project.projectName} - {project.clientName}
+                              {project.projectName}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -687,7 +687,7 @@ export default function FloorPlansPage() {
               <SelectContent>
                 {sortProjectsForDropdown(projects).map((project) => (
                   <SelectItem key={project.id} value={project.id}>
-                    {project.projectName} - {project.clientName}
+                    {project.projectName}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -958,7 +958,7 @@ export default function FloorPlansPage() {
                 <SelectContent>
                   {sortProjectsForDropdown(projects).map((project) => (
                     <SelectItem key={project.id} value={project.id}>
-                      {project.projectName} - {project.clientName}
+                      {project.projectName}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -1138,7 +1138,7 @@ export default function MoodboardsPage() {
             <SelectContent>
               {sortProjectsForDropdown(projects).map((project) => (
                 <SelectItem key={project.id} value={project.id}>
-                  {project.projectName} - {project.clientName}
+                  {project.projectName}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1943,7 +1943,7 @@ export default function MoodboardsPage() {
                       <SelectContent>
                         {sortProjectsForDropdown(projects).map((project) => (
                           <SelectItem key={project.id} value={project.id}>
-                            {project.projectName} - {project.clientName}
+                            {project.projectName}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -2038,7 +2038,7 @@ export default function MoodboardsPage() {
                   <SelectContent>
                     {sortProjectsForDropdown(projects).map((project) => (
                       <SelectItem key={project.id} value={project.id}>
-                        {project.projectName} - {project.clientName}
+                        {project.projectName}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -2204,7 +2204,7 @@ export default function MoodboardsPage() {
               <Select value={cadProjectId} onValueChange={setCadProjectId}>
                 <SelectTrigger><SelectValue placeholder="Select a project" /></SelectTrigger>
                 <SelectContent>
-                  {sortProjectsForDropdown(projects).map(p => <SelectItem key={p.id} value={p.id}>{p.projectName} - {p.clientName}</SelectItem>)}
+                  {sortProjectsForDropdown(projects).map(p => <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

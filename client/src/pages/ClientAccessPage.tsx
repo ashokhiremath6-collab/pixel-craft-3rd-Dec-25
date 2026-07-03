@@ -167,7 +167,7 @@ export default function ClientAccessPage() {
                   <SelectContent>
                     {projects.map((project: any) => (
                       <SelectItem key={project.id} value={project.id}>
-                        {project.projectName} - {project.clientName}
+                        {project.projectName}
                       </SelectItem>
                     ))}
                   </SelectContent>
