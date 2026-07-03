@@ -2111,10 +2111,11 @@ export class DBStorage implements IStorage {
     const orgId = user?.orgId ?? null;
 
     // Helper: base project query scoped to the user's org.
-    // Also includes legacy projects with no orgId (created before multi-tenancy).
+    // Migration 0042 assigned orgIds to all legacy null-orgId projects,
+    // so no isNull fallback is needed.
     const orgProjects = async () => {
       if (orgId) {
-        return await db.select().from(projects).where(or(eq(projects.orgId, orgId), isNull(projects.orgId)));
+        return await db.select().from(projects).where(eq(projects.orgId, orgId));
       }
       return await db.select().from(projects);
     };
