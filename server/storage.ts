@@ -2105,15 +2105,7 @@ export class DBStorage implements IStorage {
   }
 
   async getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]> {
-    if (role === 'admin') {
-      if (projectId) {
-        return await db.select().from(projectVendors).where(eq(projectVendors.projectId, projectId));
-      }
-      return await db.select().from(projectVendors);
-    }
-
-    // Designers, project managers, and clients are all filtered through getProjectsForUser
-    // which handles assignment-based scoping for designers and project managers
+    // All roles (including admin) go through getProjectsForUser which handles org scoping.
     const accessibleProjects = await this.getProjectsForUser(userId, role);
     const accessibleProjectIds = accessibleProjects.map(p => p.id);
 
@@ -3336,39 +3328,32 @@ export class DBStorage implements IStorage {
   }
 
   async getWorksOrdersForUser(userId: string, role: string, projectId?: string): Promise<WorksOrder[]> {
-    if (role === 'admin' || role === 'designer') {
-      // Admins and designers see all orders
-      if (projectId) {
-        return this.getWorksOrdersByProject(projectId);
-      }
-      return this.getAllWorksOrders();
+    // All roles go through getProjectsForUser which handles org scoping.
+    const userProjects = await this.getProjectsForUser(userId, role);
+    const accessibleProjectIds = userProjects.map(p => p.id);
+
+    if (accessibleProjectIds.length === 0) return [];
+
+    if (projectId) {
+      if (!accessibleProjectIds.includes(projectId)) return [];
+      return this.getWorksOrdersByProject(projectId);
     }
 
-    if (role === 'client' || role === 'project_manager') {
-      // Clients and project managers only see orders for their assigned projects
-      const userProjects = await this.getProjectsForUser(userId, role);
-      const projectIds = userProjects.map(p => p.id);
-      
-      if (projectIds.length === 0) return [];
+    const result = await db.select({
+      worksOrder: worksOrders,
+      projectName: projects.projectName,
+      projectId: projects.id,
+      category: projectVendors.category,
+      vendorName: vendors.name,
+    })
+      .from(worksOrders)
+      .leftJoin(projectVendors, eq(worksOrders.projectVendorId, projectVendors.id))
+      .leftJoin(projects, eq(projectVendors.projectId, projects.id))
+      .leftJoin(vendors, eq(projectVendors.vendorId, vendors.id))
+      .where(inArray(projectVendors.projectId, accessibleProjectIds))
+      .orderBy(desc(worksOrders.createdAt));
 
-      const result = await db.select({
-        worksOrder: worksOrders,
-        projectName: projects.projectName,
-        projectId: projects.id,
-        category: projectVendors.category,
-        vendorName: vendors.name,
-      })
-        .from(worksOrders)
-        .leftJoin(projectVendors, eq(worksOrders.projectVendorId, projectVendors.id))
-        .leftJoin(projects, eq(projectVendors.projectId, projects.id))
-        .leftJoin(vendors, eq(projectVendors.vendorId, vendors.id))
-        .where(inArray(projectVendors.projectId, projectIds))
-        .orderBy(desc(worksOrders.createdAt));
-
-      return result.map(r => ({ ...r.worksOrder, projectName: r.projectName, projectId: r.projectId, category: r.category, vendorName: r.vendorName }));
-    }
-
-    return [];
+    return result.map(r => ({ ...r.worksOrder, projectName: r.projectName, projectId: r.projectId, category: r.category, vendorName: r.vendorName }));
   }
 
   async getWorksOrderByToken(token: string): Promise<WorksOrder | undefined> {
