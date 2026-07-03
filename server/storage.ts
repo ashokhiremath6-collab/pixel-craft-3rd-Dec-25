@@ -2053,11 +2053,11 @@ export class DBStorage implements IStorage {
     const user = await this.getUser(userId);
     const orgId = user?.orgId ?? null;
 
-    // Helper: base project query scoped to the user's org (falls back to all
-    // projects only if the user has no orgId, which handles legacy single-tenant data).
+    // Helper: base project query scoped to the user's org.
+    // Also includes legacy projects with no orgId (created before multi-tenancy).
     const orgProjects = async () => {
       if (orgId) {
-        return await db.select().from(projects).where(eq(projects.orgId, orgId));
+        return await db.select().from(projects).where(or(eq(projects.orgId, orgId), isNull(projects.orgId)));
       }
       return await db.select().from(projects);
     };
