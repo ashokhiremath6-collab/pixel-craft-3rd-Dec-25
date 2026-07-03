@@ -2035,10 +2035,11 @@ export class DBStorage implements IStorage {
       await tx.delete(floorPlans).where(eq(floorPlans.projectId, id));
 
       // 6. Nullify nullable FK references so they stay intact as historical records
+      // Note: vendor_invoices has SET NULL in DB so it auto-handles, but explicit is fine.
+      // Note: vendor_payments.project_id does NOT exist in production DB (migration pending) — skip it.
       await tx.update(moodboards).set({ projectId: null }).where(eq(moodboards.projectId, id));
       await tx.update(activityLog).set({ projectId: null }).where(eq(activityLog.projectId, id));
       await tx.update(vendorInvoices).set({ projectId: null }).where(eq(vendorInvoices.projectId, id));
-      await tx.update(vendorPayments).set({ projectId: null }).where(eq(vendorPayments.projectId, id));
       await tx.update(meetingMinutes).set({ projectId: null }).where(eq(meetingMinutes.projectId, id));
       await tx.update(paymentRequests).set({ projectId: null }).where(eq(paymentRequests.projectId, id));
 
