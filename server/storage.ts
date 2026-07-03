@@ -2049,9 +2049,22 @@ export class DBStorage implements IStorage {
     const assignments = await this.getUserProjectAssignments(userId);
     const assignedProjectIds = new Set(assignments.map(a => a.projectId));
 
-    // Admins see all projects
-    if (role === 'admin') {
+    // Look up the user's orgId so we can scope queries to their organisation.
+    const user = await this.getUser(userId);
+    const orgId = user?.orgId ?? null;
+
+    // Helper: base project query scoped to the user's org (falls back to all
+    // projects only if the user has no orgId, which handles legacy single-tenant data).
+    const orgProjects = async () => {
+      if (orgId) {
+        return await db.select().from(projects).where(eq(projects.orgId, orgId));
+      }
       return await db.select().from(projects);
+    };
+
+    // Admins see all projects in their org
+    if (role === 'admin') {
+      return await orgProjects();
     }
 
     // Designers: if they have any explicit project assignments, show ONLY those projects.
@@ -2059,7 +2072,7 @@ export class DBStorage implements IStorage {
     // If a designer has no assignments at all, fall back to showing all unrestricted projects
     // (preserves existing behaviour for designers who haven't been assigned to anything yet).
     if (role === 'designer') {
-      const allProjects = await db.select().from(projects);
+      const allProjects = await orgProjects();
       if (assignedProjectIds.size > 0) {
         return allProjects.filter(p => assignedProjectIds.has(p.id));
       }
@@ -2069,11 +2082,14 @@ export class DBStorage implements IStorage {
     // Project managers can only access assigned projects (restricted or not)
     if (role === 'project_manager') {
       if (assignedProjectIds.size === 0) return [];
-      return await db.select().from(projects).where(inArray(projects.id, Array.from(assignedProjectIds)));
+      const orgWhere = orgId
+        ? and(eq(projects.orgId, orgId), inArray(projects.id, Array.from(assignedProjectIds)))
+        : inArray(projects.id, Array.from(assignedProjectIds));
+      return await db.select().from(projects).where(orgWhere);
     }
     
     // Clients can only access projects where they're the client
-    const user = await this.getUser(userId);
+    // user was already fetched above for orgId; reuse it
     if (!user?.email) return [];
     
     // Get projects from both old clientEmail field and new projectClients table
@@ -2612,7 +2628,11 @@ export class DBStorage implements IStorage {
   }
 
   async getVendorsForUser(userId: string, role: string): Promise<Vendor[]> {
-    // ALL authenticated users can access all vendors
+    const user = await this.getUser(userId);
+    const orgId = user?.orgId ?? null;
+    if (orgId) {
+      return await db.select().from(vendors).where(eq(vendors.orgId, orgId));
+    }
     return await db.select().from(vendors);
   }
 
