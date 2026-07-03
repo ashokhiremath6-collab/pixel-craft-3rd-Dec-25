@@ -18,7 +18,7 @@ import mammoth from "mammoth";
 import libre from "libreoffice-convert";
 import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
-import { sql, and } from "drizzle-orm";
+import { sql, and, eq } from "drizzle-orm";
 import { storage } from "./storage";
 import { getPlanLimits, UNLIMITED } from "./planLimits";
 import { setupAuth, isAuthenticated, requireAuth, requireAdmin, requireAdminOnly, requireProjectManagerOrAdmin, requireSuperAdmin, isSuperAdminUser } from "./localAuth";
