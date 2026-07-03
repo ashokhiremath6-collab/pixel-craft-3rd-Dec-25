@@ -2713,7 +2713,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Quote Templates Routes
   app.get("/api/quote-templates", requireAuth, async (req, res) => {
     try {
-      const templates = await storage.getAllQuoteTemplates();
+      const orgId = (req.user as any).orgId ?? null;
+      const templates = await storage.getAllQuoteTemplates(orgId);
       res.json(templates);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch quote templates" });
@@ -5031,7 +5032,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('[Moodboards Fetch] Query params:', { projectId: validProjectId, assetType: validAssetType, role });
       
       // Use role-based helper method for consistent access control
-      const moodboards = await storage.getMoodboardsForUser(userId, role, validProjectId, validAssetType);
+      const orgId = (req.user as any).orgId ?? null;
+      const moodboards = await storage.getMoodboardsForUser(userId, role, validProjectId, validAssetType, orgId);
       
       console.log('[Moodboards Fetch] Returning', moodboards.length, 'moodboards');
       if (validAssetType === 'render') {
@@ -5061,7 +5063,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('[Moodboards Fetch] type:', type, 'projectId:', validProjectId, 'role:', role);
 
-      const moodboards = await storage.getMoodboardsForUser(userId, role, validProjectId, type);
+      const orgId = (req.user as any).orgId ?? null;
+      const moodboards = await storage.getMoodboardsForUser(userId, role, validProjectId, type, orgId);
 
       console.log('[Moodboards Fetch] Returning', moodboards.length, 'items of type', type);
       res.json(moodboards);
@@ -5453,9 +5456,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'];
       
       // Get catalogue items - filter for those that might have usable images
+      const orgId = (req.user as any).orgId ?? null;
       let items = await storage.getCatalogueItemsByCategory(
         mainCategory as string | undefined,
-        subcategory as string | undefined
+        subcategory as string | undefined,
+        orgId
       );
       
       // Filter items that have an image path (either aiImagePath or filePath that's an image)
@@ -8543,9 +8548,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/catalogue", requireAdmin, async (req, res) => {
     try {
       const { mainCategory, subcategory } = req.query;
+      const orgId = (req.user as any).orgId ?? null;
       const items = await storage.getCatalogueItemsByCategory(
         mainCategory as string | undefined,
-        subcategory as string | undefined
+        subcategory as string | undefined,
+        orgId
       );
       res.json(items);
     } catch (error) {
@@ -8556,7 +8563,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/catalogue/categories", requireAdmin, async (req, res) => {
     try {
-      const categories = await storage.getMainCategories();
+      const orgId = (req.user as any).orgId ?? null;
+      const categories = await storage.getMainCategories(orgId);
       res.json(categories);
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -8566,7 +8574,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/catalogue/categories-with-image-counts", requireAdmin, async (req, res) => {
     try {
-      const counts = await storage.getCategoriesWithImageCounts();
+      const orgId = (req.user as any).orgId ?? null;
+      const counts = await storage.getCategoriesWithImageCounts(orgId);
       res.json(counts);
     } catch (error) {
       console.error('Error fetching categories with counts:', error);
@@ -8577,7 +8586,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin endpoint to populate catalogue with initial data
   app.post("/api/catalogue/populate", requireAdmin, async (req, res) => {
     try {
-      const currentCount = await storage.getCatalogueItemsCount();
+      const orgId = (req.user as any).orgId ?? null;
+      const currentCount = await storage.getCatalogueItemsCount(orgId);
       if (currentCount > 0) {
         return res.status(400).json({ 
           error: "Catalogue already has data", 
@@ -8702,7 +8712,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         inserted++;
       }
 
-      const finalCount = await storage.getCatalogueItemsCount();
+      const finalCount = await storage.getCatalogueItemsCount(orgId);
       res.json({ 
         message: "Catalogue populated successfully", 
         inserted,
@@ -9492,9 +9502,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/specifications", requireAdmin, async (req, res) => {
     try {
       const { category } = req.query;
+      const orgId = (req.user as any).orgId ?? null;
       const specs = category 
-        ? await storage.getSpecificationsByCategory(category as string)
-        : await storage.getAllSpecifications();
+        ? await storage.getSpecificationsByCategory(category as string, orgId)
+        : await storage.getAllSpecifications(orgId);
       res.json(specs);
     } catch (error) {
       console.error('Error fetching specifications:', error);
@@ -9504,7 +9515,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/specifications/categories", requireAdmin, async (req, res) => {
     try {
-      const categories = await storage.getSpecificationCategories();
+      const orgId = (req.user as any).orgId ?? null;
+      const categories = await storage.getSpecificationCategories(orgId);
       res.json(categories);
     } catch (error) {
       console.error('Error fetching specification categories:', error);
@@ -9675,7 +9687,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/sops", requireAuth, async (req, res) => {
     try {
-      const data = await storage.getAllSops();
+      const orgId = (req.user as any).orgId ?? null;
+      const data = await storage.getAllSops(orgId);
       res.json(data);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch SOPs" });
@@ -9684,7 +9697,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/sops/categories", requireAuth, async (req, res) => {
     try {
-      const categories = await storage.getSopCategories();
+      const orgId = (req.user as any).orgId ?? null;
+      const categories = await storage.getSopCategories(orgId);
       res.json(categories);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch SOP categories" });
@@ -9931,7 +9945,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Saved Assets Routes - Admin/Designer only
   app.get("/api/saved-assets", requireAdmin, async (req, res) => {
     try {
-      const assets = await storage.getAllSavedAssets();
+      const orgId = (req.user as any).orgId ?? null;
+      const assets = await storage.getAllSavedAssets(orgId);
       res.json(assets);
     } catch (error) {
       console.error('Error fetching saved assets:', error);
@@ -11475,7 +11490,7 @@ Return your response in the following JSON format only (no markdown, no code blo
         storage.getMoodboardsByProject(projectId, 'render'),
         storage.getMoodboardsByProject(projectId, 'moodboard'),
         storage.getDrawingsForProject(null, projectId, undefined, 'working'),
-        storage.getAllSpecifications(),
+        storage.getAllSpecifications((req.user as any).orgId ?? null),
         storage.getMeetingMinutesByProject(projectId),
         storage.getTasksByProject(projectId),
       ]);

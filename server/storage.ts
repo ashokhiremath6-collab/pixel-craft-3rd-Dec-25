@@ -273,7 +273,7 @@ export interface IStorage {
   getProjectQuotesByCategory(projectId: string, category: string): Promise<Array<ProjectVendor & { vendorName: string }>>;
   
   // Quote Templates
-  getAllQuoteTemplates(): Promise<QuoteTemplate[]>;
+  getAllQuoteTemplates(orgId?: string | null): Promise<QuoteTemplate[]>;
   getQuoteTemplate(id: string): Promise<QuoteTemplate | undefined>;
   getQuoteTemplateWithFileData(id: string): Promise<QuoteTemplate | undefined>;
   getQuoteTemplatesByCategory(categoryId: string): Promise<QuoteTemplate[]>;
@@ -311,7 +311,7 @@ export interface IStorage {
   getAllMoodboards(assetType?: string): Promise<Moodboard[]>;
   getMoodboardsByProject(projectId: string, assetType?: string): Promise<Moodboard[]>;
   getGeneralMoodboards(assetType?: string): Promise<Moodboard[]>;
-  getMoodboardsForUser(userId: string, role: string, projectId?: string, assetType?: string): Promise<Moodboard[]>;
+  getMoodboardsForUser(userId: string, role: string, projectId?: string, assetType?: string, orgId?: string | null): Promise<Moodboard[]>;
   getMoodboard(id: string): Promise<Moodboard | undefined>;
   createMoodboard(moodboard: InsertMoodboard): Promise<Moodboard>;
   updateMoodboard(id: string, moodboard: Partial<InsertMoodboard>): Promise<Moodboard | undefined>;
@@ -372,31 +372,31 @@ export interface IStorage {
   getAccessibleVendorIds(userId: string, role: string): Promise<Set<string> | null>;
   
   // Catalogue Items
-  getAllCatalogueItems(): Promise<CatalogueItem[]>;
+  getAllCatalogueItems(orgId?: string | null): Promise<CatalogueItem[]>;
   getCatalogueItem(id: string): Promise<CatalogueItem | undefined>;
-  getMainCategories(): Promise<string[]>;
-  getCategoriesWithImageCounts(): Promise<{ category: string; imageCount: number }[]>;
-  getCatalogueItemsByCategory(mainCategory?: string, subcategory?: string): Promise<CatalogueItem[]>;
-  getCatalogueItemsCount(): Promise<number>;
+  getMainCategories(orgId?: string | null): Promise<string[]>;
+  getCategoriesWithImageCounts(orgId?: string | null): Promise<{ category: string; imageCount: number }[]>;
+  getCatalogueItemsByCategory(mainCategory?: string, subcategory?: string, orgId?: string | null): Promise<CatalogueItem[]>;
+  getCatalogueItemsCount(orgId?: string | null): Promise<number>;
   createCatalogueItem(item: InsertCatalogueItem): Promise<CatalogueItem>;
   createCatalogueItemWithId(item: InsertCatalogueItem & { id: string }): Promise<CatalogueItem>;
   updateCatalogueItem(id: string, item: Partial<InsertCatalogueItem>): Promise<CatalogueItem | undefined>;
   deleteCatalogueItem(id: string): Promise<boolean>;
   
   // Specifications
-  getAllSpecifications(): Promise<Specification[]>;
+  getAllSpecifications(orgId?: string | null): Promise<Specification[]>;
   getSpecification(id: string): Promise<Specification | undefined>;
-  getSpecificationsByCategory(category: string): Promise<Specification[]>;
-  getSpecificationCategories(): Promise<string[]>;
+  getSpecificationsByCategory(category: string, orgId?: string | null): Promise<Specification[]>;
+  getSpecificationCategories(orgId?: string | null): Promise<string[]>;
   createSpecification(spec: InsertSpecification): Promise<Specification>;
   updateSpecification(id: string, spec: Partial<InsertSpecification>): Promise<Specification | undefined>;
   deleteSpecification(id: string): Promise<boolean>;
 
   // SOPs
-  getAllSops(): Promise<Sop[]>;
+  getAllSops(orgId?: string | null): Promise<Sop[]>;
   getSop(id: string): Promise<Sop | undefined>;
-  getSopsByCategory(category: string): Promise<Sop[]>;
-  getSopCategories(): Promise<string[]>;
+  getSopsByCategory(category: string, orgId?: string | null): Promise<Sop[]>;
+  getSopCategories(orgId?: string | null): Promise<string[]>;
   createSop(sop: InsertSop): Promise<Sop>;
   updateSop(id: string, sop: Partial<InsertSop>): Promise<Sop | undefined>;
   deleteSop(id: string): Promise<boolean>;
@@ -415,7 +415,7 @@ export interface IStorage {
   bulkCreateHandoverItems(items: InsertHandoverItem[]): Promise<HandoverItem[]>;
 
   // Saved Assets
-  getAllSavedAssets(): Promise<SavedAsset[]>;
+  getAllSavedAssets(orgId?: string | null): Promise<SavedAsset[]>;
   getSavedAsset(id: string): Promise<SavedAsset | undefined>;
   getSavedAssetsByUser(userId: string): Promise<SavedAsset[]>;
   createSavedAsset(asset: InsertSavedAsset): Promise<SavedAsset>;
@@ -1171,7 +1171,7 @@ export class MemStorage implements IStorage {
   }
 
   // Quote Templates
-  async getAllQuoteTemplates(): Promise<QuoteTemplate[]> {
+  async getAllQuoteTemplates(orgId?: string | null): Promise<QuoteTemplate[]> {
     return Array.from(this.quoteTemplates.values()).map(template => {
       // Exclude originalFileData to avoid bloating API responses
       const { originalFileData, ...templateWithoutFileData } = template;
@@ -1404,7 +1404,7 @@ export class MemStorage implements IStorage {
     return [];
   }
 
-  async getMoodboardsForUser(userId: string, role: string, projectId?: string, assetType?: string): Promise<Moodboard[]> {
+  async getMoodboardsForUser(userId: string, role: string, projectId?: string, assetType?: string, orgId?: string | null): Promise<Moodboard[]> {
     return [];
   }
 
@@ -2433,9 +2433,9 @@ export class DBStorage implements IStorage {
   }
 
   // Quote Templates
-  async getAllQuoteTemplates(): Promise<QuoteTemplate[]> {
+  async getAllQuoteTemplates(orgId?: string | null): Promise<QuoteTemplate[]> {
     // Exclude originalFileData to avoid bloating API responses
-    return await db.select({
+    const base = db.select({
       id: quoteTemplates.id,
       name: quoteTemplates.name,
       categoryId: quoteTemplates.categoryId,
@@ -2448,6 +2448,8 @@ export class DBStorage implements IStorage {
       isActive: quoteTemplates.isActive,
       createdAt: quoteTemplates.createdAt
     }).from(quoteTemplates);
+    if (orgId) return await base.where(eq(quoteTemplates.orgId, orgId));
+    return await base;
   }
 
   async getQuoteTemplate(id: string): Promise<QuoteTemplate | undefined> {
@@ -2649,10 +2651,10 @@ export class DBStorage implements IStorage {
     return result.rowCount !== null && result.rowCount > 0;
   }
 
-  async getMoodboardsForUser(userId: string, role: string, projectId?: string, assetType?: string): Promise<Moodboard[]> {
+  async getMoodboardsForUser(userId: string, role: string, projectId?: string, assetType?: string, orgId?: string | null): Promise<Moodboard[]> {
     if (role === 'designer' || role === 'admin') {
-      // Designers and admins can access all moodboards
       const conditions = [];
+      if (orgId) conditions.push(eq(moodboards.orgId, orgId));
       if (projectId && projectId !== 'general') {
         conditions.push(eq(moodboards.projectId, projectId));
       } else if (projectId === 'general') {
@@ -3062,7 +3064,8 @@ export class DBStorage implements IStorage {
   }
 
   // Catalogue Items
-  async getAllCatalogueItems(): Promise<CatalogueItem[]> {
+  async getAllCatalogueItems(orgId?: string | null): Promise<CatalogueItem[]> {
+    if (orgId) return await db.select().from(catalogueItems).where(eq(catalogueItems.orgId, orgId)).orderBy(catalogueItems.mainCategory, catalogueItems.subcategory);
     return await db.select().from(catalogueItems).orderBy(catalogueItems.mainCategory, catalogueItems.subcategory);
   }
 
@@ -3071,15 +3074,17 @@ export class DBStorage implements IStorage {
     return result[0];
   }
 
-  async getMainCategories(): Promise<string[]> {
-    const result = await db.selectDistinct({ mainCategory: catalogueItems.mainCategory })
-      .from(catalogueItems)
-      .orderBy(catalogueItems.mainCategory);
+  async getMainCategories(orgId?: string | null): Promise<string[]> {
+    const q = db.selectDistinct({ mainCategory: catalogueItems.mainCategory }).from(catalogueItems);
+    const result = orgId ? await q.where(eq(catalogueItems.orgId, orgId)).orderBy(catalogueItems.mainCategory)
+      : await q.orderBy(catalogueItems.mainCategory);
     return result.map(r => r.mainCategory);
   }
 
-  async getCategoriesWithImageCounts(): Promise<{ category: string; imageCount: number }[]> {
-    const allItems = await db.select().from(catalogueItems);
+  async getCategoriesWithImageCounts(orgId?: string | null): Promise<{ category: string; imageCount: number }[]> {
+    const allItems = orgId
+      ? await db.select().from(catalogueItems).where(eq(catalogueItems.orgId, orgId))
+      : await db.select().from(catalogueItems);
     const categoryCounts = new Map<string, number>();
     const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'];
     
@@ -3106,12 +3111,13 @@ export class DBStorage implements IStorage {
       .sort((a, b) => a.category.localeCompare(b.category));
   }
 
-  async getCatalogueItemsByCategory(mainCategory?: string, subcategory?: string): Promise<CatalogueItem[]> {
+  async getCatalogueItemsByCategory(mainCategory?: string, subcategory?: string, orgId?: string | null): Promise<CatalogueItem[]> {
     if (!mainCategory && !subcategory) {
-      return this.getAllCatalogueItems();
+      return this.getAllCatalogueItems(orgId);
     }
     
     const conditions: any[] = [];
+    if (orgId) conditions.push(eq(catalogueItems.orgId, orgId));
     if (mainCategory) conditions.push(eq(catalogueItems.mainCategory, mainCategory));
     if (subcategory) conditions.push(eq(catalogueItems.subcategory, subcategory));
     
@@ -3121,7 +3127,11 @@ export class DBStorage implements IStorage {
       .orderBy(catalogueItems.subcategory);
   }
 
-  async getCatalogueItemsCount(): Promise<number> {
+  async getCatalogueItemsCount(orgId?: string | null): Promise<number> {
+    if (orgId) {
+      const result = await db.select({ count: sql<number>`count(*)` }).from(catalogueItems).where(eq(catalogueItems.orgId, orgId));
+      return result[0]?.count || 0;
+    }
     const result = await db.select({ count: sql<number>`count(*)` }).from(catalogueItems);
     return result[0]?.count || 0;
   }
@@ -3147,7 +3157,8 @@ export class DBStorage implements IStorage {
   }
 
   // Specifications
-  async getAllSpecifications(): Promise<Specification[]> {
+  async getAllSpecifications(orgId?: string | null): Promise<Specification[]> {
+    if (orgId) return await db.select().from(specifications).where(eq(specifications.orgId, orgId)).orderBy(specifications.category, specifications.title);
     return await db.select().from(specifications).orderBy(specifications.category, specifications.title);
   }
 
@@ -3156,17 +3167,19 @@ export class DBStorage implements IStorage {
     return result[0];
   }
 
-  async getSpecificationsByCategory(category: string): Promise<Specification[]> {
+  async getSpecificationsByCategory(category: string, orgId?: string | null): Promise<Specification[]> {
+    const conditions: any[] = [eq(specifications.category, category)];
+    if (orgId) conditions.push(eq(specifications.orgId, orgId));
     return await db.select()
       .from(specifications)
-      .where(eq(specifications.category, category))
+      .where(and(...conditions))
       .orderBy(specifications.title);
   }
 
-  async getSpecificationCategories(): Promise<string[]> {
-    const result = await db.selectDistinct({ category: specifications.category })
-      .from(specifications)
-      .orderBy(specifications.category);
+  async getSpecificationCategories(orgId?: string | null): Promise<string[]> {
+    const q = db.selectDistinct({ category: specifications.category }).from(specifications);
+    const result = orgId ? await q.where(eq(specifications.orgId, orgId)).orderBy(specifications.category)
+      : await q.orderBy(specifications.category);
     return result.map(r => r.category);
   }
 
@@ -3186,7 +3199,8 @@ export class DBStorage implements IStorage {
   }
 
   // Saved Assets methods
-  async getAllSavedAssets(): Promise<SavedAsset[]> {
+  async getAllSavedAssets(orgId?: string | null): Promise<SavedAsset[]> {
+    if (orgId) return await db.select().from(savedAssets).where(eq(savedAssets.orgId, orgId)).orderBy(desc(savedAssets.savedAt));
     return await db.select().from(savedAssets).orderBy(desc(savedAssets.savedAt));
   }
 
@@ -3664,7 +3678,8 @@ export class DBStorage implements IStorage {
   }
 
   // SOPs
-  async getAllSops(): Promise<Sop[]> {
+  async getAllSops(orgId?: string | null): Promise<Sop[]> {
+    if (orgId) return await db.select().from(sops).where(eq(sops.orgId, orgId)).orderBy(sops.category, sops.title);
     return await db.select().from(sops).orderBy(sops.category, sops.title);
   }
 
@@ -3673,12 +3688,16 @@ export class DBStorage implements IStorage {
     return result[0];
   }
 
-  async getSopsByCategory(category: string): Promise<Sop[]> {
-    return await db.select().from(sops).where(eq(sops.category, category)).orderBy(sops.title);
+  async getSopsByCategory(category: string, orgId?: string | null): Promise<Sop[]> {
+    const conditions: any[] = [eq(sops.category, category)];
+    if (orgId) conditions.push(eq(sops.orgId, orgId));
+    return await db.select().from(sops).where(and(...conditions)).orderBy(sops.title);
   }
 
-  async getSopCategories(): Promise<string[]> {
-    const rows = await db.selectDistinct({ category: sops.category }).from(sops).orderBy(sops.category);
+  async getSopCategories(orgId?: string | null): Promise<string[]> {
+    const q = db.selectDistinct({ category: sops.category }).from(sops);
+    const rows = orgId ? await q.where(eq(sops.orgId, orgId)).orderBy(sops.category)
+      : await q.orderBy(sops.category);
     return rows.map(r => r.category);
   }
 
