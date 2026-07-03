@@ -1568,8 +1568,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If no role found, treat as 'client' (users without designer/admin role)
       const role = userRole?.role || 'client';
       
-      // Use role-based helper method for consistent access control
-      const vendors = await storage.getVendorsForUser(userId, role);
+      // Vendors are global entities shared across the platform — not org-scoped.
+      const vendors = await storage.getAllVendors();
       res.json(vendors);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch vendors" });
@@ -1584,8 +1584,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If no role found, treat as 'client' (users without designer/admin role)
       const role = userRole?.role || 'client';
       
-      // Use role-based helper method to get filtered vendors
-      const vendors = await storage.getVendorsForUser(userId, role);
+      // Vendors are global entities — not org-scoped.
+      const vendors = await storage.getAllVendors();
       const projectVendors = await storage.getProjectVendorsForUser(userId, role);
       
       // Map vendors with their associated projects
