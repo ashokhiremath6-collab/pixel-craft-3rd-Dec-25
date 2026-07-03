@@ -2623,7 +2623,8 @@ export class DBStorage implements IStorage {
     const user = await this.getUser(userId);
     const orgId = user?.orgId ?? null;
     if (orgId) {
-      return await db.select().from(vendors).where(eq(vendors.orgId, orgId));
+      // Include vendors belonging to this org AND legacy vendors with no orgId (created before multi-tenancy)
+      return await db.select().from(vendors).where(or(eq(vendors.orgId, orgId), isNull(vendors.orgId)));
     }
     return await db.select().from(vendors);
   }
