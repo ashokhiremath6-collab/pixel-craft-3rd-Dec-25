@@ -2147,7 +2147,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const adminUser = req.user as any;
       const allUsers = await storage.getUsersByOrg(adminUser.orgId);
       const target = allUsers.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
-      if (!target) return res.status(404).json({ error: "No user with that email found in your organisation" });
+      if (!target) {
+        // Check for a pending invitation so we can give a clearer message
+        const invitations = await storage.getInvitationsByOrg(adminUser.orgId);
+        const hasPending = invitations.some((inv: any) => inv.email?.toLowerCase() === email.toLowerCase() && inv.status === 'pending');
+        if (hasPending) {
+          return res.status(404).json({ error: `${email} has been invited but hasn't accepted yet. Ask them to accept the invitation email first, then add them to the project.` });
+        }
+        return res.status(404).json({ error: "No user with that email found in your organisation" });
+      }
       await storage.assignUserToProject({ userId: target.id, projectId: req.params.projectId, assignedBy: adminUser.id, orgId: adminUser.orgId });
       // Optionally update the user's org-level role if one was specified
       if (role && ['admin', 'designer', 'project_manager', 'client'].includes(role)) {
