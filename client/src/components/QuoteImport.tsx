@@ -617,18 +617,28 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
                     data-testid="select-vendor"
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={filteredVendors.length === 0 ? "No vendors in this category" : "Choose a vendor"} />
+                      <SelectValue placeholder={filteredVendors.length === 0 ? (vendorCategoryFilter === "all" ? "No vendors found — add vendors first" : "No vendors in this category") : "Choose a vendor"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {filteredVendors.map((vendor) => (
-                        <SelectItem
-                          key={vendor.id}
-                          value={vendor.id}
-                          data-testid={`option-vendor-${vendor.id}`}
-                        >
-                          {vendor.name}
-                        </SelectItem>
-                      ))}
+                      {filteredVendors.length === 0 && vendorCategoryFilter === "all" ? (
+                        <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                          No vendors in your organisation yet.{" "}
+                          <a href="/vendors" className="underline text-foreground hover:text-primary">
+                            Add vendors
+                          </a>{" "}
+                          to get started.
+                        </div>
+                      ) : (
+                        filteredVendors.map((vendor) => (
+                          <SelectItem
+                            key={vendor.id}
+                            value={vendor.id}
+                            data-testid={`option-vendor-${vendor.id}`}
+                          >
+                            {vendor.name}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
