@@ -872,6 +872,7 @@ export const organisations = pgTable("organisations", {
   planStatus: text("plan_status").notNull().default("trialing"), // trialing, active, past_due, cancelled
   currentPeriodEnd: timestamp("current_period_end"),
   trialExpiryNotifiedAt: timestamp("trial_expiry_notified_at"), // last time a trial-expiry warning was auto-sent
+  logoUrl: text("logo_url"), // object storage path for org logo
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 

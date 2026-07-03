@@ -51,6 +51,8 @@ interface StudioRequest {
   rfq_document_name: string | null;
   token: string | null;
   org_name: string;
+  org_logo_url: string | null;
+  org_id: string | null;
   created_at: string;
 }
 
@@ -122,13 +124,23 @@ export default function VendorPortalApp() {
             {studioRequest?.org_name ? (
               <>
                 {/* Studio logo */}
-                <img
-                  src="/studio-logo.png"
-                  alt={studioRequest.org_name}
-                  title={studioRequest.org_name}
-                  className="shrink-0 rounded-sm bg-white object-contain"
-                  style={{ height: 40, width: "auto", maxWidth: 160 }}
-                />
+                {studioRequest.org_logo_url && studioRequest.org_id ? (
+                  <img
+                    src={`/api/organisations/${studioRequest.org_id}/logo`}
+                    alt={studioRequest.org_name}
+                    title={studioRequest.org_name}
+                    className="shrink-0 rounded-sm bg-white object-contain"
+                    style={{ height: 40, width: "auto", maxWidth: 160 }}
+                  />
+                ) : (
+                  <div
+                    className="shrink-0 rounded-sm bg-muted flex items-center justify-center text-muted-foreground font-semibold"
+                    style={{ height: 40, width: 40, fontSize: "1rem" }}
+                    title={studioRequest.org_name}
+                  >
+                    {studioRequest.org_name.charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div className="min-w-0">
                   <div className="font-semibold text-sm leading-tight truncate">
                     {studioRequest.org_name}

@@ -938,6 +938,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // POST /api/organisations/:id/logo — upload org logo (admin only)
+  const logoUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (file.mimetype.startsWith("image/")) cb(null, true);
+      else cb(new Error("Only image files are allowed"));
+    },
+  });
+
+  app.post("/api/organisations/:id/logo", requireAdminOnly, logoUpload.single("logo"), async (req, res) => {
+    try {
+      const callerUser = await storage.getUser((req.user as any).id);
+      if (!callerUser?.orgId || callerUser.orgId !== req.params.id) {
+        return res.status(403).json({ error: "You can only update your own organisation." });
+      }
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+      const objectPath = await uploadToObjectStorage(
+        req.file.buffer,
+        req.file.originalname,
+        (req.user as any).id,
+        req.file.mimetype,
+        req.params.id
+      );
+
+      // Mark as public so any authenticated user can view the org logo
+      try {
+        const svc = new ObjectStorageService();
+        await svc.trySetObjectEntityAclPolicy(objectPath, { owner: (req.user as any).id, visibility: "public" });
+      } catch { /* best-effort */ }
+
+      const updated = await storage.updateOrganisation(req.params.id, { logoUrl: objectPath });
+      res.json(updated);
+    } catch (err) {
+      console.error("Logo upload error:", err);
+      res.status(500).json({ error: "Failed to upload logo" });
+    }
+  });
+
+  // GET /api/organisations/:id/logo — serve org logo (public, no auth required)
+  app.get("/api/organisations/:id/logo", async (req, res) => {
+    try {
+      const org = await storage.getOrganisation(req.params.id);
+      if (!org?.logoUrl) return res.status(404).send("No logo");
+      const svc = new ObjectStorageService();
+      const file = await svc.getObjectEntityFile(org.logoUrl);
+      svc.downloadObject(file, res);
+    } catch {
+      res.status(404).send("Logo not found");
+    }
+  });
+
   // ─── Invitations ──────────────────────────────────────────────────────────
 
   // POST /api/rfq-documents — designer/admin uploads an instructions document for an RFQ
@@ -12046,7 +12099,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       const userRow = await storage.getUser(userId);
       if (!userRow?.email) return res.json(null);
       const row = await db.execute(sql`
-        SELECT i.invite_message, i.rfq_document_path, i.rfq_document_name, i.token, i.created_at, o.name AS org_name
+        SELECT i.invite_message, i.rfq_document_path, i.rfq_document_name, i.token, i.created_at, o.name AS org_name, o.logo_url AS org_logo_url, o.id AS org_id
         FROM invitations i
         LEFT JOIN organisations o ON i.org_id = o.id
         WHERE lower(i.email) = lower(${userRow.email})

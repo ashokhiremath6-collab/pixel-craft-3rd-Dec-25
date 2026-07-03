@@ -77,7 +77,7 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
   const role = previewRole || ((user as any)?.role as string | undefined);
   const orgId = (user as any)?.orgId as string | undefined;
 
-  const { data: org } = useQuery<{ name: string }>({
+  const { data: org } = useQuery<{ name: string; logoUrl?: string | null }>({
     queryKey: ["/api/organisations", orgId],
     queryFn: () => fetch(`/api/organisations/${orgId}`).then(r => r.json()),
     enabled: !!orgId,
@@ -139,13 +139,23 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
     <Sidebar data-testid="sidebar-main">
       <SidebarHeader className="px-3 py-3 border-b">
         <div className="flex items-center gap-2.5">
-          <img
-            src="/studio-logo.png"
-            alt={org?.name || "Studio"}
-            title={org?.name || "Studio"}
-            className="shrink-0 rounded-sm bg-white object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
-            style={{ height: 44, width: "auto", maxWidth: 150 }}
-          />
+          {org?.logoUrl ? (
+            <img
+              src={`/api/organisations/${orgId}/logo`}
+              alt={org.name}
+              title={org.name}
+              className="shrink-0 rounded-sm bg-white object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
+              style={{ height: 44, width: "auto", maxWidth: 150 }}
+            />
+          ) : (
+            <div
+              className="shrink-0 rounded-sm bg-muted flex items-center justify-center text-muted-foreground font-semibold group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8"
+              style={{ height: 44, width: 44, fontSize: "1.1rem" }}
+              title={org?.name || "Studio"}
+            >
+              {(org?.name || "S").charAt(0).toUpperCase()}
+            </div>
+          )}
           <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
             <span className="font-semibold leading-snug" style={{ fontSize: "0.72rem" }}>
               {org?.name || "Studio"}

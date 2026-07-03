@@ -116,7 +116,7 @@ export default function SettingsPage() {
     enabled: isAdmin,
   });
 
-  const { data: orgData } = useQuery<{ id: string; name: string }>({
+  const { data: orgData } = useQuery<{ id: string; name: string; logoUrl?: string | null }>({
     queryKey: ["/api/organisations", currentUser?.orgId],
     queryFn: () => fetch(`/api/organisations/${currentUser?.orgId}`).then(r => r.json()),
     enabled: isAdmin && !!currentUser?.orgId,
@@ -124,6 +124,7 @@ export default function SettingsPage() {
 
   const [editingOrgName, setEditingOrgName] = useState(false);
   const [orgNameInput, setOrgNameInput] = useState("");
+  const [logoUploading, setLogoUploading] = useState(false);
 
   const updateOrgNameMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -453,6 +454,75 @@ export default function SettingsPage() {
                 </Button>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Studio Logo */}
+      {isAdmin && currentUser?.orgId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Studio Logo
+            </CardTitle>
+            <CardDescription>Upload your studio logo — shown in the sidebar, dashboard, and vendor/client portals.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4 flex-wrap">
+              {orgData?.logoUrl ? (
+                <img
+                  src={`/api/organisations/${currentUser.orgId}/logo`}
+                  alt="Studio logo"
+                  className="h-16 rounded-md border object-contain bg-white"
+                  style={{ maxWidth: 200 }}
+                />
+              ) : (
+                <div className="h-16 w-16 rounded-md bg-muted flex items-center justify-center text-muted-foreground font-bold text-2xl border">
+                  {(orgData?.name || "S").charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="flex flex-col gap-2">
+                <label htmlFor="logo-upload">
+                  <Button
+                    variant="outline"
+                    disabled={logoUploading}
+                    onClick={() => document.getElementById("logo-upload")?.click()}
+                  >
+                    {logoUploading ? "Uploading…" : orgData?.logoUrl ? "Replace Logo" : "Upload Logo"}
+                  </Button>
+                </label>
+                <p className="text-xs text-muted-foreground">PNG, JPG or SVG · max 5 MB</p>
+                <input
+                  id="logo-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setLogoUploading(true);
+                    try {
+                      const fd = new FormData();
+                      fd.append("logo", file);
+                      const res = await fetch(`/api/organisations/${currentUser.orgId}/logo`, {
+                        method: "POST",
+                        body: fd,
+                        credentials: "include",
+                      });
+                      if (!res.ok) throw new Error(await res.text());
+                      queryClient.invalidateQueries({ queryKey: ["/api/organisations", currentUser.orgId] });
+                      toast({ title: "Logo updated successfully" });
+                    } catch (err: any) {
+                      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+                    } finally {
+                      setLogoUploading(false);
+                      e.target.value = "";
+                    }
+                  }}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

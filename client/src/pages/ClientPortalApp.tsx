@@ -2129,7 +2129,7 @@ export default function ClientPortalApp({
   });
 
   // Fetch org name directly from user's orgId — reliable regardless of whether project has orgId set
-  const { data: orgData } = useQuery<{ id: string; name: string }>({
+  const { data: orgData } = useQuery<{ id: string; name: string; logoUrl?: string | null }>({
     queryKey: ["/api/organisations", (user as any)?.orgId],
     queryFn: () => fetch(`/api/organisations/${(user as any)?.orgId}`, { credentials: "include" }).then(r => r.json()),
     enabled: !!(user as any)?.orgId,
@@ -2235,13 +2235,23 @@ export default function ClientPortalApp({
           <SidebarHeader className="px-3 py-3 border-b">
             <div className="flex items-center gap-2.5 min-w-0">
               {/* Studio logo */}
-              <img
-                src="/studio-logo.png"
-                alt={studioName || "Studio"}
-                title={studioName || "Studio"}
-                className="shrink-0 rounded-sm bg-white object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
-                style={{ height: 44, width: "auto", maxWidth: 150 }}
-              />
+              {orgData?.logoUrl ? (
+                <img
+                  src={`/api/organisations/${(user as any)?.orgId}/logo`}
+                  alt={studioName || "Studio"}
+                  title={studioName || "Studio"}
+                  className="shrink-0 rounded-sm bg-white object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
+                  style={{ height: 44, width: "auto", maxWidth: 150 }}
+                />
+              ) : (
+                <div
+                  className="shrink-0 rounded-sm bg-muted flex items-center justify-center text-muted-foreground font-semibold group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8"
+                  style={{ height: 44, width: 44, fontSize: "1.1rem" }}
+                  title={studioName || "Studio"}
+                >
+                  {(studioName || "S").charAt(0).toUpperCase()}
+                </div>
+              )}
               <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
                 <span
                   className="font-semibold leading-snug"

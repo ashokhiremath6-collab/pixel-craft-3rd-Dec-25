@@ -818,7 +818,7 @@ export default function Dashboard({
   onNavigate,
 }: DashboardProps) {
   const { user } = useAuth();
-  const { data: org } = useQuery<{ id: string; name: string }>({
+  const { data: org } = useQuery<{ id: string; name: string; logoUrl?: string | null }>({
     queryKey: ["/api/organisations", user?.orgId],
     queryFn: async () => {
       const res = await fetch(`/api/organisations/${user!.orgId}`, { credentials: "include" });
@@ -932,13 +932,23 @@ export default function Dashboard({
 
         {/* ── Page Header ── */}
         <div className="flex items-center gap-4">
-          <img
-            src="/studio-logo.png"
-            alt={org?.name || "Studio"}
-            title={org?.name || "Studio"}
-            className="shrink-0 rounded-md bg-white object-contain"
-            style={{ height: 72, width: "auto", maxWidth: 220 }}
-          />
+          {org?.logoUrl ? (
+            <img
+              src={`/api/organisations/${org.id}/logo`}
+              alt={org.name}
+              title={org.name}
+              className="shrink-0 rounded-md bg-white object-contain"
+              style={{ height: 72, width: "auto", maxWidth: 220 }}
+            />
+          ) : (
+            <div
+              className="shrink-0 rounded-md bg-muted flex items-center justify-center text-muted-foreground font-bold"
+              style={{ height: 72, width: 72, fontSize: "1.5rem" }}
+              title={org?.name || "Studio"}
+            >
+              {(org?.name || "S").charAt(0).toUpperCase()}
+            </div>
+          )}
           <div className="flex flex-col gap-0.5">
             <h1
               className="font-semibold leading-tight text-foreground"
