@@ -302,6 +302,13 @@
       "when": 1751950000000,
       "tag": "0042_assign_project_org_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1752000000000,
+      "tag": "0043_assign_vendor_org_ids",
+      "breakpoints": true
     }
   ]
 }
