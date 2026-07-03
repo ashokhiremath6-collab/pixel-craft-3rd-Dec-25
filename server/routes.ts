@@ -10039,14 +10039,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/meeting-minutes", requireProjectAccess, async (req, res) => {
     try {
       const { projectId, startDate, endDate } = req.query;
+      const orgId = (req.user as any)?.orgId ?? null;
       
       let minutes;
       if (projectId) {
-        minutes = await storage.getMeetingMinutesByProject(projectId as string);
+        minutes = await storage.getMeetingMinutesByProject(projectId as string, orgId);
       } else if (startDate && endDate) {
-        minutes = await storage.getMeetingMinutesByDateRange(startDate as string, endDate as string);
+        minutes = await storage.getMeetingMinutesByDateRange(startDate as string, endDate as string, orgId);
       } else {
-        minutes = await storage.getAllMeetingMinutes();
+        minutes = await storage.getAllMeetingMinutes(orgId);
       }
       
       res.json(minutes);

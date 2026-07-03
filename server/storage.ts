@@ -422,10 +422,10 @@ export interface IStorage {
   deleteSavedAsset(id: string): Promise<boolean>;
   
   // Meeting Minutes
-  getAllMeetingMinutes(): Promise<MeetingMinutes[]>;
+  getAllMeetingMinutes(orgId?: string | null): Promise<MeetingMinutes[]>;
   getMeetingMinutes(id: string): Promise<MeetingMinutes | undefined>;
-  getMeetingMinutesByProject(projectId: string): Promise<MeetingMinutes[]>;
-  getMeetingMinutesByDateRange(startDate: string, endDate: string): Promise<MeetingMinutes[]>;
+  getMeetingMinutesByProject(projectId: string, orgId?: string | null): Promise<MeetingMinutes[]>;
+  getMeetingMinutesByDateRange(startDate: string, endDate: string, orgId?: string | null): Promise<MeetingMinutes[]>;
   createMeetingMinutes(minutes: InsertMeetingMinutes): Promise<MeetingMinutes>;
   updateMeetingMinutes(id: string, minutes: Partial<InsertMeetingMinutes>): Promise<MeetingMinutes | undefined>;
   deleteMeetingMinutes(id: string): Promise<boolean>;
@@ -3209,8 +3209,11 @@ export class DBStorage implements IStorage {
   }
 
   // Meeting Minutes methods
-  async getAllMeetingMinutes(): Promise<MeetingMinutes[]> {
-    return await db.select().from(meetingMinutes).orderBy(desc(meetingMinutes.meetingDate));
+  async getAllMeetingMinutes(orgId?: string | null): Promise<MeetingMinutes[]> {
+    const where = orgId ? eq(meetingMinutes.orgId, orgId) : undefined;
+    return await db.select().from(meetingMinutes)
+      .where(where)
+      .orderBy(desc(meetingMinutes.meetingDate));
   }
 
   async getMeetingMinutes(id: string): Promise<MeetingMinutes | undefined> {
@@ -3218,20 +3221,30 @@ export class DBStorage implements IStorage {
     return result[0];
   }
 
-  async getMeetingMinutesByProject(projectId: string): Promise<MeetingMinutes[]> {
+  async getMeetingMinutesByProject(projectId: string, orgId?: string | null): Promise<MeetingMinutes[]> {
+    const where = orgId
+      ? and(eq(meetingMinutes.projectId, projectId), eq(meetingMinutes.orgId, orgId))
+      : eq(meetingMinutes.projectId, projectId);
     return await db.select()
       .from(meetingMinutes)
-      .where(eq(meetingMinutes.projectId, projectId))
+      .where(where)
       .orderBy(desc(meetingMinutes.meetingDate));
   }
 
-  async getMeetingMinutesByDateRange(startDate: string, endDate: string): Promise<MeetingMinutes[]> {
+  async getMeetingMinutesByDateRange(startDate: string, endDate: string, orgId?: string | null): Promise<MeetingMinutes[]> {
+    const where = orgId
+      ? and(
+          sql`${meetingMinutes.meetingDate} >= ${startDate}`,
+          sql`${meetingMinutes.meetingDate} <= ${endDate}`,
+          eq(meetingMinutes.orgId, orgId)
+        )
+      : and(
+          sql`${meetingMinutes.meetingDate} >= ${startDate}`,
+          sql`${meetingMinutes.meetingDate} <= ${endDate}`
+        );
     return await db.select()
       .from(meetingMinutes)
-      .where(and(
-        sql`${meetingMinutes.meetingDate} >= ${startDate}`,
-        sql`${meetingMinutes.meetingDate} <= ${endDate}`
-      ))
+      .where(where)
       .orderBy(desc(meetingMinutes.meetingDate));
   }
 
