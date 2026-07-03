@@ -48,6 +48,9 @@ integrations = ["javascript_object_storage:1.0.0", "javascript_database:1.0.0", 
 RESEND_API_KEY = "re_YqUaP7bV_CmvvVfsT9LQqqGmsDetsEzG7"
 RESEND_FROM = "noreply@mail.olympikdesign.com"
 
+[userenv.production]
+PUBLIC_SIGNUP_ENABLED = "true"
+
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 60000
