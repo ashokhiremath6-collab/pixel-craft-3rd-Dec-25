@@ -2392,8 +2392,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allProjectVendors = await storage.getAllProjectVendors();
       const projectVendors = allProjectVendors.filter(pv => projectIds.has(pv.projectId));
 
-      // Get vendors and categories scoped to this org
-      const vendors = await storage.getVendorsForUser(userId, userRole);
+      // Fetch ALL vendors (not org-filtered) for quotation lookup.
+      // Project-scope already enforces access control above; vendors are shared
+      // infrastructure and may have been assigned to one org by the backfill
+      // migration even if they appear in another org's projects.
+      const vendors = await storage.getAllVendors();
       const categories = await storage.getAllVendorCategories();
 
       // Get activities scoped to org for uploader information
