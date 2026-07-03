@@ -2309,35 +2309,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If no role found, treat as 'client' (users without designer/admin role)
       const userRole = userRoleData?.role || 'client';
       
-      // Get all project vendors
-      const projectVendors = await storage.getAllProjectVendors();
-      
-      // Get all projects and vendors for joining
-      const allProjects = await storage.getAllProjects();
-      const vendors = await storage.getAllVendors();
+      // Get projects scoped to this user's org + role (handles admin/designer/client/pm)
+      const projects = await storage.getProjectsForUser(userId, userRole);
+      const projectIds = new Set(projects.map(p => p.id));
+
+      // Get project vendors only for accessible projects
+      const allProjectVendors = await storage.getAllProjectVendors();
+      const projectVendors = allProjectVendors.filter(pv => projectIds.has(pv.projectId));
+
+      // Get vendors and categories scoped to this org
+      const vendors = await storage.getVendorsForUser(userId, userRole);
       const categories = await storage.getAllVendorCategories();
-      
-      // Get all activities for uploader information (optimization: fetch once for all quotes)
-      const allActivities = await storage.getRecentActivities(500);
-      
-      // Filter projects based on user role and access
-      let projects = allProjects;
-      if (userRole === 'client') {
-        const user = await storage.getUser(userId);
-        if (!user) {
-          return res.status(401).json({ error: "User not found" });
-        }
-        // Get projects from both old clientEmail field and new projectClients table
-        const clientEmailProjects = allProjects.filter(project => project.clientEmail === user.email);
-        const projectClientProjects = await storage.getProjectsByClientEmail(user.email);
-        
-        // Combine and deduplicate
-        const projectIds = new Set([
-          ...clientEmailProjects.map(p => p.id),
-          ...projectClientProjects.map(p => p.id)
-        ]);
-        projects = allProjects.filter(p => projectIds.has(p.id));
-      }
+
+      // Get activities scoped to org for uploader information
+      const orgId = (req.user as any).orgId;
+      const allActivities = orgId
+        ? await storage.getRecentActivitiesByOrg(orgId, 500)
+        : await storage.getRecentActivities(500);
       
       // Create lookup maps for performance
       const projectMap = new Map(projects.map(p => [p.id, p]));
