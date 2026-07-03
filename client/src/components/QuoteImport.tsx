@@ -617,16 +617,26 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
                     data-testid="select-vendor"
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={filteredVendors.length === 0 ? (vendorCategoryFilter === "all" ? "No vendors found — add vendors first" : "No vendors in this category") : "Choose a vendor"} />
+                      <SelectValue placeholder={
+                        sortedVendors.length === 0
+                          ? "No vendors found — add vendors first"
+                          : filteredVendors.length === 0
+                            ? "No vendors in this category"
+                            : "Choose a vendor"
+                      } />
                     </SelectTrigger>
                     <SelectContent>
-                      {filteredVendors.length === 0 && vendorCategoryFilter === "all" ? (
+                      {sortedVendors.length === 0 ? (
                         <div className="px-3 py-4 text-sm text-muted-foreground text-center">
                           No vendors in your organisation yet.{" "}
                           <a href="/vendors" className="underline text-foreground hover:text-primary">
                             Add vendors
                           </a>{" "}
                           to get started.
+                        </div>
+                      ) : filteredVendors.length === 0 ? (
+                        <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                          No vendors in this category.
                         </div>
                       ) : (
                         filteredVendors.map((vendor) => (
