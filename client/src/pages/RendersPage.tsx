@@ -491,10 +491,7 @@ export default function RendersPage() {
           <div className="flex flex-col items-center justify-center h-64 text-center gap-2">
             <ImageIcon className="h-8 w-8 text-muted-foreground" />
             <p className="font-medium">No renders yet</p>
-            <p className="text-sm text-muted-foreground">Upload your first render to get started.</p>
-            <Button className="mt-2" onClick={() => setUploadOpen(true)}>
-              <Upload className="h-4 w-4 mr-2" />Upload Render
-            </Button>
+            <p className="text-sm text-muted-foreground">Use the Upload Render button above to get started.</p>
           </div>
         )}
 
