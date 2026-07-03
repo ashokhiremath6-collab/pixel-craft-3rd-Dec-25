@@ -695,22 +695,6 @@ export default function MeetingMinutesPage() {
               />
             </div>
             <div>
-              <Label>Project</Label>
-              <Select value={projectFilter} onValueChange={setProjectFilter}>
-                <SelectTrigger data-testid="select-project-filter">
-                  <SelectValue placeholder="All Projects" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="general">General/Company Meetings</SelectItem>
-                  {sortProjectsForDropdown(projects).map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.projectName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
               <Label>Meeting Type</Label>
               <Select value={meetingTypeFilter} onValueChange={setMeetingTypeFilter}>
                 <SelectTrigger data-testid="select-type-filter">
