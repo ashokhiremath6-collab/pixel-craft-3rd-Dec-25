@@ -1568,8 +1568,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If no role found, treat as 'client' (users without designer/admin role)
       const role = userRole?.role || 'client';
       
-      // Vendors are global entities shared across the platform — not org-scoped.
-      const vendors = await storage.getAllVendors();
+      // Vendors are org-scoped — each org manages its own vendor database.
+      const vendors = await storage.getVendorsForUser(userId, role);
       res.json(vendors);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch vendors" });
@@ -1584,8 +1584,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If no role found, treat as 'client' (users without designer/admin role)
       const role = userRole?.role || 'client';
       
-      // Vendors are global entities — not org-scoped.
-      const vendors = await storage.getAllVendors();
+      // Vendors are org-scoped — each org manages its own vendor database.
+      const vendors = await storage.getVendorsForUser(userId, role);
       const projectVendors = await storage.getProjectVendorsForUser(userId, role);
       
       // Map vendors with their associated projects
@@ -2392,11 +2392,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allProjectVendors = await storage.getAllProjectVendors();
       const projectVendors = allProjectVendors.filter(pv => projectIds.has(pv.projectId));
 
-      // Fetch ALL vendors (not org-filtered) for quotation lookup.
-      // Project-scope already enforces access control above; vendors are shared
-      // infrastructure and may have been assigned to one org by the backfill
-      // migration even if they appear in another org's projects.
-      const vendors = await storage.getAllVendors();
+      // Fetch vendors by the exact IDs referenced in this org's project_vendors.
+      // This is org-safe (only vendors actually used in accessible projects are
+      // included) and handles historical data where a vendor's orgId may have
+      // been assigned to a different org by the backfill migration.
+      const referencedVendorIds = [...new Set(
+        projectVendors.filter(pv => pv.vendorId).map(pv => pv.vendorId as string)
+      )];
+      const vendors = await storage.getVendorsByIds(referencedVendorIds);
       const categories = await storage.getAllVendorCategories();
 
       // Get activities scoped to org for uploader information

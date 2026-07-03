@@ -232,6 +232,7 @@ export interface IStorage {
   
   // Vendors
   getAllVendors(): Promise<Vendor[]>;
+  getVendorsByIds(ids: string[]): Promise<Vendor[]>;
   getVendor(id: string): Promise<Vendor | undefined>;
   getVendorsByCategory(categoryId: string): Promise<Vendor[]>;
   getVendorsByCategoryWithDescendants(categoryId: string): Promise<Vendor[]>;
@@ -966,6 +967,12 @@ export class MemStorage implements IStorage {
   // Vendor methods
   async getAllVendors(): Promise<Vendor[]> {
     return Array.from(this.vendors.values());
+  }
+
+  async getVendorsByIds(ids: string[]): Promise<Vendor[]> {
+    if (ids.length === 0) return [];
+    const idSet = new Set(ids);
+    return Array.from(this.vendors.values()).filter(v => idSet.has(v.id));
   }
 
   async getVendor(id: string): Promise<Vendor | undefined> {
@@ -1863,6 +1870,11 @@ export class DBStorage implements IStorage {
   // Vendors
   async getAllVendors(): Promise<Vendor[]> {
     return await db.select().from(vendors);
+  }
+
+  async getVendorsByIds(ids: string[]): Promise<Vendor[]> {
+    if (ids.length === 0) return [];
+    return await db.select().from(vendors).where(inArray(vendors.id, ids));
   }
 
   async getVendor(id: string): Promise<Vendor | undefined> {
