@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList, Lightbulb, PackageCheck } from "lucide-react";
 import {
   Sidebar,
@@ -84,6 +84,11 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
     queryFn: () => fetch(`/api/organisations/${orgId}`).then(r => r.json()),
     enabled: !!orgId,
   });
+
+  // Reset error state whenever the logo URL changes (e.g. after upload)
+  useEffect(() => {
+    setLogoError(false);
+  }, [org?.logoUrl]);
   const isAdminOrDesigner = role === 'admin' || role === 'designer';
   const isProjectManager = role === 'project_manager';
 
@@ -143,10 +148,10 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
         <div className="flex items-center gap-2.5">
           {org?.logoUrl && !logoError ? (
             <img
-              src={`/api/organisations/${orgId}/logo`}
+              src={org.logoUrl}
               alt={org.name}
               title={org.name}
-              className="shrink-0 rounded-sm bg-white object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
+              className="shrink-0 rounded-sm object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
               style={{ height: 44, width: "auto", maxWidth: 150 }}
               onError={() => setLogoError(true)}
             />
@@ -160,10 +165,10 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
             </div>
           )}
           <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
-            <span className="font-semibold leading-snug" style={{ fontSize: "0.72rem" }}>
+            <span className="font-bold leading-snug" style={{ fontSize: "0.78rem" }}>
               {org?.name || "Studio"}
             </span>
-            <span className="text-muted-foreground" style={{ fontSize: "0.62rem" }}>Interior Design</span>
+            <span className="text-muted-foreground" style={{ fontSize: "0.64rem" }}>Interior Design</span>
           </div>
         </div>
       </SidebarHeader>
