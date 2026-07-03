@@ -2002,6 +2002,16 @@ export class DBStorage implements IStorage {
       // 2. Delete works_orders for these project_vendors
       //    (works_order_signatures, works_order_items, works_order_files cascade via worksOrderId)
       if (pvIds.length > 0) {
+        // Nullify self-reference: child project_vendors reference parent ones via parent_quotation_id
+        await tx.update(projectVendors)
+          .set({ parentQuotationId: null })
+          .where(inArray(projectVendors.parentQuotationId, pvIds));
+
+        // Nullify works_order_items.source_project_vendor_id references from any order (cross-project)
+        await tx.update(worksOrderItems)
+          .set({ sourceProjectVendorId: null })
+          .where(inArray(worksOrderItems.sourceProjectVendorId, pvIds));
+
         await tx.delete(worksOrders).where(inArray(worksOrders.projectVendorId, pvIds));
         await tx.delete(boq).where(inArray(boq.projectVendorId, pvIds));
         await tx.delete(quoteFiles).where(inArray(quoteFiles.projectVendorId, pvIds));
