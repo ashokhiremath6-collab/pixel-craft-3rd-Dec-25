@@ -326,6 +326,7 @@ export default function DashboardPage() {
         vendorAlerts={vendorAlertsData || []}
         rfqAlerts={rfqAlertsData || []}
         onNavigate={handleNavigate}
+        isRefreshingActivities={activitiesLoading}
         onRefreshActivities={() => refetchActivities()}
       />
     </div>

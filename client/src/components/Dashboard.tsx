@@ -108,6 +108,7 @@ interface DashboardProps {
   rfqAlerts?: RFQAlert[];
   onNavigate?: (path: string) => void;
   onRefreshActivities?: () => void;
+  isRefreshingActivities?: boolean;
 }
 
 const ACTIVITY_CONFIG: Record<string, {
@@ -826,6 +827,7 @@ export default function Dashboard({
   rfqAlerts = [],
   onNavigate,
   onRefreshActivities,
+  isRefreshingActivities,
 }: DashboardProps) {
   const { user } = useAuth();
   const { data: org } = useQuery<{ id: string; name: string; logoUrl?: string | null }>({
@@ -1015,11 +1017,12 @@ export default function Dashboard({
                   size="sm"
                   variant="default"
                   onClick={onRefreshActivities}
+                  disabled={isRefreshingActivities}
                   title="Refresh activity feed"
                   className="gap-1.5"
                 >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  Refresh
+                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingActivities ? "animate-spin" : ""}`} />
+                  {isRefreshingActivities ? "Refreshing…" : "Refresh"}
                 </Button>
               )}
             </div>
