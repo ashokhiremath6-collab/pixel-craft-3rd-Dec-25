@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import {
   Users, Building2, FileText, TrendingUp, ArrowRight, Clock, Download,
   AlertCircle, ImageIcon, LayoutDashboard, FileCheck2, CalendarDays,
-  BookOpen, Package, Trash2, Pencil, Plus, Bell, FileUp,
+  BookOpen, Package, Trash2, Pencil, Plus, Bell, FileUp, ClipboardList,
   ChevronDown, ChevronRight, ExternalLink, ArrowUpDown, X, SendHorizonal, FolderOpen,
   CreditCard, CheckCircle2,
 } from "lucide-react";
@@ -142,6 +142,10 @@ const ACTIVITY_CONFIG: Record<string, {
   task_progress_update:     { label: "Progress Update",   icon: TrendingUp,      accent: "#f5f3ff", iconBg: "#ddd6fe", iconColor: "#7c3aed" },
   task_delete:              { label: "Task Deleted",      icon: Trash2,          accent: "#fef2f2", iconBg: "#fecaca", iconColor: "#dc2626" },
   task_bulk_complete:       { label: "Bulk Completed",    icon: FileCheck2,      accent: "#f0fdf4", iconBg: "#bbf7d0", iconColor: "#15803d" },
+  works_order_create:       { label: "Works Order",       icon: ClipboardList,   accent: "#fff7ed", iconBg: "#fed7aa", iconColor: "#c2410c" },
+  works_order_send:         { label: "Works Order",       icon: ClipboardList,   accent: "#f0fdf4", iconBg: "#bbf7d0", iconColor: "#15803d" },
+  works_order_void:         { label: "Works Order",       icon: ClipboardList,   accent: "#fef2f2", iconBg: "#fecaca", iconColor: "#dc2626" },
+  works_order_signed:       { label: "Works Order",       icon: ClipboardList,   accent: "#f5f3ff", iconBg: "#ddd6fe", iconColor: "#7c3aed" },
 };
 
 function getActivityConfig(type: string) {
@@ -156,6 +160,10 @@ function getActivityConfig(type: string) {
 
 function getActivityVerb(type: string) {
   if (type === "schedule_reimport") return "re-imported";
+  if (type === "works_order_send") return "sent";
+  if (type === "works_order_void") return "voided";
+  if (type === "works_order_signed") return "signed";
+  if (type === "works_order_create") return "uploaded";
   if (type.endsWith("_delete")) return "deleted";
   if (type.endsWith("_upload")) return "uploaded";
   if (type.endsWith("_create")) return "added";

@@ -11270,16 +11270,20 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       // Log activity
       try {
+        const woImportUser = await storage.getUser(userId);
         const woImportProject = await storage.getProject(projectId);
+        const woImportName = woImportUser?.firstName && woImportUser?.lastName
+          ? `${woImportUser.firstName} ${woImportUser.lastName}`
+          : woImportUser?.email || 'Unknown';
         await storage.createActivity({
           userId,
-          userName: (req.user as any).claims.name || 'Unknown',
-          userEmail: (req.user as any).claims.email || '',
+          userName: woImportName,
+          userEmail: woImportUser?.email || '',
           activityType: 'works_order_create',
-          fileName: `${files.length} file(s)`,
+          fileName: files.length === 1 ? files[0].originalname : `${files.length} file(s)`,
           filePath: uploadedFiles[0]?.path || '',
           projectId: projectId || null,
-          description: `created works order ${worksOrder.orderNumber} with ${files.length} file(s)`,
+          description: `uploaded works order ${worksOrder.orderNumber} with ${files.length} file(s)`,
           metadata: {
             worksOrderId: worksOrder.id,
             orderNumber: worksOrder.orderNumber,
