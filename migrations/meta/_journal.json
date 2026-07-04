@@ -323,6 +323,13 @@
       "when": 1752100000000,
       "tag": "0045_fix_orphaned_vendor_org_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1752150000000,
+      "tag": "0046_backfill_works_order_activities",
+      "breakpoints": true
     }
   ]
 }
