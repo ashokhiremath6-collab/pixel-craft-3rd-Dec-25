@@ -148,7 +148,7 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
         <div className="flex items-center gap-2.5">
           {org?.logoUrl && !logoError ? (
             <img
-              src={org.logoUrl}
+              src={`/api/organisations/${orgId}/logo`}
               alt={org.name}
               title={org.name}
               className="shrink-0 rounded-sm object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"

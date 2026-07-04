@@ -108,6 +108,26 @@ app.use((req, res, next) => {
     console.error("Failed to backfill project_vendor org_id:", err);
   }
 
+  // Patch existing works_order activity rows that are missing vendorName/categoryName in metadata.
+  // Idempotent: only updates rows where vendorName is absent.
+  try {
+    await db.execute(sql`
+      UPDATE activity_log al
+      SET metadata = al.metadata || jsonb_build_object(
+        'vendorName',   v.name,
+        'categoryName', pv.category
+      )
+      FROM works_orders wo
+      LEFT JOIN project_vendors pv ON pv.id = wo.project_vendor_id
+      LEFT JOIN vendors v ON v.id = pv.vendor_id
+      WHERE al.activity_type IN ('works_order_create', 'works_order_uploaded')
+        AND (al.metadata->>'worksOrderId') = wo.id::text
+        AND (al.metadata->>'vendorName') IS NULL
+    `);
+  } catch (err) {
+    console.error("Failed to patch works order activity metadata:", err);
+  }
+
   // Backfill works_order_create activity entries for any works orders
   // that were uploaded before activity logging was wired up.
   // Uses WHERE NOT EXISTS so it is fully idempotent on every restart.
