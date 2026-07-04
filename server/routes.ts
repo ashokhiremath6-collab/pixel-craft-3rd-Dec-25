@@ -10824,6 +10824,7 @@ Return your response in the following JSON format only (no markdown, no code blo
             : user.email || 'Unknown';
           const woCreatePV = await storage.getProjectVendor(order.projectVendorId);
           const woCreateProject = woCreatePV?.projectId ? await storage.getProject(woCreatePV.projectId) : null;
+          const woCreateVendor = woCreatePV?.vendorId ? await storage.getVendor(woCreatePV.vendorId) : null;
           await storage.createActivity({
             userId: user.id,
             userName: userName,
@@ -10838,6 +10839,8 @@ Return your response in the following JSON format only (no markdown, no code blo
               orderNumber: order.orderNumber,
               projectVendorId: order.projectVendorId,
               projectName: woCreateProject?.projectName ?? null,
+              vendorName: woCreateVendor?.name ?? null,
+              categoryName: woCreatePV?.category ?? null,
             },
           });
         } catch (activityError) {
@@ -11272,6 +11275,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       try {
         const woImportUser = await storage.getUser(userId);
         const woImportProject = await storage.getProject(projectId);
+        const woImportVendor = vendorId ? await storage.getVendor(vendorId) : null;
         const woImportName = woImportUser?.firstName && woImportUser?.lastName
           ? `${woImportUser.firstName} ${woImportUser.lastName}`
           : woImportUser?.email || 'Unknown';
@@ -11289,6 +11293,7 @@ Return your response in the following JSON format only (no markdown, no code blo
             orderNumber: worksOrder.orderNumber,
             categoryId,
             categoryName,
+            vendorName: woImportVendor?.name ?? null,
             projectId,
             imported: true,
             fileCount: files.length,

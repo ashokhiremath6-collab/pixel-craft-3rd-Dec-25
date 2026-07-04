@@ -135,6 +135,8 @@ app.use((req, res, next) => {
           'orderNumber',     wo.order_number,
           'projectVendorId', wo.project_vendor_id,
           'projectName',     p.project_name,
+          'vendorName',      v.name,
+          'categoryName',    pv.category,
           'backfilled',      true
         ),
         wo.created_at,
@@ -142,6 +144,7 @@ app.use((req, res, next) => {
       FROM works_orders wo
       JOIN users u ON u.id = wo.created_by
       LEFT JOIN project_vendors pv ON pv.id = wo.project_vendor_id
+      LEFT JOIN vendors v ON v.id = pv.vendor_id
       LEFT JOIN projects p ON p.id = pv.project_id
       WHERE NOT EXISTS (
         SELECT 1 FROM activity_log al

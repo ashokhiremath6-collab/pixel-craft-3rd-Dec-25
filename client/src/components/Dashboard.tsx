@@ -1012,12 +1012,14 @@ export default function Dashboard({
               )}
               {onRefreshActivities && (
                 <Button
-                  size="icon"
-                  variant="ghost"
+                  size="sm"
+                  variant="outline"
                   onClick={onRefreshActivities}
                   title="Refresh activity feed"
+                  className="gap-1.5"
                 >
-                  <RefreshCw className="h-4 w-4" />
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Refresh
                 </Button>
               )}
             </div>
@@ -1032,13 +1034,23 @@ export default function Dashboard({
               {sortedActivities.slice(0, 18).map(activity => {
                 const cfg = getActivityConfig(activity.activityType);
                 const IconComp = cfg.icon;
-                const activityMeta = activity.metadata as { projectName?: string | null; projectId?: string | null } | null;
+                const activityMeta = activity.metadata as {
+                  projectName?: string | null;
+                  projectId?: string | null;
+                  vendorName?: string | null;
+                  categoryName?: string | null;
+                  orderNumber?: string | null;
+                } | null;
                 const effectiveProjectId = activity.projectId || activityMeta?.projectId || null;
                 const proj = projects.find(p => p.id === effectiveProjectId);
                 const projectName = proj?.projectName ?? activityMeta?.projectName ?? null;
                 const recent = isVeryRecent(activity.createdAt);
                 const verb = getActivityVerb(activity.activityType);
                 const navPath = getActivityNavPath(activity.activityType, effectiveProjectId, activityMeta as Record<string, unknown> | null);
+                const isWorksOrder = activity.activityType.startsWith('works_order_');
+                const woVendorName = isWorksOrder ? (activityMeta?.vendorName ?? null) : null;
+                const woCategoryName = isWorksOrder ? (activityMeta?.categoryName ?? null) : null;
+                const woOrderNumber = isWorksOrder ? (activityMeta?.orderNumber ?? null) : null;
 
                 return (
                   <div
@@ -1077,28 +1089,55 @@ export default function Dashboard({
                         <span className="text-[11px]" style={{ color: "#6b7280" }}>{verb}</span>
                       </div>
 
-                      {/* File name */}
-                      {activity.fileName && (
-                        navPath ? (
-                          <button
-                            className="text-sm font-medium mt-0.5 truncate flex items-center gap-1 hover:underline text-left w-full"
-                            style={{ color: "#111827" }}
-                            data-testid={`text-filename-${activity.id}`}
-                            title={activity.fileName}
-                            onClick={e => { e.stopPropagation(); handleNavigate(navPath); }}
-                          >
-                            <span className="truncate">{activity.fileName}</span>
-                            <ExternalLink className="h-3 w-3 flex-shrink-0" style={{ color: "#9ca3af" }} />
-                          </button>
-                        ) : (
+                      {/* Works order: show vendor name prominently */}
+                      {isWorksOrder ? (
+                        <>
+                          {/* Vendor name — primary */}
                           <div
-                            className="text-sm font-medium mt-0.5 truncate"
+                            className="text-sm font-semibold mt-0.5 truncate"
                             style={{ color: "#111827" }}
                             data-testid={`text-filename-${activity.id}`}
-                            title={activity.fileName}
+                            title={woVendorName ?? undefined}
                           >
-                            {activity.fileName}
+                            {woVendorName ?? activity.fileName ?? "Works Order"}
                           </div>
+                          {/* Category — secondary */}
+                          {woCategoryName && (
+                            <div className="text-xs mt-0.5 truncate" style={{ color: "#374151" }}>
+                              {woCategoryName}
+                            </div>
+                          )}
+                          {/* WO number — tertiary */}
+                          {woOrderNumber && (
+                            <div className="text-[11px] mt-0.5 font-mono" style={{ color: "#9ca3af" }}>
+                              {woOrderNumber}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        /* Default: file name */
+                        activity.fileName && (
+                          navPath ? (
+                            <button
+                              className="text-sm font-medium mt-0.5 truncate flex items-center gap-1 hover:underline text-left w-full"
+                              style={{ color: "#111827" }}
+                              data-testid={`text-filename-${activity.id}`}
+                              title={activity.fileName}
+                              onClick={e => { e.stopPropagation(); handleNavigate(navPath); }}
+                            >
+                              <span className="truncate">{activity.fileName}</span>
+                              <ExternalLink className="h-3 w-3 flex-shrink-0" style={{ color: "#9ca3af" }} />
+                            </button>
+                          ) : (
+                            <div
+                              className="text-sm font-medium mt-0.5 truncate"
+                              style={{ color: "#111827" }}
+                              data-testid={`text-filename-${activity.id}`}
+                              title={activity.fileName}
+                            >
+                              {activity.fileName}
+                            </div>
+                          )
                         )
                       )}
 
