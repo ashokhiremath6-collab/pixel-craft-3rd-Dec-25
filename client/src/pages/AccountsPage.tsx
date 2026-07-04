@@ -234,10 +234,10 @@ export default function AccountsPage() {
     ? new Set(projectVendorLinks.map(pv => pv.vendorId).filter((id): id is string => !!id))
     : null;
 
-  // Vendor list for the Ledger dropdown, filtered to current project
-  const ledgerVendors = projectVendorIds === null
-    ? vendors
-    : vendors.filter(v => projectVendorIds!.has(v.id));
+  // Vendor list for the Ledger dropdown — show all org vendors so users
+  // can view/record invoices for any vendor, regardless of whether it has
+  // been formally linked to this project via the Comparative Quotes flow.
+  const ledgerVendors = vendors;
 
   // Fetch projects linked to the selected vendor (for payment project scoping)
   const { data: vendorProjects = [] } = useQuery<Project[]>({
