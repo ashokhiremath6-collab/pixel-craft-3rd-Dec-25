@@ -152,23 +152,23 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
               alt={org.name}
               title={org.name}
               className="shrink-0 rounded-sm object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
-              style={{ height: 44, width: "auto", maxWidth: 150 }}
+              style={{ height: 56, width: "auto", maxWidth: 160 }}
               onError={() => setLogoError(true)}
             />
           ) : (
             <div
-              className="shrink-0 rounded-sm bg-muted flex items-center justify-center text-muted-foreground font-semibold group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8"
-              style={{ height: 44, width: 44, fontSize: "1.1rem" }}
+              className="shrink-0 rounded-sm bg-muted flex items-center justify-center text-muted-foreground font-bold group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8"
+              style={{ height: 56, width: 56, fontSize: "1.4rem" }}
               title={org?.name || "Studio"}
             >
               {(org?.name || "S").charAt(0).toUpperCase()}
             </div>
           )}
           <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
-            <span className="font-bold leading-snug" style={{ fontSize: "0.78rem" }}>
+            <span className="font-extrabold leading-snug" style={{ fontSize: "0.85rem" }}>
               {org?.name || "Studio"}
             </span>
-            <span className="text-muted-foreground" style={{ fontSize: "0.64rem" }}>Interior Design</span>
+            <span className="text-muted-foreground" style={{ fontSize: "0.68rem" }}>Interior Design</span>
           </div>
         </div>
       </SidebarHeader>
