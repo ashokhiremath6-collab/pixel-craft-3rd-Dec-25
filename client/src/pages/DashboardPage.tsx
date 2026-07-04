@@ -67,7 +67,7 @@ export default function DashboardPage() {
     refetchOnWindowFocus: true,
   });
 
-  const { data: activitiesData, isLoading: activitiesLoading } = useQuery<ActivityLog[]>({
+  const { data: activitiesData, isLoading: activitiesLoading, refetch: refetchActivities } = useQuery<ActivityLog[]>({
     queryKey: ['/api/activities'],
     staleTime: 0,
     refetchOnMount: 'always',
@@ -326,6 +326,7 @@ export default function DashboardPage() {
         vendorAlerts={vendorAlertsData || []}
         rfqAlerts={rfqAlertsData || []}
         onNavigate={handleNavigate}
+        onRefreshActivities={() => refetchActivities()}
       />
     </div>
   );

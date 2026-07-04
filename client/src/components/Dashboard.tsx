@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import {
   Users, Building2, FileText, TrendingUp, ArrowRight, Clock, Download,
   AlertCircle, ImageIcon, LayoutDashboard, FileCheck2, CalendarDays,
-  BookOpen, Package, Trash2, Pencil, Plus, Bell, FileUp, ClipboardList,
+  BookOpen, Package, Trash2, Pencil, Plus, Bell, FileUp, ClipboardList, RefreshCw,
   ChevronDown, ChevronRight, ExternalLink, ArrowUpDown, X, SendHorizonal, FolderOpen,
   CreditCard, CheckCircle2,
 } from "lucide-react";
@@ -107,6 +107,7 @@ interface DashboardProps {
   vendorAlerts?: VendorAlert[];
   rfqAlerts?: RFQAlert[];
   onNavigate?: (path: string) => void;
+  onRefreshActivities?: () => void;
 }
 
 const ACTIVITY_CONFIG: Record<string, {
@@ -824,6 +825,7 @@ export default function Dashboard({
   vendorAlerts = [],
   rfqAlerts = [],
   onNavigate,
+  onRefreshActivities,
 }: DashboardProps) {
   const { user } = useAuth();
   const { data: org } = useQuery<{ id: string; name: string; logoUrl?: string | null }>({
@@ -1002,11 +1004,23 @@ export default function Dashboard({
                 </p>
               </div>
             </div>
-            {sortedActivities.length > 0 && (
-              <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: "#eff6ff", color: "#1d4ed8" }}>
-                {sortedActivities.length} event{sortedActivities.length !== 1 ? "s" : ""}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {sortedActivities.length > 0 && (
+                <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: "#eff6ff", color: "#1d4ed8" }}>
+                  {sortedActivities.length} event{sortedActivities.length !== 1 ? "s" : ""}
+                </span>
+              )}
+              {onRefreshActivities && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={onRefreshActivities}
+                  title="Refresh activity feed"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
 
           {sortedActivities.length === 0 ? (
