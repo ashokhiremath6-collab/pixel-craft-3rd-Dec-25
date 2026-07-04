@@ -214,7 +214,7 @@ function getActivityNavPath(activityType: string, projectId: string | null, meta
     return cid ? `/catalogue?item=${cid}` : '/catalogue';
   }
   if (activityType.startsWith('meeting_minutes_')) return '/meeting-minutes';
-  if (activityType.startsWith('works_order_')) return pid ? `/gantt?projectId=${pid}` : null;
+  if (activityType.startsWith('works_order_')) return `/works-orders`;
   return null;
 }
 
