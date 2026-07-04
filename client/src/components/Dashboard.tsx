@@ -1013,7 +1013,7 @@ export default function Dashboard({
               {onRefreshActivities && (
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="default"
                   onClick={onRefreshActivities}
                   title="Refresh activity feed"
                   className="gap-1.5"

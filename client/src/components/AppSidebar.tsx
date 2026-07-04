@@ -151,14 +151,14 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
               src={`/api/organisations/${orgId}/logo`}
               alt={org.name}
               title={org.name}
-              className="shrink-0 rounded-sm object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
-              style={{ height: 56, width: "auto", maxWidth: 160 }}
+              className="shrink-0 rounded-md object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
+              style={{ height: 72, width: "auto", maxWidth: 180, boxShadow: "0 1px 6px 0 rgba(0,0,0,0.18)" }}
               onError={() => setLogoError(true)}
             />
           ) : (
             <div
-              className="shrink-0 rounded-sm bg-muted flex items-center justify-center text-muted-foreground font-bold group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8"
-              style={{ height: 56, width: 56, fontSize: "1.4rem" }}
+              className="shrink-0 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-extrabold group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8"
+              style={{ height: 72, width: 72, fontSize: "1.8rem" }}
               title={org?.name || "Studio"}
             >
               {(org?.name || "S").charAt(0).toUpperCase()}
