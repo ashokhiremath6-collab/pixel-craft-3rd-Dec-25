@@ -330,6 +330,13 @@
       "when": 1752150000000,
       "tag": "0046_backfill_works_order_activities",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1752200000000,
+      "tag": "0047_backfill_works_order_activities_v2",
+      "breakpoints": true
     }
   ]
 }
