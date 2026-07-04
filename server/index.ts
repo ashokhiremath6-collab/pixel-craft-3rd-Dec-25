@@ -108,6 +108,51 @@ app.use((req, res, next) => {
     console.error("Failed to backfill project_vendor org_id:", err);
   }
 
+  // Backfill works_order_create activity entries for any works orders
+  // that were uploaded before activity logging was wired up.
+  // Uses WHERE NOT EXISTS so it is fully idempotent on every restart.
+  try {
+    await db.execute(sql`
+      INSERT INTO activity_log (
+        id, user_id, user_name, user_email, project_id, activity_type,
+        file_name, file_path, description, metadata, created_at, org_id
+      )
+      SELECT
+        gen_random_uuid(),
+        wo.created_by,
+        COALESCE(
+          NULLIF(TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')), ''),
+          u.email
+        ),
+        COALESCE(u.email, ''),
+        p.id,
+        'works_order_create',
+        wo.order_number || '.pdf',
+        '',
+        'uploaded works order ' || wo.order_number,
+        jsonb_build_object(
+          'worksOrderId',    wo.id,
+          'orderNumber',     wo.order_number,
+          'projectVendorId', wo.project_vendor_id,
+          'projectName',     p.project_name,
+          'backfilled',      true
+        ),
+        wo.created_at,
+        u.org_id
+      FROM works_orders wo
+      JOIN users u ON u.id = wo.created_by
+      LEFT JOIN project_vendors pv ON pv.id = wo.project_vendor_id
+      LEFT JOIN projects p ON p.id = pv.project_id
+      WHERE NOT EXISTS (
+        SELECT 1 FROM activity_log al
+        WHERE al.activity_type = 'works_order_create'
+          AND (al.metadata->>'worksOrderId') = wo.id
+      )
+    `);
+  } catch (err) {
+    console.error("Failed to backfill works order activity logs:", err);
+  }
+
   const server = await registerRoutes(app);
 
   // Keep the Neon serverless database connection warm to avoid cold-start delays.
