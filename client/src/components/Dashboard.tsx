@@ -1019,19 +1019,6 @@ export default function Dashboard({
                   {sortedActivities.length} event{sortedActivities.length !== 1 ? "s" : ""}
                 </span>
               )}
-              {onRefreshActivities && (
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={onRefreshActivities}
-                  disabled={isRefreshingActivities}
-                  title="Refresh activity feed"
-                  className="gap-1.5"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingActivities ? "animate-spin" : ""}`} />
-                  {isRefreshingActivities ? "Refreshing…" : "Refresh"}
-                </Button>
-              )}
             </div>
           </div>
 
