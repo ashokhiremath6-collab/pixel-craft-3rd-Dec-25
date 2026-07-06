@@ -148,6 +148,13 @@ const ACTIVITY_CONFIG: Record<string, {
   works_order_send:         { label: "Works Order",       icon: ClipboardList,   accent: "#f0fdf4", iconBg: "#bbf7d0", iconColor: "#15803d" },
   works_order_void:         { label: "Works Order",       icon: ClipboardList,   accent: "#fef2f2", iconBg: "#fecaca", iconColor: "#dc2626" },
   works_order_signed:       { label: "Works Order",       icon: ClipboardList,   accent: "#f5f3ff", iconBg: "#ddd6fe", iconColor: "#7c3aed" },
+  invoice_create:           { label: "Invoice",           icon: FileText,        accent: "#f0fdf4", iconBg: "#bbf7d0", iconColor: "#15803d" },
+  invoice_update:           { label: "Invoice",           icon: FileText,        accent: "#eff6ff", iconBg: "#bfdbfe", iconColor: "#1d4ed8" },
+  invoice_delete:           { label: "Invoice",           icon: FileText,        accent: "#fef2f2", iconBg: "#fecaca", iconColor: "#dc2626" },
+  boq_upload:               { label: "BOQ",               icon: FileUp,          accent: "#fefce8", iconBg: "#fef08a", iconColor: "#a16207" },
+  boq_file_delete:          { label: "BOQ",               icon: FileUp,          accent: "#fef2f2", iconBg: "#fecaca", iconColor: "#dc2626" },
+  meeting_minutes_upload:   { label: "Meeting Minutes",   icon: CalendarDays,    accent: "#f0fdf4", iconBg: "#bbf7d0", iconColor: "#15803d" },
+  meeting_minutes_delete:   { label: "Meeting Minutes",   icon: CalendarDays,    accent: "#fef2f2", iconBg: "#fecaca", iconColor: "#dc2626" },
 };
 
 function getActivityConfig(type: string) {
@@ -1055,6 +1062,15 @@ export default function Dashboard({
                 const woCategoryName = isWorksOrder ? (activityMeta?.categoryName ?? null) : null;
                 const woOrderNumber = isWorksOrder ? (activityMeta?.orderNumber ?? null) : null;
 
+                // If the stored fileName is a raw UUID (no human-readable content), replace it
+                // with the activity description so the card title is actually informative.
+                const isUuidLike = activity.fileName
+                  ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(activity.fileName)
+                  : false;
+                const displayFileName = isUuidLike
+                  ? (activity.description ?? activity.fileName)
+                  : activity.fileName;
+
                 return (
                   <div
                     key={activity.id}
@@ -1118,17 +1134,17 @@ export default function Dashboard({
                           )}
                         </>
                       ) : (
-                        /* Default: file name */
-                        activity.fileName && (
+                        /* Default: file name (UUID-shaped names replaced with description) */
+                        displayFileName && (
                           navPath ? (
                             <button
                               className="text-sm font-medium mt-0.5 truncate flex items-center gap-1 hover:underline text-left w-full"
                               style={{ color: "#111827" }}
                               data-testid={`text-filename-${activity.id}`}
-                              title={activity.fileName}
+                              title={displayFileName}
                               onClick={e => { e.stopPropagation(); handleNavigate(navPath); }}
                             >
-                              <span className="truncate">{activity.fileName}</span>
+                              <span className="truncate">{displayFileName}</span>
                               <ExternalLink className="h-3 w-3 flex-shrink-0" style={{ color: "#9ca3af" }} />
                             </button>
                           ) : (
@@ -1136,9 +1152,9 @@ export default function Dashboard({
                               className="text-sm font-medium mt-0.5 truncate"
                               style={{ color: "#111827" }}
                               data-testid={`text-filename-${activity.id}`}
-                              title={activity.fileName}
+                              title={displayFileName}
                             >
-                              {activity.fileName}
+                              {displayFileName}
                             </div>
                           )
                         )
