@@ -1049,8 +1049,19 @@ export default function Dashboard({
                 const woCategoryName = isWorksOrder ? (activityMeta?.categoryName ?? null) : null;
                 const woOrderNumber = isWorksOrder ? (activityMeta?.orderNumber ?? null) : null;
 
-                // If the stored fileName is a raw UUID (no human-readable content), replace it
-                // with the activity description so the card title is actually informative.
+                // Invoice cards — vendor name is in metadata; invoice number as secondary
+                const isInvoice = activity.activityType.startsWith('invoice_');
+                const invoiceVendorName = isInvoice ? ((activityMeta as any)?.vendorName ?? null) : null;
+                const invoiceNumber = isInvoice ? (activity.fileName ?? null) : null;
+
+                // Quotation cards — extract vendor name from description
+                // description format: "uploaded quotation for {VendorName} - {ProjectName}"
+                const isQuoteUpload = activity.activityType === 'quote_upload';
+                const quoteVendorName: string | null = isQuoteUpload && activity.description
+                  ? (activity.description.replace(/^uploaded quotation for /i, '').split(' - ')[0]?.trim() || null)
+                  : null;
+
+                // For other cards: if fileName is a raw UUID replace with description
                 const isUuidLike = activity.fileName
                   ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(activity.fileName)
                   : false;
@@ -1095,33 +1106,35 @@ export default function Dashboard({
                         <span className="text-[11px]" style={{ color: "#6b7280" }}>{verb}</span>
                       </div>
 
-                      {/* Works order: show vendor name prominently */}
+                      {/* Title area — varies by activity type */}
                       {isWorksOrder ? (
                         <>
-                          {/* Vendor name — primary */}
-                          <div
-                            className="text-sm font-semibold mt-0.5 truncate"
-                            style={{ color: "#111827" }}
-                            data-testid={`text-filename-${activity.id}`}
-                            title={woVendorName ?? undefined}
-                          >
+                          <div className="text-sm font-semibold mt-0.5 truncate" style={{ color: "#111827" }} data-testid={`text-filename-${activity.id}`} title={woVendorName ?? undefined}>
                             {woVendorName ?? activity.fileName ?? "Works Order"}
                           </div>
-                          {/* Category — secondary */}
-                          {woCategoryName && (
-                            <div className="text-xs mt-0.5 truncate" style={{ color: "#374151" }}>
-                              {woCategoryName}
-                            </div>
-                          )}
-                          {/* WO number — tertiary */}
-                          {woOrderNumber && (
-                            <div className="text-[11px] mt-0.5 font-mono" style={{ color: "#9ca3af" }}>
-                              {woOrderNumber}
-                            </div>
+                          {woCategoryName && <div className="text-xs mt-0.5 truncate" style={{ color: "#374151" }}>{woCategoryName}</div>}
+                          {woOrderNumber && <div className="text-[11px] mt-0.5 font-mono" style={{ color: "#9ca3af" }}>{woOrderNumber}</div>}
+                        </>
+                      ) : isInvoice ? (
+                        <>
+                          {/* Vendor name — primary */}
+                          <div className="text-sm font-semibold mt-0.5 truncate" style={{ color: "#111827" }} data-testid={`text-filename-${activity.id}`}>
+                            {invoiceVendorName ?? invoiceNumber ?? "Invoice"}
+                          </div>
+                          {/* Invoice number — secondary (only if we have a vendor name to show above it) */}
+                          {invoiceVendorName && invoiceNumber && (
+                            <div className="text-[11px] mt-0.5 font-mono" style={{ color: "#9ca3af" }}>{invoiceNumber}</div>
                           )}
                         </>
+                      ) : isQuoteUpload ? (
+                        <>
+                          {/* Vendor/party name — primary */}
+                          <div className="text-sm font-semibold mt-0.5 truncate" style={{ color: "#111827" }} data-testid={`text-filename-${activity.id}`}>
+                            {quoteVendorName ?? displayFileName ?? "Quotation"}
+                          </div>
+                        </>
                       ) : (
-                        /* Default: file name (UUID-shaped names replaced with description) */
+                        /* Default: file name */
                         displayFileName && (
                           navPath ? (
                             <button
@@ -1135,20 +1148,15 @@ export default function Dashboard({
                               <ExternalLink className="h-3 w-3 flex-shrink-0" style={{ color: "#9ca3af" }} />
                             </button>
                           ) : (
-                            <div
-                              className="text-sm font-medium mt-0.5 truncate"
-                              style={{ color: "#111827" }}
-                              data-testid={`text-filename-${activity.id}`}
-                              title={displayFileName}
-                            >
+                            <div className="text-sm font-medium mt-0.5 truncate" style={{ color: "#111827" }} data-testid={`text-filename-${activity.id}`} title={displayFileName}>
                               {displayFileName}
                             </div>
                           )
                         )
                       )}
 
-                      {/* Description — shown for task and quote activities to convey what changed and why */}
-                      {(activity.activityType.startsWith('task_') || activity.activityType.startsWith('quote_') || activity.activityType.startsWith('boq_')) && activity.description && (
+                      {/* Description — only for tasks and BOQ; invoice/quotation vendor names replace it */}
+                      {(activity.activityType.startsWith('task_') || activity.activityType.startsWith('boq_')) && activity.description && (
                         <p className="text-xs mt-1 leading-snug line-clamp-2" style={{ color: "#374151" }}>
                           {activity.description}
                         </p>
