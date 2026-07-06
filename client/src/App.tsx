@@ -53,7 +53,7 @@ import OnboardingWizard from "@/components/OnboardingWizard";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Shield, User, Crown, Eye, AlertTriangle, X, ChevronDown, Briefcase } from "lucide-react";
+import { LogOut, Shield, User, Crown, Eye, AlertTriangle, X, ChevronDown, Briefcase, RefreshCw } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -119,6 +119,13 @@ interface BillingStatus {
 function AuthenticatedApp({ onPreviewClientPortal, onPreviewAsPM, onExitPMPreview, previewRole }: { onPreviewClientPortal: () => void; onPreviewAsPM: () => void; onExitPMPreview: () => void; previewRole?: string }) {
   const { logout, user } = useAuth();
   const [, navigate] = useLocation();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  async function handleGlobalRefresh() {
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries();
+    setIsRefreshing(false);
+  }
 
   const style = {
     "--sidebar-width": "14rem",
@@ -305,6 +312,16 @@ function AuthenticatedApp({ onPreviewClientPortal, onPreviewAsPM, onExitPMPrevie
                   <Briefcase className="h-4 w-4" />
                 </Button>
               )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleGlobalRefresh}
+                disabled={isRefreshing}
+                title="Refresh all data"
+                data-testid="button-global-refresh"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
