@@ -176,6 +176,47 @@ app.use((req, res, next) => {
     console.error("Failed to backfill works order activity logs:", err);
   }
 
+  // Add project_id column to vendor_payments if it doesn't exist (production DDL gap)
+  try {
+    await db.execute(sql`
+      ALTER TABLE vendor_payments
+      ADD COLUMN IF NOT EXISTS project_id VARCHAR REFERENCES projects(id)
+    `);
+  } catch (err) {
+    console.error("Failed to add project_id column to vendor_payments:", err);
+  }
+
+  // Backfill vendor_payments for confirmed payment requests that never got a payment entry.
+  // Matches by payment_reference (UTR or PR-{id}) to avoid duplicates.
+  try {
+    await db.execute(sql`
+      INSERT INTO vendor_payments (
+        id, vendor_id, payment_date, payment_reference, amount,
+        payment_method, notes, created_by, org_id, created_at
+      )
+      SELECT
+        gen_random_uuid(),
+        pr.vendor_id,
+        COALESCE(pr.client_paid_at::date, pr.confirmed_at::date, CURRENT_DATE),
+        COALESCE(pr.client_utr, 'PR-' || UPPER(SUBSTRING(pr.id::text, 1, 8))),
+        pr.amount::numeric,
+        'bank_transfer',
+        'Payment received from client. UTR: ' || COALESCE(pr.client_utr, 'N/A') || '. ' || pr.description,
+        COALESCE(pr.confirmed_by, pr.requested_by),
+        pr.org_id,
+        COALESCE(pr.confirmed_at, NOW())
+      FROM payment_requests pr
+      WHERE pr.status = 'confirmed'
+        AND COALESCE(pr.confirmed_by, pr.requested_by) IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM vendor_payments vp
+          WHERE vp.payment_reference = COALESCE(pr.client_utr, 'PR-' || UPPER(SUBSTRING(pr.id::text, 1, 8)))
+        )
+    `);
+  } catch (err) {
+    console.error("Failed to backfill vendor_payments for confirmed payment requests:", err);
+  }
+
   const server = await registerRoutes(app);
 
   // Keep the Neon serverless database connection warm to avoid cold-start delays.
