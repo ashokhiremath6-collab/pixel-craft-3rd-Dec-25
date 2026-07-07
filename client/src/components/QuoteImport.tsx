@@ -775,7 +775,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
 
       {/* Conflict Resolution Dialog */}
       <Dialog open={showConflictDialog} onOpenChange={handleCloseConflictDialog}>
-        <DialogContent className="sm:max-w-[600px]" data-testid="dialog-conflict-resolution">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col" data-testid="dialog-conflict-resolution">
           <DialogHeader>
             <DialogTitle>Quote Import Conflict</DialogTitle>
             <DialogDescription>
@@ -784,7 +784,7 @@ export default function QuoteImport({ onImportComplete, forceQuoteType, onSucces
           </DialogHeader>
           
           {conflictData && (
-            <div className="space-y-6">
+            <div className="space-y-6 overflow-y-auto flex-1 pr-1">
               {/* Existing Quotes */}
               <div>
                 <h4 className="font-medium mb-3">Existing Quotes:</h4>
