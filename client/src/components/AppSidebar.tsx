@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList, Lightbulb, PackageCheck } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList, Lightbulb, PackageCheck, ChevronDown, Check } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -13,9 +13,16 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface NavigationItem {
   title: string;
@@ -70,11 +77,20 @@ const projectManagerItems: NavigationItem[] = [
   { title: "Meeting Minutes", url: "/meeting-minutes", icon: Calendar },
 ];
 
+interface OrgSummary {
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl?: string | null;
+}
+
 export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
   const [location] = useLocation();
+  const [, navigate] = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
   const { user } = useAuth();
   const [logoError, setLogoError] = useState(false);
+  const queryClient = useQueryClient();
 
   const role = previewRole || ((user as any)?.role as string | undefined);
   const orgId = (user as any)?.orgId as string | undefined;
@@ -84,6 +100,23 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
     queryFn: () => fetch(`/api/organisations/${orgId}`).then(r => r.json()),
     enabled: !!orgId,
   });
+
+  const { data: userOrgs = [] } = useQuery<OrgSummary[]>({
+    queryKey: ["/api/user/orgs"],
+    enabled: !!(user as any)?.id,
+  });
+
+  const switchOrgMutation = useMutation({
+    mutationFn: (targetOrgId: string) =>
+      apiRequest("POST", "/api/user/switch-org", { orgId: targetOrgId }),
+    onSuccess: () => {
+      queryClient.clear();
+      navigate("/");
+      window.location.reload();
+    },
+  });
+
+  const multiOrg = userOrgs.length > 1;
 
   // Reset error state whenever the logo URL changes (e.g. after upload)
   useEffect(() => {
@@ -142,35 +175,68 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
     ? { "/accounts": pendingPaymentCount }
     : {};
 
+  const orgLogo = org?.logoUrl && !logoError ? (
+    <img
+      src={`/api/organisations/${orgId}/logo`}
+      alt={org.name}
+      title={org.name}
+      className="shrink-0 rounded-md object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
+      style={{ height: 72, width: "auto", maxWidth: 180, boxShadow: "0 1px 6px 0 rgba(0,0,0,0.18)" }}
+      onError={() => setLogoError(true)}
+    />
+  ) : (
+    <div
+      className="shrink-0 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-extrabold group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8"
+      style={{ height: 72, width: 72, fontSize: "1.8rem" }}
+      title={org?.name || "Studio"}
+    >
+      {(org?.name || "S").charAt(0).toUpperCase()}
+    </div>
+  );
+
   return (
     <Sidebar data-testid="sidebar-main">
       <SidebarHeader className="px-3 py-3 border-b">
-        <div className="flex items-center gap-2.5">
-          {org?.logoUrl && !logoError ? (
-            <img
-              src={`/api/organisations/${orgId}/logo`}
-              alt={org.name}
-              title={org.name}
-              className="shrink-0 rounded-md object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-w-[32px]"
-              style={{ height: 72, width: "auto", maxWidth: 180, boxShadow: "0 1px 6px 0 rgba(0,0,0,0.18)" }}
-              onError={() => setLogoError(true)}
-            />
-          ) : (
-            <div
-              className="shrink-0 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-extrabold group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8"
-              style={{ height: 72, width: 72, fontSize: "1.8rem" }}
-              title={org?.name || "Studio"}
-            >
-              {(org?.name || "S").charAt(0).toUpperCase()}
+        {multiOrg ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2.5 w-full text-left rounded-md hover-elevate focus:outline-none">
+                {orgLogo}
+                <div className="flex flex-col min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+                  <div className="flex items-center gap-1">
+                    <span className="font-extrabold leading-snug truncate" style={{ fontSize: "0.85rem" }}>
+                      {org?.name || "Studio"}
+                    </span>
+                    <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  </div>
+                  <span className="text-muted-foreground" style={{ fontSize: "0.68rem" }}>Switch workspace</span>
+                </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="bottom" align="start" className="w-56">
+              {userOrgs.map(o => (
+                <DropdownMenuItem
+                  key={o.id}
+                  onClick={() => { if (o.id !== orgId) switchOrgMutation.mutate(o.id); }}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <span className="flex-1 truncate">{o.name}</span>
+                  {o.id === orgId && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <div className="flex items-center gap-2.5">
+            {orgLogo}
+            <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
+              <span className="font-extrabold leading-snug" style={{ fontSize: "0.85rem" }}>
+                {org?.name || "Studio"}
+              </span>
+              <span className="text-muted-foreground" style={{ fontSize: "0.68rem" }}>Interior Design</span>
             </div>
-          )}
-          <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
-            <span className="font-extrabold leading-snug" style={{ fontSize: "0.85rem" }}>
-              {org?.name || "Studio"}
-            </span>
-            <span className="text-muted-foreground" style={{ fontSize: "0.68rem" }}>Interior Design</span>
           </div>
-        </div>
+        )}
       </SidebarHeader>
       <SidebarContent className="pb-4">
         {isAdminOrDesigner && (

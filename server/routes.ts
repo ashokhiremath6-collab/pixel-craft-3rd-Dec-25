@@ -134,6 +134,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup auth (session, passport-local, auth endpoints)
   await setupAuth(app);
 
+  // Active-org override — users who belong to multiple orgs can switch context
+  // without re-logging in. POST /api/user/switch-org stores the chosen orgId in
+  // the session; this middleware applies it on every subsequent request.
+  app.use((req, _res, next) => {
+    const overrideOrgId = (req.session as Record<string, unknown>)?.activeOrgId as string | undefined;
+    if (req.user && overrideOrgId) {
+      (req.user as any).orgId = overrideOrgId;
+    }
+    next();
+  });
+
   // Impersonation read-only guard — when a super-admin is acting as another user
   // via session.impersonatingUserId, block all mutating HTTP methods except for
   // the dedicated exit endpoint so the impersonated session stays read-only.
@@ -904,6 +915,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // ─── User → Orgs ──────────────────────────────────────────────────────────
+
+  // Returns all orgs the signed-in user belongs to (for the org switcher).
+  app.get("/api/user/orgs", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const orgs = await storage.getOrgsForUser(userId);
+      res.json(orgs.map(o => ({ id: o.id, name: o.name, slug: o.slug, logoUrl: o.logoUrl })));
+    } catch (err) {
+      console.error("Get user orgs error:", err);
+      res.status(500).json({ error: "Failed to fetch orgs" });
+    }
+  });
+
+  // Switches the active org for the session (without requiring re-login).
+  app.post("/api/user/switch-org", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { orgId } = req.body;
+      if (!orgId) return res.status(400).json({ error: "orgId is required" });
+      const orgs = await storage.getOrgsForUser(userId);
+      const target = orgs.find(o => o.id === orgId);
+      if (!target) return res.status(403).json({ error: "You are not a member of that organisation." });
+      (req.session as Record<string, unknown>).activeOrgId = orgId;
+      res.json({ success: true, orgId });
+    } catch (err) {
+      console.error("Switch org error:", err);
+      res.status(500).json({ error: "Failed to switch organisation" });
+    }
+  });
+
   // ─── Organisations ────────────────────────────────────────────────────────
 
   // Public endpoint — returns org name/id for org-specific entry page (no auth needed)

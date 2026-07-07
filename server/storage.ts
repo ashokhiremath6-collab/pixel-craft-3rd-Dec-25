@@ -182,6 +182,7 @@ export interface IStorage {
   updateOrganisation(id: string, updates: Partial<InsertOrganisation>): Promise<Organisation | undefined>;
   getOrgsNearTrialExpiry(withinDays: number, notifiedWithinDays: number): Promise<Organisation[]>;
   markOrgTrialExpiryNotified(orgId: string, notifiedAt: Date): Promise<void>;
+  getOrgsForUser(userId: string): Promise<Organisation[]>;
 
   // Invitations
   createInvitation(inv: InsertInvitation): Promise<Invitation>;
@@ -1571,6 +1572,7 @@ export class MemStorage implements IStorage {
   async updateOrganisation(id: string, updates: Partial<InsertOrganisation>): Promise<Organisation | undefined> { return undefined; }
   async getOrgsNearTrialExpiry(_withinDays: number, _notifiedWithinDays: number): Promise<Organisation[]> { return []; }
   async markOrgTrialExpiryNotified(_orgId: string, _notifiedAt: Date): Promise<void> {}
+  async getOrgsForUser(_userId: string): Promise<Organisation[]> { return []; }
   async createInvitation(inv: InsertInvitation): Promise<Invitation> {
     throw new Error("MemStorage: createInvitation not supported");
   }
@@ -3785,6 +3787,23 @@ export class DBStorage implements IStorage {
   async getOrganisation(id: string): Promise<Organisation | undefined> {
     const result = await db.select().from(organisations).where(eq(organisations.id, id));
     return result[0];
+  }
+
+  async getOrgsForUser(userId: string): Promise<Organisation[]> {
+    const rows = await db
+      .select({ org: organisations })
+      .from(userRoles)
+      .innerJoin(organisations, eq(userRoles.orgId, organisations.id))
+      .where(and(eq(userRoles.userId, userId), eq(userRoles.isActive, true)));
+    const seen = new Set<string>();
+    const result: Organisation[] = [];
+    for (const row of rows) {
+      if (!seen.has(row.org.id)) {
+        seen.add(row.org.id);
+        result.push(row.org);
+      }
+    }
+    return result;
   }
 
   async getOrganisationBySlug(slug: string): Promise<Organisation | undefined> {
