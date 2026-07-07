@@ -280,8 +280,6 @@ export default function AIAssistantPage() {
     const drawingName = params.get("drawingName") ?? "drawing";
     if (!drawingId || !revisionId) return;
 
-    setLocation("/ai-assistant", { replace: true });
-
     (async () => {
       try {
         const res = await fetch(`/api/working-drawings/${drawingId}/view-url/${revisionId}`, { credentials: "include" });
@@ -309,6 +307,13 @@ export default function AIAssistantPage() {
         setInput(`Please review this working drawing: ${name}`);
       } catch (err) {
         console.error("Failed to auto-attach drawing:", err);
+        toast({
+          title: "Could not attach drawing",
+          description: "Please try uploading the file manually.",
+          variant: "destructive",
+        });
+      } finally {
+        setLocation("/ai-assistant", { replace: true });
       }
     })();
   }, []);
