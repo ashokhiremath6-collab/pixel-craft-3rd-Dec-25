@@ -1145,254 +1145,6 @@ export default function GanttChartPage() {
         </CardHeader>
       </Card>
 
-      {/* Schedule Changes Summary */}
-      {selectedProjectId && !isLoadingTasks && (
-        <Card>
-          <CardHeader className="p-4 pb-0">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <CardTitle className="text-base flex items-center gap-2">
-                <BellRing className="h-4 w-4" />
-                Schedule Changes
-                {lastReviewedAt && changeSummary && changeSummary.total > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    {changeSummary.total} change{changeSummary.total !== 1 ? 's' : ''}
-                  </Badge>
-                )}
-              </CardTitle>
-              {lastReviewedAt && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    Since {format(lastReviewedAt, 'dd MMM yyyy, HH:mm')}
-                  </span>
-                  <Button size="sm" variant="outline" onClick={markAsReviewed}>
-                    <ClipboardCheck className="h-3 w-3 mr-1" />
-                    Mark as reviewed
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="p-4 pt-3">
-            {!lastReviewedAt ? (
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <ClipboardCheck className="h-4 w-4 flex-shrink-0" />
-                  <span>Click <strong>Start tracking</strong> to set a checkpoint. Any tasks added or modified after this point will be listed here when you return.</span>
-                </div>
-                <Button size="sm" variant="outline" onClick={markAsReviewed}>
-                  Start tracking changes
-                </Button>
-              </div>
-            ) : changeSummary && changeSummary.total > 0 ? (
-              <div className="space-y-3">
-                <button
-                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowChangeDetails(v => !v)}
-                >
-                  {showChangeDetails ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                  {showChangeDetails ? 'Hide' : 'Show'} details
-                </button>
-                {showChangeDetails && (
-                  <div className="space-y-4">
-                    {changeSummary.newTasks.length > 0 && (
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                          New tasks added ({changeSummary.newTasks.length})
-                        </p>
-                        {changeSummary.newTasks.map(task => (
-                          <div key={task.id} className="flex items-center gap-2 text-sm rounded-md bg-muted/50 px-3 py-2">
-                            <Plus className="h-3 w-3 flex-shrink-0 text-green-600 dark:text-green-400" />
-                            <span className="font-medium">{task.name}</span>
-                            <span className="text-xs text-muted-foreground ml-auto">
-                              {task.startDate} → {task.endDate}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {changeSummary.updatedTasks.length > 0 && (
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                          Updated tasks ({changeSummary.updatedTasks.length})
-                        </p>
-                        {changeSummary.updatedTasks.map(({ task, dateChanges }) => (
-                          <div key={task.id} className="rounded-md bg-muted/50 px-3 py-2 space-y-1">
-                            <div className="flex items-center gap-2 text-sm flex-wrap">
-                              <Edit className="h-3 w-3 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-                              <span className="font-medium">{task.name}</span>
-                              <Badge variant="secondary" className="text-xs">
-                                {task.status.replace(/_/g, ' ')}
-                              </Badge>
-                            </div>
-                            {dateChanges.map((dc, i) => (
-                              <div key={i} className="ml-5 text-xs text-muted-foreground">
-                                Deadline moved: <span className="font-medium">{dc.previousDeadline}</span> → <span className="font-medium">{dc.newDeadline}</span>
-                                {dc.reason && <span className="text-muted-foreground"> — {dc.reason}</span>}
-                              </div>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
-                <span>No changes to the schedule since your last review.</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Schedule Files */}
-      {selectedProjectId && schedules.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center justify-between">
-              <span>Uploaded Schedules</span>
-              <Badge variant="secondary">{schedules.length} file{schedules.length !== 1 ? 's' : ''}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {schedules.map((schedule) => {
-                const isExpanded = expandedCriticalPath.has(schedule.id);
-                
-                return (
-                  <Card key={schedule.id} className="hover-elevate" data-testid={`schedule-card-${schedule.id}`}>
-                    <CardContent className="p-4">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 flex-1">
-                            <FileText className="h-8 w-8 text-primary" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <div className="font-medium truncate" data-testid={`text-schedule-name-${schedule.id}`}>
-                                  {schedule.fileName}
-                                </div>
-                                <RecentBadge date={schedule.uploadedAt} />
-                              </div>
-                              <div className="text-sm text-muted-foreground">v{schedule.version}</div>
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {schedule.fileSize ? `${(Number(schedule.fileSize) / 1024).toFixed(2)} KB` : ''} • 
-                                {new Date(schedule.uploadedAt).toLocaleDateString()}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={schedule.status === 'active' ? 'default' : 'secondary'} data-testid={`badge-schedule-status-${schedule.id}`}>
-                              {schedule.status}
-                            </Badge>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                const link = document.createElement('a');
-                                link.href = `/api/schedules/${schedule.id}/download-original`;
-                                link.style.display = 'none';
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                              }}
-                              title="Download original uploaded file"
-                              data-testid={`button-view-schedule-${schedule.id}`}
-                            >
-                              <Download className="h-4 w-4 mr-1" />
-                              Original
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                const link = document.createElement('a');
-                                link.href = `/api/schedules/${schedule.id}/designer-export`;
-                                link.style.display = 'none';
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                              }}
-                              title="Open Designer-Formatted Excel (editable)"
-                              data-testid={`button-designer-export-${schedule.id}`}
-                            >
-                              <Palette className="h-4 w-4 mr-1" />
-                              Designer
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                setReimportScheduleId(schedule.id);
-                                reimportInputRef.current?.click();
-                              }}
-                              disabled={reimportMutation.isPending}
-                              title="Re-import edited Designer Export to update tasks"
-                              data-testid={`button-reimport-${schedule.id}`}
-                            >
-                              <Upload className="h-4 w-4 mr-1" />
-                              {reimportMutation.isPending && reimportScheduleId === schedule.id ? 'Updating...' : 'Re-import'}
-                            </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button size="sm" variant="ghost" data-testid={`button-menu-schedule-${schedule.id}`}>
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onClick={() => {
-                                    if (confirm(`Delete schedule "${schedule.fileName}"? This will remove all associated tasks.`)) {
-                                      deleteScheduleMutation.mutate(schedule.id);
-                                    }
-                                  }}
-                                  disabled={deleteScheduleMutation.isPending}
-                                  data-testid={`button-delete-schedule-${schedule.id}`}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete Schedule
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-
-                        {/* Critical Path Analysis */}
-                        <div className="border-t pt-3">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const newSet = new Set(expandedCriticalPath);
-                              if (isExpanded) {
-                                newSet.delete(schedule.id);
-                              } else {
-                                newSet.add(schedule.id);
-                              }
-                              setExpandedCriticalPath(newSet);
-                            }}
-                            className="w-full"
-                            data-testid={`button-critical-path-${schedule.id}`}
-                          >
-                            <Activity className="h-4 w-4 mr-2" />
-                            {isExpanded ? 'Hide' : 'Show'} Critical Path Analysis
-                            {isExpanded ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronRight className="h-4 w-4 ml-2" />}
-                          </Button>
-
-                          {isExpanded && <CriticalPathDisplay scheduleId={schedule.id} />}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Enhanced Task List Table - Designer View */}
       {selectedProjectId && tasks.length > 0 && (() => {
         // Helper functions for task table
@@ -2294,6 +2046,254 @@ export default function GanttChartPage() {
           </Card>
         );
       })()}
+
+      {/* Schedule Changes Summary */}
+      {selectedProjectId && !isLoadingTasks && (
+        <Card>
+          <CardHeader className="p-4 pb-0">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BellRing className="h-4 w-4" />
+                Schedule Changes
+                {lastReviewedAt && changeSummary && changeSummary.total > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {changeSummary.total} change{changeSummary.total !== 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </CardTitle>
+              {lastReviewedAt && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    Since {format(lastReviewedAt, 'dd MMM yyyy, HH:mm')}
+                  </span>
+                  <Button size="sm" variant="outline" onClick={markAsReviewed}>
+                    <ClipboardCheck className="h-3 w-3 mr-1" />
+                    Mark as reviewed
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 pt-3">
+            {!lastReviewedAt ? (
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <ClipboardCheck className="h-4 w-4 flex-shrink-0" />
+                  <span>Click <strong>Start tracking</strong> to set a checkpoint. Any tasks added or modified after this point will be listed here when you return.</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={markAsReviewed}>
+                  Start tracking changes
+                </Button>
+              </div>
+            ) : changeSummary && changeSummary.total > 0 ? (
+              <div className="space-y-3">
+                <button
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowChangeDetails(v => !v)}
+                >
+                  {showChangeDetails ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                  {showChangeDetails ? 'Hide' : 'Show'} details
+                </button>
+                {showChangeDetails && (
+                  <div className="space-y-4">
+                    {changeSummary.newTasks.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          New tasks added ({changeSummary.newTasks.length})
+                        </p>
+                        {changeSummary.newTasks.map(task => (
+                          <div key={task.id} className="flex items-center gap-2 text-sm rounded-md bg-muted/50 px-3 py-2">
+                            <Plus className="h-3 w-3 flex-shrink-0 text-green-600 dark:text-green-400" />
+                            <span className="font-medium">{task.name}</span>
+                            <span className="text-xs text-muted-foreground ml-auto">
+                              {task.startDate} → {task.endDate}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {changeSummary.updatedTasks.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          Updated tasks ({changeSummary.updatedTasks.length})
+                        </p>
+                        {changeSummary.updatedTasks.map(({ task, dateChanges }) => (
+                          <div key={task.id} className="rounded-md bg-muted/50 px-3 py-2 space-y-1">
+                            <div className="flex items-center gap-2 text-sm flex-wrap">
+                              <Edit className="h-3 w-3 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                              <span className="font-medium">{task.name}</span>
+                              <Badge variant="secondary" className="text-xs">
+                                {task.status.replace(/_/g, ' ')}
+                              </Badge>
+                            </div>
+                            {dateChanges.map((dc, i) => (
+                              <div key={i} className="ml-5 text-xs text-muted-foreground">
+                                Deadline moved: <span className="font-medium">{dc.previousDeadline}</span> → <span className="font-medium">{dc.newDeadline}</span>
+                                {dc.reason && <span className="text-muted-foreground"> — {dc.reason}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                <span>No changes to the schedule since your last review.</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Schedule Files */}
+      {selectedProjectId && schedules.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center justify-between">
+              <span>Uploaded Schedules</span>
+              <Badge variant="secondary">{schedules.length} file{schedules.length !== 1 ? 's' : ''}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {schedules.map((schedule) => {
+                const isExpanded = expandedCriticalPath.has(schedule.id);
+                
+                return (
+                  <Card key={schedule.id} className="hover-elevate" data-testid={`schedule-card-${schedule.id}`}>
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1">
+                            <FileText className="h-8 w-8 text-primary" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="font-medium truncate" data-testid={`text-schedule-name-${schedule.id}`}>
+                                  {schedule.fileName}
+                                </div>
+                                <RecentBadge date={schedule.uploadedAt} />
+                              </div>
+                              <div className="text-sm text-muted-foreground">v{schedule.version}</div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {schedule.fileSize ? `${(Number(schedule.fileSize) / 1024).toFixed(2)} KB` : ''} • 
+                                {new Date(schedule.uploadedAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={schedule.status === 'active' ? 'default' : 'secondary'} data-testid={`badge-schedule-status-${schedule.id}`}>
+                              {schedule.status}
+                            </Badge>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = `/api/schedules/${schedule.id}/download-original`;
+                                link.style.display = 'none';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              }}
+                              title="Download original uploaded file"
+                              data-testid={`button-view-schedule-${schedule.id}`}
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              Original
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = `/api/schedules/${schedule.id}/designer-export`;
+                                link.style.display = 'none';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              }}
+                              title="Open Designer-Formatted Excel (editable)"
+                              data-testid={`button-designer-export-${schedule.id}`}
+                            >
+                              <Palette className="h-4 w-4 mr-1" />
+                              Designer
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                setReimportScheduleId(schedule.id);
+                                reimportInputRef.current?.click();
+                              }}
+                              disabled={reimportMutation.isPending}
+                              title="Re-import edited Designer Export to update tasks"
+                              data-testid={`button-reimport-${schedule.id}`}
+                            >
+                              <Upload className="h-4 w-4 mr-1" />
+                              {reimportMutation.isPending && reimportScheduleId === schedule.id ? 'Updating...' : 'Re-import'}
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="sm" variant="ghost" data-testid={`button-menu-schedule-${schedule.id}`}>
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => {
+                                    if (confirm(`Delete schedule "${schedule.fileName}"? This will remove all associated tasks.`)) {
+                                      deleteScheduleMutation.mutate(schedule.id);
+                                    }
+                                  }}
+                                  disabled={deleteScheduleMutation.isPending}
+                                  data-testid={`button-delete-schedule-${schedule.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Schedule
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+
+                        {/* Critical Path Analysis */}
+                        <div className="border-t pt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const newSet = new Set(expandedCriticalPath);
+                              if (isExpanded) {
+                                newSet.delete(schedule.id);
+                              } else {
+                                newSet.add(schedule.id);
+                              }
+                              setExpandedCriticalPath(newSet);
+                            }}
+                            className="w-full"
+                            data-testid={`button-critical-path-${schedule.id}`}
+                          >
+                            <Activity className="h-4 w-4 mr-2" />
+                            {isExpanded ? 'Hide' : 'Show'} Critical Path Analysis
+                            {isExpanded ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronRight className="h-4 w-4 ml-2" />}
+                          </Button>
+
+                          {isExpanded && <CriticalPathDisplay scheduleId={schedule.id} />}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Legend */}
       <Card>
