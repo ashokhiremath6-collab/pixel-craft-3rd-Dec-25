@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Send, RotateCcw, Copy, Check, BrainCircuit, ChevronRight, Paperclip, X, FileText, ImageIcon, Wand2, ArrowRight, Sparkles, PenLine, Download, Loader2, BookOpen, MessageSquare, Map, Layers, Package, Lightbulb, FolderDown, Box } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { cn } from "@/lib/utils";
 import { AccessDenied } from "@/components/AccessDenied";
 
@@ -266,10 +266,52 @@ export default function AIAssistantPage() {
   const [, setLocation] = useLocation();
 
   const { user, isLoading: authLoading } = useAuth();
+  const search = useSearch();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    if (!search) return;
+    const params = new URLSearchParams(search);
+    const drawingId = params.get("drawingId");
+    const revisionId = params.get("revisionId");
+    const drawingName = params.get("drawingName") ?? "drawing";
+    if (!drawingId || !revisionId) return;
+
+    setLocation("/ai-assistant", { replace: true });
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/working-drawings/${drawingId}/view-url/${revisionId}`, { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to fetch drawing URL");
+        const { url, mimeType, fileName } = await res.json();
+
+        const fileRes = await fetch(url);
+        if (!fileRes.ok) throw new Error("Failed to download drawing");
+        const blob = await fileRes.blob();
+
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+
+        const name = fileName ?? drawingName;
+        const fileMime = mimeType || blob.type || "application/octet-stream";
+
+        setAttachments((prev) => [
+          ...prev,
+          { name, mimeType: fileMime, data: base64, size: blob.size },
+        ]);
+        setInput(`Please review this working drawing: ${name}`);
+      } catch (err) {
+        console.error("Failed to auto-attach drawing:", err);
+      }
+    })();
+  }, []);
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {

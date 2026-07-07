@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { AIReviewButton } from "@/components/AIReviewPanel";
 import type { AIReviewType } from "@/components/AIReviewPanel";
 import { sortProjectsForDropdown } from "@/lib/projectSort";
-import { useSearch } from "wouter";
+import { useSearch, useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -79,6 +79,7 @@ import {
   CheckCircle2,
   Clock,
   RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Project } from "@shared/schema";
@@ -429,6 +430,7 @@ function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory, onHistory,
   onRename: (id: string, title: string) => void;
   drawingType?: "working" | "concept";
 }) {
+  const [, setLocation] = useLocation();
   const rev = drawing.latestRevision;
   const catColor = CATEGORY_COLORS[drawing.category] || "bg-muted text-muted-foreground";
   const stateColor = rev ? (STATE_BADGE[rev.state] || "bg-muted text-muted-foreground") : "";
@@ -524,6 +526,21 @@ function DrawingTableRow({ drawing, onView, onDelete, onMoveCategory, onHistory,
               fileName={rev.fileName || drawing.title}
               reviewType={(drawingType === "concept" ? "concept" : "working") as AIReviewType}
             />
+          )}
+          {rev?.filePath && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="text-muted-foreground"
+              title="Send to Design Intelligence"
+              onClick={(e) => {
+                e.stopPropagation();
+                const name = encodeURIComponent(rev.fileName || drawing.title);
+                setLocation(`/ai-assistant?drawingId=${drawing.id}&revisionId=${rev.id}&drawingName=${name}`);
+              }}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+            </Button>
           )}
           <Button
             size="icon"
