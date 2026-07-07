@@ -1690,30 +1690,82 @@ export default function GanttChartPage() {
                       {groupedTasks.map((group, groupIndex) => (
                         <Fragment key={`group-${groupIndex}`}>
                           {/* Phase Header Row */}
-                          {group.phase !== 'General Tasks' && isPhaseHeader(group.tasks[0]?.name || '') && (
-                            <tr 
-                              key={`phase-${groupIndex}`}
-                              className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 border-b-2 border-blue-200 dark:border-blue-800 cursor-pointer"
-                              onClick={() => togglePhase(group.phase)}
-                            >
-                              <td 
-                                colSpan={Object.values(visibleColumns).filter(Boolean).length + 2} 
-                                className="py-3 px-3"
+                          {group.phase !== 'General Tasks' && isPhaseHeader(group.tasks[0]?.name || '') && (() => {
+                            const phaseTasks = group.tasks.filter((_, idx) => idx !== 0);
+                            const phaseTotal = phaseTasks.length;
+                            const phaseDone = phaseTasks.filter(t => Number(t.progressPercentage || 0) >= 100).length;
+                            const phaseOverdue = phaseTasks.filter(t => isTaskOverdue(t)).length;
+                            const phaseInProgress = phaseTasks.filter(t => {
+                              const p = Number(t.progressPercentage || 0);
+                              return p > 0 && p < 100 && !isTaskOverdue(t);
+                            }).length;
+                            const phasePct = phaseTotal > 0 ? Math.round((phaseDone / phaseTotal) * 100) : 0;
+                            const phaseDates = phaseTasks.flatMap(t => [t.startDate, t.endDate].filter(Boolean));
+                            const phaseStart = phaseDates.length ? phaseDates.reduce((a, b) => a! < b! ? a : b) : null;
+                            const phaseEnd = phaseDates.length ? phaseDates.reduce((a, b) => a! > b! ? a : b) : null;
+                            return (
+                              <tr 
+                                key={`phase-${groupIndex}`}
+                                className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 border-b-2 border-blue-200 dark:border-blue-800 cursor-pointer"
+                                onClick={() => togglePhase(group.phase)}
                               >
-                                <div className="flex items-center gap-2 font-semibold text-blue-700 dark:text-blue-300">
-                                  {expandedPhases.has(group.phase) ? (
-                                    <ChevronDown className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronRight className="h-4 w-4" />
-                                  )}
-                                  <span>{group.tasks[0]?.name}</span>
-                                  <Badge variant="outline" className="ml-2 text-xs">
-                                    {group.tasks.length - 1} tasks
-                                  </Badge>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
+                                <td 
+                                  colSpan={Object.values(visibleColumns).filter(Boolean).length + 2} 
+                                  className="py-2.5 px-3"
+                                >
+                                  <div className="flex items-center gap-3 flex-wrap">
+                                    {/* Chevron + Name */}
+                                    <div className="flex items-center gap-2 font-semibold text-blue-700 dark:text-blue-300 min-w-0">
+                                      {expandedPhases.has(group.phase) ? (
+                                        <ChevronDown className="h-4 w-4 shrink-0" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4 shrink-0" />
+                                      )}
+                                      <span className="truncate">{group.tasks[0]?.name}</span>
+                                    </div>
+
+                                    {/* Progress bar + pct */}
+                                    <div className="flex items-center gap-2 min-w-[140px]">
+                                      <div className="flex-1 bg-blue-200 dark:bg-blue-800 rounded-full h-2 min-w-[80px]">
+                                        <div
+                                          className={`h-2 rounded-full transition-all ${phasePct === 100 ? 'bg-green-500' : 'bg-blue-500'}`}
+                                          style={{ width: `${phasePct}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400 w-9 text-right shrink-0">{phasePct}%</span>
+                                    </div>
+
+                                    {/* Status pill counts */}
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs text-muted-foreground">{phaseTotal} tasks</span>
+                                      {phaseDone > 0 && (
+                                        <span className="inline-flex items-center gap-1 text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded">
+                                          <CheckCircle2 className="h-3 w-3" />{phaseDone} done
+                                        </span>
+                                      )}
+                                      {phaseInProgress > 0 && (
+                                        <span className="inline-flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded">
+                                          <Clock className="h-3 w-3" />{phaseInProgress} active
+                                        </span>
+                                      )}
+                                      {phaseOverdue > 0 && (
+                                        <span className="inline-flex items-center gap-1 text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded">
+                                          <AlertTriangle className="h-3 w-3" />{phaseOverdue} overdue
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Date range */}
+                                    {phaseStart && phaseEnd && (
+                                      <span className="text-xs text-muted-foreground ml-auto shrink-0">
+                                        {format(new Date(phaseStart), 'dd MMM')} → {format(new Date(phaseEnd), 'dd MMM yyyy')}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })()}
                           {/* Task Rows */}
                           {(group.phase === 'General Tasks' || expandedPhases.has(group.phase) || !isPhaseHeader(group.tasks[0]?.name || '')) && 
                             group.tasks
