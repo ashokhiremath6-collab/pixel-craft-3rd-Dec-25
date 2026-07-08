@@ -12770,6 +12770,45 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // POST /api/superadmin/organisations/:orgId/add-member — link an existing user to an org
+  app.post("/api/superadmin/organisations/:orgId/add-member", requireSuperAdmin, async (req, res) => {
+    try {
+      const { orgId } = req.params;
+      const { email, role = "admin" } = req.body;
+      if (!email) return res.status(400).json({ error: "email is required" });
+
+      const org = await storage.getOrganisation(orgId);
+      if (!org) return res.status(404).json({ error: "Organisation not found" });
+
+      const targetUser = await storage.getUserByEmail(email);
+      if (!targetUser) return res.status(404).json({ error: "No user found with that email" });
+
+      // Create or update a userRoles row explicitly linked to this org
+      const existing = await storage.getUserRole(targetUser.id);
+      if (existing) {
+        // Add a second userRoles row for the new org (don't overwrite the home-org row)
+        const alreadyLinked = await storage.getUserRoleForOrg(targetUser.id, orgId);
+        if (alreadyLinked?.orgId === orgId) {
+          return res.json({ message: "User is already a member of this org", userId: targetUser.id });
+        }
+        await db.insert(userRoles).values({
+          userId: targetUser.id,
+          role,
+          orgId,
+          isActive: true,
+          assignedBy: (req.user as any).id,
+        });
+      } else {
+        await storage.createUserRole({ userId: targetUser.id, role, orgId, isActive: true, assignedBy: (req.user as any).id });
+      }
+
+      res.json({ message: "Member added successfully", userId: targetUser.id, orgId });
+    } catch (error) {
+      console.error("Add org member error:", error);
+      res.status(500).json({ error: "Failed to add member" });
+    }
+  });
+
   // PATCH /api/superadmin/organisations/:orgId/plan — override plan directly
   app.patch("/api/superadmin/organisations/:orgId/plan", requireSuperAdmin, async (req, res) => {
     try {

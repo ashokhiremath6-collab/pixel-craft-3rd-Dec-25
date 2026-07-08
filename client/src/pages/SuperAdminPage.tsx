@@ -108,6 +108,7 @@ function MetricsPanel({ metrics }: { metrics: Metrics }) {
 function OrgDetailPanel({ orgId, onBack, currentUserId }: { orgId: string; onBack: () => void; currentUserId: string | undefined }) {
   const { toast } = useToast();
   const [selectedPlan, setSelectedPlan] = useState<string>("");
+  const [addMemberEmail, setAddMemberEmail] = useState("");
 
   const { data: detail, isLoading } = useQuery<OrgDetail>({
     queryKey: ["/api/superadmin/organisations", orgId],
@@ -163,6 +164,17 @@ function OrgDetailPanel({ orgId, onBack, currentUserId }: { orgId: string; onBac
       queryClient.invalidateQueries({ queryKey: ["/api/superadmin/organisations", orgId] });
     },
     onError: () => toast({ title: "Error", description: "Failed to update super-admin status.", variant: "destructive" }),
+  });
+
+  const addMemberMutation = useMutation({
+    mutationFn: async (email: string) =>
+      apiRequest("POST", `/api/superadmin/organisations/${orgId}/add-member`, { email, role: "admin" }),
+    onSuccess: () => {
+      toast({ title: "Member added", description: `${addMemberEmail} can now switch to this workspace.` });
+      setAddMemberEmail("");
+      queryClient.invalidateQueries({ queryKey: ["/api/superadmin/organisations", orgId] });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to add member.", variant: "destructive" }),
   });
 
   if (isLoading) {
@@ -229,7 +241,7 @@ function OrgDetailPanel({ orgId, onBack, currentUserId }: { orgId: string; onBac
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4" />Team Members ({users.length})</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="space-y-2">
             {users.map(u => (
               <div key={u.id} className="flex items-center justify-between gap-2 flex-wrap">
@@ -271,6 +283,26 @@ function OrgDetailPanel({ orgId, onBack, currentUserId }: { orgId: string; onBac
               </div>
             ))}
             {users.length === 0 && <p className="text-sm text-muted-foreground">No users yet.</p>}
+          </div>
+
+          <div className="border-t pt-3">
+            <p className="text-xs text-muted-foreground mb-2">Add an existing user to this workspace (grants them the org-switcher):</p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="user@example.com"
+                value={addMemberEmail}
+                onChange={e => setAddMemberEmail(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && addMemberEmail) addMemberMutation.mutate(addMemberEmail); }}
+                className="flex-1"
+              />
+              <Button
+                size="default"
+                onClick={() => addMemberEmail && addMemberMutation.mutate(addMemberEmail)}
+                disabled={addMemberMutation.isPending || !addMemberEmail}
+              >
+                {addMemberMutation.isPending ? "Adding..." : "Add"}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
