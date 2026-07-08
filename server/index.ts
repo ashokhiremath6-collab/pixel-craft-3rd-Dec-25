@@ -81,9 +81,6 @@ app.use((req, res, next) => {
       INSERT INTO vendor_categories (id, name, parent_id, is_active)
       SELECT gen_random_uuid(), v.name, NULL, true
       FROM (VALUES
-        ('Architectural Lighting'),
-        ('Decorative Lighting'),
-        ('Finishes (Veneer and Laminates)'),
         ('Special Hardware')
       ) AS v(name)
       WHERE NOT EXISTS (
