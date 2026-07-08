@@ -616,22 +616,24 @@ function GroupSection({ label, count, drawings, defaultOpen, onView, onDelete, o
               No drawings have been added for this area yet. Upload a drawing to fill this in.
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Rev</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} onDelete={onDelete} onMoveCategory={onMoveCategory} onHistory={onHistory} onRename={onRename} drawingType={drawingType} />)}
-              </TableBody>
-            </Table>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Rev</TableHead>
+                    <TableHead>State</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Size</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {drawings.map((d) => <DrawingTableRow key={d.id} drawing={d} onView={onView} onDelete={onDelete} onMoveCategory={onMoveCategory} onHistory={onHistory} onRename={onRename} drawingType={drawingType} />)}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </div>
       </CollapsibleContent>
