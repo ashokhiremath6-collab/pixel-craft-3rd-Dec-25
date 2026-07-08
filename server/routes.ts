@@ -965,8 +965,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/organisations/:id", isAuthenticated, async (req, res) => {
     try {
-      const callerUser = await storage.getUser((req.user as any).id);
-      if (!callerUser?.orgId || callerUser.orgId !== req.params.id) {
+      const userId = (req.user as any).id;
+      // Allow access to any org the user is a member of (supports multi-org switcher)
+      const accessibleOrgs = await storage.getOrgsForUser(userId);
+      const allowed = accessibleOrgs.some(o => o.id === req.params.id);
+      if (!allowed) {
         return res.status(403).json({ error: "Access denied." });
       }
       const org = await storage.getOrganisation(req.params.id);
