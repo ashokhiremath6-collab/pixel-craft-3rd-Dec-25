@@ -163,6 +163,7 @@ export interface IStorage {
   
   // User Roles - for role-based access control
   getUserRole(userId: string): Promise<UserRole | undefined>;
+  getUserRoleForOrg(userId: string, orgId: string): Promise<UserRole | undefined>;
   createUserRole(userRole: InsertUserRole): Promise<UserRole>;
   updateUserRole(userId: string, role: string): Promise<UserRole | undefined>;
   setUserRoleLinkedVendor(userId: string, linkedVendorId: string | null): Promise<void>;
@@ -667,6 +668,11 @@ export class MemStorage implements IStorage {
   // User Roles methods
   async getUserRole(userId: string): Promise<UserRole | undefined> {
     return Array.from(this.userRoles.values()).find(role => role.userId === userId && role.isActive);
+  }
+
+  async getUserRoleForOrg(userId: string, orgId: string): Promise<UserRole | undefined> {
+    const orgSpecific = Array.from(this.userRoles.values()).find(r => r.userId === userId && r.orgId === orgId && r.isActive);
+    return orgSpecific ?? this.getUserRole(userId);
   }
 
   async createUserRole(userRole: InsertUserRole): Promise<UserRole> {
@@ -1709,6 +1715,16 @@ export class DBStorage implements IStorage {
     const result = await db.select().from(userRoles)
       .where(and(eq(userRoles.userId, userId), eq(userRoles.isActive, true)));
     return result[0];
+  }
+
+  async getUserRoleForOrg(userId: string, orgId: string): Promise<UserRole | undefined> {
+    // Prefer a role row explicitly linked to this org
+    const [orgSpecific] = await db.select().from(userRoles)
+      .where(and(eq(userRoles.userId, userId), eq(userRoles.orgId, orgId), eq(userRoles.isActive, true)))
+      .limit(1);
+    if (orgSpecific) return orgSpecific;
+    // Fall back to first active role (backwards compat when orgId wasn't stamped)
+    return this.getUserRole(userId);
   }
 
   async createUserRole(userRole: InsertUserRole): Promise<UserRole> {
@@ -3790,19 +3806,29 @@ export class DBStorage implements IStorage {
   }
 
   async getOrgsForUser(userId: string): Promise<Organisation[]> {
+    const seen = new Set<string>();
+    const result: Organisation[] = [];
+
+    // 1. Orgs via explicit userRoles.orgId entries
     const rows = await db
       .select({ org: organisations })
       .from(userRoles)
       .innerJoin(organisations, eq(userRoles.orgId, organisations.id))
       .where(and(eq(userRoles.userId, userId), eq(userRoles.isActive, true)));
-    const seen = new Set<string>();
-    const result: Organisation[] = [];
     for (const row of rows) {
       if (!seen.has(row.org.id)) {
         seen.add(row.org.id);
         result.push(row.org);
       }
     }
+
+    // 2. Always include the user's home org (users.orgId) even if userRoles.orgId is null
+    const [userRow] = await db.select({ orgId: users.orgId }).from(users).where(eq(users.id, userId)).limit(1);
+    if (userRow?.orgId && !seen.has(userRow.orgId)) {
+      const [homeOrg] = await db.select().from(organisations).where(eq(organisations.id, userRow.orgId)).limit(1);
+      if (homeOrg) result.push(homeOrg);
+    }
+
     return result;
   }
 

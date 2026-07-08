@@ -722,12 +722,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
 
-      const userRole = await storage.getUserRole(user.id);
+      // Use the effective orgId (session override or home org) to find the right role
+      const effectiveOrgId = (req.session as Record<string, unknown>)?.activeOrgId as string | undefined ?? user.orgId ?? undefined;
+      const userRole = effectiveOrgId
+        ? await storage.getUserRoleForOrg(user.id, effectiveOrgId)
+        : await storage.getUserRole(user.id);
 
       res.json({
         ...sanitizeUser(user),
         role: userRole?.role || "client",
-        orgId: user.orgId || null,
+        orgId: effectiveOrgId || null,
         onboardingCompletedAt: user.onboardingCompletedAt || null,
         // Use the same env-fallback logic as requireSuperAdmin so a user listed
         // in SUPER_ADMIN_EMAILS can reach /superadmin even before the DB flag is set.
@@ -1305,9 +1309,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         const existingRole = await storage.getUserRole(existing.id);
         if (!existingRole) {
-          await storage.createUserRole({ userId: existing.id, role: invite.role, isActive: true, assignedBy: invite.invitedBy, linkedVendorId: invite.linkedVendorId ?? null });
+          await storage.createUserRole({ userId: existing.id, role: invite.role, isActive: true, assignedBy: invite.invitedBy, linkedVendorId: invite.linkedVendorId ?? null, orgId: invite.orgId });
         } else {
-          await storage.updateUserRole(existing.id, invite.role);
+          // Stamp the orgId on the role row so getOrgsForUser can find it later
+          await db.update(userRoles)
+            .set({ role: invite.role, orgId: invite.orgId })
+            .where(eq(userRoles.id, existingRole.id));
           if (invite.linkedVendorId) {
             await storage.setUserRoleLinkedVendor(existing.id, invite.linkedVendorId);
           }
