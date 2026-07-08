@@ -1299,14 +1299,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const existing = await storage.getUserByEmail(invite.email);
       if (existing) {
-        // Reject if already in a different workspace
-        if (existing.orgId && existing.orgId !== invite.orgId) {
-          return res.status(409).json({
-            error: "This email is already associated with a different workspace. Please use a different email address or ask your current workspace admin to remove your account first.",
-          });
-        }
-        // Link account to inviting org (if not already set)
-        if (!existing.orgId) {
+        // Move account to the inviting org (handles both null orgId and switching from another org)
+        if (existing.orgId !== invite.orgId) {
           await storage.setUserOrgId(existing.id, invite.orgId);
         }
         const existingRole = await storage.getUserRole(existing.id);
