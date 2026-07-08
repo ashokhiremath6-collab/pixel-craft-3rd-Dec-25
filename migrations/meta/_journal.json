@@ -337,6 +337,13 @@
       "when": 1752200000000,
       "tag": "0047_backfill_works_order_activities_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1752250000000,
+      "tag": "0048_add_ashok_coonoor_membership",
+      "breakpoints": true
     }
   ]
 }
