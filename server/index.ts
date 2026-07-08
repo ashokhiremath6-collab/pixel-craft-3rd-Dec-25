@@ -173,6 +173,21 @@ app.use((req, res, next) => {
     console.error("Failed to backfill works order activity logs:", err);
   }
 
+  // Ensure Ashok (ashokhiremath6@gmail.com) is linked to Coonoor Projects as admin
+  // so the org switcher appears for him. Fully idempotent.
+  try {
+    await db.execute(sql`
+      INSERT INTO user_roles (id, user_id, role, org_id, is_active, assigned_by, created_at)
+      SELECT gen_random_uuid(), '46833846', 'admin', '76fe8e5d-a3f2-4832-b75d-db876476e72f', true, '46833846', NOW()
+      WHERE NOT EXISTS (
+        SELECT 1 FROM user_roles
+        WHERE user_id = '46833846' AND org_id = '76fe8e5d-a3f2-4832-b75d-db876476e72f'
+      )
+    `);
+  } catch (err) {
+    console.error("Failed to ensure Ashok Coonoor Projects membership:", err);
+  }
+
   // Add project_id column to vendor_payments if it doesn't exist (production DDL gap)
   try {
     await db.execute(sql`
