@@ -105,6 +105,35 @@ app.use((req, res, next) => {
     console.error("Failed to backfill project_vendor org_id:", err);
   }
 
+  // Backfill moodboards.org_id from their project's org_id (rows created before multi-tenant)
+  try {
+    await db.execute(sql`
+      UPDATE moodboards mb
+      SET org_id = p.org_id
+      FROM projects p
+      WHERE mb.project_id = p.id
+        AND p.org_id IS NOT NULL
+        AND mb.org_id IS NULL
+    `);
+  } catch (err) {
+    console.error("Failed to backfill moodboard org_id:", err);
+  }
+
+  // Backfill works_orders.org_id via project_vendor → project chain
+  try {
+    await db.execute(sql`
+      UPDATE works_orders wo
+      SET org_id = p.org_id
+      FROM project_vendors pv
+      JOIN projects p ON pv.project_id = p.id
+      WHERE wo.project_vendor_id = pv.id
+        AND p.org_id IS NOT NULL
+        AND wo.org_id IS NULL
+    `);
+  } catch (err) {
+    console.error("Failed to backfill works_order org_id:", err);
+  }
+
   // Patch existing works_order activity rows that are missing vendorName/categoryName in metadata.
   // Idempotent: only updates rows where vendorName is absent.
   try {
