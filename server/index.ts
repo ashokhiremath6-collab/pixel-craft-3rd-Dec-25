@@ -223,7 +223,7 @@ app.use((req, res, next) => {
     await db.execute(sql`
       INSERT INTO user_roles (id, user_id, role, org_id, is_active, assigned_by, created_at)
       SELECT gen_random_uuid(), '48688631', 'designer', '76fe8e5d-a3f2-4832-b75d-db876476e72f', true, '46833846', NOW()
-      WHERE EXISTS (SELECT 1 FROM users WHERE id = 48688631)
+      WHERE EXISTS (SELECT 1 FROM users WHERE id = '48688631')
         AND NOT EXISTS (
           SELECT 1 FROM user_roles
           WHERE user_id = '48688631' AND org_id = '76fe8e5d-a3f2-4832-b75d-db876476e72f'
