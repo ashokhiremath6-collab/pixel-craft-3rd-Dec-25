@@ -134,6 +134,20 @@ app.use((req, res, next) => {
     console.error("Failed to backfill works_order org_id:", err);
   }
 
+  // Backfill meeting_minutes.org_id from their project's org_id (rows created before multi-tenant)
+  try {
+    await db.execute(sql`
+      UPDATE meeting_minutes mm
+      SET org_id = p.org_id
+      FROM projects p
+      WHERE mm.project_id = p.id
+        AND p.org_id IS NOT NULL
+        AND mm.org_id IS NULL
+    `);
+  } catch (err) {
+    console.error("Failed to backfill meeting minutes org_id:", err);
+  }
+
   // Patch existing works_order activity rows that are missing vendorName/categoryName in metadata.
   // Idempotent: only updates rows where vendorName is absent.
   try {
