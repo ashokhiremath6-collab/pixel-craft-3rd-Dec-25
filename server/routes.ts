@@ -454,7 +454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Designer or admin can access all files
           } else if (role === 'client') {
             // Check if client has access to this project (role-based access)
-            const accessibleProjects = await storage.getProjectsForUser(userId, role);
+            const accessibleProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
             const hasAccess = accessibleProjects.some(project => project.id === associatedProjectVendor.projectId);
             
             if (!hasAccess) {
@@ -570,7 +570,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Designer or admin can access all files
           } else if (role === 'client') {
             // Check if client has access to this project
-            const accessibleProjects = await storage.getProjectsForUser(userId, role);
+            const accessibleProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
             const hasAccess = accessibleProjects.some(project => project.id === associatedFloorPlan.projectId);
             
             if (!hasAccess) {
@@ -1632,7 +1632,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Vendors are org-scoped — each org manages its own vendor database.
       const vendors = await storage.getVendorsForUser(userId, role);
-      const projectVendors = await storage.getProjectVendorsForUser(userId, role);
+      const projectVendors = await storage.getProjectVendorsForUser(userId, role, undefined, (req.user as any).orgId);
       
       // Map vendors with their associated projects
       const vendorsWithProjects = vendors.map(vendor => ({
@@ -1919,7 +1919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const role = userRole?.role || 'client';
       
       // Use role-based helper method for consistent access control
-      const projects = await storage.getProjectsForUser(userId, role);
+      const projects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       res.json(projects);
     } catch (error) {
       console.error('Get projects error:', error);
@@ -1936,7 +1936,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const role = userRole?.role || 'client';
       
       // Get user's accessible projects and check if this project is included
-      const userProjects = await storage.getProjectsForUser(userId, role);
+      const userProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       const project = userProjects.find(p => p.id === req.params.id);
       
       if (!project) {
@@ -2007,7 +2007,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // For clients, verify they have access to the project
-      const userProjects = await storage.getProjectsForUser(userId, role);
+      const userProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       const hasAccess = userProjects.some(p => p.id === req.params.id);
       
       if (!hasAccess) {
@@ -2083,7 +2083,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // For clients, verify they have access to the project
-      const userProjects = await storage.getProjectsForUser(userId, role);
+      const userProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       const hasAccess = userProjects.some(p => p.id === req.params.id);
       
       if (!hasAccess) {
@@ -2134,7 +2134,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role || 'client';
       
-      const userProjects = await storage.getProjectsForUser(userId, role);
+      const userProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       const hasAccess = userProjects.some(p => p.id === req.params.id);
       
       if (!hasAccess) {
@@ -2155,7 +2155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role || 'client';
       
-      const userProjects = await storage.getProjectsForUser(userId, role);
+      const userProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       const hasAccess = userProjects.some(p => p.id === req.params.id);
       
       if (!hasAccess) {
@@ -2286,7 +2286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const role = userRole?.role || 'client';
       
       // Use role-based helper method for consistent access control
-      const projectVendors = await storage.getProjectVendorsForUser(userId, role);
+      const projectVendors = await storage.getProjectVendorsForUser(userId, role, undefined, (req.user as any).orgId);
       res.json(projectVendors);
     } catch (error) {
       console.error('Get project vendors error:', error);
@@ -2304,7 +2304,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const role = userRole?.role || 'client';
       
       // Use role-based helper method with project ID filter
-      const projectVendors = await storage.getProjectVendorsForUser(userId, role, projectId);
+      const projectVendors = await storage.getProjectVendorsForUser(userId, role, projectId, (req.user as any).orgId);
       res.json(projectVendors);
     } catch (error) {
       console.error('Get project vendors by project error:', error);
@@ -2431,7 +2431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRole = userRoleData?.role || 'client';
       
       // Get projects scoped to this user's org + role (handles admin/designer/client/pm)
-      const projects = await storage.getProjectsForUser(userId, userRole);
+      const projects = await storage.getProjectsForUser(userId, userRole, (req.user as any).orgId);
       const projectIds = new Set(projects.map(p => p.id));
 
       // Get project vendors only for accessible projects
@@ -5964,7 +5964,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // (created before multi-tenant was introduced), causing tasks to disappear.
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role || 'client';
-      const accessibleProjects = await storage.getProjectsForUser(userId, role);
+      const accessibleProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       const projectIds = accessibleProjects.map((p: any) => p.id);
       const tasks = await storage.getAllTasksByProjectIds(projectIds);
       res.json(tasks);
@@ -8092,7 +8092,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(invoices);
       }
       // Project managers and clients are filtered to their accessible projects
-      const accessibleProjects = await storage.getProjectsForUser(userId, role);
+      const accessibleProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       const accessibleIds = new Set(accessibleProjects.map((p: any) => p.id));
       const filtered = invoices.filter(inv => !inv.projectId || accessibleIds.has(inv.projectId));
       res.json(filtered);
@@ -10824,7 +10824,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       // Role-based access check
       if (userRole.role === 'client') {
         // Clients can only access orders for their assigned projects
-        const userProjects = await storage.getProjectsForUser(userId, userRole.role);
+        const userProjects = await storage.getProjectsForUser(userId, userRole.role, (req.user as any).orgId);
         const projectIds = userProjects.map(p => p.id);
         
         const projectVendor = await storage.getProjectVendor(order.projectVendorId);
@@ -11519,7 +11519,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role || 'client';
-      const userProjects = await storage.getProjectsForUser(userId, role);
+      const userProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       res.json(userProjects);
     } catch (error) {
       console.error('Error fetching client portal projects:', error);
@@ -11535,7 +11535,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       const role = userRole?.role || 'client';
       const { projectId } = req.params;
 
-      const accessibleProjects = await storage.getProjectsForUser(userId, role);
+      const accessibleProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       const project = accessibleProjects.find(p => p.id === projectId);
       if (!project) {
         return res.status(403).json({ error: "Access denied to this project" });
@@ -11583,7 +11583,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       const userRoleRow = await storage.getUserRole(userId);
       const role = userRoleRow?.role || 'client';
       const { projectId } = req.params;
-      const accessibleProjects = await storage.getProjectsForUser(userId, role);
+      const accessibleProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       const project = accessibleProjects.find((p: any) => p.id === projectId);
       if (!project) return res.status(403).json({ error: "Access denied" });
 
@@ -11644,7 +11644,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       if (role !== 'client') return res.status(403).json({ error: "Only client accounts may submit a brief" });
 
       const { projectId } = req.params;
-      const accessibleProjects = await storage.getProjectsForUser(userId, role);
+      const accessibleProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       const project = accessibleProjects.find((p: any) => p.id === projectId);
       if (!project) return res.status(403).json({ error: "Access denied" });
 
@@ -11695,7 +11695,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       if (role !== 'client') return res.status(403).json({ error: "Only client accounts may accept a proposal" });
 
       const { projectId, proposalId } = req.params;
-      const accessibleProjects = await storage.getProjectsForUser(userId, role);
+      const accessibleProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       const project = accessibleProjects.find((p: any) => p.id === projectId);
       if (!project) return res.status(403).json({ error: "Access denied" });
 
@@ -11737,7 +11737,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       const { comment } = req.body;
 
       // Verify the client has access to this project
-      const accessibleProjects = await storage.getProjectsForUser(userId, role);
+      const accessibleProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       const project = accessibleProjects.find((p: any) => p.id === projectId);
       if (!project) return res.status(403).json({ error: "Access denied" });
 
@@ -14319,7 +14319,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       // Determine which projects this user can see (respects restricted-project rules)
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role?.toLowerCase() || 'designer';
-      const accessibleProjects = await storage.getProjectsForUser(userId, role);
+      const accessibleProjects = await storage.getProjectsForUser(userId, role, (req.user as any).orgId);
       const accessibleProjectIds = accessibleProjects.map(p => p.id);
 
       const rows = await db

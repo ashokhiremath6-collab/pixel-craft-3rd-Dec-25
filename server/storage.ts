@@ -216,8 +216,8 @@ export interface IStorage {
   isDesignerEmail(email: string): Promise<boolean>;
   
   // Role-based access helpers
-  getProjectsForUser(userId: string, role: string): Promise<Project[]>;
-  getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]>;
+  getProjectsForUser(userId: string, role: string, orgId?: string | null): Promise<Project[]>;
+  getProjectVendorsForUser(userId: string, role: string, projectId?: string, orgId?: string | null): Promise<ProjectVendor[]>;
   getBOQForUser(userId: string, role: string, projectVendorId: string): Promise<Boq[]>;
   getQuoteFilesForUser(userId: string, role: string, projectVendorId: string): Promise<QuoteFile[]>;
   getFloorPlansForUser(userId: string, role: string, projectId?: string): Promise<FloorPlan[]>;
@@ -834,7 +834,7 @@ export class MemStorage implements IStorage {
   }
 
   // Role-based access helpers (MemStorage - simplified)
-  async getProjectsForUser(userId: string, role: string): Promise<Project[]> {
+  async getProjectsForUser(userId: string, role: string, _orgId?: string | null): Promise<Project[]> {
     if (role === 'admin' || role === 'designer') {
       return Array.from(this.projects.values());
     }
@@ -844,7 +844,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.projects.values()).filter(p => p.clientEmail === user.email);
   }
 
-  async getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]> {
+  async getProjectVendorsForUser(userId: string, role: string, projectId?: string, _orgId?: string | null): Promise<ProjectVendor[]> {
     if (role === 'admin' || role === 'designer') {
       return projectId ? 
         Array.from(this.projectVendors.values()).filter(pv => pv.projectId === projectId) :
@@ -2131,21 +2131,25 @@ export class DBStorage implements IStorage {
     return userProjects.map(p => p.projectId);
   }
 
-  async getProjectsForUser(userId: string, role: string): Promise<Project[]> {
+  async getProjectsForUser(userId: string, role: string, orgId?: string | null): Promise<Project[]> {
     // Get all assignments for this user (used for restricted project access)
     const assignments = await this.getUserProjectAssignments(userId);
     const assignedProjectIds = new Set(assignments.map(a => a.projectId));
 
-    // Look up the user's orgId so we can scope queries to their organisation.
-    const user = await this.getUser(userId);
-    const orgId = user?.orgId ?? null;
+    // Use the provided orgId override (from session activeOrgId via req.user.orgId) if available.
+    // Fall back to looking up the user's home orgId from the DB.
+    let effectiveOrgId = orgId ?? null;
+    if (!effectiveOrgId) {
+      const user = await this.getUser(userId);
+      effectiveOrgId = user?.orgId ?? null;
+    }
 
     // Helper: base project query scoped to the user's org.
     // Migration 0042 assigned orgIds to all legacy null-orgId projects,
     // so no isNull fallback is needed.
     const orgProjects = async () => {
-      if (orgId) {
-        return await db.select().from(projects).where(eq(projects.orgId, orgId));
+      if (effectiveOrgId) {
+        return await db.select().from(projects).where(eq(projects.orgId, effectiveOrgId));
       }
       return await db.select().from(projects);
     };
@@ -2192,9 +2196,9 @@ export class DBStorage implements IStorage {
     return await db.select().from(projects).where(inArray(projects.id, Array.from(projectIds)));
   }
 
-  async getProjectVendorsForUser(userId: string, role: string, projectId?: string): Promise<ProjectVendor[]> {
+  async getProjectVendorsForUser(userId: string, role: string, projectId?: string, orgId?: string | null): Promise<ProjectVendor[]> {
     // All roles (including admin) go through getProjectsForUser which handles org scoping.
-    const accessibleProjects = await this.getProjectsForUser(userId, role);
+    const accessibleProjects = await this.getProjectsForUser(userId, role, orgId);
     const accessibleProjectIds = accessibleProjects.map(p => p.id);
 
     if (accessibleProjectIds.length === 0) return [];
