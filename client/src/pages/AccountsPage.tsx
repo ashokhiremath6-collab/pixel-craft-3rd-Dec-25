@@ -1588,17 +1588,17 @@ export default function AccountsPage() {
                   No transactions recorded yet
                 </div>
               ) : (
-                <Table className="table-fixed">
+                <Table className="table-fixed min-w-[900px]">
                   <colgroup>
-                    <col className="w-[10%]" />
-                    <col className="w-[8%]" />
-                    <col className="w-[12%]" />
-                    <col className="w-[12%]" />
-                    <col className="w-[20%]" />
-                    <col className="w-[11%]" />
-                    <col className="w-[11%]" />
-                    <col className="w-[11%]" />
-                    {canManageAccounts && <col className="w-[5%]" />}
+                    <col className="w-[100px]" />
+                    <col className="w-[90px]" />
+                    <col className="w-[130px]" />
+                    <col className="w-[120px]" />
+                    <col className="w-[220px]" />
+                    <col className="w-[110px]" />
+                    <col className="w-[110px]" />
+                    <col className="w-[110px]" />
+                    {canManageAccounts && <col className="w-[50px]" />}
                   </colgroup>
                   <TableHeader>
                     <TableRow>
