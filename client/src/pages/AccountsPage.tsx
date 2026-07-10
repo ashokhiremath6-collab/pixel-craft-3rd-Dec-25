@@ -1622,7 +1622,7 @@ export default function AccountsPage() {
                             {entry.type === 'invoice' ? 'Invoice' : 'Payment'}
                           </span>
                         </TableCell>
-                        <TableCell>{entry.reference}</TableCell>
+                        <TableCell className="break-words">{entry.reference}</TableCell>
                         <TableCell>
                           {entry.type === 'invoice' && invoices.find(inv => inv.id === entry.id)?.attachmentPath ? (
                             <Button
@@ -1643,7 +1643,7 @@ export default function AccountsPage() {
                             <span className="text-muted-foreground text-xs">-</span>
                           )}
                         </TableCell>
-                        <TableCell>{entry.description}</TableCell>
+                        <TableCell className="break-words">{entry.description}</TableCell>
                         <TableCell className="text-right">
                           {entry.debit > 0 ? entry.debit.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '-'}
                         </TableCell>
