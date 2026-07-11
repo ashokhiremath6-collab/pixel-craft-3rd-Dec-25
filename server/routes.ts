@@ -13595,6 +13595,15 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       const results: Array<{ success: boolean; drawingId?: string; title?: string; fileName?: string; error?: string }> = [];
 
+      // Fetch user + project once for activity logging
+      const [uploadUser, uploadProject] = await Promise.all([
+        storage.getUser(userId),
+        storage.getProject(projectId),
+      ]);
+      const uploadUserName = uploadUser
+        ? (uploadUser.firstName && uploadUser.lastName ? `${uploadUser.firstName} ${uploadUser.lastName}` : uploadUser.email || 'Unknown')
+        : 'Unknown';
+
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const title = (titlesArray[i] || file.originalname.replace(/\.[^/.]+$/, "")).trim() || file.originalname;
@@ -13640,6 +13649,26 @@ Return your response in the following JSON format only (no markdown, no code blo
             actorId: userId,
             createdAt: new Date(),
           });
+
+          // Log to activity feed so the dashboard shows this upload
+          if (uploadUser) {
+            const drawingKind = drawingType === 'concept' ? 'concept drawing' : 'working drawing';
+            await storage.createActivity({
+              userId: uploadUser.id,
+              userName: uploadUserName,
+              userEmail: uploadUser.email || '',
+              activityType: 'working_drawing_upload' as any,
+              orgId,
+              fileName: file.originalname,
+              description: `uploaded ${drawingKind}: ${title}`,
+              metadata: {
+                drawingId,
+                projectId,
+                projectName: uploadProject?.projectName ?? null,
+                drawingType: drawingType === 'concept' ? 'concept' : 'working',
+              },
+            });
+          }
 
           results.push({ success: true, drawingId, title });
         } catch (fileErr: any) {
