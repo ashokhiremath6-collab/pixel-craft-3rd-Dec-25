@@ -288,6 +288,48 @@ app.use((req, res, next) => {
     console.error("Failed to backfill vendor_payments for confirmed payment requests:", err);
   }
 
+  // Backfill activity_log entries for existing working/concept drawings that were
+  // uploaded before the upload-batch endpoint started logging activities.
+  try {
+    await db.execute(sql`
+      INSERT INTO activity_log (id, user_id, user_name, user_email, activity_type, file_name, description, metadata, created_at, org_id)
+      SELECT
+        gen_random_uuid(),
+        COALESCE(dr.uploaded_by, d.created_by),
+        COALESCE(
+          NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), ''),
+          u.email,
+          'Unknown'
+        ),
+        COALESCE(u.email, ''),
+        'working_drawing_upload',
+        dr.file_name,
+        'uploaded ' || CASE WHEN d.drawing_type = 'concept' THEN 'concept drawing' ELSE 'working drawing' END || ': ' || d.title,
+        jsonb_build_object(
+          'drawingId', d.id,
+          'projectId', d.project_id,
+          'projectName', p.project_name,
+          'drawingType', d.drawing_type,
+          'backfilled', true
+        ),
+        dr.uploaded_at,
+        d.org_id
+      FROM drawings d
+      JOIN drawing_revisions dr ON dr.drawing_id = d.id AND dr.revision_letter = 'A'
+      JOIN users u ON u.id = COALESCE(dr.uploaded_by, d.created_by)
+      JOIN projects p ON p.id = d.project_id
+      WHERE d.is_template_placeholder = false
+        AND COALESCE(dr.uploaded_by, d.created_by) IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_log al
+          WHERE al.activity_type = 'working_drawing_upload'
+            AND (al.metadata->>'drawingId') = d.id
+        )
+    `);
+  } catch (err) {
+    console.error("Failed to backfill working drawing activity logs:", err);
+  }
+
   const server = await registerRoutes(app);
 
   // Keep the Neon serverless database connection warm to avoid cold-start delays.
