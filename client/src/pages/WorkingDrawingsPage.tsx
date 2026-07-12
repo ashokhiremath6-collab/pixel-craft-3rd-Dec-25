@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { AIReviewButton } from "@/components/AIReviewPanel";
 import type { AIReviewType } from "@/components/AIReviewPanel";
 import { sortProjectsForDropdown } from "@/lib/projectSort";
@@ -1018,6 +1018,7 @@ export default function WorkingDrawingsPage({ drawingType = "working" }: { drawi
   const search = useSearch();
   const params = new URLSearchParams(search);
   const filterProjectId = params.get("projectId") || "";
+  const deepLinkDrawingId = params.get("drawingId") || null;
 
   const [searchText, setSearchText] = useState("");
   const [viewMode, setViewMode] = useState<"room" | "category">("room");
@@ -1075,6 +1076,13 @@ export default function WorkingDrawingsPage({ drawingType = "working" }: { drawi
   });
 
   const isLoading = roomsLoading || drawingsLoading;
+
+  // Deep-link: auto-open the viewer for a specific drawing when drawingId is in the URL.
+  useEffect(() => {
+    if (!deepLinkDrawingId || allDrawings.length === 0 || viewingDrawing) return;
+    const target = allDrawings.find(d => d.id === deepLinkDrawingId);
+    if (target) setViewingDrawing(target);
+  }, [deepLinkDrawingId, allDrawings]);
 
   // ── Room CRUD mutations ────────────────────────────────────────────────────
 

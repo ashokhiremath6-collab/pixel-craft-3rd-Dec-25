@@ -203,13 +203,17 @@ function getActivityNavPath(activityType: string, projectId: string | null, meta
     return pid ? `/renders?projectId=${pid}` : '/renders';
   }
   if (activityType.startsWith('working_drawing_')) {
-    const mid = meta?.moodboardId as string | null;
-    if (pid && mid) return `/working-drawings?projectId=${pid}&file=${mid}`;
+    const did = (meta?.drawingId as string | null) || (meta?.moodboardId as string | null);
+    if (pid && did) return `/working-drawings?projectId=${pid}&drawingId=${did}`;
     if (pid) return `/working-drawings?projectId=${pid}`;
     return '/working-drawings';
   }
   if (activityType.startsWith('schedule_') || activityType === 'schedule') return pid ? `/gantt?projectId=${pid}` : '/gantt';
-  if (activityType.startsWith('task_')) return pid ? `/gantt?projectId=${pid}` : '/gantt';
+  if (activityType.startsWith('task_')) {
+    const tid = meta?.taskId as string | null;
+    if (pid && tid) return `/gantt?projectId=${pid}&taskId=${tid}`;
+    return pid ? `/gantt?projectId=${pid}` : '/gantt';
+  }
   if (activityType.startsWith('quote_') || activityType.startsWith('boq_')) {
     const pvId = meta?.projectVendorId as string | null;
     if (pid && pvId) return `/quotes?project=${pid}&file=${pvId}`;

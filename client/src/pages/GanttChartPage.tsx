@@ -74,6 +74,8 @@ export default function GanttChartPage() {
   const [location, setLocation] = useLocation();
   const search = useSearch();
   const selectedProjectId = new URLSearchParams(search).get("projectId") || "";
+  const deepLinkTaskId = new URLSearchParams(search).get("taskId") || null;
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(deepLinkTaskId);
   const setSelectedProjectId = (value: string) => {
     const params = new URLSearchParams(search);
     if (value) {
@@ -281,6 +283,22 @@ export default function GanttChartPage() {
       return phases;
     });
   }, [tasks, selectedProjectId]);
+
+  // Deep-link: scroll to and briefly highlight the target task once phases are expanded.
+  useEffect(() => {
+    if (!deepLinkTaskId || tasks.length === 0) return;
+    // Give the DOM time to render all rows after phase expansion
+    const timer = setTimeout(() => {
+      const row = document.querySelector(`[data-testid="row-task-${deepLinkTaskId}"]`);
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightedTaskId(deepLinkTaskId);
+        // Clear highlight after 3 seconds
+        setTimeout(() => setHighlightedTaskId(null), 3000);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [deepLinkTaskId, tasks]);
 
   const { data: schedules = [] } = useQuery<ProjectSchedule[]>({
     queryKey: ['/api/schedules/project', selectedProjectId],
@@ -1572,13 +1590,15 @@ export default function GanttChartPage() {
                                   <tr 
                                     key={task.id} 
                                     className={`border-b transition-colors ${
-                                      overdue 
-                                        ? 'bg-red-50/50 dark:bg-red-950/30 hover:bg-red-100/50 dark:hover:bg-red-900/30' 
-                                        : isPhase
-                                          ? 'bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/50 dark:to-gray-900/50'
-                                          : index % 2 === 0 
-                                            ? 'bg-background hover:bg-muted/20' 
-                                            : 'bg-muted/10 hover:bg-muted/30'
+                                      highlightedTaskId === task.id
+                                        ? 'bg-violet-100 dark:bg-violet-900/40 ring-2 ring-inset ring-violet-400 dark:ring-violet-500'
+                                        : overdue 
+                                          ? 'bg-red-50/50 dark:bg-red-950/30 hover:bg-red-100/50 dark:hover:bg-red-900/30' 
+                                          : isPhase
+                                            ? 'bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/50 dark:to-gray-900/50'
+                                            : index % 2 === 0 
+                                              ? 'bg-background hover:bg-muted/20' 
+                                              : 'bg-muted/10 hover:bg-muted/30'
                                     }`}
                                     data-testid={`row-task-${task.id}`}
                                   >
