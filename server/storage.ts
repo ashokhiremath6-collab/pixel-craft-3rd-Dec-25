@@ -2931,13 +2931,20 @@ export class DBStorage implements IStorage {
   }
 
   async getRecentActivitiesByOrg(orgId: string, limit: number = 20): Promise<ActivityLog[]> {
-    // Fetch activities scoped to the organisation by joining through users.orgId.
-    // This is O(1) in query cost regardless of how many orgs exist.
+    // Filter by activityLog.orgId (the org that owns the content) so that a user who
+    // is a member of multiple orgs does not bleed their activities across org boundaries.
+    // For legacy entries where orgId was never set (NULL), fall back to users.orgId so
+    // those entries remain visible to the org the uploader belongs to.
     return await db
       .select({ activityLog })
       .from(activityLog)
       .innerJoin(users, eq(activityLog.userId, users.id))
-      .where(eq(users.orgId, orgId))
+      .where(
+        or(
+          eq(activityLog.orgId, orgId),
+          and(isNull(activityLog.orgId), eq(users.orgId, orgId))
+        )
+      )
       .orderBy(desc(activityLog.createdAt))
       .limit(limit)
       .then(rows => rows.map(r => r.activityLog));
