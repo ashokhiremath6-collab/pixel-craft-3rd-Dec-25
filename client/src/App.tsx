@@ -123,7 +123,10 @@ function AuthenticatedApp({ onPreviewClientPortal, onPreviewAsPM, onExitPMPrevie
 
   async function handleGlobalRefresh() {
     setIsRefreshing(true);
-    await queryClient.invalidateQueries();
+    await Promise.all([
+      queryClient.refetchQueries({ type: "active" }),
+      new Promise<void>((r) => setTimeout(r, 600)),
+    ]);
     setIsRefreshing(false);
   }
 
