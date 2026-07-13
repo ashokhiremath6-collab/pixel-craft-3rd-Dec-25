@@ -1,4 +1,4 @@
-const PINNED = ["Maker Tower", "Little Gibbs"];
+const PINNED = ["Shamrock", "Maker Tower", "Little Gibbs"];
 
 export function sortProjectsForDropdown<T extends { projectName: string }>(projects: T[]): T[] {
   return [...projects].sort((a, b) => {
