@@ -3,6 +3,7 @@ import { Switch, Route, useLocation } from "wouter";
 import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
+import { useToast } from "@/hooks/use-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -120,6 +121,7 @@ function AuthenticatedApp({ onPreviewClientPortal, onPreviewAsPM, onExitPMPrevie
   const { logout, user } = useAuth();
   const [, navigate] = useLocation();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const { toast } = useToast();
 
   async function handleGlobalRefresh() {
     setIsRefreshing(true);
@@ -128,6 +130,7 @@ function AuthenticatedApp({ onPreviewClientPortal, onPreviewAsPM, onExitPMPrevie
       new Promise<void>((r) => setTimeout(r, 600)),
     ]);
     setIsRefreshing(false);
+    toast({ title: "Refreshed", description: "All data is up to date.", duration: 2000 });
   }
 
   const style = {
