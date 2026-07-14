@@ -2602,6 +2602,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Project Cost Items — custom line items added by designers
+  // Vendor payments summed by category for a project — used as fallback on Project Cost page
+  app.get("/api/project-cost/:projectId/payments-by-category", requireAuth, async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      const result = await db.execute(sql`
+        WITH vendor_cat AS (
+          SELECT DISTINCT ON (pv.vendor_id)
+            pv.vendor_id,
+            COALESCE(vc.name, pv.category) AS category_name
+          FROM project_vendors pv
+          LEFT JOIN vendor_categories vc ON vc.id = pv.category_id
+          WHERE pv.project_id = ${projectId} AND pv.vendor_id IS NOT NULL
+          ORDER BY pv.vendor_id, pv.id
+        )
+        SELECT
+          vc.category_name,
+          SUM(vp.amount::numeric) AS total_paid,
+          array_agg(DISTINCT v.name) AS vendor_names
+        FROM vendor_cat vc
+        JOIN vendor_payments vp ON vp.vendor_id = vc.vendor_id
+        JOIN vendors v ON v.id = vc.vendor_id
+        GROUP BY vc.category_name
+        HAVING SUM(vp.amount::numeric) > 0
+      `);
+      res.json((result.rows as any[]).map((r) => ({
+        categoryName: r.category_name as string,
+        totalPaid: parseFloat(r.total_paid ?? "0"),
+        vendorNames: (r.vendor_names as string[]) ?? [],
+      })));
+    } catch (err) {
+      console.error("GET /api/project-cost/:projectId/payments-by-category error:", err);
+      res.status(500).json({ error: "Failed to fetch payment data" });
+    }
+  });
+
   app.get("/api/project-cost-items/:projectId", requireAuth, async (req, res) => {
     try {
       const items = await storage.getProjectCostItems(req.params.projectId);

@@ -11,6 +11,12 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 
+interface PaymentsByCategory {
+  categoryName: string;
+  totalPaid: number;
+  vendorNames: string[];
+}
+
 interface QuotationData {
   id: string;
   vendorName: string;
@@ -207,6 +213,12 @@ export default function ProjectCostPage() {
     staleTime: 0,
   });
 
+  const { data: paymentsByCategory = [] } = useQuery<PaymentsByCategory[]>({
+    queryKey: ["/api/project-cost", selectedProjectId, "payments-by-category"],
+    enabled: !!selectedProjectId,
+    staleTime: 0,
+  });
+
   const createItemMutation = useMutation({
     mutationFn: (fields: { categoryName: string; vendorName: string; amount: string }) =>
       apiRequest("POST", `/api/project-cost-items/${selectedProjectId}`, fields),
@@ -290,6 +302,11 @@ export default function ProjectCostPage() {
   if (selectedProjectId && selectedProject) {
     const quotedCount = getQuotedCategoryCount(selectedProjectId);
 
+    // Build category name → payment data lookup
+    const paymentsByCatMap = new Map<string, PaymentsByCategory>(
+      paymentsByCategory.map((p) => [p.categoryName.toLowerCase(), p])
+    );
+
     const rows = rootCategories.map((cat, idx) => {
       const catQuotes = getSelectedQuotesForCategory(selectedProjectId, cat);
       const catTotal = catQuotes.reduce(
@@ -297,10 +314,14 @@ export default function ProjectCostPage() {
         0
       );
       const vendorNames = [...new Set(catQuotes.map((q) => q.vendorName))];
-      return { cat, catQuotes, catTotal, vendorNames, idx: idx + 1 };
+      // Fallback: if no selected quote, use actual vendor payments for this category
+      const paymentFallback = catTotal === 0
+        ? (paymentsByCatMap.get(cat.name.toLowerCase()) ?? null)
+        : null;
+      return { cat, catQuotes, catTotal, vendorNames, paymentFallback, idx: idx + 1 };
     });
 
-    const quotesTotal = rows.reduce((sum, r) => sum + r.catTotal, 0);
+    const quotesTotal = rows.reduce((sum, r) => sum + r.catTotal + (r.paymentFallback?.totalPaid ?? 0), 0);
     const customTotal = customItems.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
     const total = quotesTotal + customTotal;
     const startIdx = rows.length + 1;
@@ -364,8 +385,9 @@ export default function ProjectCostPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ cat, catTotal, vendorNames, idx }) => {
+              {rows.map(({ cat, catTotal, vendorNames, paymentFallback, idx }) => {
                 const hasQuote = catTotal > 0;
+                const displayNames = hasQuote ? vendorNames : (paymentFallback?.vendorNames ?? []);
                 return (
                   <tr
                     key={cat.id}
@@ -375,14 +397,20 @@ export default function ProjectCostPage() {
                     <td className="px-3 py-2.5 text-muted-foreground text-xs">{idx}</td>
                     <td className="px-3 py-2.5 font-medium">{cat.name}</td>
                     <td className="px-3 py-2.5 text-muted-foreground">
-                      {vendorNames.length > 0 ? vendorNames.join(", ") : (
+                      {displayNames.length > 0 ? displayNames.join(", ") : (
                         <span className="italic text-muted-foreground/50 text-xs">No quote yet</span>
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums font-medium">
-                      {hasQuote
-                        ? <span className="underline decoration-dotted underline-offset-2">{formatCurrencyCompact(catTotal)}</span>
-                        : <span className="text-muted-foreground/40">—</span>}
+                      {hasQuote ? (
+                        <span className="underline decoration-dotted underline-offset-2">{formatCurrencyCompact(catTotal)}</span>
+                      ) : paymentFallback ? (
+                        <span className="text-muted-foreground" title="Based on actual payments made">
+                          {formatCurrencyCompact(paymentFallback.totalPaid)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
                     </td>
                   </tr>
                 );
