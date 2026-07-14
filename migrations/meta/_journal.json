@@ -358,6 +358,13 @@
       "when": 1752445000000,
       "tag": "0050_delete_duplicate_vendor_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1752445100000,
+      "tag": "0051_delete_remaining_duplicate_payments",
+      "breakpoints": true
     }
   ]
 }
