@@ -8349,7 +8349,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role?.toLowerCase() || 'client';
-      const payments = await storage.getAllPaymentsWithVendors();
+      const rawPayments = await storage.getAllPaymentsWithVendors();
+      // Deduplicate: same vendor + same payment_reference → keep earliest
+      const seenAll = new Map<string, boolean>();
+      const payments = rawPayments.filter((p: any) => {
+        const key = p.paymentReference ? `${p.vendorId}::${p.paymentReference}` : p.id;
+        if (seenAll.has(key)) return false;
+        seenAll.set(key, true);
+        return true;
+      });
       const accessibleVendorIds = await storage.getAccessibleVendorIds(userId, role);
       if (accessibleVendorIds === null) {
         return res.json(payments);
