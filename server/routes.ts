@@ -8359,14 +8359,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { vendorId } = req.params;
       const userId = (req.user as any).id;
-      
+      const { paymentRequestId, ...bodyRest } = req.body || {};
+
       const paymentData = insertVendorPaymentSchema.parse({
-        ...req.body,
+        ...bodyRest,
         vendorId,
         createdBy: userId,
       });
-      
+
+      // Dedup guard: reject if same vendor + same reference already exists
+      if (paymentData.paymentReference) {
+        const { vendorPayments: vp } = await import("@shared/schema");
+        const { eq, and } = await import("drizzle-orm");
+        const existing = await db.select({ id: vp.id }).from(vp)
+          .where(and(eq(vp.vendorId, vendorId), eq(vp.paymentReference, paymentData.paymentReference)))
+          .limit(1);
+        if (existing.length > 0) {
+          return res.status(409).json({ error: "A payment with this reference already exists for this vendor." });
+        }
+      }
+
       const payment = await storage.createVendorPayment(paymentData);
+
+      // If this payment was triggered via "Add to Ledger" for a payment request, mark it done
+      if (paymentRequestId) {
+        try {
+          const { eq, and } = await import("drizzle-orm");
+          const orgId = (req.user as any).orgId;
+          await db.update(paymentRequests)
+            .set({ ledgerAdded: true })
+            .where(and(eq(paymentRequests.id, paymentRequestId), eq(paymentRequests.orgId, orgId)));
+        } catch (flagErr) {
+          console.error("POST vendor payments — failed to set ledger_added flag:", flagErr);
+        }
+      }
 
       // Log activity
       const user = await storage.getUser(userId);
@@ -14375,6 +14401,7 @@ Return your response in the following JSON format only (no markdown, no code blo
           clientUtr: paymentRequests.clientUtr,
           confirmedAt: paymentRequests.confirmedAt,
           confirmedBy: paymentRequests.confirmedBy,
+          ledgerAdded: paymentRequests.ledgerAdded,
         })
         .from(paymentRequests)
         .leftJoin(vendors, eq(vendors.id, paymentRequests.vendorId))
@@ -14591,6 +14618,8 @@ Return your response in the following JSON format only (no markdown, no code blo
             orgId: pr.orgId || orgId,
           });
         }
+        // Mark the payment request as ledger-added (payment entry exists)
+        await db.update(paymentRequests).set({ ledgerAdded: true }).where(eqP(paymentRequests.id, id));
       } catch (payErr) {
         console.error("PATCH /api/payment-requests/:id/confirm — payment entry error:", payErr);
       }
@@ -14649,6 +14678,8 @@ Return your response in the following JSON format only (no markdown, no code blo
             orgId: pr.orgId || orgId,
           });
         }
+        // Mark the payment request as ledger-added (payment entry exists)
+        await db.update(paymentRequests).set({ ledgerAdded: true }).where(eqP(paymentRequests.id, id));
       } catch (payErr) {
         console.error("PATCH /api/payment-requests/:id/direct-confirm — payment entry error:", payErr);
       }

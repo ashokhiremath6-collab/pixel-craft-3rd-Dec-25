@@ -127,6 +127,7 @@ interface PaymentRequestRow {
   clientPaidAt?: string | null;
   clientUtr?: string | null;
   confirmedAt?: string | null;
+  ledgerAdded?: boolean | null;
 }
 
 const paymentRequestFormSchema = z.object({
@@ -406,23 +407,29 @@ export default function AccountsPage() {
   // Add to Ledger: retroactively create a payment entry for an already-confirmed payment request
   const addToLedgerMutation = useMutation({
     mutationFn: async ({ pr, date, notes }: { pr: PaymentRequestRow; date: string; notes: string }) => {
-      await apiRequest('POST', `/api/vendors/${pr.vendorId}/payments`, {
+      const res = await apiRequest('POST', `/api/vendors/${pr.vendorId}/payments`, {
         paymentDate: date,
         amount: String(pr.amount),
         paymentMethod: 'bank_transfer',
         paymentReference: pr.clientUtr || `PR-${pr.id.substring(0, 8).toUpperCase()}`,
         notes: notes || `Payment received from client. UTR: ${pr.clientUtr || "N/A"}. ${pr.description}`,
+        paymentRequestId: pr.id,
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).error || "Failed to add to ledger");
+      }
     },
     onSuccess: () => {
       toast({ title: "Added to ledger", description: "Payment entry has been recorded in the vendor ledger." });
       setAddLedgerDialog(null);
       setAddLedgerNotes("");
+      queryClient.invalidateQueries({ queryKey: ['/api/payment-requests'] });
       queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
       if (addLedgerDialog) queryClient.invalidateQueries({ queryKey: ['/api/vendors', addLedgerDialog.vendorId, 'payments'] });
     },
-    onError: () => {
-      toast({ variant: "destructive", title: "Failed to add to ledger" });
+    onError: (err: any) => {
+      toast({ variant: "destructive", title: "Failed to add to ledger", description: err?.message });
     },
   });
 
@@ -1814,18 +1821,22 @@ export default function AccountsPage() {
                             )}
                             {pr.status === 'confirmed' && (
                               <div className="flex items-center gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setAddLedgerDialog(pr);
-                                    setAddLedgerDate(pr.clientPaidAt ? format(new Date(pr.clientPaidAt), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
-                                    setAddLedgerNotes("");
-                                  }}
-                                >
-                                  <IndianRupee className="h-4 w-4 mr-1.5" />
-                                  Add to Ledger
-                                </Button>
+                                {!pr.ledgerAdded ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setAddLedgerDialog(pr);
+                                      setAddLedgerDate(pr.clientPaidAt ? format(new Date(pr.clientPaidAt), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
+                                      setAddLedgerNotes("");
+                                    }}
+                                  >
+                                    <IndianRupee className="h-4 w-4 mr-1.5" />
+                                    Add to Ledger
+                                  </Button>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">In ledger</span>
+                                )}
                                 <CheckCircle2 className="h-5 w-5 text-green-600" />
                               </div>
                             )}
