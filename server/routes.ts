@@ -2607,7 +2607,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { projectId } = req.params;
       const result = await db.execute(sql`
-        WITH vendor_cat AS (
+        WITH project_pmts AS (
+          -- All payments recorded against this project
+          SELECT
+            vp.vendor_id,
+            vp.amount::numeric AS amount,
+            v.name AS vendor_name
+          FROM vendor_payments vp
+          JOIN vendors v ON v.id = vp.vendor_id
+          WHERE vp.project_id = ${projectId}
+        ),
+        vendor_cat AS (
+          -- Category for each vendor formally linked to this project
           SELECT DISTINCT ON (pv.vendor_id)
             pv.vendor_id,
             COALESCE(vc.name, pv.category) AS category_name
@@ -2617,14 +2628,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ORDER BY pv.vendor_id, pv.id
         )
         SELECT
-          vc.category_name,
-          SUM(vp.amount::numeric) AS total_paid,
-          array_agg(DISTINCT v.name) AS vendor_names
-        FROM vendor_cat vc
-        JOIN vendor_payments vp ON vp.vendor_id = vc.vendor_id
-        JOIN vendors v ON v.id = vc.vendor_id
-        GROUP BY vc.category_name
-        HAVING SUM(vp.amount::numeric) > 0
+          COALESCE(cat.category_name, pp.vendor_name) AS category_name,
+          SUM(pp.amount) AS total_paid,
+          array_agg(DISTINCT pp.vendor_name) AS vendor_names
+        FROM project_pmts pp
+        LEFT JOIN vendor_cat cat ON cat.vendor_id = pp.vendor_id
+        GROUP BY COALESCE(cat.category_name, pp.vendor_name)
+        HAVING SUM(pp.amount) > 0
       `);
       res.json(
         (result.rows as any[])
