@@ -304,7 +304,9 @@ export default function ProjectCostPage() {
 
     // Build category name → payment data lookup
     const paymentsByCatMap = new Map<string, PaymentsByCategory>(
-      paymentsByCategory.map((p) => [p.categoryName.toLowerCase(), p])
+      paymentsByCategory
+        .filter((p) => p.categoryName != null)
+        .map((p) => [p.categoryName.toLowerCase(), p])
     );
 
     const rows = rootCategories.map((cat, idx) => {

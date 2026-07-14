@@ -2626,11 +2626,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         GROUP BY vc.category_name
         HAVING SUM(vp.amount::numeric) > 0
       `);
-      res.json((result.rows as any[]).map((r) => ({
-        categoryName: r.category_name as string,
-        totalPaid: parseFloat(r.total_paid ?? "0"),
-        vendorNames: (r.vendor_names as string[]) ?? [],
-      })));
+      res.json(
+        (result.rows as any[])
+          .filter((r) => r.category_name != null)
+          .map((r) => ({
+            categoryName: r.category_name as string,
+            totalPaid: parseFloat(r.total_paid ?? "0"),
+            vendorNames: (r.vendor_names as string[]) ?? [],
+          }))
+      );
     } catch (err) {
       console.error("GET /api/project-cost/:projectId/payments-by-category error:", err);
       res.status(500).json({ error: "Failed to fetch payment data" });
