@@ -1346,7 +1346,8 @@ export const paymentRequests = pgTable("payment_requests", {
   confirmedAt: timestamp("confirmed_at"),
   confirmedBy: varchar("confirmed_by").references(() => users.id),
   clientToken: varchar("client_token").unique(), // magic-link token for no-login access
-  ledgerAdded: boolean("ledger_added").notNull().default(false), // true once a vendor_payment row exists for this request
+  // ledger_added column intentionally omitted — computed as a live subquery in routes
+  // (Neon production silently drops ALTER TABLE DDL from migrations)
 }, (table) => ({
   orgIdx: index("payment_requests_org_idx").on(table.orgId),
   statusIdx: index("payment_requests_status_idx").on(table.status),
