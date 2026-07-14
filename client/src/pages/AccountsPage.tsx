@@ -281,10 +281,10 @@ export default function AccountsPage() {
     ? paymentRequestsList.filter(pr => pr.projectId === selectedProjectId)
     : paymentRequestsList;
   const recentRequests = scopedRequests.filter(pr =>
-    pr.status !== 'confirmed' || new Date(pr.requestedAt) >= sevenDaysAgo
+    !pr.ledgerAdded && (pr.status !== 'confirmed' || new Date(pr.requestedAt) >= sevenDaysAgo)
   );
   const historyRequests = scopedRequests.filter(pr =>
-    pr.status === 'confirmed' && new Date(pr.requestedAt) < sevenDaysAgo
+    !pr.ledgerAdded && pr.status === 'confirmed' && new Date(pr.requestedAt) < sevenDaysAgo
   );
 
   // Invoice form
