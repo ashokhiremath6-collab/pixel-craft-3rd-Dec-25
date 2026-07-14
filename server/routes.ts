@@ -8321,10 +8321,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role?.toLowerCase() || 'client';
-      const payments = await storage.getVendorPayments(vendorId);
+      const rawPayments = await storage.getVendorPayments(vendorId);
+      // Deduplicate: if multiple rows share vendor_id + payment_reference, keep earliest
+      const seen = new Map<string, boolean>();
+      const payments = rawPayments.filter((p: any) => {
+        const key = p.paymentReference ? `${p.vendorId}::${p.paymentReference}` : p.id;
+        if (seen.has(key)) return false;
+        seen.set(key, true);
+        return true;
+      });
       const accessibleVendorIds = await storage.getAccessibleVendorIds(userId, role);
       if (accessibleVendorIds === null) {
-        // admin — no restriction
         return res.json(payments);
       }
       if (!accessibleVendorIds.has(vendorId)) {
