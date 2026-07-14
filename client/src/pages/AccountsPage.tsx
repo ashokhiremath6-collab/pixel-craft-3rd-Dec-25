@@ -204,11 +204,16 @@ export default function AccountsPage() {
     queryKey: ['/api/projects'],
   });
 
-  // Auto-select the first (alphabetically sorted) project once projects load
+  // Auto-select Maker Tower by default, falling back to first alphabetically
   useEffect(() => {
     if (projects.length > 0 && !selectedProjectId) {
-      const sorted = projects.slice().sort((a, b) => a.projectName.localeCompare(b.projectName));
-      setSelectedProjectId(sorted[0].id);
+      const makerTower = projects.find(p => p.projectName === "Maker Tower");
+      if (makerTower) {
+        setSelectedProjectId(makerTower.id);
+      } else {
+        const sorted = projects.slice().sort((a, b) => a.projectName.localeCompare(b.projectName));
+        setSelectedProjectId(sorted[0].id);
+      }
     }
   }, [projects, selectedProjectId]);
 
