@@ -2607,17 +2607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { projectId } = req.params;
       const result = await db.execute(sql`
-        WITH project_pmts AS (
-          -- All payments recorded against this project
-          SELECT
-            vp.vendor_id,
-            vp.amount::numeric AS amount,
-            v.name AS vendor_name
-          FROM vendor_payments vp
-          JOIN vendors v ON v.id = vp.vendor_id
-          WHERE vp.project_id = ${projectId}
-        ),
-        vendor_cat AS (
+        WITH vendor_cat AS (
           -- Category for each vendor formally linked to this project
           SELECT DISTINCT ON (pv.vendor_id)
             pv.vendor_id,
@@ -2626,6 +2616,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           LEFT JOIN vendor_categories vc ON vc.id = pv.category_id
           WHERE pv.project_id = ${projectId} AND pv.vendor_id IS NOT NULL
           ORDER BY pv.vendor_id, pv.id
+        ),
+        project_pmts AS (
+          -- Payments tagged with this project directly
+          SELECT vp.vendor_id, vp.amount::numeric AS amount, v.name AS vendor_name
+          FROM vendor_payments vp
+          JOIN vendors v ON v.id = vp.vendor_id
+          WHERE vp.project_id = ${projectId}
+          UNION
+          -- Payments with no projectId but vendor is linked to this project
+          SELECT vp.vendor_id, vp.amount::numeric AS amount, v.name AS vendor_name
+          FROM vendor_payments vp
+          JOIN vendors v ON v.id = vp.vendor_id
+          JOIN vendor_cat vc2 ON vc2.vendor_id = vp.vendor_id
+          WHERE vp.project_id IS NULL
         )
         SELECT
           COALESCE(cat.category_name, pp.vendor_name) AS category_name,

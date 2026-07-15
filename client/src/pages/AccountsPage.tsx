@@ -251,15 +251,16 @@ export default function AccountsPage() {
     enabled: !!selectedVendorId,
   });
 
-  // Auto-select project in payment form when vendor has exactly one linked project
+  // Auto-select the currently viewed project in the payment form when vendor changes
   useEffect(() => {
-    if (vendorProjects.length === 1) {
+    if (selectedProjectId) {
+      paymentForm.setValue('projectId', selectedProjectId);
+    } else if (vendorProjects.length === 1) {
       paymentForm.setValue('projectId', vendorProjects[0].id);
-    } else if (vendorProjects.length === 0) {
+    } else {
       paymentForm.setValue('projectId', undefined);
     }
-    // If multiple projects, leave as-is so user must choose
-  }, [selectedVendorId, vendorProjects.length]);
+  }, [selectedVendorId, selectedProjectId, vendorProjects.length]);
 
   // Fetch invoices for selected vendor
   const { data: invoices = [] } = useQuery<VendorInvoice[]>({
@@ -1255,26 +1256,22 @@ export default function AccountsPage() {
                       )}
                     />
 
-                    {/* Only show project selector if vendor is linked to projects */}
-                    {vendorProjects.length > 0 && (
                     <FormField
                       control={paymentForm.control}
                       name="projectId"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>
-                            Project{vendorProjects.length > 1 ? " — select for tracking" : ""}
-                          </FormLabel>
-                          <Select onValueChange={v => field.onChange(v === "__none__" ? undefined : v)} value={field.value ?? "__none__"} disabled={vendorProjects.length === 1}>
+                          <FormLabel>Project</FormLabel>
+                          <Select onValueChange={v => field.onChange(v === "__none__" ? undefined : v)} value={field.value ?? "__none__"}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select project" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {vendorProjects.length > 1 && <SelectItem value="__none__">No project</SelectItem>}
-                              {vendorProjects.map(p => (
-                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                              <SelectItem value="__none__">No project</SelectItem>
+                              {projects.map(p => (
+                                <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -1282,7 +1279,6 @@ export default function AccountsPage() {
                         </FormItem>
                       )}
                     />
-                    )}
 
                     <FormField
                       control={paymentForm.control}
