@@ -1493,25 +1493,22 @@ export default function AccountsPage() {
                       )}
                     />
 
-                    {vendorProjects.length > 0 && (
                     <FormField
                       control={paymentForm.control}
                       name="projectId"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>
-                            Project{vendorProjects.length > 1 ? " — select for tracking" : ""}
-                          </FormLabel>
-                          <Select onValueChange={v => field.onChange(v === "__none__" ? undefined : v)} value={field.value ?? "__none__"} disabled={vendorProjects.length === 1}>
+                          <FormLabel>Project</FormLabel>
+                          <Select onValueChange={v => field.onChange(v === "__none__" ? undefined : v)} value={field.value ?? "__none__"}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select project" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {vendorProjects.length > 1 && <SelectItem value="__none__">No project</SelectItem>}
-                              {vendorProjects.map(p => (
-                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                              <SelectItem value="__none__">No project</SelectItem>
+                              {projects.map(p => (
+                                <SelectItem key={p.id} value={p.id}>{p.projectName}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -1519,7 +1516,6 @@ export default function AccountsPage() {
                         </FormItem>
                       )}
                     />
-                    )}
 
                     <FormField
                       control={paymentForm.control}
