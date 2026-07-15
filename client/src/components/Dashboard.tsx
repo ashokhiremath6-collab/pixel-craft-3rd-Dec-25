@@ -919,6 +919,7 @@ export default function Dashboard({
 
   const sortedActivities = [...activities]
     .filter(a => !a.activityType.endsWith("_delete"))
+    .filter(a => !a.activityType.startsWith("task_"))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   // Sort breakdown based on user's chosen mode
@@ -1013,7 +1014,7 @@ export default function Dashboard({
                   Latest Activity
                 </h2>
                 <p className="text-xs" style={{ color: "#86868b" }}>
-                  Drawings, quotes, schedules and more — everything uploaded across all projects
+                  Drawings, quotes, renders, schedules and more — everything uploaded across all projects
                 </p>
               </div>
             </div>

@@ -68,7 +68,8 @@ export default function DashboardPage() {
   });
 
   const { data: activitiesData, isFetching: activitiesLoading, refetch: refetchActivities } = useQuery<ActivityLog[]>({
-    queryKey: ['/api/activities'],
+    queryKey: ['/api/activities', { limit: 50 }],
+    queryFn: () => fetch('/api/activities?limit=50', { credentials: 'include' }).then(r => r.json()),
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
