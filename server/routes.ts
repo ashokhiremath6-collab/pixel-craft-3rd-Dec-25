@@ -1682,7 +1682,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('📧 Email field - type:', typeof req.body.email, 'value:', JSON.stringify(req.body.email));
       
       const { additionalContacts, ...vendorData } = req.body;
-      const parsed = insertVendorSchema.parse(vendorData);
+      // Always stamp orgId from the session so every new vendor is org-scoped
+      const orgId = (req.user as any)?.orgId ?? null;
+      const parsed = insertVendorSchema.parse({ ...vendorData, orgId });
       console.log('✅ Validation passed. Email after validation:', parsed.email);
       
       const vendor = await storage.createVendor(parsed);

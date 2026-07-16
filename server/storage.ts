@@ -1943,8 +1943,11 @@ export class DBStorage implements IStorage {
   }
 
   async createVendor(vendor: InsertVendor): Promise<Vendor> {
-    // Check if vendor with this name already exists
-    const existing = await db.select().from(vendors).where(eq(vendors.name, vendor.name));
+    // Uniqueness scoped to the org — same vendor name is allowed in different orgs
+    const dupeCondition = vendor.orgId
+      ? and(eq(vendors.name, vendor.name), eq(vendors.orgId, vendor.orgId))
+      : eq(vendors.name, vendor.name);
+    const existing = await db.select().from(vendors).where(dupeCondition);
     if (existing.length > 0) {
       throw new Error(`Vendor "${vendor.name}" already exists`);
     }
@@ -2717,12 +2720,11 @@ export class DBStorage implements IStorage {
     const user = await this.getUser(userId);
     const orgId = user?.orgId ?? null;
     if (orgId) {
-      // Match vendors for this org, plus any legacy vendors with NULL org_id (safety net).
-      // Migration 0045 will reassign orphaned org_ids, but OR NULL ensures nothing is hidden
-      // if the migration hasn't yet run or another org_id mismatch occurs.
-      return await db.select().from(vendors).where(
-        or(eq(vendors.orgId, orgId), isNull(vendors.orgId))
-      );
+      // Strict org-scope: each org sees only its own vendors.
+      // Migration 0052 ensures no null-orgId vendors remain, so the safety-net
+      // OR isNull fallback is no longer needed and would leak Vora vendors into
+      // Coonoor (and vice-versa).
+      return await db.select().from(vendors).where(eq(vendors.orgId, orgId));
     }
     return await db.select().from(vendors);
   }
