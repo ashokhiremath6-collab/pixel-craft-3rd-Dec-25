@@ -10,6 +10,7 @@ interface FileViewerModalProps {
   onClose: () => void;
   fileUrl: string;
   fileName?: string;
+  subtitle?: string;
   defaultZoom?: number;
 }
 
@@ -36,7 +37,7 @@ function contentTypeToFileType(ct: string): FileType {
   return "pdf";
 }
 
-export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, defaultZoom = 100 }: FileViewerModalProps) {
+export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, subtitle, defaultZoom = 100 }: FileViewerModalProps) {
   const [zoom, setZoom] = useState(defaultZoom);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [fileType, setFileType] = useState<FileType>("detecting");
@@ -308,9 +309,14 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, defaultZoo
       <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0">
         <DialogHeader className="p-3 border-b bg-background">
           <div className="flex items-center justify-between gap-2">
-            <DialogTitle className="text-sm truncate flex-1" data-testid="viewer-file-name">
-              {fileName || "File Viewer"}
-            </DialogTitle>
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-sm truncate" data-testid="viewer-file-name">
+                {fileName || "File Viewer"}
+              </DialogTitle>
+              {subtitle && (
+                <p className="text-xs text-muted-foreground truncate mt-0.5">{subtitle}</p>
+              )}
+            </div>
             <div className="flex items-center gap-1">
               {canZoom && (
                 <>

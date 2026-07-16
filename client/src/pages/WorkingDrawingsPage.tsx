@@ -1764,6 +1764,11 @@ export default function WorkingDrawingsPage({ drawingType = "working" }: { drawi
           onClose={() => { setViewingDrawing(null); setViewerUrl(null); }}
           fileUrl={viewerUrl.url}
           fileName={viewerUrl.name}
+          subtitle={[
+            activeProject?.projectName,
+            viewingDrawing.room?.name,
+            viewingDrawing.category !== viewingDrawing.title ? viewingDrawing.category : null,
+          ].filter(Boolean).join(" · ") || undefined}
         />
       )}
     </div>
