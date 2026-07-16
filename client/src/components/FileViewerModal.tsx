@@ -39,6 +39,7 @@ function contentTypeToFileType(ct: string): FileType {
 
 export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, subtitle, defaultZoom = 100 }: FileViewerModalProps) {
   const [zoom, setZoom] = useState(defaultZoom);
+  const [fitWidth, setFitWidth] = useState(true);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [fileType, setFileType] = useState<FileType>("detecting");
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -61,6 +62,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, subtitle, 
     setFileType("detecting");
     setTextContent(null);
     setZoom(defaultZoom);
+    setFitWidth(true);
     setBlobUrl(null);
     setBlobError(false);
     setSheetHtml(null);
@@ -169,8 +171,13 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, subtitle, 
 
   const handleClose = () => {
     setZoom(defaultZoom);
+    setFitWidth(true);
     onClose();
   };
+
+  const handleZoomIn = () => { setFitWidth(false); setZoom(z => Math.min(z + 25, 500)); };
+  const handleZoomOut = () => { setFitWidth(false); setZoom(z => Math.max(z - 25, 25)); };
+  const handleResetZoom = () => { setFitWidth(true); setZoom(defaultZoom); };
 
   const canZoom = fileType === "pdf" || fileType === "image" || fileType === "word";
   const isCad = fileType === "cad-dxf" || fileType === "cad-dwg";
@@ -190,10 +197,11 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, subtitle, 
       );
     }
     if (fileType === "pdf") {
+      const pdfZoom = fitWidth ? "FitH" : zoom;
       return (
         <iframe
-          key={`${fileUrl}-${zoom}`}
-          src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&zoom=${zoom}`}
+          key={`${fileUrl}-${pdfZoom}`}
+          src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&zoom=${pdfZoom}`}
           style={{ width: "100%", height: "100%", border: "none", display: "block" }}
           title={fileName || "PDF viewer"}
           data-testid="file-viewer-pdf"
@@ -320,17 +328,19 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, subtitle, 
             <div className="flex items-center gap-1">
               {canZoom && (
                 <>
-                  <Button variant="ghost" size="icon" onClick={() => setZoom(z => Math.max(z - 25, 25))} disabled={zoom <= 25} data-testid="button-zoom-out">
+                  <Button variant="ghost" size="icon" onClick={handleZoomOut} disabled={!fitWidth && zoom <= 25} data-testid="button-zoom-out">
                     <ZoomOut className="w-4 h-4" />
                   </Button>
-                  <span className="text-xs text-muted-foreground min-w-[3rem] text-center">{zoom}%</span>
-                  <Button variant="ghost" size="icon" onClick={() => setZoom(z => Math.min(z + 25, 500))} disabled={zoom >= 500} data-testid="button-zoom-in">
+                  <span className="text-xs text-muted-foreground min-w-[3rem] text-center">
+                    {fitWidth && fileType === "pdf" ? "Fit" : `${zoom}%`}
+                  </span>
+                  <Button variant="ghost" size="icon" onClick={handleZoomIn} disabled={!fitWidth && zoom >= 500} data-testid="button-zoom-in">
                     <ZoomIn className="w-4 h-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => setZoom(100)} data-testid="button-reset-zoom">
+                  <Button variant="ghost" size="icon" onClick={handleResetZoom} title="Reset to fit width" data-testid="button-reset-zoom">
                     <RotateCcw className="w-4 h-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => setZoom(100)} data-testid="button-fit-width">
+                  <Button variant="ghost" size="icon" onClick={handleResetZoom} title="Fit to width" data-testid="button-fit-width">
                     <Maximize2 className="w-4 h-4" />
                   </Button>
                   <div className="w-px h-6 bg-border mx-1" />
