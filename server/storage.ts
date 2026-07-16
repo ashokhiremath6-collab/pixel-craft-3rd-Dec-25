@@ -2720,11 +2720,11 @@ export class DBStorage implements IStorage {
     const user = await this.getUser(userId);
     const orgId = user?.orgId ?? null;
     if (orgId) {
-      // Strict org-scope: each org sees only its own vendors.
-      // Migration 0052 ensures no null-orgId vendors remain, so the safety-net
-      // OR isNull fallback is no longer needed and would leak Vora vendors into
-      // Coonoor (and vice-versa).
-      return await db.select().from(vendors).where(eq(vendors.orgId, orgId));
+      // Include vendors explicitly assigned to this org OR vendors with no org
+      // assigned yet (null org_id). Migration 0053 backfills nulls in production;
+      // once deployed the null fallback becomes a no-op and causes no data leak.
+      return await db.select().from(vendors)
+        .where(or(eq(vendors.orgId, orgId), isNull(vendors.orgId)));
     }
     return await db.select().from(vendors);
   }
