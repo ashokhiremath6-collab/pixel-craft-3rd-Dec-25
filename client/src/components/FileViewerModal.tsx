@@ -50,6 +50,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, subtitle, 
   const [sheetError, setSheetError] = useState(false);
   const prevBlobUrl = useRef<string | null>(null);
   const [viewportW, setViewportW] = useState(() => window.innerWidth);
+  const [viewportH, setViewportH] = useState(() => window.innerHeight);
 
   const revokePrev = () => {
     if (prevBlobUrl.current) {
@@ -170,9 +171,12 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, subtitle, 
     }
   };
 
-  // Keep viewportW in sync with window resizes (e.g. device rotation)
+  // Keep viewport dimensions in sync with window resizes / device rotation
   useEffect(() => {
-    const onResize = () => setViewportW(window.innerWidth);
+    const onResize = () => {
+      setViewportW(window.innerWidth);
+      setViewportH(window.innerHeight);
+    };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
@@ -208,37 +212,71 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, subtitle, 
       );
     }
     if (fileType === "pdf") {
-      // Dialog is max-w-[95vw], so the available PDF container width ≈ 95% of viewport.
-      // When that's narrower than A4 (794px) and we're in fit-width mode, scale the
-      // iframe down using CSS transform so the full page width is always visible.
+      // Dialog is max-w-[95vw] with a ~56px header, so:
       const containerW = viewportW * 0.95;
-      const needsScale = fitWidth && containerW < PDF_NATURAL_WIDTH;
-      const pdfScale = needsScale ? containerW / PDF_NATURAL_WIDTH : 1;
-      const pdfZoom = fitWidth ? "FitH" : zoom;
+      const containerH = viewportH * 0.95 - 56;
+      const isMobile = containerW < PDF_NATURAL_WIDTH;
 
-      if (needsScale) {
-        // Render iframe at A4 width, then scale it down so it fits the container.
-        // Height is expanded by 1/scale so it fills the visible area after scaling.
+      if (isMobile) {
+        // On narrow screens (phones in portrait), iOS Safari ignores #zoom URL params.
+        // Instead: render the iframe at A4 natural width (794px) and apply a CSS
+        // transform to scale it down. This avoids iframe remounts on every zoom change
+        // (which caused "instability"), and works around iOS's PDF viewer limitations.
+        //
+        // Geometry:
+        //   fitScale         — shrinks the PDF so its full width fits the container
+        //   effectiveScale   — fitScale × (zoom/100) when user zooms in
+        //   visualW          — how wide the PDF appears after scaling
+        //   iframeH          — iframe height before scaling; after scale it fills containerH
+        //
+        // When zoomed in (visualW > containerW), the outer div acts as the scroll
+        // container. Because the iframe has no internal horizontal overflow (794px iframe
+        // shows the full PDF width), horizontal touch events propagate to the outer div.
+        const fitScale = containerW / PDF_NATURAL_WIDTH;
+        const effectiveScale = fitWidth ? fitScale : fitScale * (zoom / 100);
+        const visualW = PDF_NATURAL_WIDTH * effectiveScale;
+        const iframeH = containerH > 0 ? containerH / effectiveScale : undefined;
+
         return (
-          <div style={{ width: "100%", height: "100%", overflow: "hidden", position: "relative" }}>
-            <iframe
-              key={`${fileUrl}-fit-${Math.round(pdfScale * 1000)}`}
-              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1`}
-              style={{
-                width: PDF_NATURAL_WIDTH,
-                height: `${100 / pdfScale}%`,
-                border: "none",
-                display: "block",
-                transformOrigin: "top left",
-                transform: `scale(${pdfScale})`,
-              }}
-              title={fileName || "PDF viewer"}
-              data-testid="file-viewer-pdf"
-            />
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              overflow: "auto",
+              WebkitOverflowScrolling: "touch",
+            } as React.CSSProperties}
+          >
+            {/* Inner wrapper defines the scrollable content size */}
+            <div style={{
+              position: "relative",
+              width: Math.max(containerW, visualW),
+              height: containerH > 0 ? containerH : "100%",
+              flexShrink: 0,
+            }}>
+              <iframe
+                key={`${fileUrl}-mobile`}
+                src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: PDF_NATURAL_WIDTH,
+                  height: iframeH ?? "100%",
+                  border: "none",
+                  display: "block",
+                  transformOrigin: "top left",
+                  transform: `scale(${effectiveScale})`,
+                }}
+                title={fileName || "PDF viewer"}
+                data-testid="file-viewer-pdf"
+              />
+            </div>
           </div>
         );
       }
 
+      // Desktop: use URL-based zoom — works in Chrome/Firefox PDF.js viewers
+      const pdfZoom = fitWidth ? "FitH" : zoom;
       return (
         <iframe
           key={`${fileUrl}-${pdfZoom}`}
