@@ -1077,11 +1077,28 @@ export default function WorkingDrawingsPage({ drawingType = "working" }: { drawi
 
   const isLoading = roomsLoading || drawingsLoading;
 
-  // Deep-link: auto-open the viewer for a specific drawing when drawingId is in the URL.
+  // Deep-link: auto-open the file viewer for a specific drawing when drawingId is in the URL.
   useEffect(() => {
     if (!deepLinkDrawingId || allDrawings.length === 0 || viewingDrawing) return;
     const target = allDrawings.find(d => d.id === deepLinkDrawingId);
-    if (target) setViewingDrawing(target);
+    if (!target) return;
+    if (!target.latestRevision) {
+      // Drawing exists but has no file yet — just set as selected (sheet will show)
+      setViewingDrawing(target);
+      return;
+    }
+    // Fetch the signed URL for the latest revision and open the viewer directly
+    (async () => {
+      try {
+        const res = await apiRequest("GET", `/api/working-drawings/${target.id}/view-url/${target.latestRevision!.id}`);
+        const data = await res.json();
+        setViewingDrawing(target);
+        setViewerUrl({ url: data.url, name: data.fileName ?? target.latestRevision!.fileName });
+      } catch {
+        // If URL fetch fails, fall back to just selecting the drawing
+        setViewingDrawing(target);
+      }
+    })();
   }, [deepLinkDrawingId, allDrawings]);
 
   // ── Room CRUD mutations ────────────────────────────────────────────────────
