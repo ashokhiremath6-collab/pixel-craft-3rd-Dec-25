@@ -49,6 +49,7 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, subtitle, 
   const [sheetLoading, setSheetLoading] = useState(false);
   const [sheetError, setSheetError] = useState(false);
   const prevBlobUrl = useRef<string | null>(null);
+  const [viewportW, setViewportW] = useState(() => window.innerWidth);
 
   const revokePrev = () => {
     if (prevBlobUrl.current) {
@@ -169,6 +170,13 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, subtitle, 
     }
   };
 
+  // Keep viewportW in sync with window resizes (e.g. device rotation)
+  useEffect(() => {
+    const onResize = () => setViewportW(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const handleClose = () => {
     setZoom(defaultZoom);
     setFitWidth(true);
@@ -181,6 +189,9 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, subtitle, 
 
   const canZoom = fileType === "pdf" || fileType === "image" || fileType === "word";
   const isCad = fileType === "cad-dxf" || fileType === "cad-dwg";
+
+  // A4 at 96 dpi = 794px. When narrower, scale iframe down so full width is visible.
+  const PDF_NATURAL_WIDTH = 794;
 
   const renderBody = () => {
     if (fileType === "cad-dxf") {
@@ -197,7 +208,37 @@ export function FileViewerModal({ isOpen, onClose, fileUrl, fileName, subtitle, 
       );
     }
     if (fileType === "pdf") {
+      // Dialog is max-w-[95vw], so the available PDF container width ≈ 95% of viewport.
+      // When that's narrower than A4 (794px) and we're in fit-width mode, scale the
+      // iframe down using CSS transform so the full page width is always visible.
+      const containerW = viewportW * 0.95;
+      const needsScale = fitWidth && containerW < PDF_NATURAL_WIDTH;
+      const pdfScale = needsScale ? containerW / PDF_NATURAL_WIDTH : 1;
       const pdfZoom = fitWidth ? "FitH" : zoom;
+
+      if (needsScale) {
+        // Render iframe at A4 width, then scale it down so it fits the container.
+        // Height is expanded by 1/scale so it fills the visible area after scaling.
+        return (
+          <div style={{ width: "100%", height: "100%", overflow: "hidden", position: "relative" }}>
+            <iframe
+              key={`${fileUrl}-fit-${Math.round(pdfScale * 1000)}`}
+              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+              style={{
+                width: PDF_NATURAL_WIDTH,
+                height: `${100 / pdfScale}%`,
+                border: "none",
+                display: "block",
+                transformOrigin: "top left",
+                transform: `scale(${pdfScale})`,
+              }}
+              title={fileName || "PDF viewer"}
+              data-testid="file-viewer-pdf"
+            />
+          </div>
+        );
+      }
+
       return (
         <iframe
           key={`${fileUrl}-${pdfZoom}`}
