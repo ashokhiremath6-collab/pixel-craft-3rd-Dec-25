@@ -236,8 +236,8 @@ export interface IStorage {
   getAllVendors(): Promise<Vendor[]>;
   getVendorsByIds(ids: string[]): Promise<Vendor[]>;
   getVendor(id: string): Promise<Vendor | undefined>;
-  getVendorsByCategory(categoryId: string): Promise<Vendor[]>;
-  getVendorsByCategoryWithDescendants(categoryId: string): Promise<Vendor[]>;
+  getVendorsByCategory(categoryId: string, orgId?: string | null): Promise<Vendor[]>;
+  getVendorsByCategoryWithDescendants(categoryId: string, orgId?: string | null): Promise<Vendor[]>;
   createVendor(vendor: InsertVendor): Promise<Vendor>;
   updateVendor(id: string, vendor: Partial<InsertVendor>): Promise<Vendor | undefined>;
   deleteVendor(id: string): Promise<boolean>;
@@ -476,7 +476,7 @@ export interface IStorage {
   replaceWorksOrderItems(worksOrderId: string, items: InsertWorksOrderItem[]): Promise<WorksOrderItem[]>;
   
   // Vendors (with role-based filtering)
-  getVendorsForUser(userId: string, role: string): Promise<Vendor[]>;
+  getVendorsForUser(userId: string, role: string, orgId?: string | null): Promise<Vendor[]>;
   getProjectVendorsForUser(userId: string, role: string): Promise<ProjectVendor[]>;
   
   // Usage tracking (for plan limit enforcement)
@@ -1900,13 +1900,21 @@ export class DBStorage implements IStorage {
     return result[0];
   }
 
-  async getVendorsByCategory(categoryId: string): Promise<Vendor[]> {
-    return await db.select().from(vendors).where(eq(vendors.categoryId, categoryId));
+  async getVendorsByCategory(categoryId: string, orgId?: string | null): Promise<Vendor[]> {
+    const catFilter = eq(vendors.categoryId, categoryId);
+    const orgFilter = orgId
+      ? or(eq(vendors.orgId, orgId), isNull(vendors.orgId))
+      : undefined;
+    return await db.select().from(vendors).where(orgFilter ? and(catFilter, orgFilter) : catFilter);
   }
 
-  async getVendorsByCategoryWithDescendants(categoryId: string): Promise<Vendor[]> {
+  async getVendorsByCategoryWithDescendants(categoryId: string, orgId?: string | null): Promise<Vendor[]> {
     const categoryIds = await this.getCategoryWithDescendants(categoryId);
-    return await db.select().from(vendors).where(inArray(vendors.categoryId, categoryIds));
+    const catFilter = inArray(vendors.categoryId, categoryIds);
+    const orgFilter = orgId
+      ? or(eq(vendors.orgId, orgId), isNull(vendors.orgId))
+      : undefined;
+    return await db.select().from(vendors).where(orgFilter ? and(catFilter, orgFilter) : catFilter);
   }
 
   async getVendorsWithProjects(): Promise<Array<Vendor & { projects: Array<{ projectId: string; projectName: string; clientName: string; status: string }> }>> {
@@ -2716,15 +2724,17 @@ export class DBStorage implements IStorage {
     }
   }
 
-  async getVendorsForUser(userId: string, role: string): Promise<Vendor[]> {
-    const user = await this.getUser(userId);
-    const orgId = user?.orgId ?? null;
-    if (orgId) {
-      // Include vendors explicitly assigned to this org OR vendors with no org
-      // assigned yet (null org_id). Migration 0053 backfills nulls in production;
-      // once deployed the null fallback becomes a no-op and causes no data leak.
+  async getVendorsForUser(userId: string, role: string, orgId?: string | null): Promise<Vendor[]> {
+    // Prefer the orgId passed by the route (which already reflects session workspace
+    // overrides). Fall back to looking up the user's home org only if not supplied.
+    let effectiveOrgId = orgId ?? null;
+    if (!effectiveOrgId) {
+      const user = await this.getUser(userId);
+      effectiveOrgId = user?.orgId ?? null;
+    }
+    if (effectiveOrgId) {
       return await db.select().from(vendors)
-        .where(or(eq(vendors.orgId, orgId), isNull(vendors.orgId)));
+        .where(or(eq(vendors.orgId, effectiveOrgId), isNull(vendors.orgId)));
     }
     return await db.select().from(vendors);
   }

@@ -1615,7 +1615,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const role = userRole?.role || 'client';
       
       // Vendors are org-scoped — each org manages its own vendor database.
-      const vendors = await storage.getVendorsForUser(userId, role);
+      // Pass orgId from req.user so the session workspace override is respected.
+      const orgId = (req.user as any).orgId ?? null;
+      const vendors = await storage.getVendorsForUser(userId, role, orgId);
       res.json(vendors);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch vendors" });
@@ -1631,7 +1633,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const role = userRole?.role || 'client';
       
       // Vendors are org-scoped — each org manages its own vendor database.
-      const vendors = await storage.getVendorsForUser(userId, role);
+      const orgId = (req.user as any).orgId ?? null;
+      const vendors = await storage.getVendorsForUser(userId, role, orgId);
       const projectVendors = await storage.getProjectVendorsForUser(userId, role, undefined, (req.user as any).orgId);
       
       // Map vendors with their associated projects
@@ -1648,7 +1651,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/vendors/category/:categoryId", requireAuth, async (req, res) => {
     try {
-      const vendors = await storage.getVendorsByCategory(req.params.categoryId);
+      const orgId = (req.user as any).orgId ?? null;
+      const vendors = await storage.getVendorsByCategory(req.params.categoryId, orgId);
       res.json(vendors);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch vendors by category" });
@@ -1657,7 +1661,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/vendors/by-parent-category/:parentId", requireAuth, async (req, res) => {
     try {
-      const vendors = await storage.getVendorsByCategoryWithDescendants(req.params.parentId);
+      const orgId = (req.user as any).orgId ?? null;
+      const vendors = await storage.getVendorsByCategoryWithDescendants(req.params.parentId, orgId);
       res.json(vendors);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch vendors by parent category" });
