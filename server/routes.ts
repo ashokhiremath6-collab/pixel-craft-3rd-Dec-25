@@ -8188,11 +8188,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { vendorId } = req.params;
       const userId = (req.user as any).id;
+      const sessionOrgId = (req.user as any).orgId;
+
+      // Guard: vendor must belong to the caller's org
+      const vendor = await storage.getVendor(vendorId);
+      if (!vendor) return res.status(404).json({ error: "Vendor not found" });
+      if (vendor.orgId && sessionOrgId && vendor.orgId !== sessionOrgId) {
+        return res.status(403).json({ error: "Vendor does not belong to your workspace" });
+      }
+
+      // Use vendor's own orgId so the invoice is correctly scoped
+      const invoiceOrgId = vendor.orgId || sessionOrgId;
       
       const invoiceData = insertVendorInvoiceSchema.parse({
         ...req.body,
         vendorId,
         createdBy: userId,
+        orgId: invoiceOrgId,
       });
 
       // Duplicate guard: reject if same invoice number already exists for this vendor
@@ -8218,7 +8230,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Log activity
       const user = await storage.getUser(userId);
-      const vendor = await storage.getVendor(vendorId);
       if (user && vendor) {
         try {
           const userName = user.firstName && user.lastName 
@@ -8228,7 +8239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             userId: user.id,
             userName: userName,
             userEmail: user.email || '',
-          orgId: (req.user as any).orgId,
+            orgId: invoiceOrgId,
             activityType: 'invoice_create',
             fileName: invoice.invoiceNumber || 'Invoice',
             description: `created invoice ${invoice.invoiceNumber} for ${vendor.name} - Amount: ₹${invoice.amount}`,

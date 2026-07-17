@@ -127,6 +127,40 @@ app.use((req, res, next) => {
     console.warn("Activity log org backfill skipped:", err);
   }
 
+  // Backfill null-org vendor_invoices rows (set from project's org, then vendor's org as fallback).
+  try {
+    await db.execute(sql`
+      UPDATE vendor_invoices vi
+      SET org_id = p.org_id
+      FROM projects p
+      WHERE vi.project_id = p.id
+        AND vi.org_id IS NULL
+        AND p.org_id IS NOT NULL
+    `);
+    await db.execute(sql`
+      UPDATE vendor_invoices vi
+      SET org_id = v.org_id
+      FROM vendors v
+      WHERE vi.vendor_id = v.id
+        AND vi.org_id IS NULL
+        AND v.org_id IS NOT NULL
+    `);
+    // Fix any invoice_create activity_log entries whose org_id doesn't match
+    // the invoice's actual org (derived from vendor) — corrects pre-fix mismatch.
+    await db.execute(sql`
+      UPDATE activity_log al
+      SET org_id = v.org_id
+      FROM vendor_invoices vi
+      JOIN vendors v ON vi.vendor_id = v.id
+      WHERE (al.metadata->>'invoiceId') = vi.id
+        AND al.activity_type = 'invoice_create'
+        AND al.org_id != v.org_id
+        AND v.org_id IS NOT NULL
+    `);
+  } catch (err) {
+    console.warn("Vendor invoices org backfill skipped:", err);
+  }
+
   // Backfill null-org works_orders and meeting_minutes rows.
   try {
     await db.execute(sql`
