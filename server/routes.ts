@@ -1912,7 +1912,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all projects (admin only) - for Settings page project assignments
   app.get("/api/projects/all", requireAdminOnly, async (req, res) => {
     try {
-      const projects = await storage.getAllProjects();
+      const userId = (req.user as any).id;
+      const orgId = (req.user as any).orgId;
+      const projects = await storage.getProjectsForUser(userId, 'admin', orgId);
       res.json(projects);
     } catch (error) {
       console.error('Get all projects error:', error);
@@ -8432,7 +8434,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as any).id;
       const userRole = await storage.getUserRole(userId);
       const role = userRole?.role?.toLowerCase() || 'client';
-      const rawPayments = await storage.getAllPaymentsWithVendors();
+      const orgId = (req.user as any).orgId;
+      const rawPayments = await storage.getAllPaymentsWithVendors(orgId);
       // Deduplicate: same vendor + same payment_reference → keep earliest
       const seenAll = new Map<string, boolean>();
       const payments = rawPayments.filter((p: any) => {
@@ -10303,6 +10306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           summary: req.body.summary || null,
           uploadedBy: userId,
           source: req.body.source || 'manual',
+          orgId: (req.user as any).orgId,
         };
 
         const minutes = await storage.createMeetingMinutes(momData);
@@ -10880,7 +10884,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       }
 
       const projectId = req.query.projectId as string | undefined;
-      const orders = await storage.getWorksOrdersForUser(userId, userRole.role, projectId);
+      const orders = await storage.getWorksOrdersForUser(userId, userRole.role, projectId, (req.user as any).orgId);
       res.json(orders);
     } catch (error) {
       console.error('Error fetching works orders:', error);
@@ -10891,7 +10895,7 @@ Return your response in the following JSON format only (no markdown, no code blo
   // Export works orders to Excel (admin/designer only) - MUST come before /:id route
   app.get("/api/works-orders/export", requireProjectAccess, async (req, res) => {
     try {
-      const orders = await storage.getAllWorksOrders();
+      const orders = await storage.getAllWorksOrders((req.user as any).orgId);
       
       // Prepare data for Excel export
       const exportData = orders.map((order: any) => ({
@@ -10979,6 +10983,7 @@ Return your response in the following JSON format only (no markdown, no code blo
         accessToken,
         createdBy: userId,
         status: 'draft',
+        orgId: (req.user as any).orgId,
       });
       
       const order = await storage.createWorksOrder(validated);
@@ -11407,6 +11412,7 @@ Return your response in the following JSON format only (no markdown, no code blo
         completionDate: null,
         paymentTerms: null,
         createdBy: userId,
+        orgId: (req.user as any).orgId,
       });
 
       // Upload all files in parallel for better performance

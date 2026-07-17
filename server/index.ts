@@ -127,6 +127,41 @@ app.use((req, res, next) => {
     console.warn("Activity log org backfill skipped:", err);
   }
 
+  // Backfill null-org works_orders and meeting_minutes rows.
+  try {
+    await db.execute(sql`
+      UPDATE works_orders wo
+      SET org_id = p.org_id
+      FROM project_vendors pv
+      JOIN projects p ON pv.project_id = p.id
+      WHERE wo.project_vendor_id = pv.id
+        AND wo.org_id IS NULL
+        AND p.org_id IS NOT NULL
+    `);
+    await db.execute(sql`
+      UPDATE works_orders
+      SET org_id = 'cc05b280-74c7-4e9a-ae92-3d5a50207b07'
+      WHERE org_id IS NULL
+        AND EXISTS (SELECT 1 FROM organisations WHERE id = 'cc05b280-74c7-4e9a-ae92-3d5a50207b07')
+    `);
+    await db.execute(sql`
+      UPDATE meeting_minutes mm
+      SET org_id = p.org_id
+      FROM projects p
+      WHERE mm.project_id = p.id
+        AND mm.org_id IS NULL
+        AND p.org_id IS NOT NULL
+    `);
+    await db.execute(sql`
+      UPDATE meeting_minutes
+      SET org_id = 'cc05b280-74c7-4e9a-ae92-3d5a50207b07'
+      WHERE org_id IS NULL
+        AND EXISTS (SELECT 1 FROM organisations WHERE id = 'cc05b280-74c7-4e9a-ae92-3d5a50207b07')
+    `);
+  } catch (err) {
+    console.warn("Works order / meeting minutes org backfill skipped:", err);
+  }
+
   // Seed any missing vendor categories (safe: skips names that already exist)
   try {
     await db.execute(sql`

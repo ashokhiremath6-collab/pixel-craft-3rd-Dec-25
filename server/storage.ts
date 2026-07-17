@@ -365,7 +365,7 @@ export interface IStorage {
   
   // Vendor Payments
   getVendorPayments(vendorId: string): Promise<VendorPayment[]>;
-  getAllPaymentsWithVendors(): Promise<Array<VendorPayment & { vendorName: string }>>;
+  getAllPaymentsWithVendors(orgId?: string | null): Promise<Array<VendorPayment & { vendorName: string }>>;
   getVendorPayment(id: string): Promise<VendorPayment | undefined>;
   createVendorPayment(payment: InsertVendorPayment): Promise<VendorPayment>;
   updateVendorPayment(id: string, payment: Partial<InsertVendorPayment>): Promise<VendorPayment | undefined>;
@@ -448,12 +448,12 @@ export interface IStorage {
   deleteWorksOrderTemplate(id: string): Promise<boolean>;
   
   // Works Orders
-  getAllWorksOrders(): Promise<WorksOrder[]>;
+  getAllWorksOrders(orgId?: string | null): Promise<WorksOrder[]>;
   getWorksOrder(id: string): Promise<WorksOrder | undefined>;
   getWorksOrderWithRelations(id: string): Promise<WorksOrder & { projectName?: string; clientName?: string; vendorName?: string; templateName?: string } | undefined>;
   getWorksOrdersByProject(projectId: string): Promise<WorksOrder[]>;
   getWorksOrdersByProjectVendor(projectVendorId: string): Promise<WorksOrder[]>;
-  getWorksOrdersForUser(userId: string, role: string, projectId?: string): Promise<WorksOrder[]>;
+  getWorksOrdersForUser(userId: string, role: string, projectId?: string, orgId?: string | null): Promise<WorksOrder[]>;
   getWorksOrderByToken(token: string): Promise<WorksOrder | undefined>;
   createWorksOrder(order: InsertWorksOrder): Promise<WorksOrder>;
   updateWorksOrder(id: string, updates: Partial<InsertWorksOrder>): Promise<WorksOrder | undefined>;
@@ -1539,7 +1539,7 @@ export class MemStorage implements IStorage {
     return [];
   }
 
-  async getAllPaymentsWithVendors(): Promise<Array<VendorPayment & { vendorName: string }>> {
+  async getAllPaymentsWithVendors(_orgId?: string | null): Promise<Array<VendorPayment & { vendorName: string }>> {
     return [];
   }
 
@@ -3003,9 +3003,9 @@ export class DBStorage implements IStorage {
     }
   }
 
-  async getAllPaymentsWithVendors(): Promise<Array<VendorPayment & { vendorName: string }>> {
+  async getAllPaymentsWithVendors(orgId?: string | null): Promise<Array<VendorPayment & { vendorName: string }>> {
     try {
-      const results = await db.select({
+      const baseQuery = db.select({
         id: vendorPayments.id,
         vendorId: vendorPayments.vendorId,
         projectId: vendorPayments.projectId,
@@ -3019,12 +3019,16 @@ export class DBStorage implements IStorage {
         vendorName: vendors.name,
       })
       .from(vendorPayments)
-      .innerJoin(vendors, eq(vendorPayments.vendorId, vendors.id))
-      .orderBy(desc(vendorPayments.paymentDate));
+      .innerJoin(vendors, eq(vendorPayments.vendorId, vendors.id));
+
+      const results = orgId
+        ? await baseQuery.where(eq(vendors.orgId, orgId)).orderBy(desc(vendorPayments.paymentDate))
+        : await baseQuery.orderBy(desc(vendorPayments.paymentDate));
       return results;
     } catch (err: any) {
       if (err.message?.includes('column') && err.message?.includes('project_id')) {
-        const rows = await db.execute(sql`SELECT vp.id, vp.vendor_id as "vendorId", vp.payment_date as "paymentDate", vp.payment_reference as "paymentReference", vp.amount, vp.payment_method as "paymentMethod", vp.notes, vp.created_by as "createdBy", vp.created_at as "createdAt", vp.attachment_path as "attachmentPath", vp.org_id as "orgId", v.name as "vendorName" FROM vendor_payments vp INNER JOIN vendors v ON vp.vendor_id = v.id ORDER BY vp.payment_date DESC`);
+        const orgFilter = orgId ? sql` AND v.org_id = ${orgId}` : sql``;
+        const rows = await db.execute(sql`SELECT vp.id, vp.vendor_id as "vendorId", vp.payment_date as "paymentDate", vp.payment_reference as "paymentReference", vp.amount, vp.payment_method as "paymentMethod", vp.notes, vp.created_by as "createdBy", vp.created_at as "createdAt", vp.attachment_path as "attachmentPath", vp.org_id as "orgId", v.name as "vendorName" FROM vendor_payments vp INNER JOIN vendors v ON vp.vendor_id = v.id${orgFilter} ORDER BY vp.payment_date DESC`);
         return rows.rows as unknown as Array<VendorPayment & { vendorName: string }>;
       }
       throw err;
@@ -3389,8 +3393,8 @@ export class DBStorage implements IStorage {
   }
 
   // Works Orders methods
-  async getAllWorksOrders(): Promise<any[]> {
-    const result = await db.select({
+  async getAllWorksOrders(orgId?: string | null): Promise<any[]> {
+    const query = db.select({
       worksOrder: worksOrders,
       projectName: projects.projectName,
       projectId: projects.id,
@@ -3400,8 +3404,11 @@ export class DBStorage implements IStorage {
       .from(worksOrders)
       .leftJoin(projectVendors, eq(worksOrders.projectVendorId, projectVendors.id))
       .leftJoin(projects, eq(projectVendors.projectId, projects.id))
-      .leftJoin(vendors, eq(projectVendors.vendorId, vendors.id))
-      .orderBy(desc(worksOrders.createdAt));
+      .leftJoin(vendors, eq(projectVendors.vendorId, vendors.id));
+
+    const result = orgId
+      ? await query.where(eq(worksOrders.orgId, orgId)).orderBy(desc(worksOrders.createdAt))
+      : await query.orderBy(desc(worksOrders.createdAt));
 
     return result.map(r => ({ ...r.worksOrder, projectName: r.projectName, projectId: r.projectId, category: r.category, vendorName: r.vendorName }));
   }
@@ -3462,9 +3469,9 @@ export class DBStorage implements IStorage {
       .orderBy(desc(worksOrders.createdAt));
   }
 
-  async getWorksOrdersForUser(userId: string, role: string, projectId?: string): Promise<WorksOrder[]> {
+  async getWorksOrdersForUser(userId: string, role: string, projectId?: string, orgId?: string | null): Promise<WorksOrder[]> {
     // All roles go through getProjectsForUser which handles org scoping.
-    const userProjects = await this.getProjectsForUser(userId, role);
+    const userProjects = await this.getProjectsForUser(userId, role, orgId);
     const accessibleProjectIds = userProjects.map(p => p.id);
 
     if (accessibleProjectIds.length === 0) return [];
