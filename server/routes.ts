@@ -14435,9 +14435,9 @@ Return your response in the following JSON format only (no markdown, no code blo
       if (userRoleName !== 'admin' && userRoleName !== 'designer') {
         return res.status(403).json({ error: "Only admins and designers can send payment requests." });
       }
-      // For designers: confirm they have access to this specific project
+      // For designers: confirm they have access to this specific project (respect workspace override)
       if (userRoleName === 'designer') {
-        const accessible = await storage.getProjectsForUser(requestedBy, 'designer');
+        const accessible = await storage.getProjectsForUser(requestedBy, 'designer', orgId);
         if (!accessible.some(p => p.id === body.projectId)) {
           return res.status(403).json({ error: "You do not have access to this project." });
         }
