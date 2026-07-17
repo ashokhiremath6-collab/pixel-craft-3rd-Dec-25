@@ -2338,11 +2338,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/project-vendors/upsert", requireAuth, async (req, res) => {
     try {
       const parsed = insertProjectVendorSchema.parse(req.body);
-      // Ensure org_id is always populated from the project so dashboard alerts work
-      if (!parsed.orgId && parsed.projectId) {
+      // Derive orgId from the project and guard against cross-org vendor links
+      if (parsed.projectId) {
         const proj = await db.execute(sql`SELECT org_id FROM projects WHERE id = ${parsed.projectId}`);
         const projOrgId = (proj.rows[0] as any)?.org_id ?? null;
         if (projOrgId) (parsed as any).orgId = projOrgId;
+
+        if (parsed.vendorId && projOrgId) {
+          const vend = await db.execute(sql`SELECT org_id FROM vendors WHERE id = ${parsed.vendorId}`);
+          const vendOrgId = (vend.rows[0] as any)?.org_id ?? null;
+          if (vendOrgId && vendOrgId !== projOrgId) {
+            return res.status(403).json({ error: "Vendor does not belong to this workspace and cannot be added to this project." });
+          }
+        }
       }
       const projectVendor = await storage.upsertProjectVendor(parsed);
       res.status(201).json(projectVendor);

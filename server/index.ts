@@ -127,6 +127,22 @@ app.use((req, res, next) => {
     console.warn("Activity log org backfill skipped:", err);
   }
 
+  // Remove cross-org project_vendor links (vendor.orgId != project.orgId, both non-null).
+  // These are data entry errors from before org isolation was enforced.
+  try {
+    await db.execute(sql`
+      DELETE FROM project_vendors pv
+      USING vendors v, projects p
+      WHERE pv.vendor_id = v.id
+        AND pv.project_id = p.id
+        AND v.org_id IS NOT NULL
+        AND p.org_id IS NOT NULL
+        AND v.org_id != p.org_id
+    `);
+  } catch (err) {
+    console.warn("Cross-org project_vendor cleanup skipped:", err);
+  }
+
   // Backfill null-org vendor_invoices rows (set from project's org, then vendor's org as fallback).
   try {
     await db.execute(sql`
