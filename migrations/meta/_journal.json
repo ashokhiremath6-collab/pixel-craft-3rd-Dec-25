@@ -379,6 +379,13 @@
       "when": 1752720000000,
       "tag": "0053_fix_vendor_org_ids_production",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1752810000000,
+      "tag": "0054_assign_null_vendor_org_ids",
+      "breakpoints": true
     }
   ]
 }
