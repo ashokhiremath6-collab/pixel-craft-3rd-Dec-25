@@ -75,6 +75,24 @@ app.use((req, res, next) => {
     process.exit(1);
   }
 
+  // One-time backfill: assign any remaining null-org vendors to Supriya Vora Designs.
+  // Previous migration attempts (0043-0053) missed these rows in production. This runs
+  // outside the migration runner so it's not affected by the journal timestamp ordering
+  // issue that causes migrations 0039+ to be skipped silently in production.
+  // Idempotent: after first run, no rows have org_id = NULL so subsequent runs are no-ops.
+  try {
+    await db.execute(sql`
+      UPDATE vendors
+      SET org_id = 'cc05b280-74c7-4e9a-ae92-3d5a50207b07'
+      WHERE org_id IS NULL
+        AND EXISTS (
+          SELECT 1 FROM organisations WHERE id = 'cc05b280-74c7-4e9a-ae92-3d5a50207b07'
+        )
+    `);
+  } catch (err) {
+    console.warn("Vendor org backfill skipped:", err);
+  }
+
   // Seed any missing vendor categories (safe: skips names that already exist)
   try {
     await db.execute(sql`
