@@ -14399,8 +14399,8 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
-  // Create a payment request
-  app.post("/api/payment-requests", requireAdmin, async (req: any, res) => {
+  // Create a payment request (admin + designer)
+  app.post("/api/payment-requests", requireAuth, async (req: any, res) => {
     try {
       const orgId = req.user?.orgId;
       const requestedBy = req.user?.id;
@@ -14421,9 +14421,13 @@ Return your response in the following JSON format only (no markdown, no code blo
         .limit(1);
       if (!project) return res.status(400).json({ error: "Project not found." });
 
-      // For designers: confirm they have access to this project (respects restricted-project rules)
+      // Only admin and designer roles can send payment requests
       const userRoleRow = await storage.getUserRole(requestedBy);
       const userRoleName = userRoleRow?.role?.toLowerCase();
+      if (userRoleName !== 'admin' && userRoleName !== 'designer') {
+        return res.status(403).json({ error: "Only admins and designers can send payment requests." });
+      }
+      // For designers: confirm they have access to this specific project
       if (userRoleName === 'designer') {
         const accessible = await storage.getProjectsForUser(requestedBy, 'designer');
         if (!accessible.some(p => p.id === body.projectId)) {
