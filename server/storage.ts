@@ -2943,23 +2943,15 @@ export class DBStorage implements IStorage {
   }
 
   async getRecentActivitiesByOrg(orgId: string, limit: number = 20): Promise<ActivityLog[]> {
-    // Filter by activityLog.orgId (the org that owns the content) so that a user who
-    // is a member of multiple orgs does not bleed their activities across org boundaries.
-    // For legacy entries where orgId was never set (NULL), fall back to users.orgId so
-    // those entries remain visible to the org the uploader belongs to.
+    // Strict org match only. Legacy null-org entries are backfilled at startup
+    // (server/index.ts) so the null fallback via users.orgId is no longer needed —
+    // that fallback caused cross-workspace leakage when a user switches workspaces.
     return await db
-      .select({ activityLog })
+      .select()
       .from(activityLog)
-      .innerJoin(users, eq(activityLog.userId, users.id))
-      .where(
-        or(
-          eq(activityLog.orgId, orgId),
-          and(isNull(activityLog.orgId), eq(users.orgId, orgId))
-        )
-      )
+      .where(eq(activityLog.orgId, orgId))
       .orderBy(desc(activityLog.createdAt))
-      .limit(limit)
-      .then(rows => rows.map(r => r.activityLog));
+      .limit(limit);
   }
 
   async createActivity(activity: InsertActivityLog): Promise<ActivityLog> {

@@ -93,6 +93,40 @@ app.use((req, res, next) => {
     console.warn("Vendor org backfill skipped:", err);
   }
 
+  // Backfill null-org activity_log entries in production.
+  // Pass 1: derive org from project (most activity has a projectId).
+  // Pass 2: for vendor activities without a project, derive from vendors.org_id.
+  // Pass 3: any remaining nulls get Vora Designs (everything pre-Coonoor was theirs).
+  try {
+    await db.execute(sql`
+      UPDATE activity_log al
+      SET org_id = p.org_id
+      FROM projects p
+      WHERE al.project_id = p.id
+        AND al.org_id IS NULL
+        AND p.org_id IS NOT NULL
+    `);
+    await db.execute(sql`
+      UPDATE activity_log al
+      SET org_id = v.org_id
+      FROM vendors v
+      WHERE al.org_id IS NULL
+        AND al.activity_type IN ('vendor_create','vendor_update','vendor_delete')
+        AND (al.metadata->>'vendorId') = v.id
+        AND v.org_id IS NOT NULL
+    `);
+    await db.execute(sql`
+      UPDATE activity_log
+      SET org_id = 'cc05b280-74c7-4e9a-ae92-3d5a50207b07'
+      WHERE org_id IS NULL
+        AND EXISTS (
+          SELECT 1 FROM organisations WHERE id = 'cc05b280-74c7-4e9a-ae92-3d5a50207b07'
+        )
+    `);
+  } catch (err) {
+    console.warn("Activity log org backfill skipped:", err);
+  }
+
   // Seed any missing vendor categories (safe: skips names that already exist)
   try {
     await db.execute(sql`
