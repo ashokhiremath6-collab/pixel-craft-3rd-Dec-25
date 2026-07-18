@@ -55,7 +55,7 @@ export default function ProjectChatPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("__none__");
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -67,19 +67,21 @@ export default function ProjectChatPage() {
     queryKey: ["/api/projects"],
   });
 
+  const activeProjectId = selectedProjectId === "__none__" ? "" : selectedProjectId;
+
   const { data: messages = [], isLoading } = useQuery<EnrichedMessage[]>({
-    queryKey: ["/api/projects", selectedProjectId, "messages"],
-    queryFn: () => fetch(`/api/projects/${selectedProjectId}/messages`).then(r => r.json()),
-    enabled: !!selectedProjectId,
+    queryKey: ["/api/projects", activeProjectId, "messages"],
+    queryFn: () => fetch(`/api/projects/${activeProjectId}/messages`).then(r => r.json()),
+    enabled: !!activeProjectId,
     refetchInterval: 30_000,
   });
 
   const sendMutation = useMutation({
     mutationFn: (content: string) =>
-      apiRequest("POST", `/api/projects/${selectedProjectId}/messages`, { content }),
+      apiRequest("POST", `/api/projects/${activeProjectId}/messages`, { content }),
     onSuccess: () => {
       setDraft("");
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", selectedProjectId, "messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", activeProjectId, "messages"] });
       setTimeout(() => textareaRef.current?.focus(), 50);
     },
     onError: () => {
@@ -92,7 +94,7 @@ export default function ProjectChatPage() {
   }, [messages]);
 
   useEffect(() => {
-    if (projects.length > 0 && !selectedProjectId) {
+    if (projects.length > 0 && selectedProjectId === "__none__") {
       setSelectedProjectId((projects[0] as any).id);
     }
   }, [projects, selectedProjectId]);
@@ -110,7 +112,7 @@ export default function ProjectChatPage() {
     }
   }
 
-  const selectedProject = projects.find((p: any) => p.id === selectedProjectId);
+  const selectedProject = projects.find((p: any) => p.id === activeProjectId);
 
   return (
     <div className="flex flex-col h-full">
@@ -128,6 +130,7 @@ export default function ProjectChatPage() {
             <SelectValue placeholder="Select project…" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="__none__" disabled>Select project…</SelectItem>
             {(projects as any[]).map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.projectName}
@@ -139,7 +142,7 @@ export default function ProjectChatPage() {
 
       {/* Message list */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-        {!selectedProjectId ? (
+        {!activeProjectId ? (
           <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground gap-2">
             <MessageSquare className="h-10 w-10 opacity-30" />
             <p className="text-sm">Select a project to view its chat thread.</p>
@@ -194,7 +197,7 @@ export default function ProjectChatPage() {
       </div>
 
       {/* Input */}
-      {selectedProjectId && (
+      {activeProjectId && (
         <div className="px-6 py-4 border-t shrink-0">
           <div className="flex gap-2 items-end">
             <Textarea
