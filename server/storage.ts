@@ -127,6 +127,9 @@ import {
   type HandoverItem,
   type InsertHandoverItem,
   paymentRequests,
+  projectMessages,
+  type InsertProjectMessage,
+  type ProjectMessage,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -402,6 +405,10 @@ export interface IStorage {
   createSop(sop: InsertSop): Promise<Sop>;
   updateSop(id: string, sop: Partial<InsertSop>): Promise<Sop | undefined>;
   deleteSop(id: string): Promise<boolean>;
+
+  // Project Messages
+  getProjectMessages(projectId: string): Promise<ProjectMessage[]>;
+  createProjectMessage(msg: InsertProjectMessage): Promise<ProjectMessage>;
 
   // Project Cost Items
   getProjectCostItems(projectId: string): Promise<ProjectCostItem[]>;
@@ -3761,6 +3768,18 @@ export class DBStorage implements IStorage {
   async deleteSop(id: string): Promise<boolean> {
     const result = await db.delete(sops).where(eq(sops.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Project Messages
+  async getProjectMessages(projectId: string): Promise<ProjectMessage[]> {
+    return await db.select().from(projectMessages)
+      .where(eq(projectMessages.projectId, projectId))
+      .orderBy(asc(projectMessages.createdAt));
+  }
+
+  async createProjectMessage(msg: InsertProjectMessage): Promise<ProjectMessage> {
+    const result = await db.insert(projectMessages).values(msg).returning();
+    return result[0];
   }
 
   // Project Cost Items

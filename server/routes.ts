@@ -9863,6 +9863,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── Project Messages (Chat) ───────────────────────────────────────────────
+  app.get("/api/projects/:id/messages", requireAuth, async (req: any, res) => {
+    try {
+      const { id: projectId } = req.params;
+      const userId = req.user?.id;
+      const role = (await storage.getUserRole(userId))?.role?.toLowerCase();
+      const orgId = req.user?.orgId ?? null;
+
+      // Verify project access
+      const accessibleProjects = await storage.getProjectsForUser(userId, role, orgId);
+      if (!accessibleProjects.some((p: any) => p.id === projectId)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const messages = await storage.getProjectMessages(projectId);
+
+      // Enrich with author info
+      const { eq } = await import("drizzle-orm");
+      const { users, userRoles } = await import("@shared/schema");
+      const authorIds = [...new Set(messages.map(m => m.authorId))];
+      let authorMap: Record<string, { name: string; role: string }> = {};
+      if (authorIds.length > 0) {
+        const { inArray } = await import("drizzle-orm");
+        const authorRows = await db.select({
+          id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email,
+        }).from(users).where(inArray(users.id, authorIds));
+        const roleRows = await db.select({ userId: userRoles.userId, role: userRoles.role })
+          .from(userRoles).where(inArray(userRoles.userId, authorIds));
+        const roleByUser: Record<string, string> = {};
+        roleRows.forEach(r => { roleByUser[r.userId] = r.role; });
+        authorRows.forEach(u => {
+          authorMap[u.id] = {
+            name: [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email,
+            role: roleByUser[u.id] || "member",
+          };
+        });
+      }
+
+      const enriched = messages.map(m => ({
+        ...m,
+        authorName: authorMap[m.authorId]?.name ?? "Unknown",
+        authorRole: authorMap[m.authorId]?.role ?? "member",
+      }));
+
+      res.json(enriched);
+    } catch (err) {
+      console.error("GET /api/projects/:id/messages error:", err);
+      res.status(500).json({ error: "Failed to fetch messages" });
+    }
+  });
+
+  app.post("/api/projects/:id/messages", requireAuth, async (req: any, res) => {
+    try {
+      const { id: projectId } = req.params;
+      const userId = req.user?.id;
+      const orgId = req.user?.orgId ?? null;
+      const role = (await storage.getUserRole(userId))?.role?.toLowerCase();
+      const content = (req.body.content ?? "").trim();
+      if (!content) return res.status(400).json({ error: "Message cannot be empty" });
+
+      // Verify project access
+      const accessibleProjects = await storage.getProjectsForUser(userId, role, orgId);
+      if (!accessibleProjects.some((p: any) => p.id === projectId)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const msg = await storage.createProjectMessage({ projectId, orgId, authorId: userId, content });
+      res.status(201).json(msg);
+    } catch (err) {
+      console.error("POST /api/projects/:id/messages error:", err);
+      res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
   // ─── SOP Routes ────────────────────────────────────────────────────────────
   const sopUpload = multer({
     storage: multer.memoryStorage(),

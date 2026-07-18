@@ -1369,3 +1369,20 @@ export const insertPaymentRequestSchema = createInsertSchema(paymentRequests).om
 
 export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;
 export type PaymentRequest = typeof paymentRequests.$inferSelect;
+
+// Project Messages — per-project chat thread shared by all participants
+export const projectMessages = pgTable("project_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  orgId: varchar("org_id"),
+  authorId: varchar("author_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => ({
+  projectIdx: index("project_messages_project_idx").on(table.projectId),
+  orgIdx: index("project_messages_org_idx").on(table.orgId),
+}));
+
+export const insertProjectMessageSchema = createInsertSchema(projectMessages).omit({ id: true, createdAt: true });
+export type InsertProjectMessage = z.infer<typeof insertProjectMessageSchema>;
+export type ProjectMessage = typeof projectMessages.$inferSelect;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -79,7 +79,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { differenceInHours } from "date-fns";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, formatDistanceToNow } from "date-fns";
 import type { Project, Moodboard, Specification, MeetingMinutes, Task, VendorCategory, Drawing, DrawingRevision, Room } from "@shared/schema";
 import { formatCurrencyCompact } from "@/lib/currencyUtils";
 
@@ -110,6 +110,7 @@ const PROJECT_TABS = [
   { id: "moodboards", label: "Moodboards", icon: Image },
   { id: "drawings", label: "Working Drawings", icon: PenTool },
   { id: "minutes", label: "Meeting Minutes", icon: Calendar },
+  { id: "chat", label: "Chat", icon: SendHorizonal },
 ];
 
 const ALL_TABS = [...ONBOARDING_TABS, ...PROJECT_TABS];
@@ -1764,6 +1765,137 @@ function SpecificationsSection({ items }: { items: Specification[] }) {
 }
 
 // ── MEETING MINUTES ───────────────────────────────────────────────────────────
+// ── Chat Section ──────────────────────────────────────────────────────────────
+interface EnrichedMessage {
+  id: string;
+  projectId: string;
+  authorId: string;
+  authorName: string;
+  authorRole: string;
+  content: string;
+  createdAt: string;
+}
+
+const PORTAL_ROLE_LABELS: Record<string, string> = {
+  admin: "Admin",
+  designer: "Designer",
+  project_manager: "Project Manager",
+  client: "Client",
+};
+
+const PORTAL_ROLE_COLORS: Record<string, string> = {
+  admin: "bg-primary text-primary-foreground",
+  designer: "bg-blue-500 text-white",
+  project_manager: "bg-amber-500 text-white",
+  client: "bg-emerald-500 text-white",
+};
+
+function getChatInitials(name: string) {
+  return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+}
+
+function ChatSection({ projectId }: { projectId: string }) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState("");
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const { data: messages = [], isLoading } = useQuery<EnrichedMessage[]>({
+    queryKey: ["/api/projects", projectId, "messages"],
+    queryFn: () => fetch(`/api/projects/${projectId}/messages`).then(r => r.json()),
+    refetchInterval: 30_000,
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: (content: string) =>
+      apiRequest("POST", `/api/projects/${projectId}/messages`, { content }),
+    onSuccess: () => {
+      setDraft("");
+      qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "messages"] });
+    },
+    onError: () => toast({ variant: "destructive", title: "Failed to send message" }),
+  });
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  function handleSend() {
+    const content = draft.trim();
+    if (!content || sendMutation.isPending) return;
+    sendMutation.mutate(content);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-full min-h-[60vh]">
+      <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-40">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : messages.length === 0 ? (
+          <EmptyState
+            icon={SendHorizonal}
+            title="No messages yet"
+            description="Use this thread to share remarks with your design team."
+          />
+        ) : (
+          messages.map((msg) => {
+            const isMe = msg.authorId === (user as any)?.id;
+            return (
+              <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
+                <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5 bg-muted text-muted-foreground`}>
+                  {getChatInitials(msg.authorName)}
+                </div>
+                <div className={`flex flex-col gap-1 max-w-[70%] ${isMe ? "items-end" : "items-start"}`}>
+                  <div className={`flex items-center gap-2 flex-wrap ${isMe ? "flex-row-reverse" : ""}`}>
+                    <span className="text-sm font-medium">{isMe ? "You" : msg.authorName}</span>
+                    <Badge className={`text-[10px] px-1.5 py-0 ${PORTAL_ROLE_COLORS[msg.authorRole] ?? "bg-muted text-muted-foreground"}`}>
+                      {PORTAL_ROLE_LABELS[msg.authorRole] ?? msg.authorRole}
+                    </Badge>
+                    <span className="text-[11px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
+                    </span>
+                  </div>
+                  <div className={`rounded-md px-3 py-2 text-sm whitespace-pre-wrap break-words ${isMe ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
+                    {msg.content}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+        <div ref={bottomRef} />
+      </div>
+      <div className="pt-4 border-t mt-4">
+        <div className="flex gap-2 items-end">
+          <Textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type a remark… (Enter to send, Shift+Enter for new line)"
+            className="resize-none min-h-[40px] max-h-32"
+            rows={1}
+          />
+          <Button onClick={handleSend} disabled={!draft.trim() || sendMutation.isPending} size="icon">
+            <SendHorizonal className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MinutesSection({ items }: { items: MeetingMinutes[] }) {
   const [selected, setSelected] = useState<MeetingMinutes | null>(null);
 
@@ -2445,6 +2577,9 @@ export default function ClientPortalApp({
                 )}
                 {isUnlocked && activeTab === "minutes" && (
                   <MinutesSection items={portalData?.meetingMinutes || []} />
+                )}
+                {isUnlocked && activeTab === "chat" && effectiveProjectId && (
+                  <ChatSection projectId={effectiveProjectId} />
                 )}
               </>
             )}

@@ -33,6 +33,7 @@ import AccountsPage from "@/pages/AccountsPage";
 import CataloguePage from "@/pages/CataloguePage";
 import SpecificationsPage from "@/pages/SpecificationsPage";
 import SOPsPage from "@/pages/SOPsPage";
+import ProjectChatPage from "@/pages/ProjectChatPage";
 import MeetingMinutesPage from "@/pages/MeetingMinutesPage";
 import WorksOrdersPage from "@/pages/WorksOrdersPage";
 import ClientPortalApp from "@/pages/ClientPortalApp";
@@ -101,6 +102,7 @@ function Router() {
       <Route path="/client-access" component={ClientAccessPage} />
       <Route path="/project-brief" component={ProjectBriefPage} />
       <Route path="/sops" component={SOPsPage} />
+      <Route path="/chat" component={ProjectChatPage} />
       <Route path="/accessories-checklist" component={AccessoriesChecklistPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/account" component={AccountPage} />

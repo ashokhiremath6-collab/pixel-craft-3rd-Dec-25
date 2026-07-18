@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList, Lightbulb, PackageCheck, ChevronDown, Check } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList, Lightbulb, PackageCheck, ChevronDown, Check, MessageSquare } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -47,6 +47,7 @@ const mainItems: NavigationItem[] = [
   { title: "Works Orders", url: "/works-orders", icon: FileSignature },
   { title: "Accounts", url: "/accounts", icon: Wallet },
   { title: "SOPs", url: "/sops", icon: BookOpen },
+  { title: "Chat", url: "/chat", icon: MessageSquare },
   { title: "Design Intelligence", url: "/ai-assistant", icon: BrainCircuit },
   { title: "AI Renders", url: "/ai-renders", icon: Wand2 },
   { title: "Asset Ingestion", url: "/asset-ingestion", icon: Camera },
