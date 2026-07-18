@@ -9922,6 +9922,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileName: fileName || null,
         filePath: filePath || null,
         createdBy: userId,
+        orgId: (req.user as any).orgId ?? null,
       });
       res.status(201).json(sop);
     } catch (error) {
