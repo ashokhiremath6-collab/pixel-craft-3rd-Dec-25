@@ -3723,7 +3723,7 @@ export class DBStorage implements IStorage {
 
   // SOPs
   async getAllSops(orgId?: string | null): Promise<Sop[]> {
-    if (orgId) return await db.select().from(sops).where(eq(sops.orgId, orgId)).orderBy(sops.category, sops.title);
+    if (orgId) return await db.select().from(sops).where(or(eq(sops.orgId, orgId), isNull(sops.orgId))).orderBy(sops.category, sops.title);
     return await db.select().from(sops).orderBy(sops.category, sops.title);
   }
 
@@ -3734,13 +3734,13 @@ export class DBStorage implements IStorage {
 
   async getSopsByCategory(category: string, orgId?: string | null): Promise<Sop[]> {
     const conditions: any[] = [eq(sops.category, category)];
-    if (orgId) conditions.push(eq(sops.orgId, orgId));
+    if (orgId) conditions.push(or(eq(sops.orgId, orgId), isNull(sops.orgId)));
     return await db.select().from(sops).where(and(...conditions)).orderBy(sops.title);
   }
 
   async getSopCategories(orgId?: string | null): Promise<string[]> {
     const q = db.selectDistinct({ category: sops.category }).from(sops);
-    const rows = orgId ? await q.where(eq(sops.orgId, orgId)).orderBy(sops.category)
+    const rows = orgId ? await q.where(or(eq(sops.orgId, orgId), isNull(sops.orgId))).orderBy(sops.category)
       : await q.orderBy(sops.category);
     return rows.map(r => r.category);
   }
