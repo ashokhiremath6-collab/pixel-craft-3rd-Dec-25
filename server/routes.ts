@@ -9934,8 +9934,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log to activity feed so it appears on the dashboard
       try {
         const project = accessibleProjects.find((p: any) => p.id === projectId);
+        const sender = await storage.getUser(userId);
+        const userName = sender
+          ? [sender.firstName, sender.lastName].filter(Boolean).join(" ") || sender.email || "Unknown"
+          : "Unknown";
+        const userEmail = sender?.email || "";
         await storage.createActivity({
           userId,
+          userName,
+          userEmail,
           orgId,
           projectId,
           activityType: "chat_message",
@@ -9943,7 +9950,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           description: content.length > 80 ? content.slice(0, 80) + "…" : content,
           metadata: { projectName: project?.projectName ?? null, projectId },
         });
-      } catch (_) { /* non-critical */ }
+      } catch (actErr) { console.error("chat_message activity log error:", actErr); }
 
       res.status(201).json(msg);
     } catch (err) {
