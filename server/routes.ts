@@ -9947,8 +9947,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [msg] = await db.select().from(projectMessages).where(eq(projectMessages.id, messageId));
       if (!msg) return res.status(404).json({ error: "Message not found" });
       if (msg.projectId !== projectId) return res.status(400).json({ error: "Project mismatch" });
-      if (msg.authorId !== userId && role !== "admin") {
-        return res.status(403).json({ error: "Can only delete your own messages" });
+      if (role !== "admin") {
+        return res.status(403).json({ error: "Only admins can delete messages" });
       }
       await db.delete(projectMessages).where(eq(projectMessages.id, messageId));
       res.json({ ok: true });

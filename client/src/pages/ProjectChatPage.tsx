@@ -187,7 +187,7 @@ export default function ProjectChatPage() {
         ) : (
           messages.map((msg) => {
             const isMe = msg.authorId === (user as any)?.id;
-            const canDelete = isMe || role === "admin";
+            const canDelete = role === "admin";
             return (
               <div key={msg.id} className={`group flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
                 <Avatar className="h-8 w-8 shrink-0 mt-0.5">
