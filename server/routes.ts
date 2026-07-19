@@ -12777,9 +12777,10 @@ Return your response in the following JSON format only (no markdown, no code blo
       if (!userRole || !['admin', 'designer', 'project_manager'].includes(userRole.role)) {
         return res.json([]);
       }
-      const user = await storage.getUser(userId);
-      if (!user?.orgId) return res.json([]);
-      const orgId = user.orgId;
+      // Use session orgId (req.user.orgId) — this reflects the active workspace after switching,
+      // whereas storage.getUser(userId).orgId always returns the user's default org from the DB.
+      const orgId = (req.user as any).orgId;
+      if (!orgId) return res.json([]);
 
       const rows = await db.execute(sql`
         SELECT
