@@ -9939,6 +9939,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           orgId,
           projectId,
           activityType: "chat_message",
+          fileName: content.length > 60 ? content.slice(0, 60) + "…" : content,
           description: content.length > 80 ? content.slice(0, 80) + "…" : content,
           metadata: { projectName: project?.projectName ?? null, projectId },
         });
