@@ -230,6 +230,7 @@ function getActivityNavPath(activityType: string, projectId: string | null, meta
   }
   if (activityType.startsWith('meeting_minutes_')) return '/meeting-minutes';
   if (activityType.startsWith('works_order_')) return `/works-orders`;
+  if (activityType.startsWith('invoice_')) return '/accounts';
   return null;
 }
 
