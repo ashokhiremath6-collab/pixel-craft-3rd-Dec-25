@@ -473,10 +473,20 @@ app.use((req, res, next) => {
     console.error("Failed to create project_chat_reads table:", err);
   }
 
-  // Backfill null org_id on vendor_invoices and vendor_payments using the vendor's own org_id.
-  // Root cause: the manual payment POST route didn't stamp orgId, so rows ended up with
-  // org_id = NULL and bled into every org via the OR org_id IS NULL fallback.
+  // Backfill null org_id on project_vendors, vendor_invoices, and vendor_payments.
+  // project_vendors: stamp from the parent project's org_id.
+  // vendor_invoices/payments: stamp from the vendor's org_id.
+  // Root cause: several write paths never stamped orgId, so rows had org_id = NULL
+  // and bled into every org via the OR org_id IS NULL safety-net in query filters.
   try {
+    await db.execute(sql`
+      UPDATE project_vendors pv
+      SET    org_id = p.org_id
+      FROM   projects p
+      WHERE  pv.project_id = p.id
+        AND  pv.org_id IS NULL
+        AND  p.org_id IS NOT NULL
+    `);
     await db.execute(sql`
       UPDATE vendor_invoices vi
       SET    org_id = v.org_id
