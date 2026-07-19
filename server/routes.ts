@@ -18,7 +18,7 @@ import mammoth from "mammoth";
 import libre from "libreoffice-convert";
 import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
-import { sql, and, eq, inArray, gt } from "drizzle-orm";
+import { sql, and, eq, inArray, gt, ne } from "drizzle-orm";
 import { storage } from "./storage";
 import { getPlanLimits, UNLIMITED } from "./planLimits";
 import { setupAuth, isAuthenticated, requireAuth, requireAdmin, requireAdminOnly, requireProjectManagerOrAdmin, requireSuperAdmin, isSuperAdminUser } from "./localAuth";
@@ -9959,7 +9959,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           count: sql<number>`cast(count(*) as int)`,
         })
         .from(projectMessages)
-        .where(and(inArray(projectMessages.projectId, projectIds), gt(projectMessages.createdAt, since)))
+        .where(and(
+          inArray(projectMessages.projectId, projectIds),
+          gt(projectMessages.createdAt, since),
+          ne(projectMessages.authorId, userId),   // only count messages from OTHER people
+        ))
         .groupBy(projectMessages.projectId);
 
       const projectMap: Record<string, string> = {};
