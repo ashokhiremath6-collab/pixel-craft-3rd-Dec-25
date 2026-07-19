@@ -1376,7 +1376,9 @@ export const projectMessages = pgTable("project_messages", {
   projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: 'cascade' }),
   orgId: varchar("org_id"),
   authorId: varchar("author_id").notNull().references(() => users.id),
-  content: text("content").notNull(),
+  content: text("content").notNull().default(""),
+  attachmentPath: text("attachment_path"),
+  attachmentName: text("attachment_name"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => ({
   projectIdx: index("project_messages_project_idx").on(table.projectId),

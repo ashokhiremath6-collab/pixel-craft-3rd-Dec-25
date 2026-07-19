@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Send, MessageSquare, Trash2 } from "lucide-react";
+import { Send, MessageSquare, Trash2, Paperclip, X, FileText, Download } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Project } from "@shared/schema";
 
@@ -25,6 +24,8 @@ interface EnrichedMessage {
   authorName: string;
   authorRole: string;
   content: string;
+  attachmentPath?: string | null;
+  attachmentName?: string | null;
   createdAt: string;
 }
 
@@ -42,6 +43,13 @@ const ROLE_COLORS: Record<string, string> = {
   client: "bg-emerald-500 text-white",
 };
 
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"]);
+
+function isImage(name: string) {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  return IMAGE_EXTENSIONS.has(ext);
+}
+
 function getInitials(name: string) {
   return name
     .split(" ")
@@ -56,14 +64,23 @@ function markChatRead(userId: string) {
   window.dispatchEvent(new Event("chatRead"));
 }
 
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function ProjectChatPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedProjectId, setSelectedProjectId] = useState<string>("__none__");
   const [draft, setDraft] = useState("");
+  const [fileAttachment, setFileAttachment] = useState<File | null>(null);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const role = (user as any)?.role as string;
   const orgId = (user as any)?.orgId as string;
@@ -83,10 +100,21 @@ export default function ProjectChatPage() {
   });
 
   const sendMutation = useMutation({
-    mutationFn: (content: string) =>
-      apiRequest("POST", `/api/projects/${activeProjectId}/messages`, { content }),
+    mutationFn: async ({ content, file }: { content: string; file: File | null }) => {
+      const form = new FormData();
+      form.append("content", content);
+      if (file) form.append("file", file);
+      const res = await fetch(`/api/projects/${activeProjectId}/messages`, {
+        method: "POST",
+        body: form,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
     onSuccess: () => {
       setDraft("");
+      clearAttachment();
       queryClient.invalidateQueries({ queryKey: ["/api/projects", activeProjectId, "messages"] });
       setTimeout(() => textareaRef.current?.focus(), 50);
     },
@@ -97,7 +125,10 @@ export default function ProjectChatPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (messageId: string) =>
-      apiRequest("DELETE", `/api/projects/${activeProjectId}/messages/${messageId}`),
+      fetch(`/api/projects/${activeProjectId}/messages/${messageId}`, {
+        method: "DELETE",
+        credentials: "include",
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", activeProjectId, "messages"] });
       queryClient.invalidateQueries({ queryKey: ["/api/messages/unread"] });
@@ -107,7 +138,6 @@ export default function ProjectChatPage() {
     },
   });
 
-  // Record server-side read receipt whenever active project changes or messages load
   useEffect(() => {
     if (!activeProjectId || !userId) return;
     markChatRead(userId);
@@ -127,10 +157,32 @@ export default function ProjectChatPage() {
     }
   }, [projects, selectedProjectId]);
 
+  function clearAttachment() {
+    setFileAttachment(null);
+    if (localPreview) URL.revokeObjectURL(localPreview);
+    setLocalPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "File too large", description: "Maximum size is 20 MB." });
+      return;
+    }
+    setFileAttachment(file);
+    if (isImage(file.name)) {
+      setLocalPreview(URL.createObjectURL(file));
+    } else {
+      setLocalPreview(null);
+    }
+  }
+
   function handleSend() {
     const content = draft.trim();
-    if (!content || sendMutation.isPending) return;
-    sendMutation.mutate(content);
+    if ((!content && !fileAttachment) || sendMutation.isPending) return;
+    sendMutation.mutate({ content, file: fileAttachment });
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -140,7 +192,7 @@ export default function ProjectChatPage() {
     }
   }
 
-  const selectedProject = projects.find((p: any) => p.id === activeProjectId);
+  const canSend = (draft.trim().length > 0 || !!fileAttachment) && !sendMutation.isPending;
 
   return (
     <div className="flex flex-col h-full">
@@ -188,6 +240,12 @@ export default function ProjectChatPage() {
           messages.map((msg) => {
             const isMe = msg.authorId === (user as any)?.id;
             const canDelete = role === "admin";
+            const hasAttachment = !!msg.attachmentPath && !!msg.attachmentName;
+            const attachIsImage = hasAttachment && isImage(msg.attachmentName!);
+            const attachUrl = hasAttachment
+              ? `/api/projects/${msg.projectId}/messages/${msg.id}/attachment`
+              : null;
+
             return (
               <div key={msg.id} className={`group flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
                 <Avatar className="h-8 w-8 shrink-0 mt-0.5">
@@ -196,7 +254,7 @@ export default function ProjectChatPage() {
                   </AvatarFallback>
                 </Avatar>
                 <div className={`flex flex-col gap-1 max-w-[70%] ${isMe ? "items-end" : "items-start"}`}>
-                  <div className={`flex items-center gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
+                  <div className={`flex items-center gap-2 flex-wrap ${isMe ? "flex-row-reverse" : ""}`}>
                     <span className="text-sm font-medium">{isMe ? "You" : msg.authorName}</span>
                     <Badge
                       variant="secondary"
@@ -218,14 +276,54 @@ export default function ProjectChatPage() {
                       </button>
                     )}
                   </div>
+
+                  {/* Message bubble */}
                   <div
-                    className={`rounded-md px-3 py-2 text-sm whitespace-pre-wrap break-words ${
+                    className={`rounded-md text-sm ${
+                      hasAttachment && !msg.content ? "" : "px-3 py-2"
+                    } ${
                       isMe
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted text-foreground"
                     }`}
                   >
-                    {msg.content}
+                    {/* Text content */}
+                    {msg.content && (
+                      <p className={`whitespace-pre-wrap break-words ${hasAttachment ? "px-3 pt-2" : ""}`}>
+                        {msg.content}
+                      </p>
+                    )}
+
+                    {/* Attachment */}
+                    {hasAttachment && attachIsImage && (
+                      <a href={attachUrl!} target="_blank" rel="noopener noreferrer">
+                        <img
+                          src={attachUrl!}
+                          alt={msg.attachmentName!}
+                          className={`max-w-xs max-h-64 rounded object-cover cursor-pointer ${msg.content ? "mt-2 mx-3 mb-2" : "rounded-md"}`}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none";
+                          }}
+                        />
+                      </a>
+                    )}
+
+                    {hasAttachment && !attachIsImage && (
+                      <a
+                        href={attachUrl!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex items-center gap-2 px-3 py-2 rounded ${msg.content ? "mt-1 mx-0" : ""} ${
+                          isMe
+                            ? "text-primary-foreground/90 hover:text-primary-foreground"
+                            : "text-foreground/80 hover:text-foreground"
+                        }`}
+                      >
+                        <FileText className="h-4 w-4 shrink-0" />
+                        <span className="text-sm truncate max-w-[180px]">{msg.attachmentName}</span>
+                        <Download className="h-3.5 w-3.5 shrink-0 ml-auto" />
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>
@@ -235,10 +333,53 @@ export default function ProjectChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
+      {/* Input area */}
       {activeProjectId && (
-        <div className="px-6 py-4 border-t shrink-0">
+        <div className="px-6 py-4 border-t shrink-0 space-y-2">
+          {/* File preview strip */}
+          {fileAttachment && (
+            <div className="flex items-center gap-2 p-2 rounded-md bg-muted border text-sm">
+              {localPreview ? (
+                <img src={localPreview} alt="preview" className="h-12 w-12 object-cover rounded" />
+              ) : (
+                <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="truncate font-medium text-foreground">{fileAttachment.name}</p>
+                <p className="text-[11px] text-muted-foreground">{formatBytes(fileAttachment.size)}</p>
+              </div>
+              <button
+                onClick={clearAttachment}
+                className="text-muted-foreground hover:text-foreground shrink-0"
+                aria-label="Remove attachment"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
           <div className="flex gap-2 items-end">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip,.dxf,.obj"
+              onChange={handleFileChange}
+            />
+
+            {/* Attach button */}
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              title="Attach a file or photo"
+              disabled={sendMutation.isPending}
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
+
             <Textarea
               ref={textareaRef}
               value={draft}
@@ -250,7 +391,7 @@ export default function ProjectChatPage() {
             />
             <Button
               onClick={handleSend}
-              disabled={!draft.trim() || sendMutation.isPending}
+              disabled={!canSend}
               size="icon"
             >
               <Send className="h-4 w-4" />

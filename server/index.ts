@@ -449,6 +449,14 @@ app.use((req, res, next) => {
     console.error("Failed to create project_messages table:", err);
   }
 
+  // Add attachment columns to project_messages (production DDL gap for migration 0056)
+  try {
+    await db.execute(sql`ALTER TABLE project_messages ADD COLUMN IF NOT EXISTS attachment_path TEXT`);
+    await db.execute(sql`ALTER TABLE project_messages ADD COLUMN IF NOT EXISTS attachment_name TEXT`);
+  } catch (err) {
+    console.error("Failed to add attachment columns to project_messages:", err);
+  }
+
   // Create project_chat_reads table — tracks who has opened Chat for each project.
   // Used to enforce "badge clears only after 2+ others have read" rule.
   try {

@@ -9914,14 +9914,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects/:id/messages", requireAuth, async (req: any, res) => {
+  const chatUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+  app.post("/api/projects/:id/messages", requireAuth, chatUpload.single("file"), async (req: any, res) => {
     try {
       const { id: projectId } = req.params;
       const userId = req.user?.id;
       const orgId = req.user?.orgId ?? null;
       const role = (await storage.getUserRole(userId))?.role?.toLowerCase();
-      const content = (req.body.content ?? "").trim();
-      if (!content) return res.status(400).json({ error: "Message cannot be empty" });
+      const content = (req.body?.content ?? "").trim();
+      const hasFile = !!req.file;
+      if (!content && !hasFile) return res.status(400).json({ error: "Message cannot be empty" });
 
       // Verify project access
       const accessibleProjects = await storage.getProjectsForUser(userId, role, orgId);
@@ -9929,9 +9932,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied" });
       }
 
-      const msg = await storage.createProjectMessage({ projectId, orgId, authorId: userId, content });
+      let attachmentPath: string | null = null;
+      let attachmentName: string | null = null;
+      if (req.file) {
+        attachmentPath = await uploadToObjectStorage(req.file.buffer, req.file.originalname, userId, req.file.mimetype, orgId ?? undefined);
+        attachmentName = req.file.originalname;
+      }
 
-      // Log to activity feed so it appears on the dashboard
+      const msg = await storage.createProjectMessage({
+        projectId, orgId, authorId: userId,
+        content: content || (attachmentName ?? ""),
+        ...(attachmentPath ? { attachmentPath, attachmentName } : {}),
+      });
+
+      // Log to activity feed
       try {
         const project = accessibleProjects.find((p: any) => p.id === projectId);
         const sender = await storage.getUser(userId);
@@ -9939,15 +9953,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? [sender.firstName, sender.lastName].filter(Boolean).join(" ") || sender.email || "Unknown"
           : "Unknown";
         const userEmail = sender?.email || "";
+        const logText = content || (attachmentName ? `[File: ${attachmentName}]` : "");
         await storage.createActivity({
-          userId,
-          userName,
-          userEmail,
-          orgId,
-          projectId,
+          userId, userName, userEmail, orgId, projectId,
           activityType: "chat_message",
-          fileName: content.length > 60 ? content.slice(0, 60) + "…" : content,
-          description: content.length > 80 ? content.slice(0, 80) + "…" : content,
+          fileName: logText.length > 60 ? logText.slice(0, 60) + "…" : logText,
+          description: logText.length > 80 ? logText.slice(0, 80) + "…" : logText,
           metadata: { projectName: project?.projectName ?? null, projectId },
         });
       } catch (actErr) { console.error("chat_message activity log error:", actErr); }
@@ -9956,6 +9967,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) {
       console.error("POST /api/projects/:id/messages error:", err);
       res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
+  // GET /api/projects/:id/messages/:messageId/attachment — serve signed download URL
+  app.get("/api/projects/:id/messages/:messageId/attachment", requireAuth, async (req: any, res) => {
+    try {
+      const { id: projectId, messageId } = req.params;
+      const userId = req.user?.id;
+      const orgId = req.user?.orgId ?? null;
+      const role = (await storage.getUserRole(userId))?.role?.toLowerCase();
+
+      const accessibleProjects = await storage.getProjectsForUser(userId, role, orgId);
+      if (!accessibleProjects.some((p: any) => p.id === projectId)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const messages = await storage.getProjectMessages(projectId);
+      const msg = messages.find((m: any) => m.id === messageId);
+      if (!msg || !(msg as any).attachmentPath) return res.status(404).json({ error: "Attachment not found" });
+
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile((msg as any).attachmentPath);
+      const signed = await signObjectURL(objectFile);
+      res.redirect(signed);
+    } catch (err) {
+      console.error("GET chat attachment error:", err);
+      res.status(500).json({ error: "Failed to retrieve attachment" });
     }
   });
 

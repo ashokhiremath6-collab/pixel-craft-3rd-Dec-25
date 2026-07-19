@@ -393,6 +393,13 @@
       "when": 1752900000000,
       "tag": "0055_project_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1753000000000,
+      "tag": "0056_chat_attachments",
+      "breakpoints": true
     }
   ]
 }
