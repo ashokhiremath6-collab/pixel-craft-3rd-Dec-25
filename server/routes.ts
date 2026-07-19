@@ -9989,7 +9989,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const objectStorageService = new ObjectStorageService();
       const objectFile = await objectStorageService.getObjectEntityFile((msg as any).attachmentPath);
-      const signed = await signObjectURL(objectFile);
+      const signed = await signObjectURL({
+        bucketName: objectFile.bucket.name,
+        objectName: objectFile.name,
+        method: "GET",
+        ttlSec: 3600,
+      });
       res.redirect(signed);
     } catch (err) {
       console.error("GET chat attachment error:", err);
