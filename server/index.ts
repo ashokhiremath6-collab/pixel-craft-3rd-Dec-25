@@ -473,6 +473,30 @@ app.use((req, res, next) => {
     console.error("Failed to create project_chat_reads table:", err);
   }
 
+  // Backfill null org_id on vendor_invoices and vendor_payments using the vendor's own org_id.
+  // Root cause: the manual payment POST route didn't stamp orgId, so rows ended up with
+  // org_id = NULL and bled into every org via the OR org_id IS NULL fallback.
+  try {
+    await db.execute(sql`
+      UPDATE vendor_invoices vi
+      SET    org_id = v.org_id
+      FROM   vendors v
+      WHERE  vi.vendor_id = v.id
+        AND  vi.org_id IS NULL
+        AND  v.org_id IS NOT NULL
+    `);
+    await db.execute(sql`
+      UPDATE vendor_payments vp
+      SET    org_id = v.org_id
+      FROM   vendors v
+      WHERE  vp.vendor_id = v.id
+        AND  vp.org_id IS NULL
+        AND  v.org_id IS NOT NULL
+    `);
+  } catch (err) {
+    console.error("Failed to backfill vendor invoice/payment org_ids:", err);
+  }
+
   // Backfill activity_log entries for existing working/concept drawings that were
   // uploaded before the upload-batch endpoint started logging activities.
   try {

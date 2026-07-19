@@ -8479,10 +8479,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { vendorId } = req.params;
       const userId = (req.user as any).id;
+      const sessionOrgId = (req.user as any).orgId;
+
+      // Resolve orgId: prefer vendor's own orgId so the payment is correctly scoped
+      const vendor = await storage.getVendor(vendorId);
+      const paymentOrgId = vendor?.orgId || sessionOrgId;
+
       const paymentData = insertVendorPaymentSchema.parse({
         ...req.body,
         vendorId,
         createdBy: userId,
+        orgId: paymentOrgId,
       });
 
       // Dedup guard: reject if same vendor + same reference already exists
@@ -8501,7 +8508,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Log activity
       const user = await storage.getUser(userId);
-      const vendor = await storage.getVendor(vendorId);
       if (user && vendor) {
         try {
           await storage.createActivity({
