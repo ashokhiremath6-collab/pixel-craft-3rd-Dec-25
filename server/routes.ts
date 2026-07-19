@@ -12781,23 +12781,29 @@ Return your response in the following JSON format only (no markdown, no code blo
           v.name          AS vendor_name,
           p.id            AS project_id,
           p.project_name,
-          SUM(pv.quotation_value::numeric)                     AS total_quoted,
-          COALESCE(SUM(vi.amount::numeric), 0)                 AS total_invoiced,
-          COALESCE(SUM(vi.amount::numeric), 0)
-            - SUM(pv.quotation_value::numeric)                 AS overrun
-        FROM project_vendors pv
-        JOIN  projects p  ON p.id  = pv.project_id
-        JOIN  vendors  v  ON v.id  = pv.vendor_id
-        LEFT JOIN vendor_invoices vi
-               ON vi.vendor_id  = v.id
-              AND vi.project_id = p.id
-              AND (vi.org_id = ${orgId} OR vi.org_id IS NULL)
-        WHERE pv.status            = 'Selected'
-          AND pv.quotation_value   IS NOT NULL
-          AND pv.vendor_id         IS NOT NULL
-          AND (pv.org_id = ${orgId} OR pv.org_id IS NULL)
-        GROUP BY v.id, v.name, p.id, p.project_name
-        HAVING COALESCE(SUM(vi.amount::numeric), 0) > SUM(pv.quotation_value::numeric)
+          pv_agg.total_quoted,
+          COALESCE(vi_agg.total_invoiced, 0)                        AS total_invoiced,
+          COALESCE(vi_agg.total_invoiced, 0) - pv_agg.total_quoted  AS overrun
+        FROM (
+          SELECT vendor_id, project_id,
+                 SUM(quotation_value::numeric) AS total_quoted
+          FROM   project_vendors
+          WHERE  status            = 'Selected'
+            AND  quotation_value   IS NOT NULL
+            AND  vendor_id         IS NOT NULL
+            AND  (org_id = ${orgId} OR org_id IS NULL)
+          GROUP BY vendor_id, project_id
+        ) pv_agg
+        JOIN projects p ON p.id = pv_agg.project_id
+        JOIN vendors  v ON v.id = pv_agg.vendor_id
+        LEFT JOIN (
+          SELECT vendor_id, project_id,
+                 SUM(amount::numeric) AS total_invoiced
+          FROM   vendor_invoices
+          WHERE  (org_id = ${orgId} OR org_id IS NULL)
+          GROUP BY vendor_id, project_id
+        ) vi_agg ON vi_agg.vendor_id = v.id AND vi_agg.project_id = p.id
+        WHERE COALESCE(vi_agg.total_invoiced, 0) > pv_agg.total_quoted
         ORDER BY overrun DESC
       `);
 
