@@ -9987,7 +9987,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           activityType: "chat_message",
           fileName: logText.length > 60 ? logText.slice(0, 60) + "…" : logText,
           description: logText.length > 80 ? logText.slice(0, 80) + "…" : logText,
-          metadata: { projectName: project?.projectName ?? null, projectId },
+          metadata: { projectName: project?.projectName ?? null, projectId, messageId: msg.id },
         });
       } catch (actErr) { console.error("chat_message activity log error:", actErr); }
 
@@ -10044,6 +10044,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Only admins can delete messages" });
       }
       await db.delete(projectMessages).where(eq(projectMessages.id, messageId));
+
+      // Remove the matching dashboard activity so it disappears from the feed
+      try {
+        const { activityLog } = await import("@shared/schema");
+        await db.delete(activityLog).where(
+          sql`activity_type = 'chat_message' AND metadata->>'messageId' = ${messageId}`
+        );
+      } catch (actErr) { console.error("Failed to delete chat activity:", actErr); }
+
       res.json({ ok: true });
     } catch (err) {
       console.error("DELETE /api/projects/:id/messages/:messageId error:", err);
