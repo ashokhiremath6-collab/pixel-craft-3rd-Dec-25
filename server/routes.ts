@@ -12790,26 +12790,26 @@ Return your response in the following JSON format only (no markdown, no code blo
           pv_agg.total_quoted,
           COALESCE(vi_agg.total_invoiced, 0)                        AS total_invoiced,
           COALESCE(vi_agg.total_invoiced, 0) - pv_agg.total_quoted  AS overrun
-        FROM (
+        FROM projects p
+        JOIN (
           SELECT vendor_id, project_id,
                  SUM(quotation_value::numeric) AS total_quoted
           FROM   project_vendors
           WHERE  status            = 'Selected'
             AND  quotation_value   IS NOT NULL
             AND  vendor_id         IS NOT NULL
-            AND  (org_id = ${orgId} OR org_id IS NULL)
           GROUP BY vendor_id, project_id
-        ) pv_agg
-        JOIN projects p ON p.id = pv_agg.project_id
-        JOIN vendors  v ON v.id = pv_agg.vendor_id
+        ) pv_agg ON pv_agg.project_id = p.id
+        JOIN vendors v ON v.id = pv_agg.vendor_id
         LEFT JOIN (
           SELECT vendor_id, project_id,
                  SUM(amount::numeric) AS total_invoiced
           FROM   vendor_invoices
-          WHERE  (org_id = ${orgId} OR org_id IS NULL)
+          WHERE  org_id = ${orgId}
           GROUP BY vendor_id, project_id
         ) vi_agg ON vi_agg.vendor_id = v.id AND vi_agg.project_id = p.id
-        WHERE COALESCE(vi_agg.total_invoiced, 0) > pv_agg.total_quoted
+        WHERE p.org_id = ${orgId}
+          AND COALESCE(vi_agg.total_invoiced, 0) > pv_agg.total_quoted
         ORDER BY overrun DESC
       `);
 
