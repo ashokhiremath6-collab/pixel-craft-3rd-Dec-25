@@ -9995,12 +9995,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { projectMessages } = await import("@shared/schema");
 
       // Fetch all messages and read receipts for accessible projects
+      const projectIdsArray = sql.array(projectIds, 'text');
       const [allMessages, readReceiptsResult] = await Promise.all([
         db.select().from(projectMessages).where(inArray(projectMessages.projectId, projectIds)),
         db.execute(sql`
           SELECT project_id, user_id, last_read_at
           FROM project_chat_reads
-          WHERE project_id = ANY(${projectIds})
+          WHERE project_id = ANY(${projectIdsArray})
         `),
       ]);
 

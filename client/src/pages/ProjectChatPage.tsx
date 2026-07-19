@@ -211,7 +211,7 @@ export default function ProjectChatPage() {
                       <button
                         onClick={() => deleteMutation.mutate(msg.id)}
                         disabled={deleteMutation.isPending}
-                        className="invisible group-hover:visible text-muted-foreground hover:text-destructive focus:outline-none transition-colors"
+                        className="text-muted-foreground/40 hover:text-destructive focus:outline-none transition-colors"
                         aria-label="Delete message"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
