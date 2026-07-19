@@ -425,6 +425,30 @@ app.use((req, res, next) => {
     console.error("Failed to backfill vendor_payments for confirmed payment requests:", err);
   }
 
+  // Create project_messages table if it doesn't exist yet.
+  // Migration 0055 is skipped in production due to the journal timestamp ordering
+  // issue that affects migrations 0039+. This is the established workaround.
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS project_messages (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        org_id VARCHAR,
+        author_id VARCHAR NOT NULL REFERENCES users(id),
+        content TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS project_messages_project_idx ON project_messages (project_id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS project_messages_org_idx ON project_messages (org_id)
+    `);
+  } catch (err) {
+    console.error("Failed to create project_messages table:", err);
+  }
+
   // Backfill activity_log entries for existing working/concept drawings that were
   // uploaded before the upload-batch endpoint started logging activities.
   try {
