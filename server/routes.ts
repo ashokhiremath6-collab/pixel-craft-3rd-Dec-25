@@ -9914,29 +9914,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const chatUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+  // POST /api/projects/:id/messages/upload-url — get presigned PUT URL for a chat attachment
+  app.post("/api/projects/:id/messages/upload-url", requireAuth, async (req: any, res) => {
+    try {
+      const { id: projectId } = req.params;
+      const userId = req.user?.id;
+      const orgId = req.user?.orgId ?? null;
+      const role = (await storage.getUserRole(userId))?.role?.toLowerCase();
+      const { fileName } = req.body;
+      if (!fileName) return res.status(400).json({ error: "fileName is required" });
 
-  app.post("/api/projects/:id/messages", requireAuth, chatUpload.single("file"), async (req: any, res) => {
+      const accessibleProjects = await storage.getProjectsForUser(userId, role, orgId);
+      if (!accessibleProjects.some((p: any) => p.id === projectId)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+      if (!privateObjectDir) return res.status(500).json({ error: "Object storage not configured" });
+
+      const objectId = randomUUID();
+      const objectPath = `${privateObjectDir}/uploads/${objectId}`;
+      const { bucketName, objectName } = parseObjectPath(objectPath);
+      const uploadUrl = await signObjectURL({ bucketName, objectName, method: "PUT", ttlSec: 3600 });
+
+      // Set ACL so owner can read it back
+      try {
+        const objectStorageService = new ObjectStorageService();
+        await objectStorageService.trySetObjectEntityAclPolicy(`/objects/uploads/${objectId}`, { owner: userId, visibility: "private" });
+      } catch (_) { /* non-fatal */ }
+
+      res.json({ uploadUrl, objectPath: `/objects/uploads/${objectId}` });
+    } catch (err) {
+      console.error("POST /api/projects/:id/messages/upload-url error:", err);
+      res.status(500).json({ error: "Failed to generate upload URL" });
+    }
+  });
+
+  app.post("/api/projects/:id/messages", requireAuth, async (req: any, res) => {
     try {
       const { id: projectId } = req.params;
       const userId = req.user?.id;
       const orgId = req.user?.orgId ?? null;
       const role = (await storage.getUserRole(userId))?.role?.toLowerCase();
       const content = (req.body?.content ?? "").trim();
-      const hasFile = !!req.file;
-      if (!content && !hasFile) return res.status(400).json({ error: "Message cannot be empty" });
+      const attachmentPath: string | null = req.body?.attachmentPath ?? null;
+      const attachmentName: string | null = req.body?.attachmentName ?? null;
+      if (!content && !attachmentPath) return res.status(400).json({ error: "Message cannot be empty" });
 
       // Verify project access
       const accessibleProjects = await storage.getProjectsForUser(userId, role, orgId);
       if (!accessibleProjects.some((p: any) => p.id === projectId)) {
         return res.status(403).json({ error: "Access denied" });
-      }
-
-      let attachmentPath: string | null = null;
-      let attachmentName: string | null = null;
-      if (req.file) {
-        attachmentPath = await uploadToObjectStorage(req.file.buffer, req.file.originalname, userId, req.file.mimetype, orgId ?? undefined);
-        attachmentName = req.file.originalname;
       }
 
       const msg = await storage.createProjectMessage({

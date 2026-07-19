@@ -101,13 +101,38 @@ export default function ProjectChatPage() {
 
   const sendMutation = useMutation({
     mutationFn: async ({ content, file }: { content: string; file: File | null }) => {
-      const form = new FormData();
-      form.append("content", content);
-      if (file) form.append("file", file);
+      let attachmentPath: string | null = null;
+      let attachmentName: string | null = null;
+
+      if (file) {
+        // Step 1: get presigned PUT URL
+        const urlRes = await fetch(`/api/projects/${activeProjectId}/messages/upload-url`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ fileName: file.name }),
+        });
+        if (!urlRes.ok) throw new Error("Failed to get upload URL");
+        const { uploadUrl, objectPath } = await urlRes.json();
+
+        // Step 2: upload directly to GCS
+        const putRes = await fetch(uploadUrl, {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": file.type || "application/octet-stream" },
+        });
+        if (!putRes.ok) throw new Error("File upload failed");
+
+        attachmentPath = objectPath;
+        attachmentName = file.name;
+      }
+
+      // Step 3: send message as JSON
       const res = await fetch(`/api/projects/${activeProjectId}/messages`, {
         method: "POST",
-        body: form,
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ content, attachmentPath, attachmentName }),
       });
       if (!res.ok) throw new Error(await res.text());
       return res.json();
@@ -118,8 +143,8 @@ export default function ProjectChatPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", activeProjectId, "messages"] });
       setTimeout(() => textareaRef.current?.focus(), 50);
     },
-    onError: () => {
-      toast({ variant: "destructive", title: "Failed to send message" });
+    onError: (err: any) => {
+      toast({ variant: "destructive", title: "Failed to send", description: err?.message });
     },
   });
 
