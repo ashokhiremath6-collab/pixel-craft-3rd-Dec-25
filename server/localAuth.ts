@@ -399,6 +399,11 @@ export const requireAuth: RequestHandler = (req, res, next) => {
   if (!req.isAuthenticated() || !req.user) {
     return res.status(401).json({ error: "Authentication required" });
   }
+  // Stamp req.orgId from the session so every route has a single, correct
+  // source of truth that reflects the active workspace. NEVER use
+  // storage.getUser(userId).orgId for org scoping — it returns the user's
+  // home org from the DB and ignores workspace switching.
+  (req as any).orgId = (req.user as any).orgId ?? null;
   next();
 };
 
