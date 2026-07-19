@@ -18,7 +18,7 @@ import mammoth from "mammoth";
 import libre from "libreoffice-convert";
 import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
-import { sql, and, eq } from "drizzle-orm";
+import { sql, and, eq, inArray, gt } from "drizzle-orm";
 import { storage } from "./storage";
 import { getPlanLimits, UNLIMITED } from "./planLimits";
 import { setupAuth, isAuthenticated, requireAuth, requireAdmin, requireAdminOnly, requireProjectManagerOrAdmin, requireSuperAdmin, isSuperAdminUser } from "./localAuth";
@@ -9934,6 +9934,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) {
       console.error("POST /api/projects/:id/messages error:", err);
       res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
+  // Unread message count across all accessible projects (for sidebar badge + dashboard alert)
+  // ?since=<ISO timestamp> — count messages newer than this timestamp
+  app.get("/api/messages/unread", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const orgId = req.user?.orgId ?? null;
+      const role = (await storage.getUserRole(userId))?.role?.toLowerCase();
+      const since = req.query.since ? new Date(req.query.since as string) : new Date(0);
+
+      const accessibleProjects = await storage.getProjectsForUser(userId, role, orgId);
+      const projectIds = accessibleProjects.map((p: any) => p.id) as string[];
+
+      if (projectIds.length === 0) return res.json({ total: 0, byProject: [] });
+
+      const { projectMessages } = await import("@shared/schema");
+
+      const rows = await db
+        .select({
+          projectId: projectMessages.projectId,
+          count: sql<number>`cast(count(*) as int)`,
+        })
+        .from(projectMessages)
+        .where(and(inArray(projectMessages.projectId, projectIds), gt(projectMessages.createdAt, since)))
+        .groupBy(projectMessages.projectId);
+
+      const projectMap: Record<string, string> = {};
+      accessibleProjects.forEach((p: any) => { projectMap[p.id] = p.projectName; });
+
+      const byProject = rows.map(r => ({
+        projectId: r.projectId,
+        projectName: projectMap[r.projectId] ?? "Unknown Project",
+        count: r.count,
+      }));
+
+      const total = byProject.reduce((sum, p) => sum + p.count, 0);
+
+      res.json({ total, byProject });
+    } catch (err) {
+      console.error("GET /api/messages/unread error:", err);
+      res.status(500).json({ error: "Failed to fetch unread count" });
     }
   });
 

@@ -51,6 +51,12 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
+function markChatRead(userId: string) {
+  localStorage.setItem(`chatLastReadAt_${userId}`, new Date().toISOString());
+  // Notify sidebar/dashboard to re-check unread count
+  window.dispatchEvent(new Event("chatRead"));
+}
+
 export default function ProjectChatPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -62,6 +68,7 @@ export default function ProjectChatPage() {
 
   const role = (user as any)?.role as string;
   const orgId = (user as any)?.orgId as string;
+  const userId = (user as any)?.id as string;
 
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
@@ -88,6 +95,11 @@ export default function ProjectChatPage() {
       toast({ variant: "destructive", title: "Failed to send message" });
     },
   });
+
+  // Mark chat as read whenever the page is mounted or messages change
+  useEffect(() => {
+    if (userId) markChatRead(userId);
+  }, [userId, messages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

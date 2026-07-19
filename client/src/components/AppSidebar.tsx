@@ -95,6 +95,34 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
 
   const role = previewRole || ((user as any)?.role as string | undefined);
   const orgId = (user as any)?.orgId as string | undefined;
+  const userId = (user as any)?.id as string | undefined;
+
+  // Track last time the user read the chat, so badge shows count of messages since then
+  const [chatLastReadAt, setChatLastReadAt] = useState<string>(() =>
+    userId ? (localStorage.getItem(`chatLastReadAt_${userId}`) ?? new Date(0).toISOString()) : new Date(0).toISOString()
+  );
+
+  // Re-read from localStorage when user marks chat as read (page visit)
+  useEffect(() => {
+    function onChatRead() {
+      if (userId) {
+        setChatLastReadAt(localStorage.getItem(`chatLastReadAt_${userId}`) ?? new Date(0).toISOString());
+      }
+    }
+    window.addEventListener("chatRead", onChatRead);
+    return () => window.removeEventListener("chatRead", onChatRead);
+  }, [userId]);
+
+  // Poll unread message count every 60 seconds
+  const { data: unreadData } = useQuery<{ total: number; byProject: { projectId: string; projectName: string; count: number }[] }>({
+    queryKey: ["/api/messages/unread", chatLastReadAt],
+    queryFn: () => fetch(`/api/messages/unread?since=${encodeURIComponent(chatLastReadAt)}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!userId,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  const unreadChatCount = unreadData?.total ?? 0;
 
   const { data: org } = useQuery<{ name: string; logoUrl?: string | null }>({
     queryKey: ["/api/organisations", orgId],
@@ -172,9 +200,9 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
       );
     });
 
-  const accountsBadgeCounts = isAdminOrDesigner && pendingPaymentCount > 0
-    ? { "/accounts": pendingPaymentCount }
-    : {};
+  const navBadgeCounts: Record<string, number> = {};
+  if (isAdminOrDesigner && pendingPaymentCount > 0) navBadgeCounts["/accounts"] = pendingPaymentCount;
+  if (unreadChatCount > 0) navBadgeCounts["/chat"] = unreadChatCount;
 
   const orgLogo = org?.logoUrl && !logoError ? (
     <img
@@ -265,7 +293,7 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {renderMenuItems(visibleMainItems, accountsBadgeCounts)}
+              {renderMenuItems(visibleMainItems, navBadgeCounts)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

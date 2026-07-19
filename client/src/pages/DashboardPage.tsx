@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import Dashboard from '@/components/Dashboard';
 import type { Vendor, Project, VendorCategory, ActivityLog, Task } from "@shared/schema";
+import { MessageSquare, X } from "lucide-react";
 import { differenceInDays, startOfDay } from "date-fns";
 
 interface VendorWithCategory extends Omit<Vendor, 'categoryName'> {
@@ -30,10 +31,45 @@ interface QuotationsResponse {
 
 export default function DashboardPage() {
   const [selectedProjectId] = useState<string | null>(null);
+  const [, setLocation] = useLocation();
+  const [dismissedChat, setDismissedChat] = useState(false);
 
-  const { data: user } = useQuery<{ role: string }>({
+  const { data: user } = useQuery<{ role: string; id?: string }>({
     queryKey: ['/api/auth/user'],
     retry: false,
+  });
+
+  const userId = (user as any)?.id as string | undefined;
+
+  const [chatLastReadAt, setChatLastReadAt] = useState<string>(() =>
+    userId ? (localStorage.getItem(`chatLastReadAt_${userId}`) ?? new Date(0).toISOString()) : new Date(0).toISOString()
+  );
+
+  // Re-sync when user reads chat (e.g. if they open Chat in same tab)
+  useEffect(() => {
+    function onChatRead() {
+      if (userId) {
+        setChatLastReadAt(localStorage.getItem(`chatLastReadAt_${userId}`) ?? new Date(0).toISOString());
+        setDismissedChat(false);
+      }
+    }
+    window.addEventListener("chatRead", onChatRead);
+    return () => window.removeEventListener("chatRead", onChatRead);
+  }, [userId]);
+
+  // Also read from localStorage once userId is available (first load)
+  useEffect(() => {
+    if (userId) {
+      setChatLastReadAt(localStorage.getItem(`chatLastReadAt_${userId}`) ?? new Date(0).toISOString());
+    }
+  }, [userId]);
+
+  const { data: unreadChat } = useQuery<{ total: number; byProject: { projectId: string; projectName: string; count: number }[] }>({
+    queryKey: ['/api/messages/unread', chatLastReadAt],
+    queryFn: () => fetch(`/api/messages/unread?since=${encodeURIComponent(chatLastReadAt)}`, { credentials: 'include' }).then(r => r.json()),
+    enabled: !!userId,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
   
   const isDesignerOrAdmin = user?.role === 'designer' || user?.role === 'admin';
@@ -101,7 +137,6 @@ export default function DashboardPage() {
     enabled: isDesignerOrAdmin,
   });
 
-  const [, setLocation] = useLocation();
   const handleNavigate = (path: string) => {
     setLocation(path);
   };
@@ -311,8 +346,41 @@ export default function DashboardPage() {
     remainingTasksByProject[task.projectId].push({ ...task, projectName: pName });
   });
 
+  const unreadTotal = unreadChat?.total ?? 0;
+  const showChatAlert = unreadTotal > 0 && !dismissedChat;
+
   return (
     <div>
+      {showChatAlert && (
+        <div className="mx-6 mt-4 flex items-center gap-3 rounded-md border border-primary/20 bg-primary/5 px-4 py-3">
+          <MessageSquare className="h-4 w-4 shrink-0 text-primary" />
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-medium text-foreground">
+              {unreadTotal === 1
+                ? "1 new chat message"
+                : `${unreadTotal} new chat messages`}
+            </span>
+            {unreadChat && unreadChat.byProject.length > 0 && (
+              <span className="ml-1.5 text-sm text-muted-foreground">
+                — {unreadChat.byProject.map(p => p.projectName).join(", ")}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setLocation("/chat")}
+            className="shrink-0 text-sm font-medium text-primary hover:underline focus:outline-none"
+          >
+            Open Chat
+          </button>
+          <button
+            onClick={() => setDismissedChat(true)}
+            className="shrink-0 text-muted-foreground hover:text-foreground focus:outline-none"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <Dashboard 
         vendors={filteredVendors}
         projects={filteredProjects}
