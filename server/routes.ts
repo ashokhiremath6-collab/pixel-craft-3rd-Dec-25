@@ -9937,6 +9937,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete a chat message (author or admin only)
+  app.delete("/api/projects/:id/messages/:messageId", requireAuth, async (req: any, res) => {
+    try {
+      const { id: projectId, messageId } = req.params;
+      const userId = req.user?.id;
+      const role = (await storage.getUserRole(userId))?.role?.toLowerCase();
+      const { projectMessages } = await import("@shared/schema");
+      const [msg] = await db.select().from(projectMessages).where(eq(projectMessages.id, messageId));
+      if (!msg) return res.status(404).json({ error: "Message not found" });
+      if (msg.projectId !== projectId) return res.status(400).json({ error: "Project mismatch" });
+      if (msg.authorId !== userId && role !== "admin") {
+        return res.status(403).json({ error: "Can only delete your own messages" });
+      }
+      await db.delete(projectMessages).where(eq(projectMessages.id, messageId));
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("DELETE /api/projects/:id/messages/:messageId error:", err);
+      res.status(500).json({ error: "Failed to delete message" });
+    }
+  });
+
   // Record that the current user has read a project's chat thread
   app.post("/api/projects/:id/messages/read", requireAuth, async (req: any, res) => {
     try {

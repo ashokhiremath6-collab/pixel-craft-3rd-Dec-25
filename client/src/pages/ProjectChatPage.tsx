@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Send, MessageSquare } from "lucide-react";
+import { Send, MessageSquare, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Project } from "@shared/schema";
 
@@ -92,6 +92,18 @@ export default function ProjectChatPage() {
     },
     onError: () => {
       toast({ variant: "destructive", title: "Failed to send message" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (messageId: string) =>
+      apiRequest("DELETE", `/api/projects/${activeProjectId}/messages/${messageId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", activeProjectId, "messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread"] });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Failed to delete message" });
     },
   });
 
@@ -175,8 +187,9 @@ export default function ProjectChatPage() {
         ) : (
           messages.map((msg) => {
             const isMe = msg.authorId === (user as any)?.id;
+            const canDelete = isMe || role === "admin";
             return (
-              <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
+              <div key={msg.id} className={`group flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
                 <Avatar className="h-8 w-8 shrink-0 mt-0.5">
                   <AvatarFallback className="text-xs bg-muted">
                     {getInitials(msg.authorName)}
@@ -194,6 +207,16 @@ export default function ProjectChatPage() {
                     <span className="text-[11px] text-muted-foreground">
                       {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
                     </span>
+                    {canDelete && (
+                      <button
+                        onClick={() => deleteMutation.mutate(msg.id)}
+                        disabled={deleteMutation.isPending}
+                        className="invisible group-hover:visible text-muted-foreground hover:text-destructive focus:outline-none transition-colors"
+                        aria-label="Delete message"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                   <div
                     className={`rounded-md px-3 py-2 text-sm whitespace-pre-wrap break-words ${
