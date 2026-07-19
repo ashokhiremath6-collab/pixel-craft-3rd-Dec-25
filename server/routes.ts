@@ -9937,45 +9937,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Unread message count across all accessible projects (for sidebar badge + dashboard alert)
-  // ?since=<ISO timestamp> — count messages newer than this timestamp
+  // Record that the current user has read a project's chat thread
+  app.post("/api/projects/:id/messages/read", requireAuth, async (req: any, res) => {
+    try {
+      const { id: projectId } = req.params;
+      const userId = req.user?.id;
+      const orgId = req.user?.orgId ?? null;
+      await db.execute(sql`
+        INSERT INTO project_chat_reads (project_id, user_id, org_id, last_read_at)
+        VALUES (${projectId}, ${userId}, ${orgId}, NOW())
+        ON CONFLICT (project_id, user_id)
+        DO UPDATE SET last_read_at = NOW()
+      `);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("POST /api/projects/:id/messages/read error:", err);
+      res.status(500).json({ error: "Failed to record read receipt" });
+    }
+  });
+
+  // Unread message count across all accessible projects.
+  // Badge logic:
+  //   - For recipients: count messages from others newer than the user's last_read_at
+  //   - For senders: count projects where the user's latest message has been seen
+  //     by fewer than 2 other participants (badge stays until 2+ others open Chat)
   app.get("/api/messages/unread", requireAuth, async (req: any, res) => {
     try {
       const userId = req.user?.id;
       const orgId = req.user?.orgId ?? null;
       const role = (await storage.getUserRole(userId))?.role?.toLowerCase();
-      const since = req.query.since ? new Date(req.query.since as string) : new Date(0);
 
       const accessibleProjects = await storage.getProjectsForUser(userId, role, orgId);
       const projectIds = accessibleProjects.map((p: any) => p.id) as string[];
-
       if (projectIds.length === 0) return res.json({ total: 0, byProject: [] });
 
       const { projectMessages } = await import("@shared/schema");
 
-      const rows = await db
-        .select({
-          projectId: projectMessages.projectId,
-          count: sql<number>`cast(count(*) as int)`,
-        })
-        .from(projectMessages)
-        .where(and(
-          inArray(projectMessages.projectId, projectIds),
-          gt(projectMessages.createdAt, since),
-          ne(projectMessages.authorId, userId),   // only count messages from OTHER people
-        ))
-        .groupBy(projectMessages.projectId);
+      // Fetch all messages and read receipts for accessible projects
+      const [allMessages, readReceiptsResult] = await Promise.all([
+        db.select().from(projectMessages).where(inArray(projectMessages.projectId, projectIds)),
+        db.execute(sql`
+          SELECT project_id, user_id, last_read_at
+          FROM project_chat_reads
+          WHERE project_id = ANY(${projectIds})
+        `),
+      ]);
+
+      const readReceipts = (readReceiptsResult as any).rows as { project_id: string; user_id: string; last_read_at: Date }[];
+
+      // Build lookup: my last_read_at per project
+      const myReadMap: Record<string, Date> = {};
+      readReceipts
+        .filter((r) => r.user_id === userId)
+        .forEach((r) => { myReadMap[r.project_id] = new Date(r.last_read_at); });
+
+      // Build lookup: all OTHER users' read receipts per project
+      const othersReadMap: Record<string, { userId: string; lastReadAt: Date }[]> = {};
+      readReceipts
+        .filter((r) => r.user_id !== userId)
+        .forEach((r) => {
+          if (!othersReadMap[r.project_id]) othersReadMap[r.project_id] = [];
+          othersReadMap[r.project_id].push({ userId: r.user_id, lastReadAt: new Date(r.last_read_at) });
+        });
 
       const projectMap: Record<string, string> = {};
       accessibleProjects.forEach((p: any) => { projectMap[p.id] = p.projectName; });
 
-      const byProject = rows.map(r => ({
-        projectId: r.projectId,
-        projectName: projectMap[r.projectId] ?? "Unknown Project",
-        count: r.count,
-      }));
+      const byProject: { projectId: string; projectName: string; count: number }[] = [];
+      let total = 0;
 
-      const total = byProject.reduce((sum, p) => sum + p.count, 0);
+      for (const projectId of projectIds) {
+        const msgs = allMessages.filter((m) => m.projectId === projectId);
+        const myLastRead = myReadMap[projectId] ?? new Date(0);
+
+        // Messages from others I haven't read yet
+        const unreadFromOthers = msgs.filter(
+          (m) => m.authorId !== userId && new Date(m.createdAt) > myLastRead
+        ).length;
+
+        // My latest message in this project — check if 2+ others have acknowledged
+        const myMsgs = msgs
+          .filter((m) => m.authorId === userId)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        let pendingAck = 0;
+        if (myMsgs.length > 0) {
+          const myLatestTime = new Date(myMsgs[0].createdAt);
+          const readersAfter = (othersReadMap[projectId] ?? []).filter(
+            (r) => r.lastReadAt >= myLatestTime
+          ).length;
+          if (readersAfter < 2) pendingAck = 1; // this project still awaiting 2 readers
+        }
+
+        const count = unreadFromOthers + pendingAck;
+        if (count > 0) {
+          byProject.push({ projectId, projectName: projectMap[projectId] ?? "Unknown Project", count });
+          total += count;
+        }
+      }
 
       res.json({ total, byProject });
     } catch (err) {

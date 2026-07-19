@@ -53,7 +53,6 @@ function getInitials(name: string) {
 
 function markChatRead(userId: string) {
   localStorage.setItem(`chatLastReadAt_${userId}`, new Date().toISOString());
-  // Notify sidebar/dashboard to re-check unread count
   window.dispatchEvent(new Event("chatRead"));
 }
 
@@ -96,10 +95,15 @@ export default function ProjectChatPage() {
     },
   });
 
-  // Mark chat as read whenever the page is mounted or messages change
+  // Record server-side read receipt whenever active project changes or messages load
   useEffect(() => {
-    if (userId) markChatRead(userId);
-  }, [userId, messages]);
+    if (!activeProjectId || !userId) return;
+    markChatRead(userId);
+    fetch(`/api/projects/${activeProjectId}/messages/read`, {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => {});
+  }, [activeProjectId, userId, messages.length]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

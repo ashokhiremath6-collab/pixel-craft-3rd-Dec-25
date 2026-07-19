@@ -41,36 +41,20 @@ export default function DashboardPage() {
 
   const userId = (user as any)?.id as string | undefined;
 
-  const [chatLastReadAt, setChatLastReadAt] = useState<string>(() =>
-    userId ? (localStorage.getItem(`chatLastReadAt_${userId}`) ?? new Date(0).toISOString()) : new Date(0).toISOString()
-  );
-
-  // Re-sync when user reads chat (e.g. if they open Chat in same tab)
-  useEffect(() => {
-    function onChatRead() {
-      if (userId) {
-        setChatLastReadAt(localStorage.getItem(`chatLastReadAt_${userId}`) ?? new Date(0).toISOString());
-        setDismissedChat(false);
-      }
-    }
-    window.addEventListener("chatRead", onChatRead);
-    return () => window.removeEventListener("chatRead", onChatRead);
-  }, [userId]);
-
-  // Also read from localStorage once userId is available (first load)
-  useEffect(() => {
-    if (userId) {
-      setChatLastReadAt(localStorage.getItem(`chatLastReadAt_${userId}`) ?? new Date(0).toISOString());
-    }
-  }, [userId]);
-
-  const { data: unreadChat } = useQuery<{ total: number; byProject: { projectId: string; projectName: string; count: number }[] }>({
-    queryKey: ['/api/messages/unread', chatLastReadAt],
-    queryFn: () => fetch(`/api/messages/unread?since=${encodeURIComponent(chatLastReadAt)}`, { credentials: 'include' }).then(r => r.json()),
+  const { data: unreadChat, refetch: refetchUnread } = useQuery<{ total: number; byProject: { projectId: string; projectName: string; count: number }[] }>({
+    queryKey: ['/api/messages/unread'],
+    queryFn: () => fetch('/api/messages/unread', { credentials: 'include' }).then(r => r.json()),
     enabled: !!userId,
     refetchInterval: 60_000,
-    staleTime: 30_000,
+    staleTime: 0,
   });
+
+  // Re-fetch and un-dismiss when user visits Chat and comes back
+  useEffect(() => {
+    const onChatRead = () => { refetchUnread(); setDismissedChat(false); };
+    window.addEventListener("chatRead", onChatRead);
+    return () => window.removeEventListener("chatRead", onChatRead);
+  }, [refetchUnread]);
   
   const isDesignerOrAdmin = user?.role === 'designer' || user?.role === 'admin';
   

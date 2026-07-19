@@ -449,6 +449,22 @@ app.use((req, res, next) => {
     console.error("Failed to create project_messages table:", err);
   }
 
+  // Create project_chat_reads table — tracks who has opened Chat for each project.
+  // Used to enforce "badge clears only after 2+ others have read" rule.
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS project_chat_reads (
+        project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        user_id    VARCHAR NOT NULL REFERENCES users(id),
+        org_id     VARCHAR,
+        last_read_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (project_id, user_id)
+      )
+    `);
+  } catch (err) {
+    console.error("Failed to create project_chat_reads table:", err);
+  }
+
   // Backfill activity_log entries for existing working/concept drawings that were
   // uploaded before the upload-batch endpoint started logging activities.
   try {
