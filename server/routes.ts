@@ -9930,6 +9930,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const msg = await storage.createProjectMessage({ projectId, orgId, authorId: userId, content });
+
+      // Log to activity feed so it appears on the dashboard
+      try {
+        const project = accessibleProjects.find((p: any) => p.id === projectId);
+        await storage.createActivity({
+          userId,
+          orgId,
+          projectId,
+          activityType: "chat_message",
+          description: content.length > 80 ? content.slice(0, 80) + "…" : content,
+          metadata: { projectName: project?.projectName ?? null, projectId },
+        });
+      } catch (_) { /* non-critical */ }
+
       res.status(201).json(msg);
     } catch (err) {
       console.error("POST /api/projects/:id/messages error:", err);

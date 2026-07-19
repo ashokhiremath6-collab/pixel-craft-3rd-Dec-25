@@ -11,7 +11,7 @@ import {
   AlertCircle, ImageIcon, LayoutDashboard, FileCheck2, CalendarDays,
   BookOpen, Package, Trash2, Pencil, Plus, Bell, FileUp, ClipboardList, RefreshCw,
   ChevronDown, ChevronRight, ExternalLink, ArrowUpDown, X, SendHorizonal, FolderOpen,
-  CreditCard, CheckCircle2,
+  CreditCard, CheckCircle2, MessageSquare,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -155,6 +155,7 @@ const ACTIVITY_CONFIG: Record<string, {
   boq_file_delete:          { label: "BOQ",               icon: FileUp,          accent: "#fef2f2", iconBg: "#fecaca", iconColor: "#dc2626" },
   meeting_minutes_upload:   { label: "Meeting Minutes",   icon: CalendarDays,    accent: "#f0fdf4", iconBg: "#bbf7d0", iconColor: "#15803d" },
   meeting_minutes_delete:   { label: "Meeting Minutes",   icon: CalendarDays,    accent: "#fef2f2", iconBg: "#fecaca", iconColor: "#dc2626" },
+  chat_message:             { label: "Chat Message",       icon: MessageSquare,   accent: "#eff6ff", iconBg: "#dbeafe", iconColor: "#2563eb" },
 };
 
 function getActivityConfig(type: string) {
@@ -168,6 +169,7 @@ function getActivityConfig(type: string) {
 }
 
 function getActivityVerb(type: string) {
+  if (type === "chat_message") return "posted";
   if (type === "schedule_reimport") return "re-imported";
   if (type === "works_order_send") return "sent";
   if (type === "works_order_void") return "voided";
@@ -195,6 +197,7 @@ function isVeryRecent(dateStr: string) {
 
 function getActivityNavPath(activityType: string, projectId: string | null, meta: Record<string, unknown> | null): string | null {
   const pid = projectId || (meta?.projectId as string | null);
+  if (activityType === 'chat_message') return '/chat';
   if (activityType.startsWith('floor_plan_')) return pid ? `/floor-plans?projectId=${pid}` : '/floor-plans';
   if (activityType.startsWith('moodboard_')) return pid ? `/moodboards?projectId=${pid}` : '/moodboards';
   if (activityType.startsWith('render_')) {
