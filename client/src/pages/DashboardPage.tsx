@@ -102,6 +102,14 @@ export default function DashboardPage() {
     enabled: isDesignerOrAdmin,
   });
 
+  const { data: invoiceQuoteAlertsData } = useQuery<any[]>({
+    queryKey: ['/api/dashboard/invoice-quote-alerts'],
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    enabled: isDesignerOrAdmin,
+  });
+
   const handleNavigate = (path: string) => {
     setLocation(path);
   };
@@ -326,6 +334,7 @@ export default function DashboardPage() {
         remainingTasksByProject={remainingTasksByProject}
         vendorAlerts={vendorAlertsData || []}
         rfqAlerts={rfqAlertsData || []}
+        invoiceQuoteAlerts={invoiceQuoteAlertsData || []}
         onNavigate={handleNavigate}
         isRefreshingActivities={activitiesLoading}
         onRefreshActivities={() => refetchActivities()}

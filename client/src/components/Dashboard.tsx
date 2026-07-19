@@ -89,6 +89,16 @@ interface VendorAlert {
   file_name: string | null;
 }
 
+interface InvoiceQuoteAlert {
+  vendor_id: string;
+  vendor_name: string;
+  project_id: string;
+  project_name: string;
+  total_quoted: string;
+  total_invoiced: string;
+  overrun: string;
+}
+
 interface DashboardProps {
   vendors: VendorWithCategory[];
   projects: Project[];
@@ -106,6 +116,7 @@ interface DashboardProps {
   remainingTasksByProject?: Record<string, Array<Task & { projectName: string }>>;
   vendorAlerts?: VendorAlert[];
   rfqAlerts?: RFQAlert[];
+  invoiceQuoteAlerts?: InvoiceQuoteAlert[];
   onNavigate?: (path: string) => void;
   onRefreshActivities?: () => void;
   isRefreshingActivities?: boolean;
@@ -827,6 +838,69 @@ function PaymentAlertsPanel() {
   );
 }
 
+function InvoiceQuoteAlertsPanel({ alerts, onNavigate }: { alerts: InvoiceQuoteAlert[]; onNavigate?: (path: string) => void }) {
+  if (alerts.length === 0) return null;
+  return (
+    <ContentCard>
+      <div className="px-5 sm:px-8 pt-6 pb-4 space-y-3">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="flex items-center justify-center w-9 h-9 rounded-full" style={{ background: "#dc2626" }}>
+            <AlertCircle className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg sm:text-[22px] font-semibold leading-tight" style={{ color: "#111827" }}>
+              Invoice exceeds quote
+            </h2>
+            <p className="text-xs" style={{ color: "#86868b" }}>
+              {alerts.length} vendor{alerts.length !== 1 ? "s" : ""} invoiced above their approved quote
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {alerts.map(alert => {
+            const quoted = parseFloat(alert.total_quoted);
+            const invoiced = parseFloat(alert.total_invoiced);
+            const overrun = parseFloat(alert.overrun);
+            const pctOver = quoted > 0 ? Math.round((overrun / quoted) * 100) : 0;
+
+            return (
+              <div
+                key={`${alert.vendor_id}-${alert.project_id}`}
+                className="flex items-start justify-between gap-3 rounded-xl p-3 flex-wrap cursor-pointer"
+                style={{ background: "#fff1f2", border: "1px solid #fecaca" }}
+                onClick={() => onNavigate?.('/accounts')}
+              >
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold" style={{ color: "#7f1d1d" }}>
+                      {alert.vendor_name}
+                    </p>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: "#fee2e2", color: "#991b1b" }}>
+                      +{pctOver}% over
+                    </span>
+                  </div>
+                  <p className="text-xs" style={{ color: "#b91c1c" }}>
+                    {alert.project_name}
+                  </p>
+                  <p className="text-xs" style={{ color: "#6b7280" }}>
+                    Quoted: <span className="font-medium">{formatCurrencyCompact(quoted)}</span>
+                    {" · "}
+                    Invoiced: <span className="font-medium">{formatCurrencyCompact(invoiced)}</span>
+                    {" · "}
+                    Overrun: <span className="font-semibold" style={{ color: "#dc2626" }}>{formatCurrencyCompact(overrun)}</span>
+                  </p>
+                </div>
+                <ArrowRight className="h-4 w-4 mt-1 shrink-0" style={{ color: "#dc2626" }} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </ContentCard>
+  );
+}
+
 export default function Dashboard({
   vendors,
   projects,
@@ -840,6 +914,7 @@ export default function Dashboard({
   remainingTasksByProject = {},
   vendorAlerts = [],
   rfqAlerts = [],
+  invoiceQuoteAlerts = [],
   onNavigate,
   onRefreshActivities,
   isRefreshingActivities,
@@ -992,6 +1067,11 @@ export default function Dashboard({
             </p>
           </div>
         </div>
+
+        {/* ── Invoice vs Quote Mismatch Alerts ── */}
+        {invoiceQuoteAlerts.length > 0 && (
+          <InvoiceQuoteAlertsPanel alerts={invoiceQuoteAlerts} onNavigate={onNavigate} />
+        )}
 
         {/* ── RFQ Sent Alerts ── */}
         {rfqAlerts.length > 0 && (

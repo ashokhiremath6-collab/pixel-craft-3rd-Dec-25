@@ -12683,6 +12683,51 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // GET /api/dashboard/invoice-quote-alerts — vendors where total invoiced exceeds their selected quote
+  app.get("/api/dashboard/invoice-quote-alerts", requireAuth, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = await storage.getUserRole(userId);
+      if (!userRole || !['admin', 'designer', 'project_manager'].includes(userRole.role)) {
+        return res.json([]);
+      }
+      const user = await storage.getUser(userId);
+      if (!user?.orgId) return res.json([]);
+      const orgId = user.orgId;
+
+      const rows = await db.execute(sql`
+        SELECT
+          v.id            AS vendor_id,
+          v.name          AS vendor_name,
+          p.id            AS project_id,
+          p.project_name,
+          SUM(pv.quotation_value::numeric)                     AS total_quoted,
+          COALESCE(SUM(vi.amount::numeric), 0)                 AS total_invoiced,
+          COALESCE(SUM(vi.amount::numeric), 0)
+            - SUM(pv.quotation_value::numeric)                 AS overrun
+        FROM project_vendors pv
+        JOIN  projects p  ON p.id  = pv.project_id
+        JOIN  vendors  v  ON v.id  = pv.vendor_id
+        LEFT JOIN vendor_invoices vi
+               ON vi.vendor_id  = v.id
+              AND vi.project_id = p.id
+              AND (vi.org_id = ${orgId} OR vi.org_id IS NULL)
+        WHERE pv.status            = 'Selected'
+          AND pv.quotation_value   IS NOT NULL
+          AND pv.vendor_id         IS NOT NULL
+          AND (pv.org_id = ${orgId} OR pv.org_id IS NULL)
+        GROUP BY v.id, v.name, p.id, p.project_name
+        HAVING COALESCE(SUM(vi.amount::numeric), 0) > SUM(pv.quotation_value::numeric)
+        ORDER BY overrun DESC
+      `);
+
+      res.json(rows.rows);
+    } catch (err) {
+      console.error("invoice-quote-alerts error:", err);
+      res.status(500).json({ error: "Failed to fetch invoice-quote alerts" });
+    }
+  });
+
   // GET /api/dashboard/rfq-alerts — recent RFQ invitations sent to vendors (last 7 days)
   app.get("/api/dashboard/rfq-alerts", requireAdmin, async (req: any, res) => {
     try {
