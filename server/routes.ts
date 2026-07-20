@@ -12793,16 +12793,19 @@ Return your response in the following JSON format only (no markdown, no code blo
           COALESCE(vi_agg.total_invoiced, 0) - pv_agg.total_quoted  AS overrun
         FROM projects p
         JOIN (
-          -- For each selected project_vendor row, use the SUM of quote_files.quoted_amount
-          -- when available (handles vendors with multiple quote files), falling back to
-          -- project_vendors.quotation_value. -1 is a sentinel meaning "no value" — exclude it.
+          -- For each selected project_vendor row, take the GREATER of:
+          --   a) sum of quote_files.quoted_amount (handles multi-scope vendors like Adarsh
+          --      where additional work was quoted in separate files beyond quotation_value)
+          --   b) project_vendors.quotation_value (the overall approved amount)
+          -- This prevents a partial BOQ file (e.g. one floor's switches) from replacing
+          -- the full quotation_value. -1 is a sentinel meaning "no value" — exclude it.
           SELECT vendor_id, project_id,
                  SUM(row_quoted) AS total_quoted
           FROM (
             SELECT pv.vendor_id, pv.project_id,
-                   COALESCE(
-                     NULLIF(qf_agg.file_total, 0),
-                     NULLIF(pv.quotation_value::numeric, -1)
+                   GREATEST(
+                     NULLIF(pv.quotation_value::numeric, -1),
+                     CASE WHEN qf_agg.file_total > 0 THEN qf_agg.file_total ELSE NULL END
                    ) AS row_quoted
             FROM project_vendors pv
             LEFT JOIN LATERAL (
