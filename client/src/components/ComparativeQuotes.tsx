@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import StatusBadge from "./StatusBadge";
 import QuoteDetailModal from "./QuoteDetailModal";
-import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2, Paperclip, Building2, Check } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2, Paperclip, Building2, Check, Search, X } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -123,6 +123,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     }
   }, [projects, selectedProject, initialProject]);
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory ?? "all");
+  const [vendorSearch, setVendorSearch] = useState<string>("");
   const [isExporting, setIsExporting] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [highlightedQuoteId, setHighlightedQuoteId] = useState<string | null>(initialQuoteId ?? null);
@@ -471,7 +472,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     return result;
   };
 
-  // Filter quotations with hierarchical category support
+  // Filter quotations with hierarchical category support + vendor name search
   const filteredQuotations = allQuotations.filter(quotation => {
     const matchesProject = !selectedProject || quotation.projectId === selectedProject;
     
@@ -483,8 +484,11 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
       const categoryNames = categoryIds.map(id => categoryMap[id]?.name).filter(Boolean);
       matchesCategory = categoryNames.includes(quotation.category);
     }
+
+    const matchesVendor = !vendorSearch.trim() ||
+      quotation.vendorName.toLowerCase().includes(vendorSearch.toLowerCase());
     
-    return matchesProject && matchesCategory;
+    return matchesProject && matchesCategory && matchesVendor;
   });
 
   // Separate regular quotes from comparative statements
@@ -1077,6 +1081,29 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="flex-1">
+              <label className="text-xs font-medium mb-1 block">Vendor</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="Search vendor name..."
+                  value={vendorSearch}
+                  onChange={(e) => setVendorSearch(e.target.value)}
+                  className="h-8 pl-8 pr-7 text-sm"
+                  data-testid="input-vendor-search"
+                />
+                {vendorSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setVendorSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>

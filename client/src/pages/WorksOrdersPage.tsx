@@ -553,13 +553,17 @@ export default function WorksOrdersPage() {
         return false;
       }
       
-      // Search filter
+      // Search filter — matches order number, scope, payment terms, or vendor name
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
+        const pv = projectVendors.find(v => v.id === order.projectVendorId);
+        const vendor = pv?.vendorId ? vendors.find(v => v.id === pv.vendorId) : null;
+        const vendorName = vendor?.name ?? "";
         return (
           order.orderNumber.toLowerCase().includes(query) ||
           (order.scope && order.scope.toLowerCase().includes(query)) ||
-          (order.paymentTerms && order.paymentTerms.toLowerCase().includes(query))
+          (order.paymentTerms && order.paymentTerms.toLowerCase().includes(query)) ||
+          vendorName.toLowerCase().includes(query)
         );
       }
       
