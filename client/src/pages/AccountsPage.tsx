@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee, Edit, Trash2, MoreVertical, Upload, Eye, ChevronDown, ChevronRight, SendHorizonal, Building2, CreditCard, CheckCircle2, Clock, Archive } from "lucide-react";
+import { Plus, FileText, Banknote, TrendingUp, Download, AlertCircle, IndianRupee, Edit, Trash2, MoreVertical, Upload, Eye, ChevronDown, ChevronRight, SendHorizonal, Building2, CreditCard, CheckCircle2, Clock, Archive, Search, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -159,6 +159,8 @@ export default function AccountsPage() {
     setViewerOpen(true);
   };
   const [selectedVendorId, setSelectedVendorId] = useState<string>("");
+  const [vendorSearch, setVendorSearch] = useState<string>("");
+  const [vendorDropdownOpen, setVendorDropdownOpen] = useState(false);
   const [addInvoiceDialogOpen, setAddInvoiceDialogOpen] = useState(false);
   const [addPaymentDialogOpen, setAddPaymentDialogOpen] = useState(false);
   const [requestPaymentOpen, setRequestPaymentOpen] = useState(false);
@@ -905,21 +907,61 @@ export default function AccountsPage() {
           <CardDescription className="text-sm">Choose a vendor to view their ledger</CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
-          <Select value={selectedVendorId} onValueChange={setSelectedVendorId}>
-            <SelectTrigger data-testid="select-vendor">
-              <SelectValue placeholder="Select a vendor..." />
-            </SelectTrigger>
-            <SelectContent>
-              {ledgerVendors
-                .slice()
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((vendor) => (
-                  <SelectItem key={vendor.id} value={vendor.id} data-testid={`vendor-option-${vendor.id}`}>
-                    {vendor.name}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
+          {/* Searchable vendor combobox */}
+          <div className="relative">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                data-testid="select-vendor"
+                placeholder="Search vendor..."
+                value={vendorSearch}
+                onChange={(e) => {
+                  setVendorSearch(e.target.value);
+                  setVendorDropdownOpen(true);
+                  if (e.target.value === "") {
+                    setSelectedVendorId("");
+                  }
+                }}
+                onFocus={() => setVendorDropdownOpen(true)}
+                onBlur={() => setTimeout(() => setVendorDropdownOpen(false), 150)}
+                className="pl-9 pr-8"
+              />
+              {(vendorSearch || selectedVendorId) && (
+                <button
+                  type="button"
+                  onClick={() => { setVendorSearch(""); setSelectedVendorId(""); setVendorDropdownOpen(false); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {vendorDropdownOpen && (
+              <div className="absolute z-50 top-full mt-1 w-full bg-popover border border-border rounded-md shadow-md max-h-60 overflow-y-auto">
+                {ledgerVendors
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .filter((v) => v.name.toLowerCase().includes(vendorSearch.toLowerCase()))
+                  .map((vendor) => (
+                    <div
+                      key={vendor.id}
+                      data-testid={`vendor-option-${vendor.id}`}
+                      className={`px-3 py-2 text-sm cursor-pointer hover-elevate ${selectedVendorId === vendor.id ? "bg-accent text-accent-foreground" : ""}`}
+                      onMouseDown={() => {
+                        setSelectedVendorId(vendor.id);
+                        setVendorSearch(vendor.name);
+                        setVendorDropdownOpen(false);
+                      }}
+                    >
+                      {vendor.name}
+                    </div>
+                  ))}
+                {ledgerVendors.filter((v) => v.name.toLowerCase().includes(vendorSearch.toLowerCase())).length === 0 && (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">No vendors found</div>
+                )}
+              </div>
+            )}
+          </div>
           {ledgerVendors.length === 0 && selectedProjectId && (
             <p className="text-sm text-muted-foreground mt-2">No vendors linked to this project yet.</p>
           )}
