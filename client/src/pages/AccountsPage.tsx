@@ -1,5 +1,6 @@
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { useState, useEffect } from "react";
+import { useSearch } from "wouter";
 import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -192,6 +193,7 @@ export default function AccountsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const search = useSearch();
 
   // Check if user has permission to add invoices/payments (admin or designer)
   const canManageAccounts = user?.role === 'admin' || user?.role === 'designer';
@@ -200,6 +202,20 @@ export default function AccountsPage() {
   const { data: vendors = [] } = useQuery<Vendor[]>({
     queryKey: ['/api/vendors'],
   });
+
+  // If arriving from global vendor search (?vendorId=...), auto-select that vendor
+  useEffect(() => {
+    if (!vendors.length) return;
+    const params = new URLSearchParams(search);
+    const paramVendorId = params.get("vendorId");
+    if (paramVendorId) {
+      const match = vendors.find((v) => v.id === paramVendorId);
+      if (match) {
+        setSelectedVendorId(match.id);
+        setVendorSearch(match.name);
+      }
+    }
+  }, [vendors, search]);
 
   // Fetch all projects (scoped to user's assigned projects for designers)
   const { data: projects = [] } = useQuery<Project[]>({
