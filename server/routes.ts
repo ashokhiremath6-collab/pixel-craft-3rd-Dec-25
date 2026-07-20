@@ -12827,7 +12827,7 @@ Return your response in the following JSON format only (no markdown, no code blo
           GROUP BY vendor_id, project_id
         ) vi_agg ON vi_agg.vendor_id = v.id AND vi_agg.project_id = p.id
         WHERE p.org_id = ${orgId}
-          AND COALESCE(vi_agg.total_invoiced, 0) > pv_agg.total_quoted
+          AND COALESCE(vi_agg.total_invoiced, 0) - pv_agg.total_quoted > 1000
         ORDER BY overrun DESC
       `);
 
