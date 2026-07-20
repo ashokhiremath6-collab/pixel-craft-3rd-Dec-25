@@ -12793,12 +12793,29 @@ Return your response in the following JSON format only (no markdown, no code blo
           COALESCE(vi_agg.total_invoiced, 0) - pv_agg.total_quoted  AS overrun
         FROM projects p
         JOIN (
+          -- For each selected project_vendor row, use the SUM of quote_files.quoted_amount
+          -- when available (handles vendors with multiple quote files), falling back to
+          -- project_vendors.quotation_value. -1 is a sentinel meaning "no value" — exclude it.
           SELECT vendor_id, project_id,
-                 SUM(quotation_value::numeric) AS total_quoted
-          FROM   project_vendors
-          WHERE  status            = 'Selected'
-            AND  quotation_value   IS NOT NULL
-            AND  vendor_id         IS NOT NULL
+                 SUM(row_quoted) AS total_quoted
+          FROM (
+            SELECT pv.vendor_id, pv.project_id,
+                   COALESCE(
+                     NULLIF(qf_agg.file_total, 0),
+                     NULLIF(pv.quotation_value::numeric, -1)
+                   ) AS row_quoted
+            FROM project_vendors pv
+            LEFT JOIN LATERAL (
+              SELECT COALESCE(SUM(qf.quoted_amount::numeric), 0) AS file_total
+              FROM   quote_files qf
+              WHERE  qf.project_vendor_id        = pv.id
+                AND  qf.quoted_amount            IS NOT NULL
+                AND  qf.quoted_amount::numeric   > 0
+            ) qf_agg ON TRUE
+            WHERE pv.status    = 'Selected'
+              AND pv.vendor_id IS NOT NULL
+          ) sub
+          WHERE row_quoted IS NOT NULL AND row_quoted > 0
           GROUP BY vendor_id, project_id
         ) pv_agg ON pv_agg.project_id = p.id
         JOIN vendors v ON v.id = pv_agg.vendor_id
