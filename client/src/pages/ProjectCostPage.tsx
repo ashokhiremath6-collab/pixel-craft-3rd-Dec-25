@@ -17,6 +17,12 @@ interface PaymentsByCategory {
   vendorNames: string[];
 }
 
+interface InvoicesByCategory {
+  categoryName: string;
+  totalInvoiced: number;
+  vendorNames: string[];
+}
+
 interface QuotationData {
   id: string;
   vendorName: string;
@@ -138,6 +144,7 @@ function SavedItemRow({ item, onSave, onDelete, canEdit }: EditableRowProps) {
           </span>
         )}
       </td>
+      <td className="px-3 py-1.5 align-middle" />
     </tr>
   );
 }
@@ -193,6 +200,7 @@ function NewItemRow({ onCommit, rowKey }: NewItemRowProps) {
           onBlur={handleBlur}
         />
       </td>
+      <td className="px-3 py-1.5 align-middle" />
     </tr>
   );
 }
@@ -222,6 +230,12 @@ export default function ProjectCostPage() {
 
   const { data: paymentsByCategory = [] } = useQuery<PaymentsByCategory[]>({
     queryKey: ["/api/project-cost", selectedProjectId, "payments-by-category"],
+    enabled: !!selectedProjectId,
+    staleTime: 0,
+  });
+
+  const { data: invoicesByCategory = [] } = useQuery<InvoicesByCategory[]>({
+    queryKey: ["/api/project-cost", selectedProjectId, "invoices-by-category"],
     enabled: !!selectedProjectId,
     staleTime: 0,
   });
@@ -316,6 +330,13 @@ export default function ProjectCostPage() {
         .map((p) => [p.categoryName.toLowerCase(), p])
     );
 
+    // Build category name → invoice data lookup
+    const invoicesByCatMap = new Map<string, InvoicesByCategory>(
+      invoicesByCategory
+        .filter((i) => i.categoryName != null)
+        .map((i) => [i.categoryName.toLowerCase(), i])
+    );
+
     const rows = rootCategories.map((cat, idx) => {
       const catQuotes = getSelectedQuotesForCategory(selectedProjectId, cat);
       const catTotal = catQuotes.reduce(
@@ -327,16 +348,18 @@ export default function ProjectCostPage() {
       const paymentFallback = catTotal === 0
         ? (paymentsByCatMap.get(cat.name.toLowerCase()) ?? null)
         : null;
-      return { cat, catQuotes, catTotal, vendorNames, paymentFallback, idx: idx + 1 };
+      const invoiceData = invoicesByCatMap.get(cat.name.toLowerCase()) ?? null;
+      return { cat, catQuotes, catTotal, vendorNames, paymentFallback, invoiceData, idx: idx + 1 };
     });
 
     const quotesTotal = rows.reduce((sum, r) => sum + r.catTotal + (r.paymentFallback?.totalPaid ?? 0), 0);
     const customTotal = customItems.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
     const total = quotesTotal + customTotal;
+    const totalInvoiced = invoicesByCategory.reduce((sum, i) => sum + i.totalInvoiced, 0);
     const startIdx = rows.length + 1;
 
     return (
-      <div className="p-6 space-y-4 max-w-4xl">
+      <div className="p-6 space-y-4 max-w-5xl">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -355,16 +378,33 @@ export default function ProjectCostPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between border rounded-md px-4 py-3 bg-muted/30">
+        <div className="flex items-center justify-between gap-4 border rounded-md px-4 py-3 bg-muted/30 flex-wrap">
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-              Total Project Cost <span className="normal-case font-normal">(incl. GST)</span>
+              Total Quoted <span className="normal-case font-normal">(incl. GST)</span>
             </p>
             <p className="text-xl font-bold tabular-nums mt-0.5">
               {total > 0 ? formatCurrencyCompact(total) : "—"}
             </p>
           </div>
-          <div className="text-right">
+          {totalInvoiced > 0 && (
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                Total Invoiced
+              </p>
+              <p className="text-xl font-bold tabular-nums mt-0.5">
+                {formatCurrencyCompact(totalInvoiced)}
+              </p>
+              {total > 0 && (
+                <p className={`text-xs mt-0.5 ${totalInvoiced > total ? "text-red-500" : "text-green-600"}`}>
+                  {totalInvoiced > total
+                    ? `+${formatCurrencyCompact(totalInvoiced - total)} over quoted`
+                    : `${formatCurrencyCompact(total - totalInvoiced)} under quoted`}
+                </p>
+              )}
+            </div>
+          )}
+          <div className="text-right ml-auto">
             <p className="text-xs text-muted-foreground">Categories covered</p>
             <p className="text-sm font-semibold">
               {quotedCount}{" "}
@@ -389,14 +429,20 @@ export default function ProjectCostPage() {
                   Vendor
                 </th>
                 <th className="text-right px-3 py-2.5 font-semibold text-xs uppercase tracking-wide text-muted-foreground w-36">
-                  Amount
+                  Quoted (incl. GST)
+                </th>
+                <th className="text-right px-3 py-2.5 font-semibold text-xs uppercase tracking-wide text-muted-foreground w-32">
+                  Invoiced
                 </th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ cat, catTotal, vendorNames, paymentFallback, idx }) => {
+              {rows.map(({ cat, catTotal, vendorNames, paymentFallback, invoiceData, idx }) => {
                 const hasQuote = catTotal > 0;
                 const displayNames = hasQuote ? vendorNames : (paymentFallback?.vendorNames ?? []);
+                const quotedAmt = hasQuote ? catTotal : (paymentFallback?.totalPaid ?? 0);
+                const invoicedAmt = invoiceData?.totalInvoiced ?? 0;
+                const variance = quotedAmt > 0 && invoicedAmt > 0 ? invoicedAmt - quotedAmt : null;
                 return (
                   <tr
                     key={cat.id}
@@ -417,6 +463,20 @@ export default function ProjectCostPage() {
                         <span className="text-muted-foreground" title="Based on actual payments made">
                           {formatCurrencyCompact(paymentFallback.totalPaid)}
                         </span>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {invoicedAmt > 0 ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="font-medium">{formatCurrencyCompact(invoicedAmt)}</span>
+                          {variance !== null && (
+                            <span className={`text-xs ${variance > 0 ? "text-red-500" : "text-green-600"}`}>
+                              {variance > 0 ? "+" : ""}{formatCurrencyCompact(variance)}
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-muted-foreground/40">—</span>
                       )}
@@ -456,6 +516,9 @@ export default function ProjectCostPage() {
                 </td>
                 <td className="px-3 py-3 text-right font-bold tabular-nums">
                   {total > 0 ? formatCurrencyCompact(total) : "—"}
+                </td>
+                <td className="px-3 py-3 text-right font-bold tabular-nums">
+                  {totalInvoiced > 0 ? formatCurrencyCompact(totalInvoiced) : "—"}
                 </td>
               </tr>
             </tfoot>

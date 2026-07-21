@@ -2677,6 +2677,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/project-cost/:projectId/invoices-by-category", requireAuth, async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      const result = await db.execute(sql`
+        WITH vendor_cat AS (
+          SELECT DISTINCT ON (pv.vendor_id)
+            pv.vendor_id,
+            COALESCE(vc.name, pv.category) AS category_name
+          FROM project_vendors pv
+          LEFT JOIN vendor_categories vc ON vc.id = pv.category_id
+          WHERE pv.project_id = ${projectId} AND pv.vendor_id IS NOT NULL
+          ORDER BY pv.vendor_id, pv.id
+        ),
+        project_inv AS (
+          SELECT vi.vendor_id, vi.amount::numeric AS amount, v.name AS vendor_name
+          FROM vendor_invoices vi
+          JOIN vendors v ON v.id = vi.vendor_id
+          WHERE vi.project_id = ${projectId}
+          UNION ALL
+          SELECT vi.vendor_id, vi.amount::numeric AS amount, v.name AS vendor_name
+          FROM vendor_invoices vi
+          JOIN vendors v ON v.id = vi.vendor_id
+          JOIN vendor_cat vc2 ON vc2.vendor_id = vi.vendor_id
+          WHERE vi.project_id IS NULL
+        )
+        SELECT
+          COALESCE(cat.category_name, pi.vendor_name) AS category_name,
+          SUM(pi.amount) AS total_invoiced,
+          array_agg(DISTINCT pi.vendor_name) AS vendor_names
+        FROM project_inv pi
+        LEFT JOIN vendor_cat cat ON cat.vendor_id = pi.vendor_id
+        GROUP BY COALESCE(cat.category_name, pi.vendor_name)
+        HAVING SUM(pi.amount) > 0
+      `);
+      res.json(
+        (result.rows as any[])
+          .filter((r) => r.category_name != null)
+          .map((r) => ({
+            categoryName: r.category_name as string,
+            totalInvoiced: parseFloat(r.total_invoiced ?? "0"),
+            vendorNames: (r.vendor_names as string[]) ?? [],
+          }))
+      );
+    } catch (err) {
+      console.error("GET /api/project-cost/:projectId/invoices-by-category error:", err);
+      res.status(500).json({ error: "Failed to fetch invoice data" });
+    }
+  });
+
   app.get("/api/project-cost-items/:projectId", requireAuth, async (req, res) => {
     try {
       const items = await storage.getProjectCostItems(req.params.projectId);
