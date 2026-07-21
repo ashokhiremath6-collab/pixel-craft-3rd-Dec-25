@@ -573,12 +573,19 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     quotations: typeof filteredQuotations;
   }>);
 
-  const formatCurrency = (value: string) => {
+  // Returns the GST-inclusive effective value for a quote
+  const effectiveQuoteValue = (q: QuotationData): number => {
+    const base = parseFloat(q.quotationValue || "0");
+    const gst = parseFloat(q.gstPercent || "0");
+    return base * (1 + gst / 100);
+  };
+
+  const formatCurrency = (q: QuotationData) => {
     // Check if this is a unit rates quote (marked with -1)
-    if (value === '-1' || value === '-1.00') {
+    if (q.quotationValue === '-1' || q.quotationValue === '-1.00') {
       return <span className="text-muted-foreground italic">unit rates</span>;
     }
-    return formatCurrencyCompact(value);
+    return formatCurrencyCompact(effectiveQuoteValue(q));
   };
 
   const getLowestQuote = (categoryQuotations: typeof filteredQuotations) => {
@@ -593,19 +600,16 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     const currentQuotes = Object.values(byVendor).flatMap(vqs =>
       groupVendorByScopeName(vqs).map(sg => sg.currentQuote)
     );
-    const validQuotes = currentQuotes.filter(q => {
-      const value = q.quotationValue ? parseFloat(q.quotationValue) : 0;
-      return value > 0;
-    });
+    const validQuotes = currentQuotes.filter(q => effectiveQuoteValue(q) > 0);
     if (validQuotes.length === 0) return 0;
-    return Math.min(...validQuotes.map(q => parseFloat(q.quotationValue!)));
+    return Math.min(...validQuotes.map(q => effectiveQuoteValue(q)));
   };
 
-  const getQuoteVariance = (value: string | null | undefined, lowestQuote: number) => {
-    if (!value || lowestQuote === 0) return 0;
-    const quotationValue = parseFloat(value);
-    if (isNaN(quotationValue) || quotationValue < 0) return 0; // Skip unit rates (-1)
-    return ((quotationValue - lowestQuote) / lowestQuote) * 100;
+  const getQuoteVariance = (q: QuotationData, lowestQuote: number) => {
+    if (!q.quotationValue || lowestQuote === 0) return 0;
+    const effective = effectiveQuoteValue(q);
+    if (isNaN(effective) || effective < 0) return 0; // Skip unit rates (-1)
+    return ((effective - lowestQuote) / lowestQuote) * 100;
   };
 
   // Export functions
@@ -752,8 +756,8 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
           const isCurrent = quotation.id === currentQuote.id;
           // Revision numbers: oldest = Rev 1, newest = Rev N
           const revNumber = quotes.length - revIdx;
-          const quotationNumericValue = quotation.quotationValue ? parseFloat(quotation.quotationValue) : 0;
-          const variance = isCurrent ? getQuoteVariance(quotation.quotationValue, lowestQuote) : 0;
+          const quotationNumericValue = effectiveQuoteValue(quotation);
+          const variance = isCurrent ? getQuoteVariance(quotation, lowestQuote) : 0;
           const isLowest = isCurrent && quotationNumericValue > 0 && quotationNumericValue === lowestQuote;
           const isSelected = quotation.status === "Selected";
           const isHighlighted = quotation.id === highlightedQuoteId;
@@ -811,9 +815,12 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                       <div className="flex flex-col items-start gap-1">
                         <span className="font-mono font-semibold text-sm">
                           {quotationNumericValue > 0
-                            ? formatCurrency(quotation.quotationValue!)
+                            ? formatCurrency(quotation)
                             : <span className="text-muted-foreground">No total</span>}
                         </span>
+                        {quotation.gstPercent && parseFloat(quotation.gstPercent) > 0 && quotationNumericValue > 0 && (
+                          <span className="text-xs text-muted-foreground">incl. {quotation.gstPercent}% GST</span>
+                        )}
                         <div className="flex flex-wrap gap-1">
                           {isLowest && <Badge variant="outline" className="text-xs text-green-600 border-green-200 px-1">Lowest</Badge>}
                           {quotation.isNegotiated && <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 px-1">Negotiated</Badge>}
@@ -822,7 +829,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                       </div>
                     ) : (
                       <span className="text-xs text-muted-foreground font-mono">
-                        {quotationNumericValue > 0 ? formatCurrencyCompact(quotation.quotationValue!) : "—"}
+                        {quotationNumericValue > 0 ? formatCurrencyCompact(quotationNumericValue) : "—"}
                       </span>
                     )}
                   </TableCell>
@@ -1186,7 +1193,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                     <TableHead className="text-xs font-medium">Vendor</TableHead>
                     {!hideValueColumns && (
                       <>
-                        <TableHead className="text-xs font-medium">Quote Value</TableHead>
+                        <TableHead className="text-xs font-medium">Quote Value (incl. GST)</TableHead>
                         <TableHead className="text-xs font-medium">Variance</TableHead>
                       </>
                     )}
@@ -1236,7 +1243,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                         <TableHead className="text-xs font-medium">Vendor</TableHead>
                         {!hideValueColumns && (
                           <>
-                            <TableHead className="text-xs font-medium">Quote Value</TableHead>
+                            <TableHead className="text-xs font-medium">Quote Value (incl. GST)</TableHead>
                             <TableHead className="text-xs font-medium">Variance</TableHead>
                           </>
                         )}
