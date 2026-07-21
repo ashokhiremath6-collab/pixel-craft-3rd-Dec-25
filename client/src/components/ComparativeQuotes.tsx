@@ -161,14 +161,19 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
         quoteFileId: editingQuote.quoteFileId || null,
       });
       const data = await res.json();
-      if (data.amount != null) {
-        setEditFormData(prev => ({ ...prev, quotationValue: String(data.amount) }));
-        toast({ title: "Amount extracted", description: `Found ₹${data.amount.toLocaleString('en-IN')} (incl. GST) from the PDF.` });
+      if (data.baseAmount != null) {
+        const updates: Partial<typeof editFormData> = { quotationValue: String(data.baseAmount) };
+        if (data.gstPercent != null && data.gstPercent > 0) {
+          updates.gstPercent = String(data.gstPercent);
+        }
+        setEditFormData(prev => ({ ...prev, ...updates }));
+        const gstNote = data.gstPercent ? ` at ${data.gstPercent}% GST` : "";
+        toast({ title: "Values extracted from PDF", description: `Base amount ₹${data.baseAmount.toLocaleString('en-IN')}${gstNote}.` });
       } else {
-        toast({ title: "Could not extract amount", description: "The AI couldn't find a clear grand total in this document. Please enter the amount manually.", variant: "destructive" });
+        toast({ title: "Could not extract amount", description: "The AI couldn't find a clear subtotal in this document. Please enter the values manually.", variant: "destructive" });
       }
     } catch {
-      toast({ title: "Extraction failed", description: "Failed to read the PDF. Please enter the amount manually.", variant: "destructive" });
+      toast({ title: "Extraction failed", description: "Failed to read the PDF. Please enter the values manually.", variant: "destructive" });
     } finally {
       setIsExtractingAmount(false);
     }
@@ -1292,38 +1297,65 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
               />
             </div>
             <div>
-              <Label htmlFor="quotationValue">Total Quote Value (incl. GST)</Label>
-              <div className="flex gap-2 items-center mt-1">
-                <Input
-                  id="quotationValue"
-                  type="number"
-                  step="0.01"
-                  placeholder="Enter total amount including GST"
-                  value={editFormData.quotationValue}
-                  onChange={(e) => setEditFormData(prev => ({ ...prev, quotationValue: e.target.value }))}
-                  data-testid="input-edit-quotation-value"
-                />
-                {(editingQuote?.quotationFile || editingQuote?.quoteFileId) && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="default"
-                    onClick={handleAutoExtractAmount}
-                    disabled={isExtractingAmount}
-                    title="Read grand total from the attached PDF"
-                  >
-                    {isExtractingAmount
-                      ? <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                      : <Sparkles className="h-4 w-4 mr-1" />}
-                    Auto-read
-                  </Button>
-                )}
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <Label htmlFor="quotationValue">Quote Value (excl. GST)</Label>
+                  <div className="flex gap-2 items-center mt-1">
+                    <Input
+                      id="quotationValue"
+                      type="number"
+                      step="0.01"
+                      placeholder="Base amount before GST"
+                      value={editFormData.quotationValue}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, quotationValue: e.target.value }))}
+                      data-testid="input-edit-quotation-value"
+                    />
+                    {(editingQuote?.quotationFile || editingQuote?.quoteFileId) && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="default"
+                        onClick={handleAutoExtractAmount}
+                        disabled={isExtractingAmount}
+                        title="Read base amount and GST rate from the attached PDF"
+                      >
+                        {isExtractingAmount
+                          ? <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          : <Sparkles className="h-4 w-4 mr-1" />}
+                        Auto-read
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="w-24">
+                  <Label htmlFor="gstPercent">GST %</Label>
+                  <Input
+                    id="gstPercent"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    placeholder="18"
+                    className="mt-1"
+                    value={editFormData.gstPercent}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, gstPercent: e.target.value }))}
+                    data-testid="input-edit-gst-percent"
+                  />
+                </div>
               </div>
-              {(editingQuote?.quotationFile || editingQuote?.quoteFileId) && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  "Auto-read" uses AI to extract the grand total (incl. GST) from the attached PDF.
-                </p>
-              )}
+              {editFormData.quotationValue && editFormData.gstPercent && (() => {
+                const base = parseFloat(editFormData.quotationValue);
+                const gst = parseFloat(editFormData.gstPercent);
+                if (!isNaN(base) && !isNaN(gst) && gst > 0) {
+                  const total = base * (1 + gst / 100);
+                  return (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Total incl. GST: <span className="font-medium text-foreground">₹{total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                    </p>
+                  );
+                }
+                return null;
+              })()}
             </div>
             <div>
               <Label htmlFor="dateOfQuotation">Date of Quotation</Label>

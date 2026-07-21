@@ -4378,13 +4378,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               contentBlock,
               {
                 type: "text",
-                text: `This is a vendor quotation document. Extract the final total amount payable — this is the grand total including all taxes, GST, and any other charges. Do not return the pre-tax subtotal.
+                text: `This is a vendor quotation document. Extract the following two values:
+1. The subtotal BEFORE GST/tax (the taxable amount, not the grand total).
+2. The GST rate percentage (e.g. 18 for 18%, 5 for 5%). If multiple GST rates are applied, return the effective/dominant one.
 
 Respond with ONLY a JSON object in this exact format (no explanation, no markdown):
-{"amount": 365210.00, "currency": "INR"}
+{"baseAmount": 310000.00, "gstPercent": 18, "currency": "INR"}
 
-If you cannot find a clear grand total, respond with:
-{"amount": null, "currency": "INR"}`,
+If the document does not show a pre-GST subtotal or GST rate separately (e.g. the total is already described as inclusive), set gstPercent to 0 and baseAmount to the grand total:
+{"baseAmount": 365210.00, "gstPercent": 0, "currency": "INR"}
+
+If you cannot find any total amount at all, respond with:
+{"baseAmount": null, "gstPercent": null, "currency": "INR"}`,
               },
             ],
           },
@@ -4392,17 +4397,19 @@ If you cannot find a clear grand total, respond with:
       });
 
       const raw = response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
-      let amount: number | null = null;
+      let baseAmount: number | null = null;
+      let gstPercent: number | null = null;
       try {
         const parsed = JSON.parse(raw);
-        amount = typeof parsed.amount === "number" ? parsed.amount : null;
+        baseAmount = typeof parsed.baseAmount === "number" ? parsed.baseAmount : null;
+        gstPercent = typeof parsed.gstPercent === "number" ? parsed.gstPercent : null;
       } catch {
         // Try extracting a number directly if JSON failed
         const match = raw.match(/[\d,]+(?:\.\d+)?/);
-        if (match) amount = parseFloat(match[0].replace(/,/g, ""));
+        if (match) baseAmount = parseFloat(match[0].replace(/,/g, ""));
       }
 
-      res.json({ amount, raw });
+      res.json({ baseAmount, gstPercent, raw });
     } catch (err: any) {
       console.error("[extract-amount] Error:", err);
       res.status(500).json({ error: err.message ?? "Extraction failed" });

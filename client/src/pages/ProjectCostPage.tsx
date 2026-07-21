@@ -24,12 +24,19 @@ interface QuotationData {
   quotationName: string;
   quotationType: "item" | "option";
   quotationValue: string | null | undefined;
+  gstPercent?: string | null;
   dateOfQuotation: string | null | undefined;
   status: "Quoted" | "Selected" | "Rejected";
   notes?: string;
   isNegotiated?: boolean;
   unitRateSubtype?: string | null;
 }
+
+const effectiveAmount = (q: QuotationData): number => {
+  const base = parseFloat(q.quotationValue || "0");
+  const gst = parseFloat(q.gstPercent || "0");
+  return base * (1 + gst / 100);
+};
 
 interface QuotationsResponse {
   projects: Project[];
@@ -259,7 +266,7 @@ export default function ProjectCostPage() {
 
   const getTotal = (projectId: string): number => {
     return getSelectedQuotes(projectId)
-      .reduce((sum, q) => sum + parseFloat(q.quotationValue || "0"), 0);
+      .reduce((sum, q) => sum + effectiveAmount(q), 0);
   };
 
   const getQuotedCategoryCount = (projectId: string): number => {
@@ -312,7 +319,7 @@ export default function ProjectCostPage() {
     const rows = rootCategories.map((cat, idx) => {
       const catQuotes = getSelectedQuotesForCategory(selectedProjectId, cat);
       const catTotal = catQuotes.reduce(
-        (s, q) => s + parseFloat(q.quotationValue || "0"),
+        (s, q) => s + effectiveAmount(q),
         0
       );
       const vendorNames = [...new Set(catQuotes.map((q) => q.vendorName))];
@@ -351,7 +358,7 @@ export default function ProjectCostPage() {
         <div className="flex items-center justify-between border rounded-md px-4 py-3 bg-muted/30">
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-              Total Project Cost
+              Total Project Cost <span className="normal-case font-normal">(incl. GST)</span>
             </p>
             <p className="text-xl font-bold tabular-nums mt-0.5">
               {total > 0 ? formatCurrencyCompact(total) : "—"}
@@ -445,7 +452,7 @@ export default function ProjectCostPage() {
                   colSpan={2}
                   className="px-3 py-3 font-bold text-xs uppercase tracking-wide"
                 >
-                  Total Project Cost
+                  Total Project Cost (incl. GST)
                 </td>
                 <td className="px-3 py-3 text-right font-bold tabular-nums">
                   {total > 0 ? formatCurrencyCompact(total) : "—"}
@@ -499,7 +506,7 @@ export default function ProjectCostPage() {
                     </div>
                     <div className="flex items-center gap-4 shrink-0">
                       <div className="text-right">
-                        <p className="text-xs text-muted-foreground">Total project cost</p>
+                        <p className="text-xs text-muted-foreground">Total cost (incl. GST)</p>
                         <p className="text-sm font-medium tabular-nums">
                           {total > 0 ? formatCurrencyCompact(total) : "—"}
                         </p>
