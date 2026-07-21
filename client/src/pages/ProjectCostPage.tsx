@@ -24,12 +24,21 @@ interface QuotationData {
   quotationName: string;
   quotationType: "item" | "option";
   quotationValue: string | null | undefined;
+  gstPercent?: string | null;
   dateOfQuotation: string | null | undefined;
   status: "Quoted" | "Selected" | "Rejected";
   notes?: string;
   isNegotiated?: boolean;
   unitRateSubtype?: string | null;
 }
+
+const gstInclusive = (value: string | null | undefined, gstPercent: string | null | undefined): number => {
+  const base = parseFloat(value || "0");
+  if (!base || isNaN(base)) return 0;
+  const gst = parseFloat(gstPercent || "0");
+  if (!gst || isNaN(gst)) return base;
+  return base * (1 + gst / 100);
+};
 
 interface QuotationsResponse {
   projects: Project[];
@@ -259,7 +268,7 @@ export default function ProjectCostPage() {
 
   const getTotal = (projectId: string): number => {
     return getSelectedQuotes(projectId)
-      .reduce((sum, q) => sum + parseFloat(q.quotationValue || "0"), 0);
+      .reduce((sum, q) => sum + gstInclusive(q.quotationValue, q.gstPercent), 0);
   };
 
   const getQuotedCategoryCount = (projectId: string): number => {
@@ -312,7 +321,7 @@ export default function ProjectCostPage() {
     const rows = rootCategories.map((cat, idx) => {
       const catQuotes = getSelectedQuotesForCategory(selectedProjectId, cat);
       const catTotal = catQuotes.reduce(
-        (s, q) => s + parseFloat(q.quotationValue || "0"),
+        (s, q) => s + gstInclusive(q.quotationValue, q.gstPercent),
         0
       );
       const vendorNames = [...new Set(catQuotes.map((q) => q.vendorName))];
