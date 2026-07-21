@@ -2573,6 +2573,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             quotationName: pv.quotationName,
             quotationType: pv.quotationType,
             quotationValue: quotationValue,
+            gstPercent: pv.gstPercent ?? null,
             dateOfQuotation: pv.dateOfQuotation,
             status: pv.status,
             quotationFile: pv.quotationFile,

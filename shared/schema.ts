@@ -103,6 +103,7 @@ export const projectVendors = pgTable("project_vendors", {
   itemCategory: text("item_category"), // For folder organization
   quotationFile: text("quotation_file"), // file path/url
   quotationValue: decimal("quotation_value", { precision: 15, scale: 2 }),
+  gstPercent: decimal("gst_percent", { precision: 5, scale: 2 }),
   dateOfQuotation: date("date_of_quotation"),
   status: text("status").notNull().default("Quoted"), // Quoted, Selected, Rejected
   isNegotiated: boolean("is_negotiated").notNull().default(false), // Mark final negotiated quotes

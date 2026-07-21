@@ -457,6 +457,13 @@ app.use((req, res, next) => {
     console.error("Failed to add attachment columns to project_messages:", err);
   }
 
+  // Add gst_percent to project_vendors — stores the GST percentage for GST-inclusive quote totals
+  try {
+    await db.execute(sql`ALTER TABLE project_vendors ADD COLUMN IF NOT EXISTS gst_percent NUMERIC(5, 2)`);
+  } catch (err) {
+    console.error("Failed to add gst_percent to project_vendors:", err);
+  }
+
   // Create project_chat_reads table — tracks who has opened Chat for each project.
   // Used to enforce "badge clears only after 2+ others have read" rule.
   try {
