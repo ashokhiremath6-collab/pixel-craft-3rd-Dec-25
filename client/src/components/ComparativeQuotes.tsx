@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import StatusBadge from "./StatusBadge";
 import QuoteDetailModal from "./QuoteDetailModal";
-import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2, Paperclip, Building2, Check, Search, X } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, BarChart3, ChevronRight, ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Eye, Trash2, Edit2, Paperclip, Building2, Check, Search, X, Sparkles } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FileViewerModal } from "@/components/FileViewerModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -142,7 +142,35 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     notes: "",
     isNegotiated: false
   });
+  const [isExtractingAmount, setIsExtractingAmount] = useState(false);
   const { toast } = useToast();
+
+  const handleAutoExtractAmount = async () => {
+    if (!editingQuote) return;
+    const hasFile = editingQuote.quotationFile || editingQuote.quoteFileId;
+    if (!hasFile) {
+      toast({ title: "No PDF attached", description: "This quote doesn't have an attached file to read from.", variant: "destructive" });
+      return;
+    }
+    setIsExtractingAmount(true);
+    try {
+      const res = await apiRequest("POST", "/api/quotes/extract-amount", {
+        projectVendorId: editingQuote.id,
+        quoteFileId: editingQuote.quoteFileId || null,
+      });
+      const data = await res.json();
+      if (data.amount != null) {
+        setEditFormData(prev => ({ ...prev, quotationValue: String(data.amount) }));
+        toast({ title: "Amount extracted", description: `Found ₹${data.amount.toLocaleString('en-IN')} (incl. GST) from the PDF.` });
+      } else {
+        toast({ title: "Could not extract amount", description: "The AI couldn't find a clear grand total in this document. Please enter the amount manually.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Extraction failed", description: "Failed to read the PDF. Please enter the amount manually.", variant: "destructive" });
+    } finally {
+      setIsExtractingAmount(false);
+    }
+  };
 
   const handleProjectFilter = (projectId: string) => {
     setSelectedProject(projectId);
@@ -1260,15 +1288,37 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
             </div>
             <div>
               <Label htmlFor="quotationValue">Total Quote Value (incl. GST)</Label>
-              <Input
-                id="quotationValue"
-                type="number"
-                step="0.01"
-                placeholder="Enter total amount including GST"
-                value={editFormData.quotationValue}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, quotationValue: e.target.value }))}
-                data-testid="input-edit-quotation-value"
-              />
+              <div className="flex gap-2 items-center mt-1">
+                <Input
+                  id="quotationValue"
+                  type="number"
+                  step="0.01"
+                  placeholder="Enter total amount including GST"
+                  value={editFormData.quotationValue}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, quotationValue: e.target.value }))}
+                  data-testid="input-edit-quotation-value"
+                />
+                {(editingQuote?.quotationFile || editingQuote?.quoteFileId) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="default"
+                    onClick={handleAutoExtractAmount}
+                    disabled={isExtractingAmount}
+                    title="Read grand total from the attached PDF"
+                  >
+                    {isExtractingAmount
+                      ? <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      : <Sparkles className="h-4 w-4 mr-1" />}
+                    Auto-read
+                  </Button>
+                )}
+              </div>
+              {(editingQuote?.quotationFile || editingQuote?.quoteFileId) && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  "Auto-read" uses AI to extract the grand total (incl. GST) from the attached PDF.
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="dateOfQuotation">Date of Quotation</Label>

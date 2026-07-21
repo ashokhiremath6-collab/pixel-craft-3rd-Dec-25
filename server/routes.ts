@@ -4304,6 +4304,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get quote files for a project vendor (protected)
+  // AI extraction: read the grand total (incl. GST) from a quote PDF
+  app.post("/api/quotes/extract-amount", requireAuth, async (req, res) => {
+    try {
+      const { projectVendorId, quoteFileId } = req.body as {
+        projectVendorId: string;
+        quoteFileId?: string | null;
+      };
+
+      if (!projectVendorId) {
+        return res.status(400).json({ error: "projectVendorId is required" });
+      }
+
+      // Resolve the file path — prefer specific portal file if quoteFileId given
+      let filePath: string | null = null;
+      let fileName = "quote";
+
+      if (quoteFileId) {
+        const qf = await storage.getQuoteFile(quoteFileId);
+        if (!qf) return res.status(404).json({ error: "Quote file not found" });
+        filePath = qf.filePath;
+        fileName = qf.fileName;
+      } else {
+        // Fall back to the admin-uploaded quotationFile on project_vendors
+        const [pv] = await db
+          .select({ quotationFile: projectVendors.quotationFile, quotationName: projectVendors.quotationName })
+          .from(projectVendors)
+          .where(eq(projectVendors.id, projectVendorId))
+          .limit(1);
+        if (!pv?.quotationFile) {
+          return res.status(404).json({ error: "No file attached to this quote" });
+        }
+        filePath = pv.quotationFile;
+        fileName = pv.quotationName || "quote";
+      }
+
+      // Download from object storage
+      const buffer = await downloadObjectBuffer(filePath);
+      if (!buffer) {
+        return res.status(404).json({ error: "File not found in storage" });
+      }
+      if (buffer.length > 20 * 1024 * 1024) {
+        return res.status(413).json({ error: "File too large for AI extraction (max 20 MB)" });
+      }
+
+      // Detect mime type from extension
+      const ext = (fileName.split(".").pop() ?? "").toLowerCase();
+      const mimeType = ext === "pdf" ? "application/pdf"
+        : ext === "png" ? "image/png"
+        : ["jpg", "jpeg"].includes(ext) ? "image/jpeg"
+        : "application/pdf";
+
+      const base64Data = buffer.toString("base64");
+
+      // Call Claude to extract the GST-inclusive grand total
+      const Anthropic = (await import("@anthropic-ai/sdk")).default;
+      const client = new Anthropic({
+        apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+      });
+
+      const contentBlock: any = mimeType === "application/pdf"
+        ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64Data } }
+        : { type: "image", source: { type: "base64", media_type: mimeType, data: base64Data } };
+
+      const response = await client.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 256,
+        messages: [
+          {
+            role: "user",
+            content: [
+              contentBlock,
+              {
+                type: "text",
+                text: `This is a vendor quotation document. Extract the final total amount payable — this is the grand total including all taxes, GST, and any other charges. Do not return the pre-tax subtotal.
+
+Respond with ONLY a JSON object in this exact format (no explanation, no markdown):
+{"amount": 365210.00, "currency": "INR"}
+
+If you cannot find a clear grand total, respond with:
+{"amount": null, "currency": "INR"}`,
+              },
+            ],
+          },
+        ],
+      });
+
+      const raw = response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
+      let amount: number | null = null;
+      try {
+        const parsed = JSON.parse(raw);
+        amount = typeof parsed.amount === "number" ? parsed.amount : null;
+      } catch {
+        // Try extracting a number directly if JSON failed
+        const match = raw.match(/[\d,]+(?:\.\d+)?/);
+        if (match) amount = parseFloat(match[0].replace(/,/g, ""));
+      }
+
+      res.json({ amount, raw });
+    } catch (err: any) {
+      console.error("[extract-amount] Error:", err);
+      res.status(500).json({ error: err.message ?? "Extraction failed" });
+    }
+  });
+
   app.get("/api/project-vendors/:id/files", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
