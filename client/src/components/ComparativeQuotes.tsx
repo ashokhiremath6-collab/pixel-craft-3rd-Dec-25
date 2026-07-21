@@ -34,7 +34,6 @@ interface QuotationData {
   parentQuotationId?: string | null; // For grouping options under main items
   itemCategory?: string | null; // For organizing different items in folders
   quotationValue: string | null | undefined;
-  gstPercent?: string | null;
   dateOfQuotation: string | null | undefined;
   status: "Quoted" | "Selected" | "Rejected";
   quotationFile?: string;
@@ -139,7 +138,6 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const [editFormData, setEditFormData] = useState({
     quotationName: "",
     quotationValue: "",
-    gstPercent: "",
     dateOfQuotation: "",
     notes: "",
     isNegotiated: false
@@ -220,7 +218,6 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     setEditFormData({
       quotationName: quotation.quotationName || "Main Quote",
       quotationValue: quotation.quotationValue || "",
-      gstPercent: quotation.gstPercent ? String(parseFloat(quotation.gstPercent)) : "",
       dateOfQuotation: quotation.dateOfQuotation || "",
       notes: quotation.notes || "",
       isNegotiated: quotation.isNegotiated || false
@@ -231,7 +228,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const handleCloseEditModal = () => {
     setIsEditModalOpen(false);
     setEditingQuote(null);
-    setEditFormData({ quotationName: "", quotationValue: "", gstPercent: "", dateOfQuotation: "", notes: "", isNegotiated: false });
+    setEditFormData({ quotationName: "", quotationValue: "", dateOfQuotation: "", notes: "", isNegotiated: false });
   };
 
   // Update quote mutation — routes to per-file endpoint when quoteFileId is set
@@ -286,7 +283,6 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
       updates: {
         quotationName: editFormData.quotationName || "Main Quote",
         quotationValue: editFormData.quotationValue || null,
-        gstPercent: editFormData.gstPercent ? parseFloat(editFormData.gstPercent) : null,
         dateOfQuotation: editFormData.dateOfQuotation || null,
         notes: editFormData.notes || null,
         isNegotiated: editFormData.isNegotiated
@@ -547,15 +543,6 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     return formatCurrencyCompact(value);
   };
 
-  // Returns the GST-inclusive total for a quotation
-  const getGstInclusive = (value: string | null | undefined, gstPercent: string | null | undefined): number => {
-    const base = parseFloat(value || '0');
-    if (!base || isNaN(base) || base < 0) return base || 0;
-    const gst = parseFloat(gstPercent || '0');
-    if (!gst || isNaN(gst)) return base;
-    return base * (1 + gst / 100);
-  };
-
   const getLowestQuote = (categoryQuotations: typeof filteredQuotations) => {
     if (categoryQuotations.length === 0) return 0;
     // Only count the current (latest/selected) quote per vendor-scope pair.
@@ -569,18 +556,17 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
       groupVendorByScopeName(vqs).map(sg => sg.currentQuote)
     );
     const validQuotes = currentQuotes.filter(q => {
-      const value = getGstInclusive(q.quotationValue, q.gstPercent);
+      const value = q.quotationValue ? parseFloat(q.quotationValue) : 0;
       return value > 0;
     });
     if (validQuotes.length === 0) return 0;
-    return Math.min(...validQuotes.map(q => getGstInclusive(q.quotationValue, q.gstPercent)));
+    return Math.min(...validQuotes.map(q => parseFloat(q.quotationValue!)));
   };
 
-  const getQuoteVariance = (value: string | null | undefined, gstPercent: string | null | undefined, lowestQuote: number) => {
+  const getQuoteVariance = (value: string | null | undefined, lowestQuote: number) => {
     if (!value || lowestQuote === 0) return 0;
-    const quotationValue = getGstInclusive(value, gstPercent);
+    const quotationValue = parseFloat(value);
     if (isNaN(quotationValue) || quotationValue < 0) return 0; // Skip unit rates (-1)
-    // Calculate variance relative to lowest quote (lowest will be 0%, others positive)
     return ((quotationValue - lowestQuote) / lowestQuote) * 100;
   };
 
@@ -728,8 +714,8 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
           const isCurrent = quotation.id === currentQuote.id;
           // Revision numbers: oldest = Rev 1, newest = Rev N
           const revNumber = quotes.length - revIdx;
-          const quotationNumericValue = getGstInclusive(quotation.quotationValue, quotation.gstPercent);
-          const variance = isCurrent ? getQuoteVariance(quotation.quotationValue, quotation.gstPercent, lowestQuote) : 0;
+          const quotationNumericValue = quotation.quotationValue ? parseFloat(quotation.quotationValue) : 0;
+          const variance = isCurrent ? getQuoteVariance(quotation.quotationValue, lowestQuote) : 0;
           const isLowest = isCurrent && quotationNumericValue > 0 && quotationNumericValue === lowestQuote;
           const isSelected = quotation.status === "Selected";
           const isHighlighted = quotation.id === highlightedQuoteId;
@@ -787,13 +773,10 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                       <div className="flex flex-col items-start gap-1">
                         <span className="font-mono font-semibold text-sm">
                           {quotationNumericValue > 0
-                            ? formatCurrency(quotationNumericValue.toString())
+                            ? formatCurrency(quotation.quotationValue!)
                             : <span className="text-muted-foreground">No total</span>}
                         </span>
                         <div className="flex flex-wrap gap-1">
-                          {quotation.gstPercent && parseFloat(quotation.gstPercent) > 0 && (
-                            <Badge variant="outline" className="text-xs text-purple-600 border-purple-200 px-1">+{parseFloat(quotation.gstPercent)}% GST</Badge>
-                          )}
                           {isLowest && <Badge variant="outline" className="text-xs text-green-600 border-green-200 px-1">Lowest</Badge>}
                           {quotation.isNegotiated && <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 px-1">Negotiated</Badge>}
                           {quotation.isAboveAverage && <AlertTriangle className="h-3 w-3 text-orange-500" />}
@@ -801,7 +784,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
                       </div>
                     ) : (
                       <span className="text-xs text-muted-foreground font-mono">
-                        {quotationNumericValue > 0 ? formatCurrencyCompact(quotationNumericValue.toString()) : "—"}
+                        {quotationNumericValue > 0 ? formatCurrencyCompact(quotation.quotationValue!) : "—"}
                       </span>
                     )}
                   </TableCell>
@@ -1276,37 +1259,16 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
               />
             </div>
             <div>
-              <Label htmlFor="quotationValue">Quotation Value (base, excl. GST)</Label>
+              <Label htmlFor="quotationValue">Total Quote Value (incl. GST)</Label>
               <Input
                 id="quotationValue"
                 type="number"
                 step="0.01"
-                placeholder="Enter base amount"
+                placeholder="Enter total amount including GST"
                 value={editFormData.quotationValue}
                 onChange={(e) => setEditFormData(prev => ({ ...prev, quotationValue: e.target.value }))}
                 data-testid="input-edit-quotation-value"
               />
-            </div>
-            <div>
-              <Label htmlFor="gstPercent">GST %</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="gstPercent"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  placeholder="e.g. 18"
-                  value={editFormData.gstPercent}
-                  onChange={(e) => setEditFormData(prev => ({ ...prev, gstPercent: e.target.value }))}
-                  data-testid="input-edit-gst-percent"
-                />
-                {editFormData.quotationValue && editFormData.gstPercent && parseFloat(editFormData.gstPercent) > 0 && (
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">
-                    = {formatCurrency((parseFloat(editFormData.quotationValue || '0') * (1 + parseFloat(editFormData.gstPercent) / 100)).toString())} incl. GST
-                  </span>
-                )}
-              </div>
             </div>
             <div>
               <Label htmlFor="dateOfQuotation">Date of Quotation</Label>
