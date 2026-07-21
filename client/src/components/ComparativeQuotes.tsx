@@ -34,6 +34,7 @@ interface QuotationData {
   parentQuotationId?: string | null; // For grouping options under main items
   itemCategory?: string | null; // For organizing different items in folders
   quotationValue: string | null | undefined;
+  gstPercent?: string | null; // GST percentage applied on top of quotationValue
   dateOfQuotation: string | null | undefined;
   status: "Quoted" | "Selected" | "Rejected";
   quotationFile?: string;
@@ -138,6 +139,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const [editFormData, setEditFormData] = useState({
     quotationName: "",
     quotationValue: "",
+    gstPercent: "",
     dateOfQuotation: "",
     notes: "",
     isNegotiated: false
@@ -246,6 +248,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     setEditFormData({
       quotationName: quotation.quotationName || "Main Quote",
       quotationValue: quotation.quotationValue || "",
+      gstPercent: quotation.gstPercent || "",
       dateOfQuotation: quotation.dateOfQuotation || "",
       notes: quotation.notes || "",
       isNegotiated: quotation.isNegotiated || false
@@ -256,7 +259,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   const handleCloseEditModal = () => {
     setIsEditModalOpen(false);
     setEditingQuote(null);
-    setEditFormData({ quotationName: "", quotationValue: "", dateOfQuotation: "", notes: "", isNegotiated: false });
+    setEditFormData({ quotationName: "", quotationValue: "", gstPercent: "", dateOfQuotation: "", notes: "", isNegotiated: false });
   };
 
   // Update quote mutation — routes to per-file endpoint when quoteFileId is set
@@ -269,11 +272,12 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
           displayName: data.updates.quotationName || null,
         };
         const response = await apiRequest('PATCH', `/api/quote-files/${data.quoteFileId}`, fileUpdates);
-        // Also update pv-level fields (notes, isNegotiated, dateOfQuotation) on the parent PV
+        // Also update pv-level fields (notes, isNegotiated, dateOfQuotation, gstPercent) on the parent PV
         const pvUpdates = {
           notes: data.updates.notes || null,
           dateOfQuotation: data.updates.dateOfQuotation || null,
           isNegotiated: data.updates.isNegotiated,
+          gstPercent: data.updates.gstPercent || null,
         };
         await apiRequest('PUT', `/api/project-vendors/${data.quoteId}`, pvUpdates);
         return response.json();
@@ -311,6 +315,7 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
       updates: {
         quotationName: editFormData.quotationName || "Main Quote",
         quotationValue: editFormData.quotationValue || null,
+        gstPercent: editFormData.gstPercent || null,
         dateOfQuotation: editFormData.dateOfQuotation || null,
         notes: editFormData.notes || null,
         isNegotiated: editFormData.isNegotiated
