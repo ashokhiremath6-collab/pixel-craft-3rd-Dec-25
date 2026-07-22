@@ -56,7 +56,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Shield, User, Crown, Eye, AlertTriangle, X, ChevronDown, Briefcase, RefreshCw } from "lucide-react";
-import { VendorSearchBox } from "@/components/VendorSearchBox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -257,7 +256,6 @@ function AuthenticatedApp({ onPreviewClientPortal, onPreviewAsPM, onExitPMPrevie
                 </h1>
               </div>
             </div>
-            <VendorSearchBox />
             <div className="flex items-center gap-1 sm:gap-3 shrink-0">
               {user && isProjectManager && (
                 <button

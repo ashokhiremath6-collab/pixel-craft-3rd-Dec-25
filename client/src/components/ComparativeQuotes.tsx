@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { sortProjectsForDropdown } from "@/lib/projectSort";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -125,6 +125,8 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
   }, [projects, selectedProject, initialProject]);
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory ?? "all");
   const [vendorSearch, setVendorSearch] = useState<string>("");
+  const [vendorDropdownOpen, setVendorDropdownOpen] = useState(false);
+  const vendorSearchRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [highlightedQuoteId, setHighlightedQuoteId] = useState<string | null>(initialQuoteId ?? null);
@@ -430,6 +432,17 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
     }
   };
 
+  // Click-outside closes vendor autocomplete
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (vendorSearchRef.current && !vendorSearchRef.current.contains(e.target as Node)) {
+        setVendorDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   // Get all quotations
   const allQuotations = Object.entries(quotations).flatMap(([projectId, quots]) =>
     quots.map(q => ({
@@ -438,6 +451,17 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
       projectName: projects.find(p => p.id === projectId)?.projectName || 'Unknown'
     }))
   );
+
+  // Unique vendor names for the current project (for autocomplete dropdown)
+  const vendorNameSuggestions = useMemo(() => {
+    const term = vendorSearch.trim().toLowerCase();
+    if (!term) return [];
+    const projectQuotes = selectedProject
+      ? allQuotations.filter(q => q.projectId === selectedProject)
+      : allQuotations;
+    const names = Array.from(new Set(projectQuotes.map(q => q.vendorName))).sort();
+    return names.filter(n => n.toLowerCase().includes(term));
+  }, [allQuotations, vendorSearch, selectedProject]);
 
   // Helper function to build category tree structure
   const buildCategoryTree = (categories: VendorCategory[]): CategoryWithChildren[] => {
@@ -1127,25 +1151,42 @@ export default function ComparativeQuotes({ projects, categories, quotations, on
               </Select>
             </div>
 
-            <div className="flex-1">
+            <div className="flex-1" ref={vendorSearchRef}>
               <label className="text-xs font-medium mb-1 block">Vendor</label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                 <Input
                   placeholder="Search vendor name..."
                   value={vendorSearch}
-                  onChange={(e) => setVendorSearch(e.target.value)}
+                  onChange={(e) => { setVendorSearch(e.target.value); setVendorDropdownOpen(true); }}
+                  onFocus={() => { if (vendorSearch) setVendorDropdownOpen(true); }}
                   className="h-8 pl-8 pr-7 text-sm"
                   data-testid="input-vendor-search"
                 />
                 {vendorSearch && (
                   <button
                     type="button"
-                    onClick={() => setVendorSearch("")}
+                    onClick={() => { setVendorSearch(""); setVendorDropdownOpen(false); }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
+                )}
+                {vendorDropdownOpen && vendorNameSuggestions.length > 0 && (
+                  <div className="absolute z-50 top-full mt-1 w-full bg-popover border border-border rounded-md shadow-md max-h-48 overflow-y-auto">
+                    {vendorNameSuggestions.map((name) => (
+                      <div
+                        key={name}
+                        className="px-3 py-2 text-sm cursor-pointer hover-elevate"
+                        onMouseDown={() => {
+                          setVendorSearch(name);
+                          setVendorDropdownOpen(false);
+                        }}
+                      >
+                        {name}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>

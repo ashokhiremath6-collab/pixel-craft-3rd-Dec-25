@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
-import { Search, Plus, Filter, ChevronRight, ChevronDown, FolderPlus, Edit, Trash2, Phone, Mail, User, Building2, Users, FileText, AlertTriangle, ArrowRightLeft, Send } from "lucide-react";
+import { Search, Plus, Filter, ChevronRight, ChevronDown, FolderPlus, Edit, Trash2, Phone, Mail, User, Building2, Users, FileText, AlertTriangle, ArrowRightLeft, Send, X } from "lucide-react";
 import InviteVendorDialog from "./InviteVendorDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -161,6 +161,8 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
   const { user } = useAuth();
   const canSeeRfqStatus = user?.role === 'admin' || user?.role === 'designer';
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isMainCategoryDialogOpen, setIsMainCategoryDialogOpen] = useState(false);
   const [isSubcategoryDialogOpen, setIsSubcategoryDialogOpen] = useState(false);
@@ -274,9 +276,32 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
     return map;
   }, [invitations]);
 
+  // Click-outside closes vendor autocomplete
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setSearchDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // Sorted unique vendor suggestions for autocomplete
+  const vendorSuggestions = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return [];
+    return vendors
+      .filter(v =>
+        v.name.toLowerCase().includes(term) ||
+        v.contactPerson.toLowerCase().includes(term)
+      )
+      .slice(0, 8);
+  }, [vendors, searchTerm]);
+
   const handleSearch = (value: string) => {
     setSearchTerm(value);
-    console.log('Search term:', value);
+    setSearchDropdownOpen(true);
   };
 
   const handleCategoryFilter = (categoryId: string) => {
@@ -1368,16 +1393,47 @@ export default function VendorList({ vendors, categories, onAddVendor, onEditVen
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
+            <div className="flex-1" ref={searchContainerRef}>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <Input
                   placeholder="Search vendors or contacts..."
                   value={searchTerm}
                   onChange={(e) => handleSearch(e.target.value)}
-                  className="pl-10"
+                  onFocus={() => { if (searchTerm) setSearchDropdownOpen(true); }}
+                  className="pl-10 pr-8"
                   data-testid="input-search-vendors"
                 />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => { setSearchTerm(""); setSearchDropdownOpen(false); }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {searchDropdownOpen && vendorSuggestions.length > 0 && (
+                  <div className="absolute z-50 top-full mt-1 w-full bg-popover border border-border rounded-md shadow-md max-h-60 overflow-y-auto">
+                    {vendorSuggestions.map((vendor) => {
+                      const cat = categoryMap[vendor.categoryId];
+                      return (
+                        <div
+                          key={vendor.id}
+                          className="px-3 py-2 cursor-pointer hover-elevate"
+                          onMouseDown={() => {
+                            setSearchTerm(vendor.name);
+                            setSelectedCategory("all");
+                            setSearchDropdownOpen(false);
+                          }}
+                        >
+                          <p className="text-sm font-medium">{vendor.name}</p>
+                          {cat && <p className="text-xs text-muted-foreground">{cat.name}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
             <Select value={selectedCategory} onValueChange={handleCategoryFilter}>
