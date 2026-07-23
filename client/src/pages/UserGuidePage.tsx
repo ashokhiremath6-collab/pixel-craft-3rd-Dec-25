@@ -129,7 +129,7 @@ const sections: Section[] = [
         <Heading>Role overview</Heading>
         <RoleTable />
         <Heading>Inviting users</Heading>
-        <StepList={[
+        <StepList steps={[
           "Go to Settings in the sidebar.",
           "For studio staff (Designers, Project Managers): use the Team Members section to invite by email and select a role.",
           "For clients: go to Client Access, pick the project, and send an invitation link.",
@@ -147,7 +147,7 @@ const sections: Section[] = [
       <SectionContent>
         <Para>Projects are the core of the platform. Every piece of work — drawings, vendors, schedules, renders — is organised under a project.</Para>
         <Heading>Creating a project</Heading>
-        <StepList={[
+        <StepList steps={[
           'Go to "Projects" in the sidebar.',
           'Click "Add Project" and fill in the project name, client name, and budget.',
           "The project will appear in your dashboard and is immediately accessible to your team.",
@@ -175,7 +175,7 @@ const sections: Section[] = [
       <SectionContent>
         <Para>Each project has a dedicated chat thread where your team can communicate and share files. PDFs and images are rendered inline — no need to download them to view.</Para>
         <Heading>How to use chat</Heading>
-        <StepList={[
+        <StepList steps={[
           'Go to "Chat" in the sidebar.',
           "Select the project from the dropdown at the top.",
           "Type your message and press Enter or click Send.",
@@ -196,7 +196,7 @@ const sections: Section[] = [
         <Para>The vendor management system covers the entire procurement workflow — from your vendor database to comparing quotes and generating works orders.</Para>
         <Heading>Vendors by Category</Heading>
         <Para>Your studio's master vendor list, organised by trade category (e.g. Flooring, Lighting, Furniture). Add vendors once and reuse them across all projects.</Para>
-        <StepList={[
+        <StepList steps={[
           'Open "Vendors by Category" in the sidebar.',
           'Click "Add Vendor" to create a new vendor with contact details and category.',
           "Vendors are shared across all projects in your org.",
@@ -221,7 +221,7 @@ const sections: Section[] = [
       <SectionContent>
         <Para>The Gantt chart gives you a visual timeline of every task in a project, with support for dependencies, critical path analysis, and up to 250 tasks per project.</Para>
         <Heading>Creating tasks</Heading>
-        <StepList={[
+        <StepList steps={[
           'Open "Project scheduling" in the sidebar.',
           "Select the project from the dropdown.",
           'Click "Add Task", enter a name, start date, and duration.',
@@ -288,7 +288,7 @@ const sections: Section[] = [
       <SectionContent>
         <Para>Generate photorealistic interior renders using Gemini 2.5 Flash. Describe the space, select a style, and the AI produces a high-quality image in seconds.</Para>
         <Heading>Creating a render</Heading>
-        <StepList={[
+        <StepList steps={[
           'Open "AI Renders" in the sidebar.',
           "Write a description of the space, style, and mood.",
           "Choose a style preset (e.g. Modern, Japandi, Maximalist).",
@@ -320,7 +320,7 @@ const sections: Section[] = [
         ]} />
         <Heading>Saved Assets library</Heading>
         <Para>All processed assets land in the Saved Assets library with their AI-generated description and tags. You can search by keyword, filter by source type, and insert them directly into AI render prompts or moodboards.</Para>
-        <StepList={[
+        <StepList steps={[
           'Open "Asset Ingestion" in the sidebar.',
           'Click "Upload Image" and select your file.',
           "Choose Analyse Only or AI Edit mode.",
@@ -337,7 +337,7 @@ const sections: Section[] = [
       <SectionContent>
         <Para>The Catalogue is your studio's product reference library. Log products by category (acoustics, flooring, lighting, kitchens, etc.) with vendor, brand, description, and supporting files.</Para>
         <Heading>Adding a catalogue item</Heading>
-        <StepList={[
+        <StepList steps={[
           'Open "Catalogues" in the sidebar.',
           'Click "Add Item".',
           "Select the Main Category and Subcategory.",
@@ -360,7 +360,7 @@ const sections: Section[] = [
       <SectionContent>
         <Para>Specifications store technical requirement documents per category — materials, finishes, fixtures, equipment — for each project.</Para>
         <Heading>Adding specifications</Heading>
-        <StepList={[
+        <StepList steps={[
           'Open "Specifications" in the sidebar.',
           "Select the project.",
           'Click "Add Specification", choose a category, and upload or type the specification content.',
@@ -384,7 +384,7 @@ const sections: Section[] = [
           { icon: Lock, label: "Delete", desc: "Admin only." },
         ]} />
         <Heading>Adding an SOP</Heading>
-        <StepList={[
+        <StepList steps={[
           'Open "SOPs" in the sidebar.',
           'Click "New SOP".',
           "Give it a title, select a category, and write the content using the rich text editor.",
@@ -403,7 +403,7 @@ const sections: Section[] = [
       <SectionContent>
         <Para>Log structured meeting records per project — attendees, agenda, decisions, and action items — so nothing is lost after a client or team meeting.</Para>
         <Heading>Creating meeting minutes</Heading>
-        <StepList={[
+        <StepList steps={[
           'Open "Meeting Minutes" in the sidebar.',
           "Select the project.",
           'Click "Add Minutes".',
@@ -432,7 +432,7 @@ const sections: Section[] = [
           { icon: Calendar, label: "Meeting Minutes", desc: "Records of all meetings." },
         ]} />
         <Heading>Inviting a client</Heading>
-        <StepList={[
+        <StepList steps={[
           "Go to Settings → Client Access.",
           "Select the project and enter the client's email address.",
           "Click Send Invitation — the client receives an email with a login link.",
