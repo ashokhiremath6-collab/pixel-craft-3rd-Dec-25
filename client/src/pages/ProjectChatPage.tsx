@@ -222,6 +222,7 @@ export default function ProjectChatPage() {
   const canSend = (draft.trim().length > 0 || !!fileAttachment) && !sendMutation.isPending;
 
   return (
+    <>
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center gap-4 px-6 py-4 border-b shrink-0">
@@ -454,7 +455,6 @@ export default function ProjectChatPage() {
         </div>
       )}
     </div>
-
     {/* PDF Viewer Modal */}
     <Dialog open={!!pdfModal} onOpenChange={(open) => { if (!open) setPdfModal(null); }}>
       <DialogContent className="max-w-5xl w-full h-[90vh] flex flex-col p-0 gap-0">
@@ -481,5 +481,6 @@ export default function ProjectChatPage() {
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
