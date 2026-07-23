@@ -10166,7 +10166,7 @@ If you cannot find any total amount at all, respond with:
     }
   });
 
-  // GET /api/projects/:id/messages/:messageId/attachment — serve signed download URL
+  // GET /api/projects/:id/messages/:messageId/attachment — proxy file bytes directly
   app.get("/api/projects/:id/messages/:messageId/attachment", requireAuth, async (req: any, res) => {
     try {
       const { id: projectId, messageId } = req.params;
@@ -10183,6 +10183,9 @@ If you cannot find any total amount at all, respond with:
       const msg = messages.find((m: any) => m.id === messageId);
       if (!msg || !(msg as any).attachmentPath) return res.status(404).json({ error: "Attachment not found" });
 
+      const attachmentName: string = (msg as any).attachmentName || "file";
+      const isPdf = attachmentName.toLowerCase().endsWith(".pdf");
+
       const objectStorageService = new ObjectStorageService();
       const objectFile = await objectStorageService.getObjectEntityFile((msg as any).attachmentPath);
       const signed = await signObjectURL({
@@ -10191,7 +10194,21 @@ If you cannot find any total amount at all, respond with:
         method: "GET",
         ttlSec: 3600,
       });
-      res.redirect(signed);
+
+      // Proxy the bytes so the client always gets same-origin content (no CORS issues)
+      const upstream = await fetch(signed);
+      if (!upstream.ok) return res.status(502).json({ error: "Failed to fetch file from storage" });
+
+      const contentType = isPdf ? "application/pdf" : (upstream.headers.get("content-type") || "application/octet-stream");
+      const disposition = isPdf ? "inline" : `attachment; filename="${encodeURIComponent(attachmentName)}"`;
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Content-Disposition", `${disposition}; filename="${encodeURIComponent(attachmentName)}"`);
+      const cl = upstream.headers.get("content-length");
+      if (cl) res.setHeader("Content-Length", cl);
+
+      const { Readable } = await import("stream");
+      const nodeStream = Readable.fromWeb(upstream.body as any);
+      nodeStream.pipe(res);
     } catch (err) {
       console.error("GET chat attachment error:", err);
       res.status(500).json({ error: "Failed to retrieve attachment" });
