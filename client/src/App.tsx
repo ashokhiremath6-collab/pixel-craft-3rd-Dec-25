@@ -51,6 +51,7 @@ import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import SignUpPage from "@/pages/SignUpPage";
 import InviteAcceptPage from "@/pages/InviteAcceptPage";
 import OrgEntryPage from "@/pages/OrgEntryPage";
+import UserGuidePage from "@/pages/UserGuidePage";
 import OnboardingWizard from "@/components/OnboardingWizard";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -104,6 +105,7 @@ function Router() {
       <Route path="/sops" component={SOPsPage} />
       <Route path="/chat" component={ProjectChatPage} />
       <Route path="/accessories-checklist" component={AccessoriesChecklistPage} />
+      <Route path="/user-guide" component={UserGuidePage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/account" component={AccountPage} />
       <Route path="/superadmin" component={SuperAdminPage} />

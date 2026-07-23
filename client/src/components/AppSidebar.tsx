@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList, Lightbulb, PackageCheck, ChevronDown, Check, MessageSquare } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList, Lightbulb, PackageCheck, ChevronDown, Check, MessageSquare, HelpCircle } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -71,6 +71,7 @@ const settingsItems: NavigationItem[] = [
 
 const accountItems: NavigationItem[] = [
   { title: "Account", url: "/account", icon: User },
+  { title: "User Guide", url: "/user-guide", icon: HelpCircle },
 ];
 
 const projectManagerItems: NavigationItem[] = [
