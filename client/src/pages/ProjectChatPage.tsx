@@ -95,7 +95,9 @@ export default function ProjectChatPage() {
       .then(r => r.blob())
       .then(blob => {
         if (cancelled) return;
-        const blobUrl = URL.createObjectURL(blob);
+        // Force MIME type — GCS signed URLs may return application/octet-stream
+        const pdfBlob = new Blob([blob], { type: "application/pdf" });
+        const blobUrl = URL.createObjectURL(pdfBlob);
         setPdfBlobUrl(blobUrl);
       })
       .catch(() => {
@@ -504,10 +506,10 @@ export default function ProjectChatPage() {
             </div>
           )}
           {pdfBlobUrl && (
-            <iframe
+            <embed
               src={pdfBlobUrl}
-              title={pdfModal?.name}
-              className="w-full h-full border-0"
+              type="application/pdf"
+              className="w-full h-full"
             />
           )}
         </div>
