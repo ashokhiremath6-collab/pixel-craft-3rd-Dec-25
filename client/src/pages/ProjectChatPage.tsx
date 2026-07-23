@@ -13,7 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Send, MessageSquare, Trash2, Paperclip, X, FileText, Download } from "lucide-react";
+import { Send, MessageSquare, Trash2, Paperclip, X, FileText, Download, ExternalLink } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDistanceToNow } from "date-fns";
 import type { Project } from "@shared/schema";
 
@@ -78,6 +79,7 @@ export default function ProjectChatPage() {
   const [draft, setDraft] = useState("");
   const [fileAttachment, setFileAttachment] = useState<File | null>(null);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const [pdfModal, setPdfModal] = useState<{ url: string; name: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -333,22 +335,49 @@ export default function ProjectChatPage() {
                       </a>
                     )}
 
-                    {hasAttachment && !attachIsImage && (
-                      <a
-                        href={attachUrl!}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`flex items-center gap-2 px-3 py-2 rounded ${msg.content ? "mt-1 mx-0" : ""} ${
-                          isMe
-                            ? "text-primary-foreground/90 hover:text-primary-foreground"
-                            : "text-foreground/80 hover:text-foreground"
-                        }`}
-                      >
-                        <FileText className="h-4 w-4 shrink-0" />
-                        <span className="text-sm truncate max-w-[180px]">{msg.attachmentName}</span>
-                        <Download className="h-3.5 w-3.5 shrink-0 ml-auto" />
-                      </a>
-                    )}
+                    {hasAttachment && !attachIsImage && (() => {
+                      const isPdf = msg.attachmentName?.toLowerCase().endsWith(".pdf");
+                      return (
+                        <div className={`flex items-center gap-1 px-3 py-2 rounded ${msg.content ? "mt-1 mx-0" : ""}`}>
+                          {isPdf ? (
+                            <button
+                              type="button"
+                              onClick={() => setPdfModal({ url: attachUrl!, name: msg.attachmentName! })}
+                              className={`flex items-center gap-2 flex-1 min-w-0 text-left ${
+                                isMe ? "text-primary-foreground/90 hover:text-primary-foreground" : "text-foreground/80 hover:text-foreground"
+                              }`}
+                            >
+                              <FileText className="h-4 w-4 shrink-0" />
+                              <span className="text-sm truncate max-w-[160px]">{msg.attachmentName}</span>
+                            </button>
+                          ) : (
+                            <a
+                              href={attachUrl!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`flex items-center gap-2 flex-1 min-w-0 ${
+                                isMe ? "text-primary-foreground/90 hover:text-primary-foreground" : "text-foreground/80 hover:text-foreground"
+                              }`}
+                            >
+                              <FileText className="h-4 w-4 shrink-0" />
+                              <span className="text-sm truncate max-w-[160px]">{msg.attachmentName}</span>
+                              <Download className="h-3.5 w-3.5 shrink-0 ml-auto" />
+                            </a>
+                          )}
+                          {isPdf && (
+                            <a
+                              href={attachUrl!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Open in new tab"
+                              className={`shrink-0 ml-1 ${isMe ? "text-primary-foreground/60 hover:text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -425,5 +454,32 @@ export default function ProjectChatPage() {
         </div>
       )}
     </div>
+
+    {/* PDF Viewer Modal */}
+    <Dialog open={!!pdfModal} onOpenChange={(open) => { if (!open) setPdfModal(null); }}>
+      <DialogContent className="max-w-5xl w-full h-[90vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between">
+          <DialogTitle className="text-sm font-medium truncate pr-4">{pdfModal?.name}</DialogTitle>
+          <a
+            href={pdfModal?.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open in new tab"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </DialogHeader>
+        <div className="flex-1 min-h-0">
+          {pdfModal && (
+            <iframe
+              src={pdfModal.url}
+              title={pdfModal.name}
+              className="w-full h-full border-0"
+            />
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
