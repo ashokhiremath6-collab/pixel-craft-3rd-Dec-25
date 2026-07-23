@@ -130,8 +130,6 @@ import {
   projectMessages,
   type InsertProjectMessage,
   type ProjectMessage,
-  drawingChecklistItems,
-  type DrawingChecklistItem,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -407,10 +405,6 @@ export interface IStorage {
   createSop(sop: InsertSop): Promise<Sop>;
   updateSop(id: string, sop: Partial<InsertSop>): Promise<Sop | undefined>;
   deleteSop(id: string): Promise<boolean>;
-
-  // Drawing Checklist
-  getDrawingChecklistOverrides(projectId: string, orgId: string): Promise<DrawingChecklistItem[]>;
-  setDrawingChecklistOverride(projectId: string, orgId: string, category: string, status: string | null): Promise<void>;
 
   // Project Messages
   getProjectMessages(projectId: string): Promise<ProjectMessage[]>;
@@ -4340,33 +4334,6 @@ export class DBStorage implements IStorage {
     return result;
   }
 
-  async getDrawingChecklistOverrides(projectId: string, orgId: string): Promise<DrawingChecklistItem[]> {
-    return await db
-      .select()
-      .from(drawingChecklistItems)
-      .where(and(eq(drawingChecklistItems.projectId, projectId), eq(drawingChecklistItems.orgId, orgId)));
-  }
-
-  async setDrawingChecklistOverride(projectId: string, orgId: string, category: string, status: string | null): Promise<void> {
-    if (status === null) {
-      // Remove the override (revert to derived state)
-      await db
-        .delete(drawingChecklistItems)
-        .where(and(
-          eq(drawingChecklistItems.projectId, projectId),
-          eq(drawingChecklistItems.orgId, orgId),
-          eq(drawingChecklistItems.category, category),
-        ));
-    } else {
-      await db
-        .insert(drawingChecklistItems)
-        .values({ projectId, orgId, category, status, updatedAt: new Date() })
-        .onConflictDoUpdate({
-          target: [drawingChecklistItems.projectId, drawingChecklistItems.category],
-          set: { status, updatedAt: new Date() },
-        });
-    }
-  }
 }
 
 export const storage = new DBStorage();

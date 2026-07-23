@@ -1389,21 +1389,3 @@ export const projectMessages = pgTable("project_messages", {
 export const insertProjectMessageSchema = createInsertSchema(projectMessages).omit({ id: true, createdAt: true });
 export type InsertProjectMessage = z.infer<typeof insertProjectMessageSchema>;
 export type ProjectMessage = typeof projectMessages.$inferSelect;
-
-// Drawing Checklist Items — per-project override marking a category as "not_required"
-// Uploaded / missing states are derived at runtime by querying the drawings table.
-export const drawingChecklistItems = pgTable("drawing_checklist_items", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-  orgId: varchar("org_id").notNull(),
-  category: text("category").notNull(),
-  status: text("status").notNull().default("not_required"),
-  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
-}, (table) => ({
-  projectIdx: index("drawing_checklist_project_idx").on(table.projectId),
-  orgIdx: index("drawing_checklist_org_idx").on(table.orgId),
-  uniqueProjectCat: uniqueIndex("drawing_checklist_project_cat_unique").on(table.projectId, table.category),
-}));
-
-export type DrawingChecklistItem = typeof drawingChecklistItems.$inferSelect;
-export type InsertDrawingChecklistItem = typeof drawingChecklistItems.$inferInsert;
