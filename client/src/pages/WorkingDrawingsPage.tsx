@@ -1277,6 +1277,7 @@ export default function WorkingDrawingsPage({ drawingType = "working" }: { drawi
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: drawingsKey });
       qc.invalidateQueries({ queryKey: roomsKey });
+      qc.invalidateQueries({ queryKey: ["/api/projects", activeProjectId, "drawing-checklist"] });
       toast({ title: "Drawing deleted" });
       setDeletingDrawing(null);
     },
@@ -1299,6 +1300,7 @@ export default function WorkingDrawingsPage({ drawingType = "working" }: { drawi
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: drawingsKey });
       qc.invalidateQueries({ queryKey: roomsKey });
+      qc.invalidateQueries({ queryKey: ["/api/projects", activeProjectId, "drawing-checklist"] });
       toast({ title: "Drawing moved" });
       setMovingDrawing(null);
     },
@@ -1865,6 +1867,7 @@ export default function WorkingDrawingsPage({ drawingType = "working" }: { drawi
         onComplete={() => {
           qc.invalidateQueries({ queryKey: drawingsKey });
           qc.invalidateQueries({ queryKey: roomsKey });
+          qc.invalidateQueries({ queryKey: ["/api/projects", activeProjectId, "drawing-checklist"] });
         }}
       />
 
