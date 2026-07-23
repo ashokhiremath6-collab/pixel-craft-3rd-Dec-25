@@ -93,6 +93,19 @@ app.use((req, res, next) => {
     console.warn("Vendor org backfill skipped:", err);
   }
 
+  // Upgrade Supriya Hiremath Vora Designs to pro plan so catalogue/project limits don't apply.
+  // Idempotent — no-op if already on pro.
+  try {
+    await db.execute(sql`
+      UPDATE organisations
+      SET plan = 'pro'
+      WHERE id = 'cc05b280-74c7-4e9a-ae92-3d5a50207b07'
+        AND plan != 'pro'
+    `);
+  } catch (err) {
+    console.warn("Org plan upgrade skipped:", err);
+  }
+
   // One-time backfill: assign any remaining null-org catalogue_items to Vora Designs.
   // 126 items in production were created before org scoping was introduced.
   // Idempotent: no-op once all rows have an org_id.
