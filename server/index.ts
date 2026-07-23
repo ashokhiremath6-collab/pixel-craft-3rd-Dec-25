@@ -93,6 +93,22 @@ app.use((req, res, next) => {
     console.warn("Vendor org backfill skipped:", err);
   }
 
+  // One-time backfill: assign any remaining null-org catalogue_items to Vora Designs.
+  // 126 items in production were created before org scoping was introduced.
+  // Idempotent: no-op once all rows have an org_id.
+  try {
+    await db.execute(sql`
+      UPDATE catalogue_items
+      SET org_id = 'cc05b280-74c7-4e9a-ae92-3d5a50207b07'
+      WHERE org_id IS NULL
+        AND EXISTS (
+          SELECT 1 FROM organisations WHERE id = 'cc05b280-74c7-4e9a-ae92-3d5a50207b07'
+        )
+    `);
+  } catch (err) {
+    console.warn("Catalogue items org backfill skipped:", err);
+  }
+
   // Backfill null-org activity_log entries in production.
   // Pass 1: derive org from project (most activity has a projectId).
   // Pass 2: for vendor activities without a project, derive from vendors.org_id.
