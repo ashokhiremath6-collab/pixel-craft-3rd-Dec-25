@@ -80,6 +80,30 @@ export default function ProjectChatPage() {
   const [fileAttachment, setFileAttachment] = useState<File | null>(null);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [pdfModal, setPdfModal] = useState<{ url: string; name: string } | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  // When a PDF is selected, fetch it as a blob so browser PDF extensions can't intercept it
+  useEffect(() => {
+    if (!pdfModal) {
+      if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); setPdfBlobUrl(null); }
+      return;
+    }
+    let cancelled = false;
+    setPdfLoading(true);
+    fetch(pdfModal.url, { credentials: "include" })
+      .then(r => r.blob())
+      .then(blob => {
+        if (cancelled) return;
+        const blobUrl = URL.createObjectURL(blob);
+        setPdfBlobUrl(blobUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setPdfBlobUrl(null);
+      })
+      .finally(() => { if (!cancelled) setPdfLoading(false); });
+    return () => { cancelled = true; };
+  }, [pdfModal]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -470,11 +494,19 @@ export default function ProjectChatPage() {
             <ExternalLink className="h-4 w-4" />
           </a>
         </DialogHeader>
-        <div className="flex-1 min-h-0">
-          {pdfModal && (
+        <div className="flex-1 min-h-0 relative">
+          {pdfLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                <span className="text-sm">Loading PDF…</span>
+              </div>
+            </div>
+          )}
+          {pdfBlobUrl && (
             <iframe
-              src={pdfModal.url}
-              title={pdfModal.name}
+              src={pdfBlobUrl}
+              title={pdfModal?.name}
               className="w-full h-full border-0"
             />
           )}
