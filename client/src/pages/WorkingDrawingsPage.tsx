@@ -80,6 +80,7 @@ import {
   Clock,
   RotateCcw,
   Sparkles,
+  MinusCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Project } from "@shared/schema";
@@ -131,6 +132,8 @@ type FullRevision = DrawingRevision & {
 };
 
 type DrawingCategory = { id: string; name: string };
+
+type ChecklistItem = { category: string; status: "uploaded" | "missing" | "not_required"; count: number };
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -767,6 +770,109 @@ function AddRoomForm({ onAdd }: { onAdd: (name: string, roomType: string) => Pro
   );
 }
 
+// ── Drawing Checklist ─────────────────────────────────────────────────────────
+
+function DrawingChecklist({ projectId, userRole }: {
+  projectId: string;
+  userRole: string;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+
+  const checklistKey = ["/api/projects", projectId, "drawing-checklist"];
+
+  const { data: checklist = [], isLoading } = useQuery<ChecklistItem[]>({
+    queryKey: checklistKey,
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/drawing-checklist`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load checklist");
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: async ({ category, currentStatus }: { category: string; currentStatus: string }) => {
+      const newStatus = currentStatus === "not_required" ? null : "not_required";
+      const res = await apiRequest("PATCH", `/api/projects/${projectId}/drawing-checklist/${encodeURIComponent(category)}`, { status: newStatus });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to update");
+      return body;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: checklistKey }),
+    onError: (err: Error) => toast({ title: "Could not update", description: err.message, variant: "destructive" }),
+  });
+
+  const canEdit = ["admin", "designer"].includes(userRole);
+
+  const required = checklist.filter(c => c.status !== "not_required");
+  const uploaded = required.filter(c => c.status === "uploaded");
+  const allDone = required.length > 0 && uploaded.length === required.length;
+
+  const summaryLabel = isLoading
+    ? "Loading…"
+    : required.length === 0
+      ? "All categories marked not required"
+      : `${uploaded.length} of ${required.length} required categories uploaded`;
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="mb-3">
+      <CollapsibleTrigger asChild>
+        <button className="w-full flex items-center justify-between px-4 py-3 bg-muted/40 hover-elevate rounded-md text-left border border-border/60">
+          <div className="flex items-center gap-2 flex-wrap">
+            {open ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+            <span className="font-medium text-sm">Drawing Checklist</span>
+            {!isLoading && (
+              <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium ${allDone ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"}`}>
+                {summaryLabel}
+              </span>
+            )}
+          </div>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="border border-t-0 rounded-b-md overflow-hidden divide-y">
+          {isLoading ? (
+            <div className="px-4 py-6 flex items-center justify-center">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : checklist.map(item => (
+            <div
+              key={item.category}
+              className={`flex items-center gap-3 px-4 py-2.5 ${item.status === "not_required" ? "opacity-50" : ""}`}
+            >
+              {item.status === "uploaded" && <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />}
+              {item.status === "missing" && <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />}
+              {item.status === "not_required" && <MinusCircle className="h-4 w-4 text-muted-foreground shrink-0" />}
+              <span className={`text-sm flex-1 ${item.status === "not_required" ? "line-through text-muted-foreground" : ""}`}>
+                {item.category}
+              </span>
+              {item.status === "uploaded" && (
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {item.count} {item.count === 1 ? "drawing" : "drawings"}
+                </span>
+              )}
+              {canEdit && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs text-muted-foreground shrink-0"
+                  onClick={() => toggleMut.mutate({ category: item.category, currentStatus: item.status })}
+                  disabled={toggleMut.isPending}
+                  title={item.status === "not_required" ? "Mark as required" : "Mark as not required"}
+                >
+                  {item.status === "not_required" ? "Mark required" : "Not required"}
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 // ── Batch upload dialog ───────────────────────────────────────────────────────
 
 type FileEntry = {
@@ -1013,6 +1119,7 @@ function UploadBatchDialog({ open, onOpenChange, rooms, projectId, onComplete, c
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function WorkingDrawingsPage({ drawingType = "working" }: { drawingType?: "working" | "concept" }) {
+  const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
   const search = useSearch();
@@ -1444,6 +1551,10 @@ export default function WorkingDrawingsPage({ drawingType = "working" }: { drawi
 
       {/* Body */}
       <div className="flex-1 overflow-auto px-6 py-4">
+        {/* Drawing Checklist — only for working drawings */}
+        {activeProjectId && drawingType === "working" && (
+          <DrawingChecklist projectId={activeProjectId} userRole={user?.role ?? ""} />
+        )}
         {!activeProjectId ? (
           <div className="flex items-center justify-center h-64 text-muted-foreground">
             <p>Select a project to view drawings.</p>

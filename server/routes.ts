@@ -15598,6 +15598,90 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // ── Drawing Checklist ─────────────────────────────────────────────────────
+
+  const DRAWING_CHECKLIST_CATEGORIES = [
+    "Floor Plan",
+    "Reflected Ceiling Plan",
+    "Elevation",
+    "Section",
+    "Joinery Detail",
+    "Electrical Layout",
+    "Plumbing Layout",
+    "HVAC Layout",
+    "Furniture Layout",
+    "Finishes Schedule",
+    "Hardware Schedule",
+    "Door & Window Schedule",
+    "Site Plan",
+  ];
+
+  // GET /api/projects/:id/drawing-checklist
+  app.get("/api/projects/:id/drawing-checklist", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { id: projectId } = req.params;
+      if (!orgId) return res.status(403).json({ error: "Forbidden" });
+
+      const { drawings: drawingsTable } = await import("@shared/schema");
+      const { db: reqDb } = await import("./db");
+      const { eq, and, inArray, sql: sqlFn } = await import("drizzle-orm");
+
+      // Get overrides (not_required)
+      const overrides = await storage.getDrawingChecklistOverrides(projectId, orgId);
+      const overrideMap = new Map(overrides.map(o => [o.category, o.status]));
+
+      // Count drawings per category for this project
+      const countRows = await reqDb
+        .select({
+          category: drawingsTable.category,
+          count: sqlFn<number>`cast(count(*) as int)`,
+        })
+        .from(drawingsTable)
+        .where(and(eq(drawingsTable.projectId, projectId), eq(drawingsTable.orgId, orgId), eq(drawingsTable.drawingType, "working")))
+        .groupBy(drawingsTable.category);
+      const countMap = new Map(countRows.map(r => [r.category, r.count]));
+
+      const checklist = DRAWING_CHECKLIST_CATEGORIES.map(cat => {
+        const overrideStatus = overrideMap.get(cat);
+        const count = countMap.get(cat) ?? 0;
+        let status: string;
+        if (overrideStatus === "not_required") {
+          status = "not_required";
+        } else if (count > 0) {
+          status = "uploaded";
+        } else {
+          status = "missing";
+        }
+        return { category: cat, status, count };
+      });
+
+      res.json(checklist);
+    } catch (err) {
+      console.error("GET /api/projects/:id/drawing-checklist error:", err);
+      res.status(500).json({ error: "Failed to fetch checklist" });
+    }
+  });
+
+  // PATCH /api/projects/:id/drawing-checklist/:category — toggle not_required
+  app.patch("/api/projects/:id/drawing-checklist/:category", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const userRole = req.user?.role;
+      const { id: projectId, category } = req.params;
+      if (!orgId) return res.status(403).json({ error: "Forbidden" });
+      if (!["admin", "designer"].includes(userRole)) return res.status(403).json({ error: "Forbidden" });
+
+      const { status } = req.body;
+      // status === "not_required" to mark, null/undefined to unmark
+      await storage.setDrawingChecklistOverride(projectId, orgId, decodeURIComponent(category), status ?? null);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("PATCH /api/projects/:id/drawing-checklist/:category error:", err);
+      res.status(500).json({ error: "Failed to update checklist" });
+    }
+  });
+
   // Run immediately on startup, then every 24 hours
   runTrialExpiryWarnings();
   setInterval(runTrialExpiryWarnings, 24 * 60 * 60 * 1000);
