@@ -900,7 +900,10 @@ function ProposalSheet({ open, onClose, proposal, briefs, projects }: {
                           if (brief) {
                             if (!form.getValues("clientName")) form.setValue("clientName", brief.clientName);
                             if (!form.getValues("clientEmail") && brief.clientEmail) form.setValue("clientEmail", brief.clientEmail);
-                            if (!form.getValues("proposalTitle")) form.setValue("proposalTitle", `Design Proposal — ${brief.clientName}`);
+                            if (!form.getValues("proposalTitle")) {
+                              const addr = brief.propertyAddress ? `, ${brief.propertyAddress}` : "";
+                              form.setValue("proposalTitle", `Design Proposal — ${brief.clientName}${addr}`);
+                            }
                           }
                         }
                       }}
