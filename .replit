@@ -47,6 +47,7 @@ integrations = ["javascript_object_storage:1.0.0", "javascript_database:1.0.0", 
 [userenv.shared]
 RESEND_API_KEY = "re_YqUaP7bV_CmvvVfsT9LQqqGmsDetsEzG7"
 RESEND_FROM = "noreply@pixelcraftdesigns.com"
+SUPPORT_EMAIL = "ashokhiremath6@gmail.com"
 
 [userenv.production]
 PUBLIC_SIGNUP_ENABLED = "true"
