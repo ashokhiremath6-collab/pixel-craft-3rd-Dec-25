@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { Eye, EyeOff, LogIn, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface LoginPageProps {
   onLoginSuccess?: () => void;
@@ -29,6 +29,10 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [, navigate] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const params = new URLSearchParams(window.location.search);
+  const isVerified = params.get("verified") === "true";
+  const hasError = params.get("error");
 
   const loginForm = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -69,6 +73,18 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {isVerified && (
+            <div className="flex items-start gap-2 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-800">
+              <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-green-600" />
+              <span>Email verified! Sign in below to access your workspace.</span>
+            </div>
+          )}
+          {hasError && (
+            <div className="flex items-start gap-2 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-800">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-red-600" />
+              <span>The verification link is invalid or has already been used. Please sign up again.</span>
+            </div>
+          )}
           <Form {...loginForm}>
             <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
               <FormField

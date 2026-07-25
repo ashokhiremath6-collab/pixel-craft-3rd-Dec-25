@@ -377,9 +377,9 @@ export async function setupAuth(app: Express) {
       const { token } = req.params;
       const user = await storage.verifyEmail(token);
       if (!user) {
-        return res.redirect("/?error=invalid-verification-token");
+        return res.redirect("/login?error=invalid-verification-token");
       }
-      return res.redirect("/?verified=true");
+      return res.redirect("/login?verified=true");
     } catch (err) {
       console.error("[AUTH] Email verification error:", err);
       return res.redirect("/?error=verification-failed");
