@@ -14921,8 +14921,8 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       const {
         Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-        AlignmentType, BorderStyle, WidthType, ShadingType, PageBreak,
-        convertInchesToTwip,
+        AlignmentType, BorderStyle, WidthType, ShadingType,
+        convertInchesToTwip, SectionType, VerticalAlign,
       } = await import("docx");
 
       // ── Palette ────────────────────────────────────────────────────────────
@@ -14963,51 +14963,68 @@ Return your response in the following JSON format only (no markdown, no code blo
       const nextSteps = (proposal as any).nextSteps as string | null | undefined;
 
       // ══════════════════════════════════════════════════════════════════════
-      // SECTION 1 — Cover Page
+      // SECTION 1 — Cover Page  (its own docx section → forced page break)
       // ══════════════════════════════════════════════════════════════════════
-      const coverSection: any[] = [
+      const coverChildren: any[] = [
+        // Vertical spacer so the block sits in the upper-middle of the page
+        new Paragraph({ children: [], spacing: { after: 0, before: 1440 } }), // ~1 inch push-down
+
         // Studio name
         new Paragraph({
           children: [new TextRun({ text: studioName.toUpperCase(), font: "Garamond", size: 56, bold: true, color: DARK })],
           spacing: { after: 80 },
         }),
-        // Divider
+        // Gold rule
         new Paragraph({
-          children: [new TextRun({ text: "\u2014".repeat(12), font: "Garamond", size: 22, color: GOLD })],
-          spacing: { after: 400 },
+          children: [new TextRun({ text: "\u2014".repeat(14), font: "Garamond", size: 22, color: GOLD })],
+          spacing: { after: 480 },
         }),
-        // Document type
+        // "Design Proposal" subtitle
         new Paragraph({
-          children: [new TextRun({ text: "Design Proposal", font: "Garamond", size: 36, color: GRAY, italics: true })],
-          spacing: { after: 100 },
+          children: [new TextRun({ text: "Design Proposal", font: "Garamond", size: 34, color: GRAY, italics: true })],
+          spacing: { after: 80 },
         }),
         // Proposal title
         new Paragraph({
           children: [new TextRun({ text: proposal.proposalTitle, font: "Garamond", size: 44, bold: true, color: DARK })],
-          spacing: { after: 600 },
+          spacing: { after: 720 },
         }),
-        // Two-column: Prepared for / Document info
+        // Two-column: Proposed To / Document Details
+        // cantSplit ensures Word never breaks this row across pages
         new Table({
           width: { size: 100, type: WidthType.PERCENTAGE },
           borders: { top: nb, bottom: nb, left: nb, right: nb, insideH: nb, insideV: nb },
-          rows: [new TableRow({ children: [
-            cell([
-              para([new TextRun({ text: "PROPOSED TO", font: "Garamond", size: 15, color: GOLD, bold: true, characterSpacing: 150 })], { spacing: { after: 80 } }),
-              para([new TextRun({ text: proposal.clientName, font: "Garamond", size: 28, bold: true, color: DARK })], { spacing: { after: 60 } }),
-              ...(proposal.clientEmail ? [para([new TextRun({ text: proposal.clientEmail, font: "Garamond", size: 18, color: GRAY })], { spacing: { after: 60 } })] : []),
-              ...(brief?.propertyAddress ? [para([new TextRun({ text: brief.propertyAddress, font: "Garamond", size: 18, color: GRAY })], { spacing: { after: 0 } })] : []),
-            ], { width: { size: 55, type: WidthType.PERCENTAGE } }),
-            cell([
-              para([new TextRun({ text: "DOCUMENT DETAILS", font: "Garamond", size: 15, color: GOLD, bold: true, characterSpacing: 150 })], { spacing: { after: 80 } }),
-              para([new TextRun({ text: `Date: ${issueDate}`, font: "Garamond", size: 18, color: DARK })], { spacing: { after: 60 } }),
-              para([new TextRun({ text: `Valid until: ${validUntil}`, font: "Garamond", size: 18, color: DARK })], { spacing: { after: 60 } }),
-              para([new TextRun({ text: "Confidential", font: "Garamond", size: 18, color: GRAY, italics: true })], { spacing: { after: 60 } }),
-              ...(brief?.projectType ? [para([new TextRun({ text: `Project type: ${brief.projectType}`, font: "Garamond", size: 18, color: GRAY })], { spacing: { after: 0 } })] : []),
-            ], { width: { size: 45, type: WidthType.PERCENTAGE } }),
-          ]})],
+          rows: [new TableRow({
+            cantSplit: true,
+            children: [
+              new TableCell({
+                borders: noAllBorders,
+                width: { size: 55, type: WidthType.PERCENTAGE },
+                children: [
+                  new Paragraph({ children: [new TextRun({ text: "PROPOSED TO", font: "Garamond", size: 15, color: GOLD, bold: true, characterSpacing: 150 })], spacing: { after: 80 } }),
+                  new Paragraph({ children: [new TextRun({ text: proposal.clientName, font: "Garamond", size: 26, bold: true, color: DARK })], spacing: { after: 60 } }),
+                  ...(proposal.clientEmail ? [new Paragraph({ children: [new TextRun({ text: proposal.clientEmail, font: "Garamond", size: 18, color: GRAY })], spacing: { after: 60 } })] : []),
+                  ...(brief?.propertyAddress ? [new Paragraph({ children: [new TextRun({ text: brief.propertyAddress, font: "Garamond", size: 18, color: GRAY })], spacing: { after: 0 } })] : [
+                    new Paragraph({ children: [], spacing: { after: 0 } }),
+                  ]),
+                ],
+              }),
+              new TableCell({
+                borders: noAllBorders,
+                width: { size: 45, type: WidthType.PERCENTAGE },
+                children: [
+                  new Paragraph({ children: [new TextRun({ text: "DOCUMENT DETAILS", font: "Garamond", size: 15, color: GOLD, bold: true, characterSpacing: 150 })], spacing: { after: 80 } }),
+                  new Paragraph({ children: [new TextRun({ text: `Date: ${issueDate}`, font: "Garamond", size: 18, color: DARK })], spacing: { after: 60 } }),
+                  new Paragraph({ children: [new TextRun({ text: `Valid until: ${validUntil}`, font: "Garamond", size: 18, color: DARK })], spacing: { after: 60 } }),
+                  new Paragraph({ children: [new TextRun({ text: "Confidential", font: "Garamond", size: 18, color: GRAY, italics: true })], spacing: { after: 60 } }),
+                  ...(brief?.projectType ? [new Paragraph({ children: [new TextRun({ text: `Project type: ${brief.projectType}`, font: "Garamond", size: 18, color: GRAY })], spacing: { after: 0 } })] : [
+                    new Paragraph({ children: [], spacing: { after: 0 } }),
+                  ]),
+                ],
+              }),
+            ],
+          })],
         }),
-        // Page break
-        new Paragraph({ children: [new PageBreak()] }),
       ];
 
       // ══════════════════════════════════════════════════════════════════════
@@ -15259,27 +15276,40 @@ Return your response in the following JSON format only (no markdown, no code blo
       ];
 
       // ══════════════════════════════════════════════════════════════════════
-      // BUILD DOCUMENT
+      // BUILD DOCUMENT — two sections: cover (its own page) + body
       // ══════════════════════════════════════════════════════════════════════
+      const twip = convertInchesToTwip;
       const doc = new Document({
         styles: {
           default: { document: { run: { font: "Garamond", size: 20, color: DARK } } },
         },
-        sections: [{
-          properties: {
-            page: { margin: { top: convertInchesToTwip(1.1), bottom: convertInchesToTwip(1.1), left: convertInchesToTwip(1.2), right: convertInchesToTwip(1.2) } },
+        sections: [
+          // ─ Section 1: Cover page ─────────────────────────────────────────
+          {
+            properties: {
+              type: SectionType.NEXT_PAGE,
+              page: {
+                margin: { top: twip(1.4), bottom: twip(1.4), left: twip(1.4), right: twip(1.4) },
+              },
+            },
+            children: coverChildren,
           },
-          children: [
-            ...coverSection,
-            ...introSection,
-            ...understandingSection,
-            ...scopeSection,
-            ...commercialSection,
-            ...nextSection,
-            ...termsSection,
-            ...sigSection,
-          ],
-        }],
+          // ─ Section 2: Body ───────────────────────────────────────────────
+          {
+            properties: {
+              page: { margin: { top: twip(1.1), bottom: twip(1.1), left: twip(1.2), right: twip(1.2) } },
+            },
+            children: [
+              ...introSection,
+              ...understandingSection,
+              ...scopeSection,
+              ...commercialSection,
+              ...nextSection,
+              ...termsSection,
+              ...sigSection,
+            ],
+          },
+        ],
       });
 
       const buffer = await Packer.toBuffer(doc);
