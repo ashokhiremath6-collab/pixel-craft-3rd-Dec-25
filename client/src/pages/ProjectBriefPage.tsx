@@ -891,7 +891,21 @@ function ProposalSheet({ open, onClose, proposal, briefs, projects }: {
                 )} />
                 <FormField control={form.control} name="briefId" render={({ field }) => (
                   <FormItem><FormLabel>Linked Brief</FormLabel>
-                    <Select onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)} value={field.value || "__none__"}>
+                    <Select
+                      onValueChange={(v) => {
+                        const id = v === "__none__" ? "" : v;
+                        field.onChange(id);
+                        if (id) {
+                          const brief = briefs.find(b => b.id === id);
+                          if (brief) {
+                            if (!form.getValues("clientName")) form.setValue("clientName", brief.clientName);
+                            if (!form.getValues("clientEmail") && brief.clientEmail) form.setValue("clientEmail", brief.clientEmail);
+                            if (!form.getValues("proposalTitle")) form.setValue("proposalTitle", `Design Proposal — ${brief.clientName}`);
+                          }
+                        }
+                      }}
+                      value={field.value || "__none__"}
+                    >
                       <FormControl><SelectTrigger><SelectValue placeholder="None" /></SelectTrigger></FormControl>
                       <SelectContent>
                         <SelectItem value="__none__">None</SelectItem>
