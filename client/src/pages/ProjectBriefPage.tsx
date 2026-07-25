@@ -13,13 +13,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import {
   ClipboardList, Plus, Pencil, Trash2, Eye, FileText,
   User, Mail, Phone, MapPin, DollarSign, Calendar, Send,
-  CheckCircle, XCircle, ChevronDown, ChevronUp, X
+  CheckCircle, XCircle, ChevronDown, ChevronUp, X, MoreHorizontal
 } from "lucide-react";
 import type { ClientBrief, Proposal, Project } from "@shared/schema";
 import { format } from "date-fns";
@@ -975,11 +976,35 @@ export default function ProjectBriefPage() {
                 return (
                   <Card key={b.id}>
                     <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between gap-2 flex-wrap">
-                        <CardTitle className="text-base">{b.clientName}</CardTitle>
-                        <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <CardTitle className="text-base">{b.clientName}</CardTitle>
+                          {b.projectType && <p className="text-xs text-muted-foreground mt-0.5">{b.projectType}</p>}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openEditBrief(b)}>
+                                <Pencil className="h-3.5 w-3.5 mr-2" />Edit
+                              </DropdownMenuItem>
+                              {isAdmin && (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => { if (confirm("Delete this brief?")) deleteBriefMutation.mutate(b.id); }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 mr-2" />Delete
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
-                      {b.projectType && <p className="text-xs text-muted-foreground">{b.projectType}</p>}
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
                       {b.clientEmail && (
@@ -997,17 +1022,7 @@ export default function ProjectBriefPage() {
                           <Calendar className="h-3.5 w-3.5 shrink-0" /><span>{b.timeline}</span>
                         </div>
                       )}
-                      <div className="flex gap-2 pt-2">
-                        <Button size="sm" variant="outline" onClick={() => openEditBrief(b)}>
-                          <Pencil className="h-3.5 w-3.5 mr-1" />Edit
-                        </Button>
-                        {isAdmin && (
-                          <Button size="sm" variant="outline" onClick={() => { if (confirm("Delete this brief?")) deleteBriefMutation.mutate(b.id); }}>
-                            <Trash2 className="h-3.5 w-3.5 mr-1" />Delete
-                          </Button>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground pt-1">
                         {format(new Date(b.createdAt), "dd MMM yyyy")}
                       </p>
                     </CardContent>
