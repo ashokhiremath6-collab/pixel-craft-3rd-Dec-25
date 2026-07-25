@@ -14705,7 +14705,12 @@ Return your response in the following JSON format only (no markdown, no code blo
       const orgId = req.user?.orgId;
       if (!orgId) return res.status(400).json({ error: "orgId required" });
       const { clientBriefs, insertClientBriefSchema } = await import("@shared/schema");
-      const parsed = insertClientBriefSchema.safeParse({ ...req.body, orgId });
+      const body = { ...req.body, orgId };
+      // Coerce empty-string numerics to null so Postgres doesn't reject them
+      for (const k of ["budgetMin", "budgetMax", "percentageRate", "hourlyRate", "totalFee"]) {
+        if (body[k] === "" || body[k] === undefined) body[k] = null;
+      }
+      const parsed = insertClientBriefSchema.safeParse(body);
       if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message });
       const [result] = await db.insert(clientBriefs).values(parsed.data).returning();
       res.status(201).json(result);
@@ -14737,6 +14742,9 @@ Return your response in the following JSON format only (no markdown, no code blo
       const { eq, and, sql: sqlFn } = await import("drizzle-orm");
       const { clientBriefs } = await import("@shared/schema");
       const { id: _id, orgId: _org, createdAt: _ca, ...updateData } = req.body;
+      for (const k of ["budgetMin", "budgetMax", "percentageRate", "hourlyRate", "totalFee"]) {
+        if (updateData[k] === "" || updateData[k] === undefined) updateData[k] = null;
+      }
       const [result] = await db.update(clientBriefs)
         .set({ ...updateData, updatedAt: new Date() })
         .where(and(eq(clientBriefs.id, id), eq(clientBriefs.orgId, orgId)))
