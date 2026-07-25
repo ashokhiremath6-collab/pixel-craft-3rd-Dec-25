@@ -14922,7 +14922,7 @@ Return your response in the following JSON format only (no markdown, no code blo
       const {
         Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         AlignmentType, BorderStyle, WidthType, ShadingType,
-        convertInchesToTwip, SectionType, VerticalAlign,
+        convertInchesToTwip, SectionType, VerticalAlignSection,
       } = await import("docx");
 
       // ── Palette ────────────────────────────────────────────────────────────
@@ -15285,8 +15285,9 @@ Return your response in the following JSON format only (no markdown, no code blo
           {
             properties: {
               type: SectionType.NEXT_PAGE,
+              verticalAlign: VerticalAlignSection.CENTER,
               page: {
-                margin: { top: twip(1.4), bottom: twip(1.4), left: twip(1.4), right: twip(1.4) },
+                margin: { top: twip(1.2), bottom: twip(1.2), left: twip(1.4), right: twip(1.4) },
               },
             },
             children: coverChildren,
