@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList, Lightbulb, PackageCheck, ChevronDown, Check, MessageSquare, HelpCircle } from "lucide-react";
+import { Building2, Users, BarChart3, Settings, Home, FileText, Upload, Map, UserCheck, ImageIcon, PenTool, Sparkles, GanttChart, DollarSign, Wallet, BookOpen, Calendar, FileSignature, Wand2, Camera, BrainCircuit, User, Receipt, ClipboardList, Lightbulb, PackageCheck, ChevronDown, Check, MessageSquare, HelpCircle, Bug } from "lucide-react";
+import { BugReportDialog } from "@/components/BugReportDialog";
 import {
   Sidebar,
   SidebarContent,
@@ -92,6 +93,7 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
   const { isMobile, setOpenMobile } = useSidebar();
   const { user } = useAuth();
   const [logoError, setLogoError] = useState(false);
+  const [bugReportOpen, setBugReportOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const role = previewRole || ((user as any)?.role as string | undefined);
@@ -328,8 +330,20 @@ export function AppSidebar({ previewRole }: { previewRole?: string } = {}) {
         <SidebarMenu>
           {renderMenuItems(accountItems)}
           {isAdminOrDesigner && renderMenuItems(settingsItems)}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => setBugReportOpen(true)}
+              className="text-muted-foreground hover:text-destructive"
+              data-testid="sidebar-bug-report"
+            >
+              <Bug className="h-4 w-4" />
+              <span>Report a bug</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+
+      <BugReportDialog open={bugReportOpen} onOpenChange={setBugReportOpen} />
     </Sidebar>
   );
 }

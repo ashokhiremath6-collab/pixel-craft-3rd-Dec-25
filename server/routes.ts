@@ -15598,6 +15598,39 @@ Return your response in the following JSON format only (no markdown, no code blo
     }
   });
 
+  // Bug report submission
+  app.post("/api/bug-report", requireAuth, async (req: any, res) => {
+    try {
+      const { category, description, url: pageUrl } = req.body;
+      if (!category || !description?.trim()) {
+        return res.status(400).json({ error: "category and description are required" });
+      }
+
+      const user = await storage.getUser(req.user.id);
+      const orgId = (req.user as any).orgId;
+      let orgName = "Unknown studio";
+      if (orgId) {
+        const org = await storage.getOrganisation(orgId);
+        if (org) orgName = org.name;
+      }
+
+      const { sendBugReportEmail } = await import("./email");
+      await sendBugReportEmail({
+        reporterName: user?.name || req.user.username || "Unknown user",
+        reporterEmail: user?.email || "",
+        orgName,
+        category,
+        description: description.trim(),
+        pageUrl: pageUrl || "",
+      });
+
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("POST /api/bug-report error:", err);
+      res.status(500).json({ error: "Failed to send bug report" });
+    }
+  });
+
   // Run immediately on startup, then every 24 hours
   runTrialExpiryWarnings();
   setInterval(runTrialExpiryWarnings, 24 * 60 * 60 * 1000);

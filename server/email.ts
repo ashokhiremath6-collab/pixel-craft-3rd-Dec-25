@@ -746,3 +746,50 @@ export async function sendVerificationEmail(
     text: `Welcome to Pixelcraft Designs!\n\nVerify your email address by visiting:\n${verifyUrl}\n\nIf you didn't create an account, ignore this email.`,
   });
 }
+
+export async function sendBugReportEmail(opts: {
+  reporterName: string;
+  reporterEmail: string;
+  orgName: string;
+  category: string;
+  description: string;
+  pageUrl: string;
+}): Promise<void> {
+  const supportEmail =
+    process.env.SUPPORT_EMAIL ||
+    process.env.RESEND_FROM ||
+    "noreply@pixelcraftdesigns.com";
+
+  const categoryLabel: Record<string, string> = {
+    ui: "UI / Display issue",
+    feature: "Feature not working",
+    data: "Wrong or missing data",
+    performance: "Slow or unresponsive",
+    email: "Email not received",
+    other: "Other",
+  };
+
+  await sendEmail({
+    to: supportEmail,
+    subject: `Bug report: ${categoryLabel[opts.category] ?? opts.category} — ${opts.orgName}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f9f9f9;">
+        <div style="background:#fff;border-radius:8px;padding:32px;border:1px solid #e5e5e5;">
+          <h2 style="color:#cc0000;margin:0 0 8px;">🐛 Bug Report</h2>
+          <p style="color:#555;margin:0 0 24px;font-size:14px;">Submitted via the in-app bug report form</p>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <tr><td style="padding:8px 0;color:#888;width:140px;">Reporter</td><td style="padding:8px 0;color:#111;font-weight:500;">${opts.reporterName}</td></tr>
+            <tr><td style="padding:8px 0;color:#888;">Email</td><td style="padding:8px 0;color:#111;">${opts.reporterEmail}</td></tr>
+            <tr><td style="padding:8px 0;color:#888;">Studio</td><td style="padding:8px 0;color:#111;">${opts.orgName}</td></tr>
+            <tr><td style="padding:8px 0;color:#888;">Category</td><td style="padding:8px 0;color:#111;">${categoryLabel[opts.category] ?? opts.category}</td></tr>
+            <tr><td style="padding:8px 0;color:#888;vertical-align:top;">Page</td><td style="padding:8px 0;color:#0055cc;word-break:break-all;">${opts.pageUrl}</td></tr>
+          </table>
+          <div style="margin-top:20px;padding:16px;background:#fff8f8;border:1px solid #ffd5d5;border-radius:6px;">
+            <p style="margin:0;color:#333;font-size:14px;line-height:1.6;white-space:pre-wrap;">${opts.description}</p>
+          </div>
+        </div>
+      </div>
+    `,
+    text: `Bug Report\n\nReporter: ${opts.reporterName} <${opts.reporterEmail}>\nStudio: ${opts.orgName}\nCategory: ${categoryLabel[opts.category] ?? opts.category}\nPage: ${opts.pageUrl}\n\nDescription:\n${opts.description}`,
+  });
+}
