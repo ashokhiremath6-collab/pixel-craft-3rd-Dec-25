@@ -127,14 +127,13 @@ function AuthenticatedApp({ onPreviewClientPortal, onPreviewAsPM, onExitPMPrevie
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
 
-  async function handleGlobalRefresh() {
+  function handleGlobalRefresh() {
     setIsRefreshing(true);
-    await Promise.all([
-      queryClient.refetchQueries({ type: "active" }),
-      new Promise<void>((r) => setTimeout(r, 600)),
-    ]);
-    setIsRefreshing(false);
-    toast({ title: "Refreshed", description: "All data is up to date.", duration: 2000 });
+    // Full page reload picks up new code from any recent deployment.
+    // Cache-Control: no-cache on the HTML means the browser revalidates and
+    // gets the latest JS chunk URLs without needing Shift+Cmd+R.
+    // React Query's refetchOnMount:'always' re-fetches all data on the new page load.
+    window.location.reload();
   }
 
   const style = {
