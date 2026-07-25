@@ -119,6 +119,189 @@ const proposalFormSchema = z.object({
 });
 type ProposalFormValues = z.infer<typeof proposalFormSchema>;
 
+// ─── Brief View Sheet (read-only) ─────────────────────────────────────────────
+function BriefViewSheet({ open, onClose, brief, onEdit }: {
+  open: boolean;
+  onClose: () => void;
+  brief: ClientBrief | null;
+  onEdit: () => void;
+}) {
+  if (!brief) return null;
+
+  const statusInfo = BRIEF_STATUSES[brief.status] ?? { label: brief.status, variant: "secondary" as const };
+  const refs = (brief.referenceFiles as any[]) || [];
+
+  // Parse the composed scopeOfWork text back into structured fields
+  function parseKeyedLines(text: string | null | undefined, prefix: string): string | null {
+    if (!text) return null;
+    const line = text.split("\n").find(l => l.startsWith(prefix + ": "));
+    return line ? line.slice(prefix.length + 2).trim() : null;
+  }
+  function freeText(text: string | null | undefined, ...prefixes: string[]): string {
+    if (!text) return "";
+    return text.split("\n").filter(l => !prefixes.some(p => l.startsWith(p + ": "))).join("\n").trim();
+  }
+
+  const scope = brief.scopeOfWork ?? "";
+  const scopeType  = parseKeyedLines(scope, "Scope");
+  const workType   = parseKeyedLines(scope, "Work type");
+  const roomsRaw   = parseKeyedLines(scope, "Rooms");
+  const bedrooms   = parseKeyedLines(scope, "Bedrooms");
+  const childBeds  = parseKeyedLines(scope, "Children's bedrooms");
+  const occupants  = parseKeyedLines(scope, "Occupants");
+  const ages       = parseKeyedLines(scope, "Ages");
+  const scopeExtra = freeText(scope, "Scope", "Work type", "Rooms", "Bedrooms", "Children's bedrooms", "Occupants", "Ages");
+  const rooms      = roomsRaw ? roomsRaw.split(",").map(r => r.trim()).filter(Boolean) : [];
+
+  const style = brief.stylePreferences ?? "";
+  const styleRaw   = parseKeyedLines(style, "Style direction");
+  const styleExtra = freeText(style, "Style direction");
+  const styles     = styleRaw ? styleRaw.split(",").map(s => s.trim()).filter(Boolean) : [];
+
+  function Pill({ label }: { label: string }) {
+    return <span className="inline-block px-2.5 py-0.5 rounded-full bg-muted text-xs font-medium text-foreground">{label}</span>;
+  }
+
+  function Section({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+      <div className="space-y-3">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-b pb-1.5">{title}</p>
+        {children}
+      </div>
+    );
+  }
+
+  function Row({ icon: Icon, label, value }: { icon?: React.ElementType; label: string; value: string | null | undefined }) {
+    if (!value) return null;
+    return (
+      <div className="flex gap-3">
+        {Icon && <Icon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />}
+        <div className="min-w-0">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className="text-sm text-foreground mt-0.5 whitespace-pre-line">{value}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={v => !v && onClose()}>
+      <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto flex flex-col gap-0 p-0">
+        {/* Header */}
+        <div className="bg-muted/40 border-b px-6 py-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold leading-tight">{brief.clientName}</h2>
+              {brief.projectType && <p className="text-sm text-muted-foreground mt-0.5">{brief.projectType}</p>}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+              <Button size="sm" variant="outline" onClick={onEdit}>
+                <Pencil className="h-3.5 w-3.5 mr-1.5" />Edit
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Created {format(new Date(brief.createdAt), "dd MMM yyyy")}
+          </p>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 px-6 py-6 space-y-7 overflow-y-auto">
+
+          {/* Contact */}
+          <Section title="Contact">
+            <div className="space-y-3">
+              <Row icon={Mail} label="Email" value={brief.clientEmail} />
+              <Row icon={Phone} label="Phone" value={brief.phone} />
+              <Row icon={MapPin} label="Property address" value={brief.propertyAddress} />
+            </div>
+          </Section>
+
+          {/* Scope */}
+          {(scopeType || workType || rooms.length > 0 || bedrooms || occupants || ages || scopeExtra) && (
+            <Section title="Scope of work">
+              <div className="space-y-3">
+                {scopeType && <Row label="Scope" value={scopeType} />}
+                {workType && <Row label="Work type" value={workType} />}
+                {rooms.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1.5">Rooms</p>
+                    <div className="flex flex-wrap gap-1.5">{rooms.map(r => <Pill key={r} label={r} />)}</div>
+                  </div>
+                )}
+                {(bedrooms || childBeds) && (
+                  <div className="flex gap-6">
+                    {bedrooms && <Row label="Bedrooms" value={bedrooms} />}
+                    {childBeds && <Row label="Children's bedrooms" value={childBeds} />}
+                  </div>
+                )}
+                {occupants && <Row icon={User} label="Occupants" value={occupants} />}
+                {ages && <Row label="Ages" value={ages} />}
+                {scopeExtra && <Row label="Additional notes" value={scopeExtra} />}
+              </div>
+            </Section>
+          )}
+
+          {/* Design direction */}
+          {(styles.length > 0 || styleExtra || brief.mustHaves || brief.mustAvoids || brief.inspirationNotes) && (
+            <Section title="Design direction">
+              <div className="space-y-4">
+                {styles.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1.5">Style directions</p>
+                    <div className="flex flex-wrap gap-1.5">{styles.map(s => <Pill key={s} label={s} />)}</div>
+                  </div>
+                )}
+                {styleExtra && <Row label="Feel & preferences" value={styleExtra} />}
+                {(brief.mustHaves || brief.mustAvoids) && (
+                  <div className="grid grid-cols-2 gap-4">
+                    {brief.mustHaves && (
+                      <div className="rounded-md border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30 p-3 space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-green-700 dark:text-green-400">Must-haves</p>
+                        <p className="text-sm text-foreground whitespace-pre-line">{brief.mustHaves}</p>
+                      </div>
+                    )}
+                    {brief.mustAvoids && (
+                      <div className="rounded-md border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30 p-3 space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">Must-avoids</p>
+                        <p className="text-sm text-foreground whitespace-pre-line">{brief.mustAvoids}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {brief.inspirationNotes && <Row label="Inspiration" value={brief.inspirationNotes} />}
+              </div>
+            </Section>
+          )}
+
+          {/* Reference files */}
+          {refs.length > 0 && (
+            <Section title="Reference files">
+              <div className="space-y-1.5">
+                {refs.map((f: any, i: number) => (
+                  <a
+                    key={i}
+                    href={`/api/object-storage/file?path=${encodeURIComponent(f.path)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-md border text-sm hover:bg-muted transition-colors"
+                  >
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 truncate">{f.name}</span>
+                    {f.size && <span className="text-xs text-muted-foreground shrink-0">{(f.size / 1024).toFixed(0)} KB</span>}
+                  </a>
+                ))}
+              </div>
+            </Section>
+          )}
+
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 // ─── Brief Sheet ──────────────────────────────────────────────────────────────
 function PillToggle({ label, selected, onToggle }: { label: string; selected: boolean; onToggle: () => void }) {
   return (
@@ -903,6 +1086,7 @@ export default function ProjectBriefPage() {
 
   const [briefSheetOpen, setBriefSheetOpen] = useState(false);
   const [editBrief, setEditBrief] = useState<ClientBrief | null>(null);
+  const [viewBrief, setViewBrief] = useState<ClientBrief | null>(null);
   const [proposalSheetOpen, setProposalSheetOpen] = useState(false);
   const [editProposal, setEditProposal] = useState<Proposal | null>(null);
   const [previewProposal, setPreviewProposal] = useState<Proposal | null>(null);
@@ -932,7 +1116,8 @@ export default function ProjectBriefPage() {
   }
 
   function openNewBrief() { setEditBrief(null); setBriefSheetOpen(true); }
-  function openEditBrief(b: ClientBrief) { setEditBrief(b); setBriefSheetOpen(true); }
+  function openEditBrief(b: ClientBrief) { setViewBrief(null); setEditBrief(b); setBriefSheetOpen(true); }
+  function openViewBrief(b: ClientBrief) { setViewBrief(b); }
   function openNewProposal() { setEditProposal(null); setProposalSheetOpen(true); }
   function openEditProposal(p: Proposal) { setEditProposal(p); setProposalSheetOpen(true); }
 
@@ -974,14 +1159,18 @@ export default function ProjectBriefPage() {
               {briefs.map(b => {
                 const statusInfo = BRIEF_STATUSES[b.status] ?? { label: b.status, variant: "secondary" as const };
                 return (
-                  <Card key={b.id}>
+                  <Card
+                    key={b.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => openViewBrief(b)}
+                  >
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <CardTitle className="text-base">{b.clientName}</CardTitle>
                           {b.projectType && <p className="text-xs text-muted-foreground mt-0.5">{b.projectType}</p>}
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
                           <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -990,6 +1179,9 @@ export default function ProjectBriefPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openViewBrief(b)}>
+                                <Eye className="h-3.5 w-3.5 mr-2" />View
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => openEditBrief(b)}>
                                 <Pencil className="h-3.5 w-3.5 mr-2" />Edit
                               </DropdownMenuItem>
@@ -1105,6 +1297,12 @@ export default function ProjectBriefPage() {
       </Tabs>
 
       {/* Sheets & Dialogs */}
+      <BriefViewSheet
+        open={!!viewBrief}
+        onClose={() => setViewBrief(null)}
+        brief={viewBrief}
+        onEdit={() => { openEditBrief(viewBrief!); }}
+      />
       <BriefSheet
         open={briefSheetOpen}
         onClose={() => { setBriefSheetOpen(false); setEditBrief(null); }}
