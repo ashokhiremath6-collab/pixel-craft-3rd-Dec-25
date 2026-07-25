@@ -106,6 +106,8 @@ const proposalFormSchema = z.object({
   proposalTitle: z.string().min(1, "Title is required"),
   clientName: z.string().min(1, "Client name is required"),
   clientEmail: z.string().email("Invalid email").or(z.literal("")).optional(),
+  notes: z.string().optional(),        // introduction / executive summary
+  nextSteps: z.string().optional(),    // proposed next steps after acceptance
   feeStructure: z.string().default("flat_fee"),
   percentageRate: z.string().optional(),
   hourlyRate: z.string().optional(),
@@ -847,6 +849,8 @@ function ProposalSheet({ open, onClose, proposal, prefillBrief, briefs, projects
       proposalTitle: proposal?.proposalTitle ?? buildDefaultValues(prefillBrief).proposalTitle,
       clientName: proposal?.clientName ?? buildDefaultValues(prefillBrief).clientName,
       clientEmail: proposal?.clientEmail ?? buildDefaultValues(prefillBrief).clientEmail ?? "",
+      notes: (proposal as any)?.notes ?? "",
+      nextSteps: (proposal as any)?.nextSteps ?? "",
       feeStructure: proposal?.feeStructure ?? "flat_fee",
       percentageRate: proposal?.percentageRate?.toString() ?? "",
       hourlyRate: proposal?.hourlyRate?.toString() ?? "",
@@ -949,6 +953,26 @@ function ProposalSheet({ open, onClose, proposal, prefillBrief, briefs, projects
 
             <Separator />
 
+            {/* Introduction */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Introduction / Executive Summary</p>
+              <FormField control={form.control} name="notes" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Opening Statement <span className="text-muted-foreground font-normal">(optional — appears at the top of the proposal document)</span></FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={5}
+                      placeholder={`Dear [Client Name],\n\nThank you for the opportunity to present our design vision for your project. We are delighted to propose a considered and holistic approach that reflects your aesthetic sensibilities and functional requirements…`}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+
+            <Separator />
+
             {/* Fee Structure */}
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Fee Structure</p>
@@ -1004,6 +1028,19 @@ function ProposalSheet({ open, onClose, proposal, prefillBrief, briefs, projects
                 )} />
                 <FormField control={form.control} name="termsAndConditions" render={({ field }) => (
                   <FormItem><FormLabel>Terms & Conditions</FormLabel><FormControl><Textarea rows={6} {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="nextSteps" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Next Steps <span className="text-muted-foreground font-normal">(optional — what happens after acceptance)</span></FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={4}
+                        placeholder={"Exchange signed Letter of Intent within 5 business days.\nKickoff call to walk through the design brief and site conditions.\nSite visit and measurements scheduled within 10 days of signing.\nMilestone 1 payment received — programme commences."}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )} />
                 <div className="grid grid-cols-2 gap-4">
                   <FormField control={form.control} name="validityDays" render={({ field }) => (
@@ -1093,22 +1130,34 @@ function ProposalPreview({ proposal, open, onClose }: { proposal: Proposal; open
           {/* Client + details two-column block */}
           <div className="grid grid-cols-2 gap-8 mb-10">
             <div>
-              <p className="text-[9px] uppercase tracking-[0.25em] text-[#B8860B] font-sans mb-2">Prepared for</p>
+              <p className="text-[9px] uppercase tracking-[0.25em] text-[#B8860B] font-sans mb-2">Proposed to</p>
               <p className="text-xl font-bold text-[#1A1A2E]">{proposal.clientName}</p>
               {proposal.clientEmail && <p className="text-sm text-[#6B7280] mt-0.5">{proposal.clientEmail}</p>}
             </div>
             <div className="text-right">
-              <p className="text-[9px] uppercase tracking-[0.25em] text-[#B8860B] font-sans mb-2">Proposal Details</p>
+              <p className="text-[9px] uppercase tracking-[0.25em] text-[#B8860B] font-sans mb-2">Document Details</p>
               <p className="text-sm text-[#1A1A2E]">Date: {issueDate}</p>
               <p className="text-sm text-[#1A1A2E]">Valid until: {validUntil}</p>
+              <p className="text-xs text-[#6B7280] italic mt-0.5">Confidential</p>
               <span className={`inline-flex items-center mt-1 px-2.5 py-0.5 rounded-full text-xs font-medium font-sans ${statusInfo.color}`}>{statusInfo.label}</span>
             </div>
           </div>
 
+          {/* Introduction */}
+          {(proposal as any).notes && (
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-3">
+                <h2 className="text-[10px] uppercase tracking-[0.25em] text-[#B8860B] font-sans">Introduction</h2>
+                <div className="flex-1 h-px bg-[#B8860B]/30" />
+              </div>
+              <div className="text-sm text-[#374151] leading-relaxed whitespace-pre-wrap">{(proposal as any).notes}</div>
+            </div>
+          )}
+
           {/* Scope of Work */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-4">
-              <h2 className="text-[10px] uppercase tracking-[0.25em] text-[#B8860B] font-sans">Scope of Work & Fee Breakdown</h2>
+              <h2 className="text-[10px] uppercase tracking-[0.25em] text-[#B8860B] font-sans">Scope of Work</h2>
               <div className="flex-1 h-px bg-[#B8860B]/30" />
             </div>
             <div className="space-y-4">
@@ -1121,7 +1170,7 @@ function ProposalPreview({ proposal, open, onClose }: { proposal: Proposal; open
                       <span className="text-sm font-bold text-[#1A1A2E]">{phase.name}</span>
                       {phase.timeline && <span className="text-xs text-[#6B7280]">· {phase.timeline}</span>}
                     </div>
-                    <span className="text-sm font-bold text-[#1A1A2E]">{fmt(phase.fee, currency)}</span>
+                    {proposal.feeStructure === "flat_fee" && <span className="text-sm font-bold text-[#1A1A2E]">{fmt(phase.fee, currency)}</span>}
                   </div>
                   {(phase.description || phase.deliverables.filter(d => d.title).length > 0) && (
                     <div className="px-4 py-3 space-y-2">
@@ -1140,15 +1189,53 @@ function ProposalPreview({ proposal, open, onClose }: { proposal: Proposal; open
                 </div>
               ))}
             </div>
+          </div>
 
-            {/* Total */}
-            <div className="mt-4 bg-[#1A1A2E] rounded-sm px-4 py-3 flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-sans">Total Design Fee</span>
-              <span className="text-xl font-bold text-[#B8860B]">{fmt(proposal.totalFee, currency)}</span>
+          {/* Commercial Summary */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className="text-[10px] uppercase tracking-[0.25em] text-[#B8860B] font-sans">Commercial Summary</h2>
+              <div className="flex-1 h-px bg-[#B8860B]/30" />
             </div>
-            {proposal.feeStructure === "percentage" && proposal.percentageRate && (
-              <p className="text-xs text-[#6B7280] italic mt-1.5 text-right">{proposal.percentageRate}% of total project cost — confirmed post-execution</p>
-            )}
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-[#1A1A2E] text-white">
+                  <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider font-medium">Component</th>
+                  <th className="text-right px-3 py-2 text-[10px] uppercase tracking-wider font-medium">Amount</th>
+                  <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider font-medium">Timing</th>
+                </tr>
+              </thead>
+              <tbody>
+                {proposal.feeStructure === "percentage" && proposal.percentageRate ? (
+                  <tr className="border-b border-[#E5E0D8]">
+                    <td className="px-3 py-2.5 text-[#374151]">Design Fee — All Phases</td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-[#1A1A2E]">{proposal.percentageRate}% of project cost</td>
+                    <td className="px-3 py-2.5 text-[#6B7280]">On milestone completion</td>
+                  </tr>
+                ) : proposal.feeStructure === "hourly" && proposal.hourlyRate ? (
+                  <tr className="border-b border-[#E5E0D8]">
+                    <td className="px-3 py-2.5 text-[#374151]">Design Services — Hourly</td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-[#1A1A2E]">{fmt(proposal.hourlyRate, currency)}/hr</td>
+                    <td className="px-3 py-2.5 text-[#6B7280]">Billed monthly</td>
+                  </tr>
+                ) : (
+                  phases.map((phase, i) => (
+                    <tr key={phase.id} className="border-b border-[#E5E0D8]">
+                      <td className="px-3 py-2.5 text-[#374151]">Phase {i + 1} — {phase.name}</td>
+                      <td className="px-3 py-2.5 text-right font-semibold text-[#1A1A2E]">{fmt(phase.fee, currency)}</td>
+                      <td className="px-3 py-2.5 text-[#6B7280]">{phase.timeline || "On completion"}</td>
+                    </tr>
+                  ))
+                )}
+                {proposal.feeStructure === "flat_fee" && (
+                  <tr className="bg-[#1A1A2E]">
+                    <td className="px-3 py-2.5 text-white text-[10px] uppercase tracking-wider font-medium">Total Design Fee</td>
+                    <td className="px-3 py-2.5 text-right font-bold text-[#B8860B] text-base">{fmt(proposal.totalFee, currency)}</td>
+                    <td className="px-3 py-2.5"></td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
 
           {/* Payment Schedule */}
@@ -1162,6 +1249,24 @@ function ProposalPreview({ proposal, open, onClose }: { proposal: Proposal; open
                 {proposal.paymentSchedule.split("\n").filter(Boolean).map((line, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm text-[#374151]">
                     <span className="text-[#B8860B] mt-0.5">·</span>
+                    <span>{line.trim()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Next Steps */}
+          {(proposal as any).nextSteps && (
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-3">
+                <h2 className="text-[10px] uppercase tracking-[0.25em] text-[#B8860B] font-sans">Proposed Next Steps</h2>
+                <div className="flex-1 h-px bg-[#B8860B]/30" />
+              </div>
+              <div className="space-y-1.5">
+                {(proposal as any).nextSteps.split("\n").filter(Boolean).map((line: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2 text-sm text-[#374151]">
+                    <span className="text-[#B8860B] font-bold shrink-0">{i + 1}.</span>
                     <span>{line.trim()}</span>
                   </div>
                 ))}
@@ -1185,6 +1290,13 @@ function ProposalPreview({ proposal, open, onClose }: { proposal: Proposal; open
               </div>
             </div>
           )}
+
+          {/* Confidentiality note */}
+          <div className="mb-8 border border-[#E5E0D8] rounded-sm px-4 py-3 bg-[#F5F0E8]">
+            <p className="text-xs text-[#6B7280] italic">
+              This proposal is submitted on a confidential basis and is intended solely for {proposal.clientName}.
+            </p>
+          </div>
 
           {/* Signature block */}
           <div className="border-t border-[#B8860B]/40 mt-10 pt-8 grid grid-cols-2 gap-8">
@@ -1486,12 +1598,15 @@ export default function ProjectBriefPage() {
                     <CardContent className="space-y-2 text-sm">
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <DollarSign className="h-3.5 w-3.5 shrink-0" />
-                        <span className="font-medium text-foreground">{fmt(p.totalFee, p.currency)}</span>
+                        {p.feeStructure === "percentage" && p.percentageRate ? (
+                          <span className="font-medium text-foreground">{p.percentageRate}% of project cost</span>
+                        ) : p.feeStructure === "hourly" && p.hourlyRate ? (
+                          <span className="font-medium text-foreground">{fmt(p.hourlyRate, p.currency)}/hr</span>
+                        ) : (
+                          <span className="font-medium text-foreground">{fmt(p.totalFee, p.currency)}</span>
+                        )}
                         <span>· {phases.length} phase{phases.length !== 1 ? "s" : ""}</span>
                       </div>
-                      {p.feeStructure === "percentage" && p.percentageRate && (
-                        <p className="text-xs text-muted-foreground">{p.percentageRate}% of project cost</p>
-                      )}
                       <div className="flex flex-wrap gap-2 pt-2">
                         <Button size="sm" variant="outline" onClick={() => setPreviewProposal(p)}>
                           <Eye className="h-3.5 w-3.5 mr-1" />Preview

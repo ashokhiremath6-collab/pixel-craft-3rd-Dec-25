@@ -493,6 +493,14 @@ app.use((req, res, next) => {
     console.error("Failed to add gst_percent to project_vendors:", err);
   }
 
+  // Add notes + next_steps to proposals (migration 0057 — skipped by runner in production)
+  try {
+    await db.execute(sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS notes TEXT`);
+    await db.execute(sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS next_steps TEXT`);
+  } catch (err) {
+    console.error("Failed to add notes/next_steps to proposals:", err);
+  }
+
   // Create project_chat_reads table — tracks who has opened Chat for each project.
   // Used to enforce "badge clears only after 2+ others have read" rule.
   try {

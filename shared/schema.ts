@@ -1294,6 +1294,8 @@ export const proposals = pgTable("proposals", {
   currency: text("currency").notNull().default("INR"),
   paymentSchedule: text("payment_schedule"),
   termsAndConditions: text("terms_and_conditions"),
+  notes: text("notes"), // Introduction / executive summary written by the designer
+  nextSteps: text("next_steps"), // Proposed next steps after acceptance
   validityDays: integer("validity_days").notNull().default(30),
   status: text("status").notNull().default("draft"), // draft, sent, accepted, rejected
   sentAt: timestamp("sent_at"),

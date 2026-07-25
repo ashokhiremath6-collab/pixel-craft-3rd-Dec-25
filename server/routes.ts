@@ -14921,278 +14921,363 @@ Return your response in the following JSON format only (no markdown, no code blo
 
       const {
         Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-        AlignmentType, BorderStyle, WidthType, HeadingLevel, ShadingType,
-        convertInchesToTwip, PageOrientation,
+        AlignmentType, BorderStyle, WidthType, ShadingType, PageBreak,
+        convertInchesToTwip,
       } = await import("docx");
 
-      const GOLD = "B8860B";
-      const DARK = "1A1A2E";
-      const LIGHT_GRAY = "F8F8F8";
-      const MID_GRAY = "6B7280";
+      // ── Palette ────────────────────────────────────────────────────────────
+      const DARK  = "1A1A2E";   // near-black navy
+      const GOLD  = "B8860B";   // dark gold
+      const WARM  = "F5F0E8";   // warm off-white for shaded rows
+      const GRAY  = "6B7280";   // body secondary
+      const WHITE = "FFFFFF";
 
-      const fmt = (amount: any, cur = "INR") => {
+      // ── Helpers ────────────────────────────────────────────────────────────
+      const fmtFee = (amount: any, cur = "INR") => {
         const n = Number(amount) || 0;
-        if (cur === "INR") return `₹${n.toLocaleString("en-IN")}`;
+        if (cur === "INR") return `\u20B9${n.toLocaleString("en-IN")}`;
         return new Intl.NumberFormat("en-US", { style: "currency", currency: cur }).format(n);
       };
+      const nb = { style: BorderStyle.NONE, size: 0, color: WHITE };
+      const thinLine = { style: BorderStyle.SINGLE, size: 4, color: "D4C9B5" };
+      const noAllBorders = { top: nb, bottom: nb, left: nb, right: nb };
+      const cell = (children: any[], opts: any = {}) =>
+        new TableCell({ borders: noAllBorders, children, ...opts });
+      const run = (text: string, opts: any = {}) =>
+        new TextRun({ text, font: "Garamond", size: 20, color: DARK, ...opts });
+      const para = (children: any[], opts: any = {}) =>
+        new Paragraph({ children, spacing: { after: 100 }, ...opts });
+      const secHead = (label: string) =>
+        new Paragraph({
+          children: [new TextRun({ text: label.toUpperCase(), font: "Garamond", size: 18, bold: true, color: GOLD, characterSpacing: 150 })],
+          spacing: { before: 360, after: 100 },
+          border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: GOLD } },
+        });
 
       const phases = (proposal.phases as any[]) ?? [];
       const totalFee = Number(proposal.totalFee) || 0;
       const currency = proposal.currency ?? "INR";
       const issueDate = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
       const validUntil = new Date(Date.now() + (proposal.validityDays || 30) * 864e5).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+      const notes = (proposal as any).notes as string | null | undefined;
+      const nextSteps = (proposal as any).nextSteps as string | null | undefined;
 
-      const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
-      const goldBorder = { style: BorderStyle.SINGLE, size: 12, color: GOLD };
-
-      const sectionTitle = (text: string) =>
+      // ══════════════════════════════════════════════════════════════════════
+      // SECTION 1 — Cover Page
+      // ══════════════════════════════════════════════════════════════════════
+      const coverSection: any[] = [
+        // Studio name
         new Paragraph({
-          children: [new TextRun({ text: text.toUpperCase(), bold: true, size: 20, color: GOLD, font: "Garamond" })],
-          spacing: { before: 400, after: 160 },
-          border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: GOLD } },
-        });
-
-      const bodyPara = (text: string, opts: any = {}) =>
-        new Paragraph({
-          children: [new TextRun({ text, size: 20, font: "Garamond", color: DARK, ...opts })],
-          spacing: { after: 120 },
-        });
-
-      // ── Header ─────────────────────────────────────────────────────────────
-      const headerSection: any[] = [
-        new Paragraph({
-          children: [new TextRun({ text: studioName.toUpperCase(), bold: true, size: 48, font: "Garamond", color: DARK })],
-          spacing: { after: 60 },
+          children: [new TextRun({ text: studioName.toUpperCase(), font: "Garamond", size: 56, bold: true, color: DARK })],
+          spacing: { after: 80 },
         }),
+        // Divider
         new Paragraph({
-          children: [new TextRun({ text: "DESIGN  PROPOSAL", size: 28, font: "Garamond", color: GOLD, characterSpacing: 200 })],
-          spacing: { after: 60 },
-        }),
-        new Paragraph({
-          children: [new TextRun({ text: "─".repeat(80), color: GOLD, size: 16 })],
+          children: [new TextRun({ text: "\u2014".repeat(12), font: "Garamond", size: 22, color: GOLD })],
           spacing: { after: 400 },
         }),
+        // Document type
+        new Paragraph({
+          children: [new TextRun({ text: "Design Proposal", font: "Garamond", size: 36, color: GRAY, italics: true })],
+          spacing: { after: 100 },
+        }),
+        // Proposal title
+        new Paragraph({
+          children: [new TextRun({ text: proposal.proposalTitle, font: "Garamond", size: 44, bold: true, color: DARK })],
+          spacing: { after: 600 },
+        }),
+        // Two-column: Prepared for / Document info
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          borders: { top: nb, bottom: nb, left: nb, right: nb, insideH: nb, insideV: nb },
+          rows: [new TableRow({ children: [
+            cell([
+              para([new TextRun({ text: "PROPOSED TO", font: "Garamond", size: 15, color: GOLD, bold: true, characterSpacing: 150 })], { spacing: { after: 80 } }),
+              para([new TextRun({ text: proposal.clientName, font: "Garamond", size: 28, bold: true, color: DARK })], { spacing: { after: 60 } }),
+              ...(proposal.clientEmail ? [para([new TextRun({ text: proposal.clientEmail, font: "Garamond", size: 18, color: GRAY })], { spacing: { after: 60 } })] : []),
+              ...(brief?.propertyAddress ? [para([new TextRun({ text: brief.propertyAddress, font: "Garamond", size: 18, color: GRAY })], { spacing: { after: 0 } })] : []),
+            ], { width: { size: 55, type: WidthType.PERCENTAGE } }),
+            cell([
+              para([new TextRun({ text: "DOCUMENT DETAILS", font: "Garamond", size: 15, color: GOLD, bold: true, characterSpacing: 150 })], { spacing: { after: 80 } }),
+              para([new TextRun({ text: `Date: ${issueDate}`, font: "Garamond", size: 18, color: DARK })], { spacing: { after: 60 } }),
+              para([new TextRun({ text: `Valid until: ${validUntil}`, font: "Garamond", size: 18, color: DARK })], { spacing: { after: 60 } }),
+              para([new TextRun({ text: "Confidential", font: "Garamond", size: 18, color: GRAY, italics: true })], { spacing: { after: 60 } }),
+              ...(brief?.projectType ? [para([new TextRun({ text: `Project type: ${brief.projectType}`, font: "Garamond", size: 18, color: GRAY })], { spacing: { after: 0 } })] : []),
+            ], { width: { size: 45, type: WidthType.PERCENTAGE } }),
+          ]})],
+        }),
+        // Page break
+        new Paragraph({ children: [new PageBreak()] }),
       ];
 
-      // ── Client Info Block ──────────────────────────────────────────────────
-      const clientBlock = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideH: noBorder, insideV: noBorder },
-        rows: [
-          new TableRow({
-            children: [
-              new TableCell({
-                width: { size: 50, type: WidthType.PERCENTAGE },
-                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
-                children: [
-                  new Paragraph({ children: [new TextRun({ text: "PREPARED FOR", size: 16, color: MID_GRAY, font: "Garamond", characterSpacing: 100 })], spacing: { after: 60 } }),
-                  new Paragraph({ children: [new TextRun({ text: proposal.clientName, bold: true, size: 26, font: "Garamond", color: DARK })], spacing: { after: 60 } }),
-                  ...(proposal.clientEmail ? [new Paragraph({ children: [new TextRun({ text: proposal.clientEmail, size: 18, font: "Garamond", color: MID_GRAY })], spacing: { after: 60 } })] : []),
-                  ...(brief?.propertyAddress ? [new Paragraph({ children: [new TextRun({ text: brief.propertyAddress, size: 18, font: "Garamond", color: MID_GRAY })], spacing: { after: 60 } })] : []),
-                ],
-              }),
-              new TableCell({
-                width: { size: 50, type: WidthType.PERCENTAGE },
-                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
-                children: [
-                  new Paragraph({ children: [new TextRun({ text: "PROPOSAL DETAILS", size: 16, color: MID_GRAY, font: "Garamond", characterSpacing: 100 })], spacing: { after: 60 } }),
-                  new Paragraph({ children: [new TextRun({ text: `Date: ${issueDate}`, size: 20, font: "Garamond", color: DARK })], spacing: { after: 60 } }),
-                  new Paragraph({ children: [new TextRun({ text: `Valid Until: ${validUntil}`, size: 20, font: "Garamond", color: DARK })], spacing: { after: 60 } }),
-                  new Paragraph({ children: [new TextRun({ text: `Status: ${proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}`, size: 20, font: "Garamond", color: DARK })], spacing: { after: 60 } }),
-                  ...(brief?.projectType ? [new Paragraph({ children: [new TextRun({ text: `Project Type: ${brief.projectType}`, size: 20, font: "Garamond", color: DARK })], spacing: { after: 60 } })] : []),
-                ],
-              }),
-            ],
-          }),
+      // ══════════════════════════════════════════════════════════════════════
+      // SECTION 2 — Introduction
+      // ══════════════════════════════════════════════════════════════════════
+      const introSection: any[] = [];
+      if (notes && notes.trim()) {
+        introSection.push(secHead("Introduction"));
+        notes.split("\n\n").filter(Boolean).forEach(block => {
+          introSection.push(new Paragraph({
+            children: [new TextRun({ text: block.trim(), font: "Garamond", size: 20, color: DARK })],
+            spacing: { before: 60, after: 180 },
+            indent: { firstLine: 0 },
+          }));
+        });
+      }
+
+      // ══════════════════════════════════════════════════════════════════════
+      // SECTION 3 — Project Understanding (from brief)
+      // ══════════════════════════════════════════════════════════════════════
+      const understandingSection: any[] = [];
+      if (brief && (brief.scopeOfWork || brief.stylePreferences || brief.mustHaves || brief.mustAvoids || brief.inspirationNotes)) {
+        understandingSection.push(secHead("Project Understanding"));
+
+        if (brief.scopeOfWork) {
+          understandingSection.push(new Paragraph({
+            children: [new TextRun({ text: brief.scopeOfWork, font: "Garamond", size: 20, color: DARK })],
+            spacing: { before: 60, after: 180 },
+          }));
+        }
+
+        const designRows: any[] = [];
+        if (brief.stylePreferences) designRows.push(new TableRow({ children: [
+          cell([para([new TextRun({ text: "Aesthetic vision", font: "Garamond", size: 18, bold: true, color: DARK })])], { width: { size: 28, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: WARM } }),
+          cell([para([new TextRun({ text: brief.stylePreferences, font: "Garamond", size: 18, color: DARK, italics: true })])], { width: { size: 72, type: WidthType.PERCENTAGE } }),
+        ]}));
+        if (brief.mustHaves) designRows.push(new TableRow({ children: [
+          cell([para([new TextRun({ text: "Must-haves", font: "Garamond", size: 18, bold: true, color: DARK })])], { width: { size: 28, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: WARM } }),
+          cell([para([new TextRun({ text: brief.mustHaves, font: "Garamond", size: 18, color: DARK })])], { width: { size: 72, type: WidthType.PERCENTAGE } }),
+        ]}));
+        if (brief.mustAvoids) designRows.push(new TableRow({ children: [
+          cell([para([new TextRun({ text: "To avoid", font: "Garamond", size: 18, bold: true, color: DARK })])], { width: { size: 28, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: WARM } }),
+          cell([para([new TextRun({ text: brief.mustAvoids, font: "Garamond", size: 18, color: GRAY, italics: true })])], { width: { size: 72, type: WidthType.PERCENTAGE } }),
+        ]}));
+        if (brief.inspirationNotes) designRows.push(new TableRow({ children: [
+          cell([para([new TextRun({ text: "References & inspiration", font: "Garamond", size: 18, bold: true, color: DARK })])], { width: { size: 28, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: WARM } }),
+          cell([para([new TextRun({ text: brief.inspirationNotes, font: "Garamond", size: 18, color: GRAY, italics: true })])], { width: { size: 72, type: WidthType.PERCENTAGE } }),
+        ]}));
+
+        if (designRows.length > 0) {
+          understandingSection.push(new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            borders: { top: nb, bottom: nb, left: nb, right: nb, insideH: { style: BorderStyle.SINGLE, size: 2, color: "E8E0D4" }, insideV: nb },
+            rows: designRows,
+          }));
+        }
+      }
+
+      // ══════════════════════════════════════════════════════════════════════
+      // SECTION 4 — Scope of Work (detailed phase breakdown)
+      // ══════════════════════════════════════════════════════════════════════
+      const scopeSection: any[] = [secHead("Scope of Work")];
+
+      phases.forEach((phase: any, i: number) => {
+        const deliverables = (phase.deliverables as any[] ?? []).filter((d: any) => d.title);
+
+        // Phase heading row
+        scopeSection.push(new Paragraph({
+          children: [
+            new TextRun({ text: `Phase ${i + 1}`, font: "Garamond", size: 18, bold: true, color: GOLD }),
+            new TextRun({ text: "   ", font: "Garamond", size: 18 }),
+            new TextRun({ text: phase.name, font: "Garamond", size: 22, bold: true, color: DARK }),
+            ...(phase.timeline ? [new TextRun({ text: `   ·   ${phase.timeline}`, font: "Garamond", size: 18, color: GRAY })] : []),
+          ],
+          spacing: { before: 240, after: 80 },
+          shading: { type: ShadingType.SOLID, color: WARM },
+          indent: { left: convertInchesToTwip(0.1), right: convertInchesToTwip(0.1) },
+        }));
+
+        if (phase.description) {
+          scopeSection.push(new Paragraph({
+            children: [new TextRun({ text: phase.description, font: "Garamond", size: 19, color: GRAY, italics: true })],
+            spacing: { before: 60, after: 80 },
+            indent: { left: convertInchesToTwip(0.1) },
+          }));
+        }
+
+        if (deliverables.length > 0) {
+          deliverables.forEach((d: any) => {
+            scopeSection.push(new Paragraph({
+              children: [
+                new TextRun({ text: "\u2713  ", font: "Garamond", size: 18, color: GOLD, bold: true }),
+                new TextRun({ text: d.title, font: "Garamond", size: 18, color: DARK }),
+              ],
+              spacing: { before: 40, after: 40 },
+              indent: { left: convertInchesToTwip(0.2) },
+            }));
+          });
+        }
+      });
+
+      if (phases.length === 0) {
+        scopeSection.push(para([new TextRun({ text: "Scope to be agreed on engagement.", font: "Garamond", size: 20, color: GRAY, italics: true })], { spacing: { before: 60, after: 60 } }));
+      }
+
+      // ══════════════════════════════════════════════════════════════════════
+      // SECTION 5 — Commercial Summary
+      // ══════════════════════════════════════════════════════════════════════
+      const commercialSection: any[] = [secHead("Commercial Summary")];
+
+      const headerStyle = (text: string) => new TextRun({ text, font: "Garamond", size: 18, bold: true, color: WHITE });
+      const bodyStyle = (text: string, opts: any = {}) => new TextRun({ text, font: "Garamond", size: 18, color: DARK, ...opts });
+
+      const tableHeaderRow = new TableRow({
+        tableHeader: true,
+        children: [
+          new TableCell({ width: { size: 45, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: DARK }, borders: noAllBorders, children: [para([headerStyle("Component")], { spacing: { before: 80, after: 80 } })] }),
+          new TableCell({ width: { size: 30, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: DARK }, borders: noAllBorders, children: [para([headerStyle("Amount")], { spacing: { before: 80, after: 80 }, alignment: AlignmentType.RIGHT })] }),
+          new TableCell({ width: { size: 25, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: DARK }, borders: noAllBorders, children: [para([headerStyle("Timing")], { spacing: { before: 80, after: 80 } })] }),
         ],
       });
 
-      // ── Project Title ──────────────────────────────────────────────────────
-      const titleBlock = [
-        new Paragraph({ children: [], spacing: { before: 400, after: 0 } }),
-        new Paragraph({
-          children: [new TextRun({ text: proposal.proposalTitle, bold: true, size: 36, font: "Garamond", color: DARK })],
-          spacing: { before: 200, after: 400 },
-          border: { left: goldBorder },
-          indent: { left: convertInchesToTwip(0.2) },
-        }),
-      ];
-
-      // ── Scope of Work ──────────────────────────────────────────────────────
-      const scopeRows = phases.length > 0 ? phases.flatMap((phase: any, i: number) => {
-        const deliverables = (phase.deliverables as any[] ?? []).filter((d: any) => d.title);
-        return [
-          new TableRow({
-            children: [
-              new TableCell({
-                columnSpan: 3,
-                shading: { type: ShadingType.SOLID, color: "F0ECE6" },
-                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
-                children: [new Paragraph({
-                  children: [
-                    new TextRun({ text: `Phase ${i + 1}  `, size: 20, bold: true, font: "Garamond", color: DARK }),
-                    new TextRun({ text: phase.name, size: 20, bold: true, font: "Garamond", color: DARK }),
-                    ...(phase.timeline ? [new TextRun({ text: `   ·  ${phase.timeline}`, size: 18, font: "Garamond", color: MID_GRAY })] : []),
-                  ],
-                  spacing: { before: 100, after: 100 },
-                })],
-              }),
-            ],
-          }),
-          ...(phase.description ? [new TableRow({
-            children: [
-              new TableCell({
-                columnSpan: 3,
-                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
-                children: [new Paragraph({ children: [new TextRun({ text: phase.description, size: 18, font: "Garamond", color: MID_GRAY, italics: true })], spacing: { before: 80, after: 80 }, indent: { left: convertInchesToTwip(0.15) } })],
-              }),
-            ],
-          })] : []),
-          ...deliverables.map((d: any) => new TableRow({
-            children: [
-              new TableCell({ width: { size: 5, type: WidthType.PERCENTAGE }, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: "✓", size: 16, color: GOLD, font: "Garamond" })], indent: { left: convertInchesToTwip(0.2) } })] }),
-              new TableCell({ width: { size: 75, type: WidthType.PERCENTAGE }, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: d.title, size: 18, font: "Garamond", color: DARK })], spacing: { after: 60 } })] }),
-              new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [], spacing: { after: 60 } })] }),
-            ],
-          })),
-          new TableRow({
-            children: [
-              new TableCell({ width: { size: 5, type: WidthType.PERCENTAGE }, borders: { top: noBorder, bottom: { style: BorderStyle.SINGLE, size: 2, color: "E5E7EB" }, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [] })] }),
-              new TableCell({ width: { size: 75, type: WidthType.PERCENTAGE }, borders: { top: noBorder, bottom: { style: BorderStyle.SINGLE, size: 2, color: "E5E7EB" }, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: "Phase Fee", size: 18, font: "Garamond", color: MID_GRAY })] })] }),
-              new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, borders: { top: noBorder, bottom: { style: BorderStyle.SINGLE, size: 2, color: "E5E7EB" }, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: fmt(phase.fee, currency), size: 20, bold: true, font: "Garamond", color: DARK })], alignment: AlignmentType.RIGHT })] }),
-            ],
-          }),
-        ];
-      }) : [new TableRow({
-        children: [new TableCell({ borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: "Scope to be detailed on engagement.", size: 18, font: "Garamond", color: MID_GRAY, italics: true })] })] })],
-      })];
-
-      // Total row
-      scopeRows.push(
-        new TableRow({
-          children: [
-            new TableCell({ width: { size: 5, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: DARK }, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [] })] }),
-            new TableCell({ width: { size: 75, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: DARK }, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: "TOTAL DESIGN FEE", size: 20, bold: true, font: "Garamond", color: "FFFFFF", characterSpacing: 100 })], spacing: { before: 120, after: 120 } })] }),
-            new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: DARK }, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: fmt(totalFee, currency), size: 24, bold: true, font: "Garamond", color: GOLD })], alignment: AlignmentType.RIGHT, spacing: { before: 120, after: 120 } })] }),
-          ],
-        })
-      );
+      // Build rows from phases (or show a % / hourly summary)
+      const commRows: any[] = [tableHeaderRow];
+      const thinRowBorder = { top: nb, bottom: { style: BorderStyle.SINGLE, size: 2, color: "E8E0D4" }, left: nb, right: nb };
 
       if (proposal.feeStructure === "percentage" && proposal.percentageRate) {
-        scopeRows.push(new TableRow({
-          children: [
-            new TableCell({ columnSpan: 3, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: `Note: Fee calculated as ${proposal.percentageRate}% of total project cost, confirmed post-execution.`, size: 16, font: "Garamond", color: MID_GRAY, italics: true })], spacing: { before: 80, after: 0 } })] }),
-          ],
-        }));
-      }
-
-      const scopeTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideH: noBorder, insideV: noBorder },
-        rows: scopeRows,
-      });
-
-      // ── Design Direction (from brief) ──────────────────────────────────────
-      const directionSection: any[] = [];
-      if (brief && (brief.stylePreferences || brief.mustHaves || brief.mustAvoids || brief.inspirationNotes)) {
-        directionSection.push(sectionTitle("Design Direction"));
-        if (brief.stylePreferences) {
-          directionSection.push(bodyPara("Aesthetic Vision", { bold: true }));
-          directionSection.push(bodyPara(brief.stylePreferences, { italics: true }));
-        }
-        if (brief.mustHaves) {
-          directionSection.push(bodyPara("Must-Haves", { bold: true }));
-          brief.mustHaves.split("\n").filter(Boolean).forEach((line: string) => {
-            directionSection.push(new Paragraph({ children: [new TextRun({ text: `✓  ${line.trim()}`, size: 18, font: "Garamond", color: DARK })], spacing: { after: 60 }, indent: { left: convertInchesToTwip(0.15) } }));
-          });
-        }
-        if (brief.mustAvoids) {
-          directionSection.push(bodyPara("To Avoid", { bold: true }));
-          brief.mustAvoids.split("\n").filter(Boolean).forEach((line: string) => {
-            directionSection.push(new Paragraph({ children: [new TextRun({ text: `—  ${line.trim()}`, size: 18, font: "Garamond", color: MID_GRAY }), ], spacing: { after: 60 }, indent: { left: convertInchesToTwip(0.15) } }));
-          });
-        }
-        if (brief.inspirationNotes) {
-          directionSection.push(bodyPara("Inspiration & References", { bold: true }));
-          directionSection.push(bodyPara(brief.inspirationNotes, { italics: true, color: MID_GRAY }));
-        }
-      }
-
-      // ── Payment Schedule ───────────────────────────────────────────────────
-      const paymentSection: any[] = [];
-      if (proposal.paymentSchedule) {
-        paymentSection.push(sectionTitle("Payment Schedule"));
-        proposal.paymentSchedule.split("\n").filter(Boolean).forEach((line) => {
-          paymentSection.push(new Paragraph({ children: [new TextRun({ text: `·  ${line.trim()}`, size: 20, font: "Garamond", color: DARK })], spacing: { after: 120 }, indent: { left: convertInchesToTwip(0.15) } }));
+        commRows.push(new TableRow({ children: [
+          new TableCell({ borders: thinRowBorder, children: [para([bodyStyle("Design Fee — All Phases")])] }),
+          new TableCell({ borders: thinRowBorder, children: [para([bodyStyle(`${proposal.percentageRate}% of total project cost`)], { alignment: AlignmentType.RIGHT })] }),
+          new TableCell({ borders: thinRowBorder, children: [para([bodyStyle("On milestone completion")])] }),
+        ]}));
+      } else if (proposal.feeStructure === "hourly" && proposal.hourlyRate) {
+        commRows.push(new TableRow({ children: [
+          new TableCell({ borders: thinRowBorder, children: [para([bodyStyle("Design Services — Hourly")])] }),
+          new TableCell({ borders: thinRowBorder, children: [para([bodyStyle(`${fmtFee(proposal.hourlyRate, currency)} per hour`)], { alignment: AlignmentType.RIGHT })] }),
+          new TableCell({ borders: thinRowBorder, children: [para([bodyStyle("Billed monthly in arrears")])] }),
+        ]}));
+      } else {
+        phases.forEach((phase: any, i: number) => {
+          commRows.push(new TableRow({ children: [
+            new TableCell({ borders: thinRowBorder, children: [para([bodyStyle(`Phase ${i + 1} — ${phase.name}`)])] }),
+            new TableCell({ borders: thinRowBorder, children: [para([bodyStyle(fmtFee(phase.fee, currency), { bold: true })], { alignment: AlignmentType.RIGHT })] }),
+            new TableCell({ borders: thinRowBorder, children: [para([bodyStyle(phase.timeline ?? "On completion")])] }),
+          ]}));
         });
       }
 
-      // ── Terms & Conditions ─────────────────────────────────────────────────
+      // Total row
+      if (proposal.feeStructure === "flat_fee") {
+        commRows.push(new TableRow({ children: [
+          new TableCell({ shading: { type: ShadingType.SOLID, color: "1A1A2E" }, borders: noAllBorders, children: [para([new TextRun({ text: "TOTAL DESIGN FEE", font: "Garamond", size: 20, bold: true, color: WHITE, characterSpacing: 100 })], { spacing: { before: 100, after: 100 } })] }),
+          new TableCell({ shading: { type: ShadingType.SOLID, color: "1A1A2E" }, borders: noAllBorders, children: [para([new TextRun({ text: fmtFee(totalFee, currency), font: "Garamond", size: 22, bold: true, color: GOLD })], { alignment: AlignmentType.RIGHT, spacing: { before: 100, after: 100 } })] }),
+          new TableCell({ shading: { type: ShadingType.SOLID, color: "1A1A2E" }, borders: noAllBorders, children: [para([], { spacing: { before: 100, after: 100 } })] }),
+        ]}));
+      }
+
+      commercialSection.push(new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: { top: nb, bottom: nb, left: nb, right: nb, insideH: nb, insideV: nb },
+        rows: commRows,
+      }));
+
+      // ── Payment Schedule as sub-table ──────────────────────────────────────
+      if (proposal.paymentSchedule) {
+        commercialSection.push(new Paragraph({
+          children: [new TextRun({ text: "PAYMENT SCHEDULE", font: "Garamond", size: 16, bold: true, color: GOLD, characterSpacing: 120 })],
+          spacing: { before: 300, after: 80 },
+        }));
+        proposal.paymentSchedule.split("\n").filter(Boolean).forEach(line => {
+          commercialSection.push(new Paragraph({
+            children: [
+              new TextRun({ text: "\u00B7  ", font: "Garamond", size: 18, color: GOLD }),
+              new TextRun({ text: line.trim(), font: "Garamond", size: 18, color: DARK }),
+            ],
+            spacing: { before: 40, after: 60 },
+            indent: { left: convertInchesToTwip(0.1) },
+          }));
+        });
+      }
+
+      // ══════════════════════════════════════════════════════════════════════
+      // SECTION 6 — Next Steps
+      // ══════════════════════════════════════════════════════════════════════
+      const nextSection: any[] = [];
+      if (nextSteps && nextSteps.trim()) {
+        nextSection.push(secHead("Proposed Next Steps"));
+        nextSteps.split("\n").filter(Boolean).forEach((line, i) => {
+          nextSection.push(new Paragraph({
+            children: [
+              new TextRun({ text: `${i + 1}.  `, font: "Garamond", size: 18, bold: true, color: GOLD }),
+              new TextRun({ text: line.trim(), font: "Garamond", size: 19, color: DARK }),
+            ],
+            spacing: { before: 60, after: 80 },
+            indent: { left: convertInchesToTwip(0.1) },
+          }));
+        });
+      }
+
+      // ══════════════════════════════════════════════════════════════════════
+      // SECTION 7 — Terms & Conditions
+      // ══════════════════════════════════════════════════════════════════════
       const termsSection: any[] = [];
       if (proposal.termsAndConditions) {
-        termsSection.push(sectionTitle("Terms & Conditions"));
+        termsSection.push(secHead("Terms & Conditions"));
         proposal.termsAndConditions.split("\n").filter(Boolean).forEach((line, i) => {
-          termsSection.push(new Paragraph({ children: [new TextRun({ text: `${i + 1}.  ${line.trim()}`, size: 18, font: "Garamond", color: DARK })], spacing: { after: 120 } }));
+          termsSection.push(new Paragraph({
+            children: [
+              new TextRun({ text: `${i + 1}.  `, font: "Garamond", size: 18, bold: true, color: GOLD }),
+              new TextRun({ text: line.trim(), font: "Garamond", size: 18, color: DARK }),
+            ],
+            spacing: { before: 40, after: 80 },
+          }));
         });
       }
 
-      // ── Signature Block ────────────────────────────────────────────────────
-      const sigBlock = [
-        new Paragraph({ children: [], spacing: { before: 600, after: 0 } }),
-        new Paragraph({ children: [new TextRun({ text: "─".repeat(80), color: GOLD, size: 16 })], spacing: { after: 200 } }),
+      // ══════════════════════════════════════════════════════════════════════
+      // SECTION 8 — Signature Block
+      // ══════════════════════════════════════════════════════════════════════
+      const sigSection: any[] = [
+        new Paragraph({ children: [], spacing: { before: 400 } }),
+        new Paragraph({ children: [new TextRun({ text: "\u2014".repeat(12), font: "Garamond", size: 18, color: GOLD })], spacing: { after: 200 } }),
         new Table({
           width: { size: 100, type: WidthType.PERCENTAGE },
-          borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideH: noBorder, insideV: noBorder },
-          rows: [new TableRow({
-            children: [
-              new TableCell({
-                width: { size: 50, type: WidthType.PERCENTAGE },
-                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
-                children: [
-                  new Paragraph({ children: [new TextRun({ text: "Client Acceptance", size: 16, color: MID_GRAY, font: "Garamond", characterSpacing: 80 })], spacing: { after: 600 } }),
-                  new Paragraph({ children: [new TextRun({ text: "Signature: ___________________________", size: 18, font: "Garamond", color: DARK })], spacing: { after: 120 } }),
-                  new Paragraph({ children: [new TextRun({ text: "Name: ________________________________", size: 18, font: "Garamond", color: DARK })], spacing: { after: 120 } }),
-                  new Paragraph({ children: [new TextRun({ text: "Date: _________________________________", size: 18, font: "Garamond", color: DARK })], spacing: { after: 0 } }),
-                ],
-              }),
-              new TableCell({
-                width: { size: 50, type: WidthType.PERCENTAGE },
-                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
-                children: [
-                  new Paragraph({ children: [new TextRun({ text: "Authorised by", size: 16, color: MID_GRAY, font: "Garamond", characterSpacing: 80 })], spacing: { after: 600 } }),
-                  new Paragraph({ children: [new TextRun({ text: studioName, size: 22, bold: true, font: "Garamond", color: DARK })], spacing: { after: 120 } }),
-                  new Paragraph({ children: [new TextRun({ text: `Date: ${issueDate}`, size: 18, font: "Garamond", color: MID_GRAY })], spacing: { after: 0 } }),
-                ],
-              }),
-            ],
+          borders: { top: nb, bottom: nb, left: nb, right: nb, insideH: nb, insideV: nb },
+          rows: [new TableRow({ children: [
+            cell([
+              para([new TextRun({ text: "CLIENT ACCEPTANCE", font: "Garamond", size: 15, bold: true, color: GOLD, characterSpacing: 100 })], { spacing: { before: 0, after: 500 } }),
+              para([new TextRun({ text: "Signature: ___________________________", font: "Garamond", size: 18, color: DARK })], { spacing: { after: 120 } }),
+              para([new TextRun({ text: "Name: ______________________________", font: "Garamond", size: 18, color: DARK })], { spacing: { after: 120 } }),
+              para([new TextRun({ text: "Date: ________________________________", font: "Garamond", size: 18, color: DARK })], { spacing: { after: 0 } }),
+            ], { width: { size: 50, type: WidthType.PERCENTAGE } }),
+            cell([
+              para([new TextRun({ text: "AUTHORISED BY", font: "Garamond", size: 15, bold: true, color: GOLD, characterSpacing: 100 })], { spacing: { before: 0, after: 500 } }),
+              para([new TextRun({ text: studioName, font: "Garamond", size: 22, bold: true, color: DARK })], { spacing: { after: 120 } }),
+              para([new TextRun({ text: `Date: ${issueDate}`, font: "Garamond", size: 18, color: GRAY })], { spacing: { after: 0 } }),
+            ], { width: { size: 50, type: WidthType.PERCENTAGE } }),
+          ]})],
+        }),
+        // Confidentiality footer
+        new Paragraph({ children: [], spacing: { before: 400 } }),
+        new Paragraph({
+          children: [new TextRun({
+            text: `This proposal is submitted on a confidential basis and is intended solely for ${proposal.clientName}. ${studioName} reserves the right to engage with other parties in parallel pending execution of a formal agreement.`,
+            font: "Garamond", size: 16, color: GRAY, italics: true,
           })],
+          spacing: { before: 60, after: 0 },
         }),
       ];
 
+      // ══════════════════════════════════════════════════════════════════════
+      // BUILD DOCUMENT
+      // ══════════════════════════════════════════════════════════════════════
       const doc = new Document({
         styles: {
-          default: {
-            document: {
-              run: { font: "Garamond", size: 20, color: DARK },
-            },
-          },
+          default: { document: { run: { font: "Garamond", size: 20, color: DARK } } },
         },
         sections: [{
           properties: {
-            page: {
-              margin: { top: convertInchesToTwip(1), bottom: convertInchesToTwip(1), left: convertInchesToTwip(1.2), right: convertInchesToTwip(1.2) },
-            },
+            page: { margin: { top: convertInchesToTwip(1.1), bottom: convertInchesToTwip(1.1), left: convertInchesToTwip(1.2), right: convertInchesToTwip(1.2) } },
           },
           children: [
-            ...headerSection,
-            clientBlock,
-            ...titleBlock,
-            sectionTitle("Scope of Work & Fee Breakdown"),
-            scopeTable,
-            ...directionSection,
-            ...paymentSection,
+            ...coverSection,
+            ...introSection,
+            ...understandingSection,
+            ...scopeSection,
+            ...commercialSection,
+            ...nextSection,
             ...termsSection,
-            ...sigBlock,
+            ...sigSection,
           ],
         }],
       });
