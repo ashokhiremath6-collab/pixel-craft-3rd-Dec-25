@@ -20,7 +20,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   ClipboardList, Plus, Pencil, Trash2, Eye, FileText,
   User, Mail, Phone, MapPin, DollarSign, Calendar, Send,
-  CheckCircle, XCircle, ChevronDown, ChevronUp, X, MoreHorizontal
+  CheckCircle, XCircle, ChevronDown, ChevronUp, X, MoreHorizontal, Download
 } from "lucide-react";
 import type { ClientBrief, Proposal, Project } from "@shared/schema";
 import { format } from "date-fns";
@@ -1040,79 +1040,168 @@ function ProposalSheet({ open, onClose, proposal, prefillBrief, briefs, projects
 function ProposalPreview({ proposal, open, onClose }: { proposal: Proposal; open: boolean; onClose: () => void }) {
   const phases = (proposal.phases as ProposalPhase[]) ?? [];
   const currency = proposal.currency ?? "INR";
+  const [downloading, setDownloading] = useState(false);
+  const { toast } = useToast();
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/proposals/${proposal.id}/download`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${proposal.proposalTitle.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "_").slice(0, 60)}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Download failed", description: "Could not generate the Word document.", variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const issueDate = format(new Date(proposal.createdAt), "dd MMMM yyyy");
+  const validUntil = format(new Date(Date.now() + (proposal.validityDays || 30) * 86400000), "dd MMMM yyyy");
+  const statusInfo = PROPOSAL_STATUSES[proposal.status] ?? { label: proposal.status, color: "bg-muted text-muted-foreground" };
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Proposal Preview</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-6 py-2">
-          {/* Header */}
-          <div className="border-b pb-4">
-            <h2 className="text-xl font-semibold">{proposal.proposalTitle}</h2>
-            <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1"><User className="h-3.5 w-3.5" />{proposal.clientName}</span>
-              {proposal.clientEmail && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{proposal.clientEmail}</span>}
-              <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Valid for {proposal.validityDays} days from issue</span>
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto p-0">
+        {/* Toolbar */}
+        <div className="sticky top-0 z-10 flex items-center justify-between bg-white/95 backdrop-blur px-6 py-3 border-b">
+          <span className="text-xs uppercase tracking-widest text-muted-foreground font-medium">Proposal Preview</span>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={handleDownload} disabled={downloading}>
+              <Download className="h-3.5 w-3.5 mr-1.5" />
+              {downloading ? "Generating…" : "Download .docx"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onClose}><X className="h-4 w-4" /></Button>
+          </div>
+        </div>
+
+        {/* Document body — white paper feel */}
+        <div className="bg-[#FAFAF8] px-12 py-10 space-y-0 font-serif">
+
+          {/* Studio / document type header */}
+          <div className="border-b-2 border-[#B8860B] pb-6 mb-8">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-[#6B7280] mb-1">Design Proposal</p>
+            <h1 className="text-3xl font-bold text-[#1A1A2E] leading-tight">{proposal.proposalTitle}</h1>
+          </div>
+
+          {/* Client + details two-column block */}
+          <div className="grid grid-cols-2 gap-8 mb-10">
+            <div>
+              <p className="text-[9px] uppercase tracking-[0.25em] text-[#B8860B] font-sans mb-2">Prepared for</p>
+              <p className="text-xl font-bold text-[#1A1A2E]">{proposal.clientName}</p>
+              {proposal.clientEmail && <p className="text-sm text-[#6B7280] mt-0.5">{proposal.clientEmail}</p>}
             </div>
-            <div className="mt-2">
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${PROPOSAL_STATUSES[proposal.status]?.color}`}>
-                {PROPOSAL_STATUSES[proposal.status]?.label ?? proposal.status}
-              </span>
+            <div className="text-right">
+              <p className="text-[9px] uppercase tracking-[0.25em] text-[#B8860B] font-sans mb-2">Proposal Details</p>
+              <p className="text-sm text-[#1A1A2E]">Date: {issueDate}</p>
+              <p className="text-sm text-[#1A1A2E]">Valid until: {validUntil}</p>
+              <span className={`inline-flex items-center mt-1 px-2.5 py-0.5 rounded-full text-xs font-medium font-sans ${statusInfo.color}`}>{statusInfo.label}</span>
             </div>
           </div>
 
-          {/* Phases */}
-          <div>
-            <h3 className="text-sm font-semibold mb-3">Scope of Work & Fee Breakdown</h3>
+          {/* Scope of Work */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className="text-[10px] uppercase tracking-[0.25em] text-[#B8860B] font-sans">Scope of Work & Fee Breakdown</h2>
+              <div className="flex-1 h-px bg-[#B8860B]/30" />
+            </div>
             <div className="space-y-4">
+              {phases.length === 0 && <p className="text-sm text-[#6B7280] italic">Scope to be detailed on engagement.</p>}
               {phases.map((phase, i) => (
-                <div key={phase.id} className="border rounded-md p-4">
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <div>
-                      <span className="text-xs text-muted-foreground mr-2">Phase {i + 1}</span>
-                      <span className="font-medium">{phase.name}</span>
-                      {phase.timeline && <span className="ml-2 text-xs text-muted-foreground">· {phase.timeline}</span>}
+                <div key={phase.id} className="border border-[#E5E0D8] rounded-sm overflow-hidden">
+                  <div className="bg-[#F0ECE6] px-4 py-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] uppercase tracking-wider text-[#B8860B] font-sans">Phase {i + 1}</span>
+                      <span className="text-sm font-bold text-[#1A1A2E]">{phase.name}</span>
+                      {phase.timeline && <span className="text-xs text-[#6B7280]">· {phase.timeline}</span>}
                     </div>
-                    <span className="font-semibold text-sm shrink-0">{fmt(phase.fee, currency)}</span>
+                    <span className="text-sm font-bold text-[#1A1A2E]">{fmt(phase.fee, currency)}</span>
                   </div>
-                  {phase.description && <p className="text-sm text-muted-foreground mt-1">{phase.description}</p>}
-                  {phase.deliverables.length > 0 && (
-                    <ul className="mt-2 space-y-0.5">
-                      {phase.deliverables.filter(d => d.title).map(d => (
-                        <li key={d.id} className="text-sm flex items-center gap-1.5 text-muted-foreground">
-                          <CheckCircle className="h-3.5 w-3.5 text-primary shrink-0" />{d.title}
-                        </li>
-                      ))}
-                    </ul>
+                  {(phase.description || phase.deliverables.filter(d => d.title).length > 0) && (
+                    <div className="px-4 py-3 space-y-2">
+                      {phase.description && <p className="text-sm text-[#6B7280] italic">{phase.description}</p>}
+                      {phase.deliverables.filter(d => d.title).length > 0 && (
+                        <ul className="space-y-1">
+                          {phase.deliverables.filter(d => d.title).map(d => (
+                            <li key={d.id} className="flex items-center gap-2 text-sm text-[#374151]">
+                              <span className="text-[#B8860B] font-bold text-xs">✓</span>{d.title}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
             </div>
-            <div className="mt-3 flex justify-end border-t pt-3">
-              <div className="text-right">
-                <span className="text-sm text-muted-foreground mr-3">Total Design Fee</span>
-                <span className="text-lg font-semibold">{fmt(proposal.totalFee, currency)}</span>
-              </div>
+
+            {/* Total */}
+            <div className="mt-4 bg-[#1A1A2E] rounded-sm px-4 py-3 flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-sans">Total Design Fee</span>
+              <span className="text-xl font-bold text-[#B8860B]">{fmt(proposal.totalFee, currency)}</span>
             </div>
+            {proposal.feeStructure === "percentage" && proposal.percentageRate && (
+              <p className="text-xs text-[#6B7280] italic mt-1.5 text-right">{proposal.percentageRate}% of total project cost — confirmed post-execution</p>
+            )}
           </div>
 
           {/* Payment Schedule */}
           {proposal.paymentSchedule && (
-            <div>
-              <h3 className="text-sm font-semibold mb-2">Payment Schedule</h3>
-              <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans">{proposal.paymentSchedule}</pre>
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-3">
+                <h2 className="text-[10px] uppercase tracking-[0.25em] text-[#B8860B] font-sans">Payment Schedule</h2>
+                <div className="flex-1 h-px bg-[#B8860B]/30" />
+              </div>
+              <div className="space-y-1.5">
+                {proposal.paymentSchedule.split("\n").filter(Boolean).map((line, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm text-[#374151]">
+                    <span className="text-[#B8860B] mt-0.5">·</span>
+                    <span>{line.trim()}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Terms */}
+          {/* Terms & Conditions */}
           {proposal.termsAndConditions && (
-            <div>
-              <h3 className="text-sm font-semibold mb-2">Terms & Conditions</h3>
-              <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans">{proposal.termsAndConditions}</pre>
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-3">
+                <h2 className="text-[10px] uppercase tracking-[0.25em] text-[#B8860B] font-sans">Terms & Conditions</h2>
+                <div className="flex-1 h-px bg-[#B8860B]/30" />
+              </div>
+              <div className="space-y-1.5">
+                {proposal.termsAndConditions.split("\n").filter(Boolean).map((line, i) => (
+                  <p key={i} className="text-sm text-[#374151]">
+                    <span className="text-[#B8860B] font-bold mr-1.5">{i + 1}.</span>{line.trim()}
+                  </p>
+                ))}
+              </div>
             </div>
           )}
+
+          {/* Signature block */}
+          <div className="border-t border-[#B8860B]/40 mt-10 pt-8 grid grid-cols-2 gap-8">
+            <div>
+              <p className="text-[9px] uppercase tracking-[0.2em] text-[#6B7280] font-sans mb-4">Client Acceptance</p>
+              <div className="space-y-3 text-sm text-[#374151]">
+                <p className="border-b border-[#D1D5DB] pb-4">Signature: </p>
+                <p className="border-b border-[#D1D5DB] pb-4">Name: </p>
+                <p className="border-b border-[#D1D5DB] pb-4">Date: </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[9px] uppercase tracking-[0.2em] text-[#6B7280] font-sans mb-4">Authorised by</p>
+              <p className="text-lg font-bold text-[#1A1A2E]">— Studio</p>
+              <p className="text-sm text-[#6B7280] mt-1">{issueDate}</p>
+            </div>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -1409,6 +1498,21 @@ export default function ProjectBriefPage() {
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => openEditProposal(p)}>
                           <Pencil className="h-3.5 w-3.5 mr-1" />Edit
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/proposals/${p.id}/download`, { credentials: "include" });
+                            if (!res.ok) throw new Error();
+                            const blob = await res.blob();
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `${p.proposalTitle.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "_").slice(0, 60)}.docx`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          } catch { /* silent */ }
+                        }}>
+                          <Download className="h-3.5 w-3.5 mr-1" />.docx
                         </Button>
                         {p.status === "draft" && (
                           <Button size="sm" variant="outline" onClick={() => markSentMutation.mutate(p.id)}>

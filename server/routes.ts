@@ -14840,8 +14840,18 @@ Return your response in the following JSON format only (no markdown, no code blo
       const orgId = req.user?.orgId;
       if (!orgId) return res.status(400).json({ error: "orgId required" });
       const { proposals, insertProposalSchema } = await import("@shared/schema");
-      const parsed = insertProposalSchema.safeParse({ ...req.body, orgId });
-      if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message });
+      const body = { ...req.body, orgId };
+      // Coerce empty-string numerics to null
+      for (const k of ["percentageRate", "hourlyRate", "totalFee"]) {
+        if (body[k] === "" || body[k] === undefined) body[k] = null;
+        else if (typeof body[k] === "number") body[k] = String(body[k]);
+      }
+      if (!body.totalFee) body.totalFee = "0";
+      const parsed = insertProposalSchema.safeParse(body);
+      if (!parsed.success) {
+        console.error("POST /api/proposals validation:", parsed.error.errors);
+        return res.status(400).json({ error: parsed.error.errors[0]?.message });
+      }
       const [result] = await db.insert(proposals).values(parsed.data).returning();
       res.status(201).json(result);
     } catch (err) {
@@ -14872,6 +14882,11 @@ Return your response in the following JSON format only (no markdown, no code blo
       const { eq, and } = await import("drizzle-orm");
       const { proposals } = await import("@shared/schema");
       const { id: _id, orgId: _org, createdAt: _ca, ...updateData } = req.body;
+      for (const k of ["percentageRate", "hourlyRate", "totalFee"]) {
+        if (updateData[k] === "" || updateData[k] === undefined) updateData[k] = null;
+        else if (typeof updateData[k] === "number") updateData[k] = String(updateData[k]);
+      }
+      if (updateData.totalFee == null) updateData.totalFee = "0";
       const [result] = await db.update(proposals)
         .set({ ...updateData, updatedAt: new Date() })
         .where(and(eq(proposals.id, id), eq(proposals.orgId, orgId)))
@@ -14881,6 +14896,315 @@ Return your response in the following JSON format only (no markdown, no code blo
     } catch (err) {
       console.error("PUT /api/proposals/:id error:", err);
       res.status(500).json({ error: "Failed to update proposal" });
+    }
+  });
+
+  // ─── Proposal Word Document Download ─────────────────────────────────────────
+  app.get("/api/proposals/:id/download", requireAuth, async (req: any, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      const { id } = req.params;
+      const { eq, and } = await import("drizzle-orm");
+      const { proposals, clientBriefs } = await import("@shared/schema");
+
+      const [proposal] = await db.select().from(proposals).where(and(eq(proposals.id, id), eq(proposals.orgId, orgId)));
+      if (!proposal) return res.status(404).json({ error: "Not found" });
+
+      let brief: any = null;
+      if (proposal.briefId) {
+        const [b] = await db.select().from(clientBriefs).where(eq(clientBriefs.id, proposal.briefId));
+        if (b) brief = b;
+      }
+
+      const org = await storage.getOrganisation(orgId);
+      const studioName = org?.name ?? "Design Studio";
+
+      const {
+        Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+        AlignmentType, BorderStyle, WidthType, HeadingLevel, ShadingType,
+        convertInchesToTwip, PageOrientation,
+      } = await import("docx");
+
+      const GOLD = "B8860B";
+      const DARK = "1A1A2E";
+      const LIGHT_GRAY = "F8F8F8";
+      const MID_GRAY = "6B7280";
+
+      const fmt = (amount: any, cur = "INR") => {
+        const n = Number(amount) || 0;
+        if (cur === "INR") return `₹${n.toLocaleString("en-IN")}`;
+        return new Intl.NumberFormat("en-US", { style: "currency", currency: cur }).format(n);
+      };
+
+      const phases = (proposal.phases as any[]) ?? [];
+      const totalFee = Number(proposal.totalFee) || 0;
+      const currency = proposal.currency ?? "INR";
+      const issueDate = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+      const validUntil = new Date(Date.now() + (proposal.validityDays || 30) * 864e5).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+
+      const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
+      const goldBorder = { style: BorderStyle.SINGLE, size: 12, color: GOLD };
+
+      const sectionTitle = (text: string) =>
+        new Paragraph({
+          children: [new TextRun({ text: text.toUpperCase(), bold: true, size: 20, color: GOLD, font: "Garamond" })],
+          spacing: { before: 400, after: 160 },
+          border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: GOLD } },
+        });
+
+      const bodyPara = (text: string, opts: any = {}) =>
+        new Paragraph({
+          children: [new TextRun({ text, size: 20, font: "Garamond", color: DARK, ...opts })],
+          spacing: { after: 120 },
+        });
+
+      // ── Header ─────────────────────────────────────────────────────────────
+      const headerSection: any[] = [
+        new Paragraph({
+          children: [new TextRun({ text: studioName.toUpperCase(), bold: true, size: 48, font: "Garamond", color: DARK })],
+          spacing: { after: 60 },
+        }),
+        new Paragraph({
+          children: [new TextRun({ text: "DESIGN  PROPOSAL", size: 28, font: "Garamond", color: GOLD, characterSpacing: 200 })],
+          spacing: { after: 60 },
+        }),
+        new Paragraph({
+          children: [new TextRun({ text: "─".repeat(80), color: GOLD, size: 16 })],
+          spacing: { after: 400 },
+        }),
+      ];
+
+      // ── Client Info Block ──────────────────────────────────────────────────
+      const clientBlock = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideH: noBorder, insideV: noBorder },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+                children: [
+                  new Paragraph({ children: [new TextRun({ text: "PREPARED FOR", size: 16, color: MID_GRAY, font: "Garamond", characterSpacing: 100 })], spacing: { after: 60 } }),
+                  new Paragraph({ children: [new TextRun({ text: proposal.clientName, bold: true, size: 26, font: "Garamond", color: DARK })], spacing: { after: 60 } }),
+                  ...(proposal.clientEmail ? [new Paragraph({ children: [new TextRun({ text: proposal.clientEmail, size: 18, font: "Garamond", color: MID_GRAY })], spacing: { after: 60 } })] : []),
+                  ...(brief?.propertyAddress ? [new Paragraph({ children: [new TextRun({ text: brief.propertyAddress, size: 18, font: "Garamond", color: MID_GRAY })], spacing: { after: 60 } })] : []),
+                ],
+              }),
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+                children: [
+                  new Paragraph({ children: [new TextRun({ text: "PROPOSAL DETAILS", size: 16, color: MID_GRAY, font: "Garamond", characterSpacing: 100 })], spacing: { after: 60 } }),
+                  new Paragraph({ children: [new TextRun({ text: `Date: ${issueDate}`, size: 20, font: "Garamond", color: DARK })], spacing: { after: 60 } }),
+                  new Paragraph({ children: [new TextRun({ text: `Valid Until: ${validUntil}`, size: 20, font: "Garamond", color: DARK })], spacing: { after: 60 } }),
+                  new Paragraph({ children: [new TextRun({ text: `Status: ${proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}`, size: 20, font: "Garamond", color: DARK })], spacing: { after: 60 } }),
+                  ...(brief?.projectType ? [new Paragraph({ children: [new TextRun({ text: `Project Type: ${brief.projectType}`, size: 20, font: "Garamond", color: DARK })], spacing: { after: 60 } })] : []),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      // ── Project Title ──────────────────────────────────────────────────────
+      const titleBlock = [
+        new Paragraph({ children: [], spacing: { before: 400, after: 0 } }),
+        new Paragraph({
+          children: [new TextRun({ text: proposal.proposalTitle, bold: true, size: 36, font: "Garamond", color: DARK })],
+          spacing: { before: 200, after: 400 },
+          border: { left: goldBorder },
+          indent: { left: convertInchesToTwip(0.2) },
+        }),
+      ];
+
+      // ── Scope of Work ──────────────────────────────────────────────────────
+      const scopeRows = phases.length > 0 ? phases.flatMap((phase: any, i: number) => {
+        const deliverables = (phase.deliverables as any[] ?? []).filter((d: any) => d.title);
+        return [
+          new TableRow({
+            children: [
+              new TableCell({
+                columnSpan: 3,
+                shading: { type: ShadingType.SOLID, color: "F0ECE6" },
+                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+                children: [new Paragraph({
+                  children: [
+                    new TextRun({ text: `Phase ${i + 1}  `, size: 20, bold: true, font: "Garamond", color: DARK }),
+                    new TextRun({ text: phase.name, size: 20, bold: true, font: "Garamond", color: DARK }),
+                    ...(phase.timeline ? [new TextRun({ text: `   ·  ${phase.timeline}`, size: 18, font: "Garamond", color: MID_GRAY })] : []),
+                  ],
+                  spacing: { before: 100, after: 100 },
+                })],
+              }),
+            ],
+          }),
+          ...(phase.description ? [new TableRow({
+            children: [
+              new TableCell({
+                columnSpan: 3,
+                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+                children: [new Paragraph({ children: [new TextRun({ text: phase.description, size: 18, font: "Garamond", color: MID_GRAY, italics: true })], spacing: { before: 80, after: 80 }, indent: { left: convertInchesToTwip(0.15) } })],
+              }),
+            ],
+          })] : []),
+          ...deliverables.map((d: any) => new TableRow({
+            children: [
+              new TableCell({ width: { size: 5, type: WidthType.PERCENTAGE }, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: "✓", size: 16, color: GOLD, font: "Garamond" })], indent: { left: convertInchesToTwip(0.2) } })] }),
+              new TableCell({ width: { size: 75, type: WidthType.PERCENTAGE }, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: d.title, size: 18, font: "Garamond", color: DARK })], spacing: { after: 60 } })] }),
+              new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [], spacing: { after: 60 } })] }),
+            ],
+          })),
+          new TableRow({
+            children: [
+              new TableCell({ width: { size: 5, type: WidthType.PERCENTAGE }, borders: { top: noBorder, bottom: { style: BorderStyle.SINGLE, size: 2, color: "E5E7EB" }, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [] })] }),
+              new TableCell({ width: { size: 75, type: WidthType.PERCENTAGE }, borders: { top: noBorder, bottom: { style: BorderStyle.SINGLE, size: 2, color: "E5E7EB" }, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: "Phase Fee", size: 18, font: "Garamond", color: MID_GRAY })] })] }),
+              new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, borders: { top: noBorder, bottom: { style: BorderStyle.SINGLE, size: 2, color: "E5E7EB" }, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: fmt(phase.fee, currency), size: 20, bold: true, font: "Garamond", color: DARK })], alignment: AlignmentType.RIGHT })] }),
+            ],
+          }),
+        ];
+      }) : [new TableRow({
+        children: [new TableCell({ borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: "Scope to be detailed on engagement.", size: 18, font: "Garamond", color: MID_GRAY, italics: true })] })] })],
+      })];
+
+      // Total row
+      scopeRows.push(
+        new TableRow({
+          children: [
+            new TableCell({ width: { size: 5, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: DARK }, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [] })] }),
+            new TableCell({ width: { size: 75, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: DARK }, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: "TOTAL DESIGN FEE", size: 20, bold: true, font: "Garamond", color: "FFFFFF", characterSpacing: 100 })], spacing: { before: 120, after: 120 } })] }),
+            new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: DARK }, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: fmt(totalFee, currency), size: 24, bold: true, font: "Garamond", color: GOLD })], alignment: AlignmentType.RIGHT, spacing: { before: 120, after: 120 } })] }),
+          ],
+        })
+      );
+
+      if (proposal.feeStructure === "percentage" && proposal.percentageRate) {
+        scopeRows.push(new TableRow({
+          children: [
+            new TableCell({ columnSpan: 3, borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }, children: [new Paragraph({ children: [new TextRun({ text: `Note: Fee calculated as ${proposal.percentageRate}% of total project cost, confirmed post-execution.`, size: 16, font: "Garamond", color: MID_GRAY, italics: true })], spacing: { before: 80, after: 0 } })] }),
+          ],
+        }));
+      }
+
+      const scopeTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideH: noBorder, insideV: noBorder },
+        rows: scopeRows,
+      });
+
+      // ── Design Direction (from brief) ──────────────────────────────────────
+      const directionSection: any[] = [];
+      if (brief && (brief.stylePreferences || brief.mustHaves || brief.mustAvoids || brief.inspirationNotes)) {
+        directionSection.push(sectionTitle("Design Direction"));
+        if (brief.stylePreferences) {
+          directionSection.push(bodyPara("Aesthetic Vision", { bold: true }));
+          directionSection.push(bodyPara(brief.stylePreferences, { italics: true }));
+        }
+        if (brief.mustHaves) {
+          directionSection.push(bodyPara("Must-Haves", { bold: true }));
+          brief.mustHaves.split("\n").filter(Boolean).forEach((line: string) => {
+            directionSection.push(new Paragraph({ children: [new TextRun({ text: `✓  ${line.trim()}`, size: 18, font: "Garamond", color: DARK })], spacing: { after: 60 }, indent: { left: convertInchesToTwip(0.15) } }));
+          });
+        }
+        if (brief.mustAvoids) {
+          directionSection.push(bodyPara("To Avoid", { bold: true }));
+          brief.mustAvoids.split("\n").filter(Boolean).forEach((line: string) => {
+            directionSection.push(new Paragraph({ children: [new TextRun({ text: `—  ${line.trim()}`, size: 18, font: "Garamond", color: MID_GRAY }), ], spacing: { after: 60 }, indent: { left: convertInchesToTwip(0.15) } }));
+          });
+        }
+        if (brief.inspirationNotes) {
+          directionSection.push(bodyPara("Inspiration & References", { bold: true }));
+          directionSection.push(bodyPara(brief.inspirationNotes, { italics: true, color: MID_GRAY }));
+        }
+      }
+
+      // ── Payment Schedule ───────────────────────────────────────────────────
+      const paymentSection: any[] = [];
+      if (proposal.paymentSchedule) {
+        paymentSection.push(sectionTitle("Payment Schedule"));
+        proposal.paymentSchedule.split("\n").filter(Boolean).forEach((line) => {
+          paymentSection.push(new Paragraph({ children: [new TextRun({ text: `·  ${line.trim()}`, size: 20, font: "Garamond", color: DARK })], spacing: { after: 120 }, indent: { left: convertInchesToTwip(0.15) } }));
+        });
+      }
+
+      // ── Terms & Conditions ─────────────────────────────────────────────────
+      const termsSection: any[] = [];
+      if (proposal.termsAndConditions) {
+        termsSection.push(sectionTitle("Terms & Conditions"));
+        proposal.termsAndConditions.split("\n").filter(Boolean).forEach((line, i) => {
+          termsSection.push(new Paragraph({ children: [new TextRun({ text: `${i + 1}.  ${line.trim()}`, size: 18, font: "Garamond", color: DARK })], spacing: { after: 120 } }));
+        });
+      }
+
+      // ── Signature Block ────────────────────────────────────────────────────
+      const sigBlock = [
+        new Paragraph({ children: [], spacing: { before: 600, after: 0 } }),
+        new Paragraph({ children: [new TextRun({ text: "─".repeat(80), color: GOLD, size: 16 })], spacing: { after: 200 } }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideH: noBorder, insideV: noBorder },
+          rows: [new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+                children: [
+                  new Paragraph({ children: [new TextRun({ text: "Client Acceptance", size: 16, color: MID_GRAY, font: "Garamond", characterSpacing: 80 })], spacing: { after: 600 } }),
+                  new Paragraph({ children: [new TextRun({ text: "Signature: ___________________________", size: 18, font: "Garamond", color: DARK })], spacing: { after: 120 } }),
+                  new Paragraph({ children: [new TextRun({ text: "Name: ________________________________", size: 18, font: "Garamond", color: DARK })], spacing: { after: 120 } }),
+                  new Paragraph({ children: [new TextRun({ text: "Date: _________________________________", size: 18, font: "Garamond", color: DARK })], spacing: { after: 0 } }),
+                ],
+              }),
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+                children: [
+                  new Paragraph({ children: [new TextRun({ text: "Authorised by", size: 16, color: MID_GRAY, font: "Garamond", characterSpacing: 80 })], spacing: { after: 600 } }),
+                  new Paragraph({ children: [new TextRun({ text: studioName, size: 22, bold: true, font: "Garamond", color: DARK })], spacing: { after: 120 } }),
+                  new Paragraph({ children: [new TextRun({ text: `Date: ${issueDate}`, size: 18, font: "Garamond", color: MID_GRAY })], spacing: { after: 0 } }),
+                ],
+              }),
+            ],
+          })],
+        }),
+      ];
+
+      const doc = new Document({
+        styles: {
+          default: {
+            document: {
+              run: { font: "Garamond", size: 20, color: DARK },
+            },
+          },
+        },
+        sections: [{
+          properties: {
+            page: {
+              margin: { top: convertInchesToTwip(1), bottom: convertInchesToTwip(1), left: convertInchesToTwip(1.2), right: convertInchesToTwip(1.2) },
+            },
+          },
+          children: [
+            ...headerSection,
+            clientBlock,
+            ...titleBlock,
+            sectionTitle("Scope of Work & Fee Breakdown"),
+            scopeTable,
+            ...directionSection,
+            ...paymentSection,
+            ...termsSection,
+            ...sigBlock,
+          ],
+        }],
+      });
+
+      const buffer = await Packer.toBuffer(doc);
+      const slug = proposal.proposalTitle.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "_").slice(0, 60);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      res.setHeader("Content-Disposition", `attachment; filename="${slug}.docx"`);
+      res.send(buffer);
+    } catch (err) {
+      console.error("GET /api/proposals/:id/download error:", err);
+      res.status(500).json({ error: "Failed to generate document" });
     }
   });
 
