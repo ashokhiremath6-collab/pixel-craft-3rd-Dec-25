@@ -14966,28 +14966,25 @@ Return your response in the following JSON format only (no markdown, no code blo
       // SECTION 1 — Cover Page  (its own docx section → forced page break)
       // ══════════════════════════════════════════════════════════════════════
       const coverChildren: any[] = [
-        // Vertical spacer so the block sits in the upper-middle of the page
-        new Paragraph({ children: [], spacing: { after: 0, before: 1440 } }), // ~1 inch push-down
-
-        // Studio name
+        // Studio name — top of page, modest size
         new Paragraph({
-          children: [new TextRun({ text: studioName.toUpperCase(), font: "Garamond", size: 56, bold: true, color: DARK })],
-          spacing: { after: 80 },
+          children: [new TextRun({ text: studioName.toUpperCase(), font: "Garamond", size: 36, bold: true, color: DARK })],
+          spacing: { before: 0, after: 60 },
         }),
         // Gold rule
         new Paragraph({
-          children: [new TextRun({ text: "\u2014".repeat(14), font: "Garamond", size: 22, color: GOLD })],
-          spacing: { after: 480 },
+          children: [new TextRun({ text: "\u2014".repeat(10), font: "Garamond", size: 20, color: GOLD })],
+          spacing: { after: 240 },
         }),
         // "Design Proposal" subtitle
         new Paragraph({
-          children: [new TextRun({ text: "Design Proposal", font: "Garamond", size: 34, color: GRAY, italics: true })],
-          spacing: { after: 80 },
+          children: [new TextRun({ text: "Design Proposal", font: "Garamond", size: 26, color: GRAY, italics: true })],
+          spacing: { after: 60 },
         }),
         // Proposal title
         new Paragraph({
-          children: [new TextRun({ text: proposal.proposalTitle, font: "Garamond", size: 44, bold: true, color: DARK })],
-          spacing: { after: 720 },
+          children: [new TextRun({ text: proposal.proposalTitle, font: "Garamond", size: 36, bold: true, color: DARK })],
+          spacing: { after: 360 },
         }),
         // Two-column: Proposed To / Document Details
         // cantSplit ensures Word never breaks this row across pages
