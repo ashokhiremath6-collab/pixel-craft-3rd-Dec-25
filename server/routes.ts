@@ -15005,12 +15005,12 @@ Return your response in the following JSON format only (no markdown, no code blo
         }
       }
 
-      const pcs = await db.select().from(projectClients).where(eq(projectClients.projectId, body.projectId));
-      let clientEmails: string[] = pcs.map(pc => pc.clientEmail).filter(Boolean) as string[];
-      if (clientEmails.length === 0 && project.clientEmail) clientEmails = [project.clientEmail];
-      if (clientEmails.length === 0) {
+      // Payment requests go only to the primary client email — not to all portal viewers
+      const primaryClientEmail = project.clientEmail?.trim();
+      if (!primaryClientEmail) {
         return res.status(400).json({ error: "No client email is configured for this project. Add a client email before sending a payment request." });
       }
+      const clientEmails: string[] = [primaryClientEmail];
 
       const { or, isNull } = await import("drizzle-orm");
       const [vendor] = await db.select().from(vendors)
