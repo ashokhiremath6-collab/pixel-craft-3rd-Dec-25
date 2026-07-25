@@ -90,9 +90,6 @@ const briefFormSchema = z.object({
   projectType: z.string().optional(),
   propertyAddress: z.string().optional(),
   scopeOfWork: z.string().optional(),
-  budgetMin: z.string().optional(),
-  budgetMax: z.string().optional(),
-  currency: z.string().default("INR"),
   timeline: z.string().optional(),
   stylePreferences: z.string().optional(),
   mustHaves: z.string().optional(),
@@ -178,9 +175,6 @@ function BriefSheet({ open, onClose, brief, projects }: {
       projectType: brief?.projectType ?? "",
       propertyAddress: brief?.propertyAddress ?? "",
       scopeOfWork: brief?.scopeOfWork ?? "",
-      budgetMin: brief?.budgetMin?.toString() ?? "",
-      budgetMax: brief?.budgetMax?.toString() ?? "",
-      currency: brief?.currency ?? "INR",
       timeline: brief?.timeline ?? "",
       stylePreferences: brief?.stylePreferences ?? "",
       mustHaves: brief?.mustHaves ?? "",
@@ -200,9 +194,6 @@ function BriefSheet({ open, onClose, brief, projects }: {
         projectType: brief?.projectType ?? "",
         propertyAddress: brief?.propertyAddress ?? "",
         scopeOfWork: brief?.scopeOfWork ?? "",
-        budgetMin: brief?.budgetMin?.toString() ?? "",
-        budgetMax: brief?.budgetMax?.toString() ?? "",
-        currency: brief?.currency ?? "INR",
         timeline: brief?.timeline ?? "",
         stylePreferences: brief?.stylePreferences ?? "",
         mustHaves: brief?.mustHaves ?? "",
@@ -999,16 +990,6 @@ export default function ProjectBriefPage() {
                       {b.propertyAddress && (
                         <div className="flex items-center gap-1.5 text-muted-foreground">
                           <MapPin className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{b.propertyAddress}</span>
-                        </div>
-                      )}
-                      {(b.budgetMin || b.budgetMax) && (
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          <DollarSign className="h-3.5 w-3.5 shrink-0" />
-                          <span>
-                            {b.budgetMin && b.budgetMax ? `${fmt(b.budgetMin, b.currency)} – ${fmt(b.budgetMax, b.currency)}` :
-                              b.budgetMin ? `From ${fmt(b.budgetMin, b.currency)}` :
-                              `Up to ${fmt(b.budgetMax!, b.currency)}`}
-                          </span>
                         </div>
                       )}
                       {b.timeline && (

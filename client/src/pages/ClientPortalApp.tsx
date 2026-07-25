@@ -171,9 +171,6 @@ const briefFormSchema = z.object({
   projectType: z.string().optional(),
   propertyAddress: z.string().optional(),
   scopeOfWork: z.string().optional(),
-  budgetMin: z.string().optional(),
-  budgetMax: z.string().optional(),
-  currency: z.string().default("INR"),
   timeline: z.string().optional(),
   stylePreferences: z.string().optional(),
   mustHaves: z.string().optional(),
@@ -218,9 +215,6 @@ function BriefSection({ projectId, brief, onSaved }: { projectId: string; brief:
       projectType: brief?.projectType ?? "",
       propertyAddress: brief?.propertyAddress ?? "",
       scopeOfWork: "",
-      budgetMin: brief?.budgetMin?.toString() ?? "",
-      budgetMax: brief?.budgetMax?.toString() ?? "",
-      currency: brief?.currency ?? "INR",
       timeline: brief?.timeline ?? "",
       stylePreferences: "",
       mustHaves: brief?.mustHaves ?? "",
@@ -250,8 +244,6 @@ function BriefSection({ projectId, brief, onSaved }: { projectId: string; brief:
         scopeOfWork: scopeParts.join("\n") || null,
         stylePreferences: styleParts.join("\n") || null,
         projectType: data.projectType || null,
-        budgetMin: data.budgetMin || null,
-        budgetMax: data.budgetMax || null,
         timeline: data.timeline || null,
         phone: data.phone || null,
         propertyAddress: data.propertyAddress || null,
@@ -278,11 +270,6 @@ function BriefSection({ projectId, brief, onSaved }: { projectId: string; brief:
       { label: "Project type", value: brief.projectType },
       { label: "Phone", value: brief.phone, icon: Phone },
       { label: "Scope of work", value: brief.scopeOfWork },
-      { label: "Budget", value: (brief.budgetMin || brief.budgetMax)
-        ? (brief.budgetMin && brief.budgetMax
-            ? `${fmtCurrency(brief.budgetMin, brief.currency)} – ${fmtCurrency(brief.budgetMax, brief.currency)}`
-            : brief.budgetMin ? `From ${fmtCurrency(brief.budgetMin, brief.currency)}` : `Up to ${fmtCurrency(brief.budgetMax, brief.currency)}`)
-        : null, icon: DollarSign },
       { label: "Timeline", value: brief.timeline },
       { label: "Style preferences", value: brief.stylePreferences },
       { label: "Must-haves", value: brief.mustHaves },
