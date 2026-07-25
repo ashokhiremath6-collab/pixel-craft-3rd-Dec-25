@@ -810,10 +810,11 @@ function PhaseEditor({ phases, onChange }: { phases: ProposalPhase[]; onChange: 
 }
 
 // ─── Proposal Sheet ───────────────────────────────────────────────────────────
-function ProposalSheet({ open, onClose, proposal, briefs, projects }: {
+function ProposalSheet({ open, onClose, proposal, prefillBrief, briefs, projects }: {
   open: boolean;
   onClose: () => void;
   proposal?: Proposal | null;
+  prefillBrief?: ClientBrief | null;
   briefs: ClientBrief[];
   projects: Project[];
 }) {
@@ -826,12 +827,26 @@ function ProposalSheet({ open, onClose, proposal, briefs, projects }: {
 
   const totalFee = phases.reduce((sum, p) => sum + (Number(p.fee) || 0), 0);
 
+  const buildDefaultValues = (b?: ClientBrief | null) => {
+    if (b) {
+      const addr = b.propertyAddress ? `, ${b.propertyAddress}` : "";
+      return {
+        proposalTitle: `Design Proposal — ${b.clientName}${addr}`,
+        clientName: b.clientName,
+        clientEmail: b.clientEmail ?? "",
+        briefId: b.id,
+      };
+    }
+    return { proposalTitle: "", clientName: "", clientEmail: "", briefId: "" };
+  };
+
   const form = useForm<ProposalFormValues>({
     resolver: zodResolver(proposalFormSchema),
     defaultValues: {
-      proposalTitle: proposal?.proposalTitle ?? "",
-      clientName: proposal?.clientName ?? "",
-      clientEmail: proposal?.clientEmail ?? "",
+      ...buildDefaultValues(prefillBrief),
+      proposalTitle: proposal?.proposalTitle ?? buildDefaultValues(prefillBrief).proposalTitle,
+      clientName: proposal?.clientName ?? buildDefaultValues(prefillBrief).clientName,
+      clientEmail: proposal?.clientEmail ?? buildDefaultValues(prefillBrief).clientEmail ?? "",
       feeStructure: proposal?.feeStructure ?? "flat_fee",
       percentageRate: proposal?.percentageRate?.toString() ?? "",
       hourlyRate: proposal?.hourlyRate?.toString() ?? "",
@@ -840,10 +855,24 @@ function ProposalSheet({ open, onClose, proposal, briefs, projects }: {
       termsAndConditions: proposal?.termsAndConditions ?? DEFAULT_TERMS,
       validityDays: proposal?.validityDays ?? 30,
       status: proposal?.status ?? "draft",
-      briefId: proposal?.briefId ?? "",
+      briefId: proposal?.briefId ?? buildDefaultValues(prefillBrief).briefId,
       projectId: proposal?.projectId ?? "",
     },
   });
+
+  // Re-populate when the sheet opens with a different prefill brief
+  useEffect(() => {
+    if (open && prefillBrief && !isEdit) {
+      const addr = prefillBrief.propertyAddress ? `, ${prefillBrief.propertyAddress}` : "";
+      form.reset({
+        ...form.getValues(),
+        proposalTitle: `Design Proposal — ${prefillBrief.clientName}${addr}`,
+        clientName: prefillBrief.clientName,
+        clientEmail: prefillBrief.clientEmail ?? "",
+        briefId: prefillBrief.id,
+      });
+    }
+  }, [open, prefillBrief?.id]);
 
   const mutation = useMutation({
     mutationFn: async (data: ProposalFormValues) => {
@@ -880,6 +909,32 @@ function ProposalSheet({ open, onClose, proposal, briefs, projects }: {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Client Information</p>
               <div className="grid grid-cols-2 gap-4">
+                {/* Linked Brief first — selecting it auto-fills the rest */}
+                <FormField control={form.control} name="briefId" render={({ field }) => (
+                  <FormItem className="col-span-2"><FormLabel>Linked Brief</FormLabel>
+                    <Select
+                      onValueChange={(v) => {
+                        const id = v === "__none__" ? "" : v;
+                        field.onChange(id);
+                        if (id) {
+                          const brief = briefs.find(b => b.id === id);
+                          if (brief) {
+                            form.setValue("clientName", brief.clientName);
+                            if (brief.clientEmail) form.setValue("clientEmail", brief.clientEmail);
+                            const addr = brief.propertyAddress ? `, ${brief.propertyAddress}` : "";
+                            form.setValue("proposalTitle", `Design Proposal — ${brief.clientName}${addr}`);
+                          }
+                        }
+                      }}
+                      value={field.value || "__none__"}
+                    >
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select a brief to auto-fill" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="__none__">None</SelectItem>
+                        {briefs.map(b => <SelectItem key={b.id} value={b.id}>{b.clientName} — {b.propertyAddress ?? b.projectType ?? ""}</SelectItem>)}
+                      </SelectContent>
+                    </Select><FormMessage /></FormItem>
+                )} />
                 <FormField control={form.control} name="proposalTitle" render={({ field }) => (
                   <FormItem className="col-span-2"><FormLabel>Proposal Title *</FormLabel><FormControl><Input placeholder="e.g. Design Proposal — Maker Tower Apartment" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
@@ -888,33 +943,6 @@ function ProposalSheet({ open, onClose, proposal, briefs, projects }: {
                 )} />
                 <FormField control={form.control} name="clientEmail" render={({ field }) => (
                   <FormItem><FormLabel>Client Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="briefId" render={({ field }) => (
-                  <FormItem><FormLabel>Linked Brief</FormLabel>
-                    <Select
-                      onValueChange={(v) => {
-                        const id = v === "__none__" ? "" : v;
-                        field.onChange(id);
-                        if (id) {
-                          const brief = briefs.find(b => b.id === id);
-                          if (brief) {
-                            if (!form.getValues("clientName")) form.setValue("clientName", brief.clientName);
-                            if (!form.getValues("clientEmail") && brief.clientEmail) form.setValue("clientEmail", brief.clientEmail);
-                            if (!form.getValues("proposalTitle")) {
-                              const addr = brief.propertyAddress ? `, ${brief.propertyAddress}` : "";
-                              form.setValue("proposalTitle", `Design Proposal — ${brief.clientName}${addr}`);
-                            }
-                          }
-                        }
-                      }}
-                      value={field.value || "__none__"}
-                    >
-                      <FormControl><SelectTrigger><SelectValue placeholder="None" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        <SelectItem value="__none__">None</SelectItem>
-                        {briefs.map(b => <SelectItem key={b.id} value={b.id}>{b.clientName}</SelectItem>)}
-                      </SelectContent>
-                    </Select><FormMessage /></FormItem>
                 )} />
               </div>
             </div>
@@ -1106,6 +1134,7 @@ export default function ProjectBriefPage() {
   const [viewBrief, setViewBrief] = useState<ClientBrief | null>(null);
   const [proposalSheetOpen, setProposalSheetOpen] = useState(false);
   const [editProposal, setEditProposal] = useState<Proposal | null>(null);
+  const [prefillBrief, setPrefillBrief] = useState<ClientBrief | null>(null);
   const [previewProposal, setPreviewProposal] = useState<Proposal | null>(null);
 
   const { data: briefs = [], isLoading: briefsLoading } = useQuery<ClientBrief[]>({ queryKey: ["/api/client-briefs"] });
@@ -1135,8 +1164,9 @@ export default function ProjectBriefPage() {
   function openNewBrief() { setEditBrief(null); setBriefSheetOpen(true); }
   function openEditBrief(b: ClientBrief) { setViewBrief(null); setEditBrief(b); setBriefSheetOpen(true); }
   function openViewBrief(b: ClientBrief) { setViewBrief(b); }
-  function openNewProposal() { setEditProposal(null); setProposalSheetOpen(true); }
-  function openEditProposal(p: Proposal) { setEditProposal(p); setProposalSheetOpen(true); }
+  function openNewProposal() { setPrefillBrief(null); setEditProposal(null); setProposalSheetOpen(true); }
+  function openEditProposal(p: Proposal) { setPrefillBrief(null); setEditProposal(p); setProposalSheetOpen(true); }
+  function openNewProposalFromBrief(b: ClientBrief) { setPrefillBrief(b); setEditProposal(null); setProposalSheetOpen(true); }
 
   return (
     <div className="p-6 space-y-6">
@@ -1172,70 +1202,161 @@ export default function ProjectBriefPage() {
               <p className="text-xs mt-1">Capture your first client brief to get started.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-6">
               {briefs.map(b => {
                 const statusInfo = BRIEF_STATUSES[b.status] ?? { label: b.status, variant: "secondary" as const };
+                const refs = (b.referenceFiles as any[]) || [];
+
+                // Parse scopeOfWork
+                function parseKL(text: string | null | undefined, prefix: string) {
+                  if (!text) return null;
+                  const line = text.split("\n").find(l => l.startsWith(prefix + ": "));
+                  return line ? line.slice(prefix.length + 2).trim() : null;
+                }
+                function freeLines(text: string | null | undefined, ...prefixes: string[]) {
+                  if (!text) return "";
+                  return text.split("\n").filter(l => !prefixes.some(p => l.startsWith(p + ": "))).join("\n").trim();
+                }
+                const scope = b.scopeOfWork ?? "";
+                const scopeType  = parseKL(scope, "Scope");
+                const workType   = parseKL(scope, "Work type");
+                const roomsRaw   = parseKL(scope, "Rooms");
+                const bedrooms   = parseKL(scope, "Bedrooms");
+                const childBeds  = parseKL(scope, "Children's bedrooms");
+                const occupants  = parseKL(scope, "Occupants");
+                const ages       = parseKL(scope, "Ages");
+                const scopeExtra = freeLines(scope, "Scope", "Work type", "Rooms", "Bedrooms", "Children's bedrooms", "Occupants", "Ages");
+                const rooms      = roomsRaw ? roomsRaw.split(",").map(r => r.trim()).filter(Boolean) : [];
+
+                const styleText  = b.stylePreferences ?? "";
+                const styleRaw   = parseKL(styleText, "Style direction");
+                const styleExtra = freeLines(styleText, "Style direction");
+                const styles     = styleRaw ? styleRaw.split(",").map(s => s.trim()).filter(Boolean) : [];
+
                 return (
-                  <Card
-                    key={b.id}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => openViewBrief(b)}
-                  >
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <CardTitle className="text-base">{b.clientName}</CardTitle>
-                          {b.projectType && <p className="text-xs text-muted-foreground mt-0.5">{b.projectType}</p>}
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
-                          <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openViewBrief(b)}>
-                                <Eye className="h-3.5 w-3.5 mr-2" />View
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openEditBrief(b)}>
-                                <Pencil className="h-3.5 w-3.5 mr-2" />Edit
-                              </DropdownMenuItem>
-                              {isAdmin && (
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onClick={() => { if (confirm("Delete this brief?")) deleteBriefMutation.mutate(b.id); }}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5 mr-2" />Delete
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                  <div key={b.id} className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                    {/* Header strip */}
+                    <div className="flex items-start justify-between gap-3 px-6 py-5 border-b bg-muted/30">
+                      <div className="min-w-0">
+                        <h3 className="text-lg font-semibold leading-tight">{b.clientName}</h3>
+                        {b.projectType && <p className="text-sm text-muted-foreground mt-0.5">{b.projectType}</p>}
+                        <p className="text-xs text-muted-foreground mt-1">{format(new Date(b.createdAt), "dd MMM yyyy")}</p>
                       </div>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                      {b.clientEmail && (
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          <Mail className="h-3.5 w-3.5 shrink-0" /><span>{b.clientEmail}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                        <Button size="sm" variant="outline" onClick={() => openNewProposalFromBrief(b)}>
+                          <FileText className="h-3.5 w-3.5 mr-1.5" />New Proposal
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditBrief(b)}>
+                              <Pencil className="h-3.5 w-3.5 mr-2" />Edit
+                            </DropdownMenuItem>
+                            {isAdmin && (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => { if (confirm("Delete this brief?")) deleteBriefMutation.mutate(b.id); }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-2" />Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
+
+                      {/* Contact */}
+                      {(b.clientEmail || b.phone || b.propertyAddress) && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Contact</p>
+                          {b.clientEmail && <div className="flex items-center gap-2 text-sm"><Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" /><span>{b.clientEmail}</span></div>}
+                          {b.phone && <div className="flex items-center gap-2 text-sm"><Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" /><span>{b.phone}</span></div>}
+                          {b.propertyAddress && <div className="flex items-center gap-2 text-sm"><MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" /><span>{b.propertyAddress}</span></div>}
                         </div>
                       )}
-                      {b.propertyAddress && (
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          <MapPin className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{b.propertyAddress}</span>
+
+                      {/* Scope */}
+                      {(scopeType || workType || rooms.length > 0 || bedrooms || occupants || ages || scopeExtra) && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Scope of work</p>
+                          <div className="space-y-1.5 text-sm">
+                            {scopeType && <p><span className="text-muted-foreground">Scope: </span>{scopeType}</p>}
+                            {workType && <p><span className="text-muted-foreground">Work type: </span>{workType}</p>}
+                            {(bedrooms || childBeds) && (
+                              <p>
+                                {bedrooms && <><span className="text-muted-foreground">Bedrooms: </span>{bedrooms}</>}
+                                {bedrooms && childBeds && <span className="mx-2 text-muted-foreground">·</span>}
+                                {childBeds && <><span className="text-muted-foreground">Children's: </span>{childBeds}</>}
+                              </p>
+                            )}
+                            {occupants && <p><span className="text-muted-foreground">Occupants: </span>{occupants}</p>}
+                            {ages && <p><span className="text-muted-foreground">Ages: </span>{ages}</p>}
+                            {rooms.length > 0 && (
+                              <div className="flex flex-wrap gap-1 pt-1">
+                                {rooms.map(r => <span key={r} className="inline-block px-2 py-0.5 rounded-full bg-muted text-xs font-medium">{r}</span>)}
+                              </div>
+                            )}
+                            {scopeExtra && <p className="text-muted-foreground">{scopeExtra}</p>}
+                          </div>
                         </div>
                       )}
-                      {b.timeline && (
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          <Calendar className="h-3.5 w-3.5 shrink-0" /><span>{b.timeline}</span>
+
+                      {/* Design direction */}
+                      {(styles.length > 0 || styleExtra || b.mustHaves || b.mustAvoids || b.inspirationNotes) && (
+                        <div className="space-y-2 md:col-span-2">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Design direction</p>
+                          <div className="space-y-3">
+                            {styles.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {styles.map(s => <span key={s} className="inline-block px-2.5 py-0.5 rounded-full bg-muted text-xs font-medium">{s}</span>)}
+                              </div>
+                            )}
+                            {styleExtra && <p className="text-sm text-muted-foreground italic">"{styleExtra}"</p>}
+                            {(b.mustHaves || b.mustAvoids) && (
+                              <div className="grid grid-cols-2 gap-3">
+                                {b.mustHaves && (
+                                  <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30 px-4 py-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-green-700 dark:text-green-400 mb-1.5">Must-haves</p>
+                                    <p className="text-sm whitespace-pre-line">{b.mustHaves}</p>
+                                  </div>
+                                )}
+                                {b.mustAvoids && (
+                                  <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30 px-4 py-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400 mb-1.5">Must-avoids</p>
+                                    <p className="text-sm whitespace-pre-line">{b.mustAvoids}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {b.inspirationNotes && <p className="text-sm"><span className="text-muted-foreground">Inspiration: </span>{b.inspirationNotes}</p>}
+                          </div>
                         </div>
                       )}
-                      <p className="text-xs text-muted-foreground pt-1">
-                        {format(new Date(b.createdAt), "dd MMM yyyy")}
-                      </p>
-                    </CardContent>
-                  </Card>
+
+                      {/* Reference files */}
+                      {refs.length > 0 && (
+                        <div className="space-y-2 md:col-span-2">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Reference files</p>
+                          <div className="flex flex-wrap gap-2">
+                            {refs.map((f: any, i: number) => (
+                              <a key={i} href={`/api/object-storage/file?path=${encodeURIComponent(f.path)}`} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs hover:bg-muted transition-colors">
+                                <FileText className="h-3.5 w-3.5 text-muted-foreground" />{f.name}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -1327,10 +1448,11 @@ export default function ProjectBriefPage() {
         projects={projects}
       />
       <ProposalSheet
-        key={editProposal?.id ?? "new"}
+        key={editProposal?.id ?? (prefillBrief?.id ?? "new")}
         open={proposalSheetOpen}
-        onClose={() => { setProposalSheetOpen(false); setEditProposal(null); }}
+        onClose={() => { setProposalSheetOpen(false); setEditProposal(null); setPrefillBrief(null); }}
         proposal={editProposal}
+        prefillBrief={prefillBrief}
         briefs={briefs}
         projects={projects}
       />
