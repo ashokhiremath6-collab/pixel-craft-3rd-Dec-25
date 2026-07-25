@@ -1221,11 +1221,14 @@ export default function GanttChartPage() {
 
         const sortedTasks = [...filteredTasks].sort((a, b) => {
           if (taskSortMode === 'original') {
-            // Trust the API-returned order entirely.
-            // The backend sorts by: schedule uploadedAt ASC → rowIndex ASC → createdAt ASC,
-            // which correctly handles multiple imports for the same project (each starts
-            // rowIndex at 0, so only schedule upload time disambiguates them).
-            // Re-sorting by rowIndex/createdAt on the frontend would break multi-import order.
+            // Overdue tasks always float to the top: with remarks first, then without.
+            const aOverdue = isTaskOverdue(a) && !isPhaseHeader(a.name || '');
+            const bOverdue = isTaskOverdue(b) && !isPhaseHeader(b.name || '');
+            const aHasRemark = !!(a as any).remarks;
+            const bHasRemark = !!(b as any).remarks;
+            const aScore = aOverdue ? (aHasRemark ? 0 : 1) : 2;
+            const bScore = bOverdue ? (bHasRemark ? 0 : 1) : 2;
+            if (aScore !== bScore) return aScore - bScore;
             return (apiOrderIndex.get(a.id) ?? 0) - (apiOrderIndex.get(b.id) ?? 0);
           } else if (taskSortMode === 'category') {
             const catA = extractCategory(a.name || '');
@@ -1313,7 +1316,7 @@ export default function GanttChartPage() {
                     <PopoverContent className="w-48" align="end">
                       <div className="space-y-2">
                         <p className="text-sm font-medium mb-2">Show/Hide Columns</p>
-                        {Object.entries(visibleColumns).map(([key, value]) => {
+                        {Object.entries(visibleColumns).filter(([key]) => key !== 'remarks').map(([key, value]) => {
                           const labelMap: Record<string, string> = {
                             subcategory: 'Subcategory',
                             startDate: 'Start Date',
@@ -1402,9 +1405,10 @@ export default function GanttChartPage() {
                   <Button
                     variant={showOverdueOnly ? "destructive" : "outline"}
                     size="sm"
-                    onClick={() => setShowOverdueOnly(!showOverdueOnly)}
+                    onClick={() => { if (!showOverdueOnly) setShowOverdueOnly(true); }}
                     className="gap-2"
                     data-testid="button-overdue-filter"
+                    title={showOverdueOnly ? "Overdue filter is active" : "Show overdue tasks only"}
                   >
                     <AlertTriangle className="h-4 w-4" />
                     {showOverdueOnly ? "Showing Overdue" : "Show Overdue"}
@@ -1419,17 +1423,16 @@ export default function GanttChartPage() {
                     <ArrowUpDown className="h-4 w-4" />
                     {taskSortMode === 'original' ? "Original Order" : taskSortMode === 'date' ? "By Date" : "By Category"}
                   </Button>
-                  {(taskSearchQuery || showOverdueOnly) && (
+                  {taskSearchQuery && (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => {
                         setTaskSearchQuery("");
-                        setShowOverdueOnly(false);
                       }}
                       data-testid="button-clear-filters"
                     >
-                      Clear filters
+                      Clear search
                     </Button>
                   )}
                 </div>
