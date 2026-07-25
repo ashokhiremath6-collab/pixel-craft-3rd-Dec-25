@@ -1,23 +1,58 @@
 {
   "name": "Pixelcraft Designs",
   "short_name": "Pixelcraft",
-  "description": "Studio management for interior designers",
+  "description": "Studio management for interior designers and architectural firms — projects, vendors, drawings, client portal and Gantt scheduling in one place.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#ffffff",
   "theme_color": "#003380",
+  "categories": ["business", "productivity"],
+  "lang": "en",
   "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/dashboard",
+      "description": "Go to your studio dashboard"
+    },
+    {
+      "name": "Projects",
+      "url": "/projects",
+      "description": "View all projects"
     }
   ]
 }
